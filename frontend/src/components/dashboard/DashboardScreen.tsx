@@ -3,8 +3,10 @@ import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   RefreshControl,
 } from 'react-native';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { progressApi } from '../../utils/api';
 import { useStore } from '../../store';
+import { colors, radius, spacing, shadow } from '../../theme';
 
 export default function DashboardScreen({ navigation }: any) {
   const { user, profile, cnsFatigue, prs } = useStore();
@@ -26,31 +28,40 @@ export default function DashboardScreen({ navigation }: any) {
     setRefreshing(false);
   };
 
-  const fatigueBg = cnsFatigue >= 7 ? '#3A1A1A' : cnsFatigue >= 4 ? '#2A2A1A' : '#1A2A1A';
-  const fatigueColor = cnsFatigue >= 7 ? '#FF4500' : cnsFatigue >= 4 ? '#FFD700' : '#4CAF50';
-  const fatigueLabel = cnsFatigue >= 7 ? 'HIGH — Reduce Volume' : cnsFatigue >= 4 ? 'MODERATE' : 'FRESH';
+  const fatigueBg = cnsFatigue >= 7 ? colors.dangerSoft : cnsFatigue >= 4 ? colors.warningSoft : colors.successSoft;
+  const fatigueColor = cnsFatigue >= 7 ? colors.fatigueHigh : cnsFatigue >= 4 ? colors.fatigueMid : colors.fatigueLow;
+  const fatigueLabel = cnsFatigue >= 7 ? 'High — Reduce Volume' : cnsFatigue >= 4 ? 'Moderate' : 'Fresh';
 
   return (
     <ScrollView
       style={styles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFD700" />}
+      contentContainerStyle={styles.scrollContent}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
     >
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.greeting}>
-          {new Date().getHours() < 12 ? 'Good morning' : 'Good evening'},{'\n'}
-          {user?.full_name?.split(' ')[0] || 'Athlete'} 👊
-        </Text>
+        <View>
+          <Text style={styles.greetingSmall}>
+            {new Date().getHours() < 12 ? 'Good morning' : 'Good evening'}
+          </Text>
+          <View style={styles.nameRow}>
+            <Text style={styles.greeting}>{user?.full_name?.split(' ')[0] || 'Athlete'}</Text>
+            <Ionicons name="flame" size={22} color={colors.primary} style={{ marginLeft: 6 }} />
+          </View>
+        </View>
         {profile?.goal && (
           <View style={styles.phaseBadge}>
-            <Text style={styles.phaseText}>{profile.goal.toUpperCase()} PHASE</Text>
+            <Text style={styles.phaseText}>{profile.goal.toUpperCase()}</Text>
           </View>
         )}
       </View>
 
       {/* CNS Fatigue */}
-      <View style={[styles.card, { backgroundColor: fatigueBg }]}>
-        <Text style={styles.cardLabel}>CNS FATIGUE INDEX</Text>
+      <View style={[styles.card, { backgroundColor: fatigueBg, borderColor: 'transparent' }]}>
+        <View style={styles.cardLabelRow}>
+          <MaterialCommunityIcons name="pulse" size={14} color={colors.textSecondary} />
+          <Text style={styles.cardLabel}>CNS Fatigue Index</Text>
+        </View>
         <View style={styles.fatigueRow}>
           <Text style={[styles.fatigueScore, { color: fatigueColor }]}>{cnsFatigue}</Text>
           <Text style={styles.fatigueDenom}>/10</Text>
@@ -65,34 +76,43 @@ export default function DashboardScreen({ navigation }: any) {
       {/* Today's Macros */}
       {macros && (
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>TODAY'S TARGETS</Text>
-          <View style={styles.macroRow}>
-            <MacroChip label="CALORIES" value={`${macros.calories}`} unit="kcal" color="#FFD700" />
-            <MacroChip label="PROTEIN" value={`${macros.protein_g}g`} unit="" color="#FF4500" />
-            <MacroChip label="CARBS" value={`${macros.carbs_g}g`} unit="" color="#4CAF50" />
-            <MacroChip label="FAT" value={`${macros.fat_g}g`} unit="" color="#2196F3" />
+          <View style={styles.cardLabelRow}>
+            <Ionicons name="nutrition-outline" size={14} color={colors.textSecondary} />
+            <Text style={styles.cardLabel}>Today's Targets</Text>
           </View>
-          <Text style={styles.waterTarget}>💧 Water: {(macros.water_ml / 1000).toFixed(1)}L</Text>
+          <View style={styles.macroRow}>
+            <MacroChip label="Calories" value={`${macros.calories}`} color={colors.primary} />
+            <MacroChip label="Protein" value={`${macros.protein_g}g`} color={colors.danger} />
+            <MacroChip label="Carbs" value={`${macros.carbs_g}g`} color={colors.success} />
+            <MacroChip label="Fat" value={`${macros.fat_g}g`} color={colors.secondary} />
+          </View>
+          <View style={styles.waterRow}>
+            <Ionicons name="water-outline" size={14} color={colors.secondary} />
+            <Text style={styles.waterTarget}>Water target: {(macros.water_ml / 1000).toFixed(1)}L</Text>
+          </View>
         </View>
       )}
 
       {/* Quick Actions */}
-      <Text style={styles.sectionLabel}>QUICK START</Text>
+      <Text style={styles.sectionLabel}>Quick Start</Text>
       <View style={styles.quickGrid}>
-        <QuickBtn label="Ask Coach" icon="🦅" onPress={() => navigation.navigate('Coach')} accent="#FFD700" />
-        <QuickBtn label="Start Workout" icon="🏋️" onPress={() => navigation.navigate('Coach')} accent="#FF4500" />
-        <QuickBtn label="Log Progress" icon="📊" onPress={() => navigation.navigate('Progress')} accent="#4CAF50" />
-        <QuickBtn label="My PRs" icon="🏆" onPress={() => navigation.navigate('Profile')} accent="#9C27B0" />
+        <QuickBtn label="Ask Coach" iconLib="ion" icon="chatbubble-ellipses-outline" onPress={() => navigation.navigate('Coach')} accent={colors.primary} />
+        <QuickBtn label="Start Workout" iconLib="mci" icon="weight-lifter" onPress={() => navigation.navigate('Coach')} accent={colors.secondary} />
+        <QuickBtn label="Log Progress" iconLib="ion" icon="bar-chart-outline" onPress={() => navigation.navigate('Progress')} accent={colors.success} />
+        <QuickBtn label="My PRs" iconLib="ion" icon="trophy-outline" onPress={() => navigation.navigate('Profile')} accent={colors.warning} />
       </View>
 
       {/* Top PRs */}
       {Object.keys(prs).length > 0 && (
         <>
-          <Text style={styles.sectionLabel}>PERSONAL RECORDS</Text>
+          <Text style={styles.sectionLabel}>Personal Records</Text>
           <View style={styles.card}>
-            {Object.entries(prs).slice(0, 5).map(([name, weight]) => (
-              <View key={name} style={styles.prRow}>
-                <Text style={styles.prName}>{name}</Text>
+            {Object.entries(prs).slice(0, 5).map(([name, weight], idx, arr) => (
+              <View key={name} style={[styles.prRow, idx === arr.length - 1 && { borderBottomWidth: 0 }]}>
+                <View style={styles.prNameRow}>
+                  <Ionicons name="medal-outline" size={16} color={colors.warning} />
+                  <Text style={styles.prName}>{name}</Text>
+                </View>
                 <Text style={styles.prWeight}>{weight} kg</Text>
               </View>
             ))}
@@ -103,88 +123,110 @@ export default function DashboardScreen({ navigation }: any) {
   );
 }
 
-const MacroChip = ({ label, value, unit, color }: any) => (
+const MacroChip = ({ label, value, color }: any) => (
   <View style={styles.macroChip}>
     <Text style={[styles.macroValue, { color }]}>{value}</Text>
     <Text style={styles.macroLabel}>{label}</Text>
   </View>
 );
 
-const QuickBtn = ({ label, icon, onPress, accent }: any) => (
-  <TouchableOpacity style={[styles.quickBtn, { borderColor: accent + '44' }]} onPress={onPress}>
-    <Text style={styles.quickIcon}>{icon}</Text>
-    <Text style={styles.quickLabel}>{label}</Text>
-  </TouchableOpacity>
-);
+const QuickBtn = ({ label, icon, iconLib, onPress, accent }: any) => {
+  const IconComponent = iconLib === 'mci' ? MaterialCommunityIcons : Ionicons;
+  return (
+    <TouchableOpacity style={styles.quickBtn} onPress={onPress} activeOpacity={0.85}>
+      <View style={[styles.quickIconWrap, { backgroundColor: accent + '1A' }]}>
+        <IconComponent name={icon} size={22} color={accent} />
+      </View>
+      <Text style={styles.quickLabel}>{label}</Text>
+    </TouchableOpacity>
+  );
+};
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212' },
+  container: { flex: 1, backgroundColor: colors.background },
+  scrollContent: { paddingBottom: 32 },
   header: {
-    padding: 24,
+    padding: spacing.xl,
     paddingTop: 60,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
-  greeting: { color: '#FFFFFF', fontSize: 22, fontWeight: '700', lineHeight: 30 },
-  phaseBadge: { backgroundColor: '#1E3A5F', borderRadius: 8, padding: 8 },
-  phaseText: { color: '#FFD700', fontSize: 10, fontWeight: '700', letterSpacing: 1 },
+  greetingSmall: { color: colors.textMuted, fontSize: 13, marginBottom: 2 },
+  nameRow: { flexDirection: 'row', alignItems: 'center' },
+  greeting: { color: colors.textPrimary, fontSize: 26, fontWeight: '800' },
+  phaseBadge: { backgroundColor: colors.secondarySoft, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 6 },
+  phaseText: { color: colors.secondary, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
   card: {
-    backgroundColor: '#1E1E1E',
-    borderRadius: 16,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 12,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: colors.border,
+    ...shadow.card,
   },
-  cardLabel: { color: '#555', fontSize: 11, fontWeight: '700', letterSpacing: 1.5, marginBottom: 12 },
+  cardLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: spacing.md },
+  cardLabel: { color: colors.textSecondary, fontSize: 12, fontWeight: '700', letterSpacing: 0.8 },
   fatigueRow: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 10 },
   fatigueScore: { fontSize: 40, fontWeight: '800' },
-  fatigueDenom: { color: '#555', fontSize: 20, marginLeft: 2 },
+  fatigueDenom: { color: colors.textMuted, fontSize: 20, marginLeft: 2 },
   fatigueSpacer: { flex: 1 },
-  fatigueLabel: { fontSize: 13, fontWeight: '700', letterSpacing: 1 },
-  fatigueBar: { height: 6, backgroundColor: '#2A2A2A', borderRadius: 3, overflow: 'hidden' },
+  fatigueLabel: { fontSize: 13, fontWeight: '700', letterSpacing: 0.5 },
+  fatigueBar: { height: 6, backgroundColor: '#FFFFFF99', borderRadius: 3, overflow: 'hidden' },
   fatigueBarFill: { height: '100%', borderRadius: 3 },
-  macroRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+  macroRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.md },
   macroChip: { alignItems: 'center', flex: 1 },
-  macroValue: { fontSize: 18, fontWeight: '700' },
-  macroLabel: { color: '#555', fontSize: 10, marginTop: 2, letterSpacing: 0.5 },
-  waterTarget: { color: '#888', fontSize: 13 },
+  macroValue: { fontSize: 18, fontWeight: '800' },
+  macroLabel: { color: colors.textMuted, fontSize: 11, marginTop: 2, letterSpacing: 0.4 },
+  waterRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  waterTarget: { color: colors.textSecondary, fontSize: 13 },
   sectionLabel: {
-    color: '#555',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.5,
-    marginHorizontal: 16,
-    marginBottom: 8,
-    marginTop: 8,
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    marginTop: spacing.sm,
+    textTransform: 'uppercase',
   },
   quickGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginHorizontal: 16,
-    gap: 8,
-    marginBottom: 12,
+    marginHorizontal: spacing.lg,
+    gap: spacing.sm,
+    marginBottom: spacing.md,
   },
   quickBtn: {
     width: '47%',
-    backgroundColor: '#1E1E1E',
-    borderRadius: 14,
-    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.lg,
     borderWidth: 1,
-    alignItems: 'center',
-    gap: 6,
+    borderColor: colors.border,
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    ...shadow.card,
   },
-  quickIcon: { fontSize: 24 },
-  quickLabel: { color: '#C0C0C0', fontSize: 13, fontWeight: '600' },
+  quickIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickLabel: { color: colors.textPrimary, fontSize: 14, fontWeight: '700' },
   prRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 8,
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: '#2A2A2A',
+    borderBottomColor: colors.border,
   },
-  prName: { color: '#C0C0C0', fontSize: 14 },
-  prWeight: { color: '#FFD700', fontSize: 14, fontWeight: '700' },
+  prNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  prName: { color: colors.textSecondary, fontSize: 14, fontWeight: '500' },
+  prWeight: { color: colors.primary, fontSize: 14, fontWeight: '800' },
 });

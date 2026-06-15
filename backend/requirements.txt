@@ -1,28 +1,27 @@
 # Core
-fastapi==0.111.0
-uvicorn[standard]==0.30.1
-python-multipart==0.0.9
+fastapi
+uvicorn[standard]
+python-multipart
 
 # Settings & Env
-pydantic==2.7.1
-pydantic-settings==2.3.0
+pydantic
+pydantic-settings
 
 # Auth & Security
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
+python-jose[cryptography]
+passlib[bcrypt]
 
 # Database
-supabase==2.5.0
+supabase
+websockets>=11,<13
 
-# AI / LLM
-# AI
-langchain==0.2.5
-langchain-openai==0.1.8
-langchain-google-genai==1.0.6
-langgraph==0.1.9
+# AI / LLM (Groq only — removed openai and google-genai)
+langchain
+langchain-groq
+langgraph
 
 # Vector DB
-chromadb==0.5.3
+chromadb
 
 # HTTP
-httpx==0.27.0
+httpx

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from schemas.models import ProfileCreate, ProfileResponse, InjuryCreate, InjuryResponse, PRCreate, PRResponse
+from schemas.models import ProfileCreate, InjuryCreate, PRCreate
 from core.security import get_current_user
 from db.supabase_client import get_supabase
 from typing import List

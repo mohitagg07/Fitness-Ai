@@ -1,81 +1,84 @@
-import { create } from 'zustand';
-import * as SecureStore from 'expo-secure-store';
+/**
+ * PulseForge AI — Shared Theme
+ * A light, energetic, fitness-forward design language.
+ */
 
-interface User {
-  id: string;
-  email: string;
-  full_name?: string;
-}
+export const colors = {
+  // Backgrounds
+  background: '#F6F8FA',
+  surface: '#FFFFFF',
+  surfaceAlt: '#F0F4F8',
 
-interface ActiveSession {
-  id: string;
-  day_label: string;
-  logs: any[];
-}
+  // Borders
+  border: '#E6EAF0',
+  borderStrong: '#D8DEE8',
 
-interface AppState {
-  // Auth
-  user: User | null;
-  token: string | null;
-  setAuth: (user: User, token: string) => void;
-  logout: () => void;
+  // Text
+  textPrimary: '#16202A',
+  textSecondary: '#5C6B7A',
+  textMuted: '#9AA7B5',
+  textOnAccent: '#FFFFFF',
 
-  // Profile
-  profile: any;
-  injuries: any[];
-  prs: Record<string, number>;
-  setProfile: (profile: any, injuries: any[], prs: any[]) => void;
+  // Brand
+  primary: '#FF6B35',      // energetic coral-orange — primary CTA
+  primaryDark: '#E2552A',
+  primarySoft: '#FFE8DE',
 
-  // Active workout session
-  activeSession: ActiveSession | null;
-  setActiveSession: (session: ActiveSession | null) => void;
-  addLogToSession: (log: any) => void;
+  secondary: '#2563EB',    // confident blue — accents / badges
+  secondarySoft: '#E3ECFF',
 
-  // CNS fatigue
-  cnsFatigue: number;
-  setCnsFatigue: (score: number) => void;
+  success: '#15A364',
+  successSoft: '#DDF6E8',
 
-  // Coach chat
-  chatHistory: { role: 'user' | 'assistant'; content: string; timestamp: Date }[];
-  addChatMessage: (role: 'user' | 'assistant', content: string) => void;
-  clearChat: () => void;
-}
+  warning: '#E5A30B',
+  warningSoft: '#FFF3D6',
 
-export const useStore = create<AppState>((set, get) => ({
-  user: null,
-  token: null,
-  setAuth: async (user, token) => {
-    await SecureStore.setItemAsync('fitai_token', token);
-    set({ user, token });
+  danger: '#E5484D',
+  dangerSoft: '#FFE5E6',
+
+  // Fatigue scale
+  fatigueLow: '#15A364',
+  fatigueMid: '#E5A30B',
+  fatigueHigh: '#E5484D',
+};
+
+export const radius = {
+  sm: 10,
+  md: 14,
+  lg: 18,
+  xl: 24,
+  pill: 999,
+};
+
+export const spacing = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  xxl: 24,
+};
+
+export const shadow = {
+  card: {
+    shadowColor: '#16202A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
   },
-  logout: async () => {
-    await SecureStore.deleteItemAsync('fitai_token');
-    set({ user: null, token: null, profile: null, injuries: [], prs: {} });
+  raised: {
+    shadowColor: '#16202A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 4,
   },
+};
 
-  profile: null,
-  injuries: [],
-  prs: {},
-  setProfile: (profile, injuries, prs) => {
-    const prMap: Record<string, number> = {};
-    prs.forEach((p: any) => { prMap[p.exercise_name] = p.weight_kg; });
-    set({ profile, injuries, prs: prMap });
-  },
-
-  activeSession: null,
-  setActiveSession: (session) => set({ activeSession: session }),
-  addLogToSession: (log) => set((state) => ({
-    activeSession: state.activeSession
-      ? { ...state.activeSession, logs: [...state.activeSession.logs, log] }
-      : null,
-  })),
-
-  cnsFatigue: 0,
-  setCnsFatigue: (score) => set({ cnsFatigue: score }),
-
-  chatHistory: [],
-  addChatMessage: (role, content) => set((state) => ({
-    chatHistory: [...state.chatHistory, { role, content, timestamp: new Date() }],
-  })),
-  clearChat: () => set({ chatHistory: [] }),
-}));
+export const typography = {
+  heading: { fontWeight: '800' as const, color: colors.textPrimary },
+  subheading: { fontWeight: '700' as const, color: colors.textPrimary },
+  body: { fontWeight: '400' as const, color: colors.textSecondary },
+  label: { fontWeight: '700' as const, color: colors.textMuted, letterSpacing: 1.2 },
+};
