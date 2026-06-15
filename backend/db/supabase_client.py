@@ -1,5 +1,5 @@
 """
-Supabase client — database layer for FitAI.
+Supabase client — database layer for RepMind.
 All DB calls go through this module.
 """
 import logging
@@ -23,12 +23,7 @@ def get_supabase() -> Client:
 # ─── Profile helpers ─────────────────────────────────────────────────────────
 
 def get_full_user_context(user_id: str) -> tuple[dict, dict]:
-    """
-    Returns (user_profile, agent_state).
-    Profile includes injuries and personal_records.
-    """
     sb = get_supabase()
-
     profile_res = sb.table("profiles").select("*").eq("id", user_id).single().execute()
     injuries_res = sb.table("injury_profiles").select("*").eq("user_id", user_id).execute()
     prs_res = sb.table("personal_records").select("*").eq("user_id", user_id).execute()
@@ -51,6 +46,9 @@ def get_full_user_context(user_id: str) -> tuple[dict, dict]:
         "current_phase": profile.get("goal", "maintain"),
         "consecutive_high_rpe_days": 0,
         "weekly_session_count": 0,
+        "workout_streak": 0,
+        "protein_streak": 0,
+        "total_workouts": 0,
     }
 
     return profile, agent_state
@@ -63,9 +61,7 @@ def upsert_agent_state(user_id: str, state: dict) -> None:
     sb.table("agent_states").upsert(state, on_conflict="user_id").execute()
 
 
-def save_conversation_message(
-    user_id: str, session_id: str | None, role: str, content: str
-) -> None:
+def save_conversation_message(user_id: str, session_id: str | None, role: str, content: str) -> None:
     sb = get_supabase()
     sb.table("ai_conversations").insert({
         "user_id": user_id,
@@ -90,7 +86,7 @@ def upsert_personal_record(user_id: str, exercise_name: str, weight_kg: float, r
 
 SCHEMA_SQL = """
 -- ============================================================
--- FitAI Database Schema
+-- RepMind Database Schema v2
 -- Run in Supabase SQL editor (Project Settings → SQL Editor)
 -- ============================================================
 
@@ -104,7 +100,11 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     weight_kg FLOAT CHECK (weight_kg BETWEEN 30 AND 300),
     goal TEXT CHECK (goal IN ('cut','bulk','maintain','recomp')),
     experience_level TEXT CHECK (experience_level IN ('beginner','intermediate','advanced','elite')),
+    gym_or_home TEXT DEFAULT 'gym',
+    workout_days_per_week INT DEFAULT 4,
+    food_preference TEXT,
     equipment TEXT[],
+    onboarding_complete BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -121,13 +121,14 @@ CREATE TABLE IF NOT EXISTS public.injury_profiles (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Workout Plans
+-- Workout Plans (AI-generated)
 CREATE TABLE IF NOT EXISTS public.workout_plans (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     phase TEXT,
     weeks INT DEFAULT 4,
+    schedule JSONB,          -- {mon: "push", tue: "rest", ...}
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -139,9 +140,14 @@ CREATE TABLE IF NOT EXISTS public.workout_sessions (
     plan_id UUID REFERENCES public.workout_plans(id),
     session_date DATE NOT NULL DEFAULT CURRENT_DATE,
     day_label TEXT,
+    workout_type TEXT,
     muscle_groups TEXT[],
     cns_fatigue_before INT CHECK (cns_fatigue_before BETWEEN 1 AND 10),
     cns_fatigue_after INT CHECK (cns_fatigue_after BETWEEN 1 AND 10),
+    total_volume_kg FLOAT,
+    duration_minutes INT,
+    calories_burned INT,
+    mood TEXT,
     notes TEXT,
     completed BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW()
@@ -187,11 +193,23 @@ CREATE TABLE IF NOT EXISTS public.progress_metrics (
     notes TEXT
 );
 
+-- Progress Photos
+CREATE TABLE IF NOT EXISTS public.progress_photos (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    photo_url TEXT NOT NULL,
+    angle TEXT CHECK (angle IN ('front','side','back')),
+    recorded_date DATE DEFAULT CURRENT_DATE,
+    notes TEXT,
+    uploaded_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Nutrition Logs
 CREATE TABLE IF NOT EXISTS public.nutrition_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
     log_date DATE DEFAULT CURRENT_DATE,
+    meal_name TEXT,
     calories INT,
     protein_g FLOAT,
     carbs_g FLOAT,
@@ -222,20 +240,24 @@ CREATE TABLE IF NOT EXISTS public.agent_states (
     current_phase TEXT DEFAULT 'maintain',
     consecutive_high_rpe_days INT DEFAULT 0,
     weekly_session_count INT DEFAULT 0,
+    workout_streak INT DEFAULT 0,
+    protein_streak INT DEFAULT 0,
+    total_workouts INT DEFAULT 0,
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ─── Row Level Security ───────────────────────────────────────────────────
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.injury_profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.workout_plans ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.workout_sessions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.exercise_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.personal_records ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.progress_metrics ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.nutrition_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.ai_conversations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.agent_states ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.injury_profiles   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.workout_plans     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.workout_sessions  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exercise_logs     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.personal_records  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.progress_metrics  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.progress_photos   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nutrition_logs    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_conversations  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.agent_states      ENABLE ROW LEVEL SECURITY;
 
 -- ─── RLS Policies ────────────────────────────────────────────────────────
 CREATE POLICY "Users own their profile"    ON public.profiles          FOR ALL USING (auth.uid() = id);
@@ -245,6 +267,7 @@ CREATE POLICY "Users own their sessions"   ON public.workout_sessions  FOR ALL U
 CREATE POLICY "Users own their logs"       ON public.exercise_logs     FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "Users own their PRs"        ON public.personal_records  FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "Users own their metrics"    ON public.progress_metrics  FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Users own their photos"     ON public.progress_photos   FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "Users own their nutrition"  ON public.nutrition_logs    FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "Users own their AI history" ON public.ai_conversations  FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "Users own their state"      ON public.agent_states      FOR ALL USING (auth.uid() = user_id);
@@ -255,4 +278,5 @@ CREATE INDEX IF NOT EXISTS idx_exercise_logs_user ON public.exercise_logs(user_i
 CREATE INDEX IF NOT EXISTS idx_exercise_logs_session ON public.exercise_logs(session_id);
 CREATE INDEX IF NOT EXISTS idx_ai_conversations_user ON public.ai_conversations(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_progress_metrics_user_date ON public.progress_metrics(user_id, recorded_date DESC);
+CREATE INDEX IF NOT EXISTS idx_nutrition_logs_user_date ON public.nutrition_logs(user_id, log_date DESC);
 """

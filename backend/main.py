@@ -1,34 +1,68 @@
+"""
+RepMind — AI Gym Spotter
+FastAPI Backend — Main Entry Point
+"""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routes_user import router as user_router
-from api.routes_workout import router as workout_router
-from api.routes_diet import router as diet_router
-from api.routes_progress import router as progress_router
-from api.routes_chat import router as chat_router
+from contextlib import asynccontextmanager
+
+from api.routes.auth import router as auth_router
+from api.routes.profile import router as profile_router
+from api.routes.workouts import router as workout_router
+from api.routes.progress import router as progress_router
+from api.routes.coach import router as coach_router
+from api.routes.nutrition import router as nutrition_router
+from api.routes.dashboard import router as dashboard_router
+from core.config import get_settings
+from db.chroma_client import seed_guardrails
+
+settings = get_settings()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Seed ChromaDB on startup
+    try:
+        seed_guardrails()
+    except Exception as e:
+        print(f"ChromaDB seed warning: {e}")
+    yield
+
 
 app = FastAPI(
-    title="FitMind AI",
-    description="Agentic Multimodal Fitness Ecosystem API",
-    version="1.0.0"
+    title="RepMind AI Gym Spotter",
+    description="Your AI Gym Spotter — remembers your journey, guides every rep, celebrates every PR.",
+    version="2.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # restrict in production
+    allow_origins=settings.origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(user_router, prefix="/api/user", tags=["User"])
-app.include_router(workout_router, prefix="/api/workout", tags=["Workout"])
-app.include_router(diet_router, prefix="/api/diet", tags=["Diet"])
-app.include_router(progress_router, prefix="/api/progress", tags=["Progress"])
-app.include_router(chat_router, prefix="/api/chat", tags=["AI Coach"])
+# Routes
+app.include_router(auth_router,      prefix="/api/auth",      tags=["Authentication"])
+app.include_router(profile_router,   prefix="/api/profile",   tags=["Profile"])
+app.include_router(workout_router,   prefix="/api/workouts",  tags=["Workouts"])
+app.include_router(progress_router,  prefix="/api/progress",  tags=["Progress"])
+app.include_router(coach_router,     prefix="/api/coach",     tags=["AI Coach"])
+app.include_router(nutrition_router, prefix="/api/nutrition", tags=["Nutrition"])
+app.include_router(dashboard_router, prefix="/api/dashboard", tags=["Dashboard"])
+
 
 @app.get("/")
 def root():
-    return {"status": "FitMind AI running", "version": "1.0.0"}
+    return {
+        "app": "RepMind AI Gym Spotter",
+        "version": "2.0.0",
+        "status": "running",
+        "docs": "/docs",
+    }
+
 
 @app.get("/health")
 def health():

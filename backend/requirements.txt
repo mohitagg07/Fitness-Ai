@@ -15,10 +15,10 @@ passlib[bcrypt]==1.7.4
 supabase==2.5.0
 
 # AI / LLM
+# AI
 langchain==0.2.5
 langchain-openai==0.1.8
 langchain-google-genai==1.0.6
-langchain-core==0.2.9
 langgraph==0.1.9
 
 # Vector DB
