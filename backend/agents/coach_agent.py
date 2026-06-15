@@ -10,7 +10,7 @@ from typing import TypedDict, List, Optional, Annotated
 from datetime import date
 
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
-from langchain_openai import ChatOpenAI
+from langchain_groq import ChatGroq
 from langchain_core.output_parsers import JsonOutputParser
 from langgraph.graph import StateGraph, END
 
@@ -43,9 +43,9 @@ class WorkoutGraphState(TypedDict):
 
 # ─── LLM ─────────────────────────────────────────────────────────────────────
 def get_llm():
-    return ChatOpenAI(
-        model="gpt-4o",
-        api_key=settings.openai_api_key,
+    return ChatGroq(
+        model=settings.groq_model,
+        api_key=settings.groq_api_key,
         temperature=0.3,
     )
 
@@ -205,13 +205,13 @@ def build_workout_node(state: WorkoutGraphState) -> WorkoutGraphState:
     """
     if state.get("emergency"):
         state["reply"] = (
-            "⚠️ WORKOUT TERMINATED — ACUTE INJURY PROTOCOL ACTIVATED\n\n"
+            "WORKOUT TERMINATED — ACUTE INJURY PROTOCOL ACTIVATED\n\n"
             "Sharp pain / injury signal detected. Do NOT continue training.\n\n"
             "R.I.C.E PROTOCOL:\n"
-            "• REST — Stop all activity immediately\n"
-            "• ICE — Apply ice for 20 min every hour\n"
-            "• COMPRESSION — Wrap the affected area\n"
-            "• ELEVATION — Raise above heart level\n\n"
+            "- REST — Stop all activity immediately\n"
+            "- ICE — Apply ice for 20 min every hour\n"
+            "- COMPRESSION — Wrap the affected area\n"
+            "- ELEVATION — Raise above heart level\n\n"
             "See a doctor before returning to training. Your safety is the priority."
         )
         state["workout_blocks"] = None
