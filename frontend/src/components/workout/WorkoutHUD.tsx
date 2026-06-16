@@ -1,9 +1,13 @@
+// NeuroFit AI — Workout HUD Screen
+// All emojis replaced with Ionicons.
+
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   TextInput, Alert,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
 import { workoutApi, coachApi } from '../../utils/api';
 import { useStore } from '../../store';
 
@@ -29,7 +33,6 @@ export default function WorkoutHUD() {
   const [reps, setReps] = useState('');
   const [sessionStarted, setSessionStarted] = useState(false);
 
-  // Rest countdown with haptic at 0
   useEffect(() => {
     if (!timerRunning || restTimer <= 0) {
       if (restTimer === 0 && timerRunning) {
@@ -57,8 +60,13 @@ export default function WorkoutHUD() {
 
   const askCoachForWorkout = async () => {
     try {
-      const res = await coachApi.chat("Give me today's workout based on my profile and current fatigue.");
-      Alert.alert('Your Workout', res.data.reply.slice(0, 400) + '…\n\n(See Coach tab for full plan)');
+      const res = await coachApi.chat(
+        "Give me today's workout based on my profile and current fatigue."
+      );
+      Alert.alert(
+        "Today's Workout",
+        res.data.reply.slice(0, 400) + '…\n\n(See Coach tab for full plan)'
+      );
       if (res.data.cns_fatigue_score != null) setCnsFatigue(res.data.cns_fatigue_score);
     } catch {
       Alert.alert('Error', 'Could not reach the AI coach.');
@@ -90,9 +98,10 @@ export default function WorkoutHUD() {
       updated[activeIdx].completed_sets += 1;
       setExercises(updated);
 
-      const isHeavy = ex.name.toLowerCase().includes('deadlift') || ex.name.toLowerCase().includes('squat');
-      const restSeconds = isHeavy ? 180 : DEFAULT_REST;
-      setRestTimer(restSeconds);
+      const isHeavy =
+        ex.name.toLowerCase().includes('deadlift') ||
+        ex.name.toLowerCase().includes('squat');
+      setRestTimer(isHeavy ? 180 : DEFAULT_REST);
       setTimerRunning(true);
 
       setWeight('');
@@ -118,7 +127,7 @@ export default function WorkoutHUD() {
               setActiveSession(null);
               setSessionStarted(false);
               setExercises([]);
-              Alert.alert('Done 🏆', 'Session saved. Great work.');
+              Alert.alert('Session Complete', 'Great work. Session saved.');
             } catch {
               Alert.alert('Error', 'Could not complete session.');
             }
@@ -130,11 +139,13 @@ export default function WorkoutHUD() {
 
   const ex = exercises[activeIdx];
 
-  // Pre-session state
   if (!sessionStarted) {
     return (
       <View style={styles.container}>
         <View style={styles.preSession}>
+          <View style={styles.preBadge}>
+            <Ionicons name="barbell-outline" size={28} color="#FFD700" />
+          </View>
           <Text style={styles.gymTitle}>GYM MODE</Text>
           <Text style={styles.gymSubtitle}>Your AI spotter is ready</Text>
           <Text style={styles.gymDesc}>
@@ -145,7 +156,8 @@ export default function WorkoutHUD() {
             <Text style={styles.startBtnText}>START SESSION</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.coachBtn} onPress={askCoachForWorkout}>
-            <Text style={styles.coachBtnText}>🦅 Ask Coach First</Text>
+            <Ionicons name="flash" size={16} color="#FFD700" />
+            <Text style={styles.coachBtnText}>Ask Coach First</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -154,23 +166,26 @@ export default function WorkoutHUD() {
 
   return (
     <View style={styles.container}>
-      {/* Rest Timer */}
       {timerRunning && (
         <View style={styles.timerBar}>
-          <Text style={styles.timerText}>REST  {restTimer}s</Text>
+          <View style={styles.timerLeft}>
+            <Ionicons name="timer-outline" size={18} color="#FFD700" />
+            <Text style={styles.timerText}>REST  {restTimer}s</Text>
+          </View>
           <TouchableOpacity onPress={() => setTimerRunning(false)}>
             <Text style={styles.skipTimer}>SKIP</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      {/* Session info */}
       <View style={styles.sessionInfo}>
-        <Text style={styles.sessionLabel}>SESSION ACTIVE</Text>
+        <View style={styles.sessionLabelRow}>
+          <View style={styles.activeDot} />
+          <Text style={styles.sessionLabel}>SESSION ACTIVE</Text>
+        </View>
         <Text style={styles.sessionId}>#{activeSession?.id.slice(-6)}</Text>
       </View>
 
-      {/* Exercise Card - manual entry mode */}
       <View style={styles.exerciseCard}>
         {ex ? (
           <>
@@ -186,7 +201,6 @@ export default function WorkoutHUD() {
           </View>
         )}
 
-        {/* Weight / Reps inputs */}
         <View style={styles.logRow}>
           <TextInput
             style={styles.logInput}
@@ -206,7 +220,6 @@ export default function WorkoutHUD() {
           />
         </View>
 
-        {/* RPE Selector */}
         <View style={styles.rpeRow}>
           <Text style={styles.rpeLabel}>RPE</Text>
           {[6, 7, 7.5, 8, 8.5, 9, 9.5, 10].map((r) => (
@@ -223,11 +236,11 @@ export default function WorkoutHUD() {
         </View>
 
         <TouchableOpacity style={styles.logBtn} onPress={logSet}>
+          <Ionicons name="add-circle-outline" size={16} color="#000" />
           <Text style={styles.logBtnText}>LOG SET + START REST</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Recent logs */}
       <ScrollView style={styles.logsScroll} showsVerticalScrollIndicator={false}>
         <Text style={styles.logsLabel}>SETS LOGGED THIS SESSION</Text>
         {(activeSession?.logs || []).length === 0 ? (
@@ -245,6 +258,7 @@ export default function WorkoutHUD() {
       </ScrollView>
 
       <TouchableOpacity style={styles.finishBtn} onPress={finishWorkout}>
+        <Ionicons name="checkmark-circle-outline" size={18} color="#4CAF50" />
         <Text style={styles.finishBtnText}>FINISH WORKOUT</Text>
       </TouchableOpacity>
     </View>
@@ -253,10 +267,15 @@ export default function WorkoutHUD() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#121212' },
-  preSession: { flex: 1, justifyContent: 'center', padding: 28, gap: 16 },
+  preSession: { flex: 1, justifyContent: 'center', padding: 28, gap: 14 },
+  preBadge: {
+    width: 56, height: 56, borderRadius: 16,
+    backgroundColor: '#1A2535', alignItems: 'center', justifyContent: 'center',
+    marginBottom: 4,
+  },
   gymTitle: { color: '#FFD700', fontSize: 28, fontWeight: '800', letterSpacing: 2 },
   gymSubtitle: { color: '#888', fontSize: 14, letterSpacing: 1 },
-  gymDesc: { color: '#C0C0C0', fontSize: 14, lineHeight: 22, marginVertical: 8 },
+  gymDesc: { color: '#C0C0C0', fontSize: 14, lineHeight: 22, marginVertical: 4 },
   startBtn: {
     backgroundColor: '#FFD700', borderRadius: 14,
     padding: 18, alignItems: 'center', marginTop: 8,
@@ -266,18 +285,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#1A2535', borderRadius: 14,
     padding: 16, alignItems: 'center',
     borderWidth: 1, borderColor: '#1E3A5F',
+    flexDirection: 'row', justifyContent: 'center', gap: 8,
   },
   coachBtnText: { color: '#FFD700', fontSize: 14, fontWeight: '600' },
   timerBar: {
     backgroundColor: '#1A2E44', padding: 14,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
+  timerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   timerText: { color: '#FFD700', fontSize: 22, fontWeight: '700' },
   skipTimer: { color: '#888', fontSize: 13 },
   sessionInfo: {
     paddingHorizontal: 16, paddingVertical: 10,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
+  sessionLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  activeDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#4CAF50' },
   sessionLabel: { color: '#4CAF50', fontSize: 11, fontWeight: '700', letterSpacing: 1.5 },
   sessionId: { color: '#555', fontSize: 12 },
   exerciseCard: {
@@ -313,10 +336,13 @@ const styles = StyleSheet.create({
   logBtn: {
     backgroundColor: '#FFD700', borderRadius: 14,
     padding: 16, alignItems: 'center',
+    flexDirection: 'row', justifyContent: 'center', gap: 8,
   },
   logBtnText: { color: '#000', fontSize: 14, fontWeight: '700', letterSpacing: 1 },
   logsScroll: { flex: 1, paddingHorizontal: 16 },
-  logsLabel: { color: '#555', fontSize: 11, fontWeight: '700', letterSpacing: 1.5, marginBottom: 10 },
+  logsLabel: {
+    color: '#555', fontSize: 11, fontWeight: '700', letterSpacing: 1.5, marginBottom: 10,
+  },
   noLogs: { color: '#444', fontSize: 13 },
   logRow2: {
     backgroundColor: '#1A1A1A', borderRadius: 10,
@@ -328,6 +354,7 @@ const styles = StyleSheet.create({
     margin: 16, backgroundColor: '#1A3A1A',
     borderRadius: 14, padding: 16, alignItems: 'center',
     borderWidth: 1, borderColor: '#2E5C2E',
+    flexDirection: 'row', justifyContent: 'center', gap: 8,
   },
   finishBtnText: { color: '#4CAF50', fontSize: 14, fontWeight: '700', letterSpacing: 1 },
 });

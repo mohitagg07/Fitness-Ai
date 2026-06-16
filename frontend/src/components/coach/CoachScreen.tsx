@@ -1,8 +1,12 @@
+// NeuroFit AI — AI Coach Screen
+// All emojis replaced with Ionicons. Branding updated to NeuroFit AI.
+
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
   StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { coachApi } from '../../utils/api';
 import { useStore } from '../../store';
 
@@ -41,19 +45,20 @@ export default function CoachScreen() {
 
       if (data.emergency) {
         Alert.alert(
-          '⚠️ Workout Terminated',
+          'Workout Terminated',
           'Injury signal detected. Follow the R.I.C.E protocol in the message below.',
           [{ text: 'Understood', style: 'default' }]
         );
       }
 
       if (data.new_prs && data.new_prs.length > 0) {
-        Alert.alert('🏆 New PR!', data.new_prs.map((p: any) => p.message).join('\n'));
+        Alert.alert('New PR!', data.new_prs.map((p: any) => p.message).join('\n'));
       }
     } catch (err: any) {
-      const msg = err?.response?.status === 401
-        ? 'Session expired. Please log in again.'
-        : 'Connection error. Check your network and try again.';
+      const msg =
+        err?.response?.status === 401
+          ? 'Session expired. Please log in again.'
+          : 'Connection error. Check your network and try again.';
       addChatMessage('assistant', msg);
     } finally {
       setLoading(false);
@@ -69,7 +74,10 @@ export default function CoachScreen() {
   const renderMessage = ({ item }: { item: any }) => (
     <View style={[styles.bubble, item.role === 'user' ? styles.userBubble : styles.aiBubble]}>
       {item.role === 'assistant' && (
-        <Text style={styles.roleLabel}>🦅 FITAI COACH</Text>
+        <View style={styles.roleLabelRow}>
+          <Ionicons name="flash" size={10} color="#FFD700" />
+          <Text style={styles.roleLabel}>NEUROFIT COACH</Text>
+        </View>
       )}
       <Text style={[styles.messageText, item.role === 'user' && styles.userText]}>
         {item.content}
@@ -85,8 +93,13 @@ export default function CoachScreen() {
     >
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>AI Coach</Text>
-        <Text style={styles.headerSub}>Your personal AI spotter</Text>
+        <View style={styles.headerIcon}>
+          <Ionicons name="flash" size={20} color="#FFD700" />
+        </View>
+        <View>
+          <Text style={styles.headerTitle}>AI Coach</Text>
+          <Text style={styles.headerSub}>Your personal AI spotter</Text>
+        </View>
       </View>
 
       {/* Chat or empty state */}
@@ -100,6 +113,7 @@ export default function CoachScreen() {
             {SUGGESTIONS.map((s, i) => (
               <TouchableOpacity key={i} style={styles.suggestion} onPress={() => sendMessage(s)}>
                 <Text style={styles.suggestionText}>{s}</Text>
+                <Ionicons name="arrow-forward-outline" size={14} color="#555" />
               </TouchableOpacity>
             ))}
           </View>
@@ -138,7 +152,7 @@ export default function CoachScreen() {
           onPress={() => sendMessage()}
           disabled={!input.trim() || loading}
         >
-          <Text style={styles.sendIcon}>↑</Text>
+          <Ionicons name="arrow-up" size={18} color={input.trim() && !loading ? '#000' : '#555'} />
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -150,9 +164,14 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 20, paddingTop: 60, paddingBottom: 12,
     borderBottomWidth: 1, borderBottomColor: '#2A2A2A',
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+  },
+  headerIcon: {
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: '#1A2535', alignItems: 'center', justifyContent: 'center',
   },
   headerTitle: { color: '#FFF', fontSize: 20, fontWeight: '700' },
-  headerSub: { color: '#555', fontSize: 12, marginTop: 2 },
+  headerSub: { color: '#555', fontSize: 12, marginTop: 1 },
   messageList: { padding: 16, paddingBottom: 8 },
   bubble: { marginBottom: 12, borderRadius: 16, padding: 14, maxWidth: '90%' },
   userBubble: { backgroundColor: '#1E3A5F', alignSelf: 'flex-end' },
@@ -160,7 +179,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E1E1E', alignSelf: 'flex-start',
     borderWidth: 1, borderColor: '#2A2A2A',
   },
-  roleLabel: { color: '#FFD700', fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 6 },
+  roleLabelRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 6,
+  },
+  roleLabel: {
+    color: '#FFD700', fontSize: 10, fontWeight: '700', letterSpacing: 1.5,
+  },
   messageText: { color: '#E8E8E8', fontSize: 15, lineHeight: 22 },
   userText: { color: '#FFF' },
   emptyState: { flex: 1, padding: 24, justifyContent: 'center' },
@@ -170,8 +194,9 @@ const styles = StyleSheet.create({
   suggestion: {
     backgroundColor: '#1E1E1E', borderRadius: 12,
     padding: 14, borderWidth: 1, borderColor: '#2A2A2A',
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
-  suggestionText: { color: '#C0C0C0', fontSize: 13 },
+  suggestionText: { color: '#C0C0C0', fontSize: 13, flex: 1 },
   loadingRow: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 20, paddingVertical: 8, gap: 10,
@@ -192,6 +217,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFD700', width: 40, height: 40,
     borderRadius: 20, alignItems: 'center', justifyContent: 'center',
   },
-  sendBtnDisabled: { backgroundColor: '#333' },
-  sendIcon: { color: '#000', fontSize: 18, fontWeight: '700' },
+  sendBtnDisabled: { backgroundColor: '#252525' },
 });
