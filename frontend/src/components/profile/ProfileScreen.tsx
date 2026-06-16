@@ -4,6 +4,8 @@ import {
   Alert, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { profileApi } from '../../utils/api';
 import { useStore } from '../../store';
 
@@ -52,11 +54,11 @@ export default function ProfileScreen() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <View style={styles.avatar}>
+        <LinearGradient colors={['#FFD700', '#1E3A5F']} style={styles.avatar}>
           <Text style={styles.avatarText}>
             {(user?.full_name || profile?.full_name || 'A').charAt(0).toUpperCase()}
           </Text>
-        </View>
+        </LinearGradient>
         <Text style={styles.name}>{user?.full_name || profile?.full_name || 'Athlete'}</Text>
         <Text style={styles.email}>{user?.email}</Text>
         {profile?.goal && (
@@ -80,7 +82,10 @@ export default function ProfileScreen() {
       {/* Personal Records */}
       {Object.keys(prs).length > 0 && (
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>PERSONAL RECORDS</Text>
+          <View style={styles.cardLabelRow}>
+            <Ionicons name="trophy-outline" size={13} color="#FFD700" />
+            <Text style={styles.cardLabel}>PERSONAL RECORDS</Text>
+          </View>
           {Object.entries(prs).map(([name, weight]) => (
             <View key={name} style={styles.prRow}>
               <Text style={styles.prName}>{name}</Text>
@@ -93,7 +98,10 @@ export default function ProfileScreen() {
       {/* Injuries */}
       {injuries.length > 0 && (
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>INJURY PROFILE</Text>
+          <View style={styles.cardLabelRow}>
+            <Ionicons name="shield-checkmark-outline" size={13} color="#FF4500" />
+            <Text style={styles.cardLabel}>INJURY PROFILE</Text>
+          </View>
           {injuries.map((inj: any, i: number) => (
             <View key={i} style={styles.injuryRow}>
               <View>
@@ -113,7 +121,10 @@ export default function ProfileScreen() {
       {/* Equipment */}
       {profile?.equipment?.length > 0 && (
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>EQUIPMENT</Text>
+          <View style={styles.cardLabelRow}>
+            <Ionicons name="barbell-outline" size={13} color="#4CAF50" />
+            <Text style={styles.cardLabel}>EQUIPMENT</Text>
+          </View>
           <View style={styles.tagsRow}>
             {profile.equipment.map((e: string, i: number) => (
               <View key={i} style={styles.tag}>
@@ -125,6 +136,7 @@ export default function ProfileScreen() {
       )}
 
       <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+        <Ionicons name="log-out-outline" size={16} color="#FF4500" />
         <Text style={styles.logoutText}>Log Out</Text>
       </TouchableOpacity>
 
@@ -151,7 +163,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E3A5F', alignItems: 'center', justifyContent: 'center',
     marginBottom: 12,
   },
-  avatarText: { color: '#FFD700', fontSize: 32, fontWeight: '800' },
+  avatarText: { color: '#121212', fontSize: 32, fontWeight: '800' },
   name: { color: '#FFF', fontSize: 22, fontWeight: '700', marginBottom: 4 },
   email: { color: '#555', fontSize: 13, marginBottom: 12 },
   goalBadge: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
@@ -171,6 +183,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#2A2A2A',
   },
   cardLabel: { color: '#555', fontSize: 11, fontWeight: '700', letterSpacing: 1.5, marginBottom: 12 },
+  cardLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
   prRow: {
     flexDirection: 'row', justifyContent: 'space-between',
     paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#2A2A2A',
@@ -196,6 +209,7 @@ const styles = StyleSheet.create({
     margin: 16, backgroundColor: '#1A1A1A',
     borderRadius: 14, padding: 16, alignItems: 'center',
     borderWidth: 1, borderColor: '#3A2020',
+    flexDirection: 'row', justifyContent: 'center', gap: 8,
   },
   logoutText: { color: '#FF4500', fontSize: 14, fontWeight: '600' },
 });

@@ -4,6 +4,7 @@ import {
   Alert, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { authApi } from '../../utils/api';
 import { useStore } from '../../store';
 
@@ -48,7 +49,8 @@ export default function RegisterScreen() {
     >
       <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
         <TouchableOpacity onPress={() => router.back()} style={styles.back}>
-          <Text style={styles.backText}>← Back</Text>
+          <Ionicons name="chevron-back" size={18} color="#FFD700" />
+          <Text style={styles.backText}>Back</Text>
         </TouchableOpacity>
 
         <Text style={styles.title}>Create Account</Text>
@@ -105,7 +107,7 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#121212' },
   inner: { flexGrow: 1, padding: 28, paddingTop: 60 },
-  back: { marginBottom: 32 },
+  back: { marginBottom: 32, flexDirection: 'row', alignItems: 'center', gap: 4 },
   backText: { color: '#FFD700', fontSize: 15 },
   title: { color: '#FFF', fontSize: 28, fontWeight: '800', marginBottom: 8 },
   subtitle: { color: '#888', fontSize: 14, marginBottom: 36 },

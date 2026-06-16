@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   TextInput, Alert, ActivityIndicator,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { progressApi } from '../../utils/api';
 
 export default function ProgressScreen() {
@@ -56,7 +57,12 @@ export default function ProgressScreen() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Progress</Text>
+        <View style={styles.headerRow}>
+          <View style={styles.headerIcon}>
+            <Ionicons name="stats-chart" size={18} color="#FFD700" />
+          </View>
+          <Text style={styles.title}>Progress</Text>
+        </View>
         {latestWeight && (
           <Text style={styles.subtitle}>Current: {latestWeight} kg</Text>
         )}
@@ -75,6 +81,7 @@ export default function ProgressScreen() {
             keyboardType="decimal-pad"
           />
           <TouchableOpacity style={styles.logBtn} onPress={logWeight}>
+            <Ionicons name="add-circle-outline" size={15} color="#000" />
             <Text style={styles.logBtnText}>LOG</Text>
           </TouchableOpacity>
         </View>
@@ -86,12 +93,22 @@ export default function ProgressScreen() {
           style={[styles.tab, activeTab === 'body' && styles.tabActive]}
           onPress={() => setActiveTab('body')}
         >
+          <Ionicons
+            name="body-outline"
+            size={14}
+            color={activeTab === 'body' ? '#FFD700' : '#555'}
+          />
           <Text style={[styles.tabText, activeTab === 'body' && styles.tabTextActive]}>BODY</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'nutrition' && styles.tabActive]}
           onPress={() => setActiveTab('nutrition')}
         >
+          <Ionicons
+            name="restaurant-outline"
+            size={14}
+            color={activeTab === 'nutrition' ? '#FFD700' : '#555'}
+          />
           <Text style={[styles.tabText, activeTab === 'nutrition' && styles.tabTextActive]}>NUTRITION</Text>
         </TouchableOpacity>
       </View>
@@ -140,6 +157,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#121212' },
   center: { flex: 1, backgroundColor: '#121212', justifyContent: 'center', alignItems: 'center' },
   header: { padding: 24, paddingTop: 60 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerIcon: {
+    width: 34, height: 34, borderRadius: 10,
+    backgroundColor: '#1A2535', alignItems: 'center', justifyContent: 'center',
+  },
   title: { color: '#FFF', fontSize: 28, fontWeight: '800' },
   subtitle: { color: '#888', fontSize: 14, marginTop: 4 },
   card: {
@@ -156,7 +178,8 @@ const styles = StyleSheet.create({
   },
   logBtn: {
     backgroundColor: '#FFD700', borderRadius: 12,
-    paddingHorizontal: 20, justifyContent: 'center',
+    paddingHorizontal: 18, justifyContent: 'center',
+    flexDirection: 'row', alignItems: 'center', gap: 5,
   },
   logBtnText: { color: '#000', fontWeight: '700', fontSize: 13 },
   tabs: {
@@ -167,6 +190,7 @@ const styles = StyleSheet.create({
     flex: 1, paddingVertical: 10, borderRadius: 10,
     backgroundColor: '#1A1A1A', alignItems: 'center',
     borderWidth: 1, borderColor: '#2A2A2A',
+    flexDirection: 'row', justifyContent: 'center', gap: 6,
   },
   tabActive: { backgroundColor: '#1E3A5F', borderColor: '#2A4A7F' },
   tabText: { color: '#555', fontSize: 12, fontWeight: '700', letterSpacing: 1 },

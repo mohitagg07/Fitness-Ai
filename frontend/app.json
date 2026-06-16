@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "FitAI",
+    "name": "NeuroFit AI",
     "slug": "fitai-mobile",
     "version": "1.0.0",
     "scheme": "fitai",
@@ -34,7 +34,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "FitAI needs photo access for form check uploads."
+          "photosPermission": "NeuroFit AI needs photo access for form check uploads."
         }
       ]
     ],

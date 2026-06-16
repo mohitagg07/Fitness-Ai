@@ -1,11 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   Alert, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
+  Image, Animated,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { authApi, profileApi } from '../../utils/api';
 import { actions } from '../../store';
+
+// Free-to-use Unsplash photo (Victor Freitas) — purely decorative hero backdrop,
+// dimmed by the gradient overlay so it never competes with the form.
+const HERO_IMAGE_URL =
+  'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=1200&q=80&auto=format&fit=crop';
 
 export default function AuthScreen() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -20,6 +28,16 @@ export default function AuthScreen() {
   const [regPassword, setRegPassword] = useState('');
 
   const [loading, setLoading] = useState(false);
+
+  const fade = useRef(new Animated.Value(0)).current;
+  const rise = useRef(new Animated.Value(16)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fade, { toValue: 1, duration: 420, useNativeDriver: true }),
+      Animated.spring(rise, { toValue: 0, friction: 8, tension: 60, useNativeDriver: true }),
+    ]).start();
+  }, []);
 
   const handleLogin = async () => {
     if (!loginEmail.trim() || !loginPassword.trim()) {
@@ -115,16 +133,24 @@ export default function AuthScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <Image source={{ uri: HERO_IMAGE_URL }} style={styles.heroImage} resizeMode="cover" />
+      <LinearGradient
+        colors={['#121212F2', '#121212E6', '#121212']}
+        style={styles.heroOverlay}
+      />
       <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
+        <Animated.View style={{ opacity: fade, transform: [{ translateY: rise }] }}>
 
-        {/* Logo */}
-        <Text style={styles.logo}>💪</Text>
-        <Text style={styles.title}>FitAI</Text>
-        <Text style={styles.subtitle}>Your AI Gym Spotter</Text>
+          {/* Logo */}
+          <LinearGradient colors={['#FFD700', '#FF8A00']} style={styles.logoBadge}>
+            <Ionicons name="barbell" size={34} color="#121212" />
+          </LinearGradient>
+          <Text style={styles.title}>NeuroFit AI</Text>
+          <Text style={styles.subtitle}>Your AI Gym Spotter</Text>
 
-        {/* Toggle */}
-        <View style={styles.toggle}>
-          <TouchableOpacity
+          {/* Toggle */}
+          <View style={styles.toggle}>
+            <TouchableOpacity
             style={[styles.toggleBtn, mode === 'login' && styles.toggleBtnActive]}
             onPress={() => setMode('login')}
           >
@@ -221,6 +247,7 @@ export default function AuthScreen() {
           </View>
         )}
 
+        </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -228,8 +255,20 @@ export default function AuthScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#121212' },
+  heroImage: {
+    position: 'absolute', top: 0, left: 0, right: 0, height: '48%', opacity: 0.55,
+  },
+  heroOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, height: '60%',
+  },
   inner: { flexGrow: 1, justifyContent: 'center', padding: 28 },
-  logo: { fontSize: 52, textAlign: 'center', marginBottom: 8 },
+  logoBadge: {
+    width: 76, height: 76, borderRadius: 22,
+    alignItems: 'center', justifyContent: 'center',
+    alignSelf: 'center', marginBottom: 14,
+    shadowColor: '#FFD700', shadowOpacity: 0.45, shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 }, elevation: 8,
+  },
   title: { color: '#FFD700', fontSize: 34, fontWeight: '800', textAlign: 'center', letterSpacing: 2 },
   subtitle: { color: '#888', fontSize: 13, textAlign: 'center', marginBottom: 36, letterSpacing: 1 },
   toggle: {
@@ -255,6 +294,8 @@ const styles = StyleSheet.create({
   btn: {
     backgroundColor: '#FFD700', borderRadius: 14,
     padding: 16, alignItems: 'center', marginTop: 6,
+    shadowColor: '#FFD700', shadowOpacity: 0.35, shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 }, elevation: 5,
   },
   btnDisabled: { opacity: 0.6 },
   btnText: { color: '#000', fontSize: 14, fontWeight: '800', letterSpacing: 1 },

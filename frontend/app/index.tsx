@@ -1,13 +1,13 @@
 import { useEffect } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
+import { storage } from '../src/utils/storage';
 
 export default function Index() {
   useEffect(() => {
     (async () => {
       try {
-        const token = await SecureStore.getItemAsync('fitai_token');
+        const token = await storage.getItem('fitai_token');
         router.replace(token ? '/(tabs)' : '/login');
       } catch {
         router.replace('/login');
