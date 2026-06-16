@@ -1,16 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
-type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
-
-const tabs: { name: string; title: string; icon: IoniconsName }[] = [
-  { name: 'index',    title: 'HOME',     icon: 'home-outline' },
-  { name: 'coach',   title: 'COACH',    icon: 'chatbubble-outline' },
-  { name: 'workout', title: 'WORKOUT',  icon: 'barbell-outline' },
-  { name: 'progress',title: 'PROGRESS', icon: 'stats-chart-outline' },
-  { name: 'profile', title: 'PROFILE',  icon: 'person-outline' },
-];
-
 export default function TabsLayout() {
   return (
     <Tabs
@@ -29,18 +19,51 @@ export default function TabsLayout() {
         tabBarLabelStyle: { fontSize: 10, fontWeight: '600', letterSpacing: 0.5 },
       }}
     >
-      {tabs.map((t) => (
-        <Tabs.Screen
-          key={t.name}
-          name={t.name}
-          options={{
-            title: t.title,
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name={t.icon} size={size} color={color} />
-            ),
-          }}
-        />
-      ))}
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'HOME',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="coach"
+        options={{
+          title: 'COACH',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbubble-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="workout"
+        options={{
+          title: 'WORKOUT',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="barbell-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="progress"
+        options={{
+          title: 'PROGRESS',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="stats-chart-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'PROFILE',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-outline" size={size} color={color} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }
