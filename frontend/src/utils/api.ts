@@ -1,5 +1,5 @@
 import axios from 'axios';
-import * as SecureStore from 'expo-secure-store';
+import { storage } from './storage';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/api';
 
@@ -9,14 +9,13 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Attach JWT to every request
+// Use storage wrapper instead of SecureStore directly
 api.interceptors.request.use(async (config) => {
-  const token = await SecureStore.getItemAsync('fitai_token');
+  const token = await storage.getItem('fitai_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// ─── Auth ─────────────────────────────────────────────────────────────────────
 export const authApi = {
   register: (data: { email: string; password: string; full_name: string }) =>
     api.post('/auth/register', data),
@@ -24,7 +23,6 @@ export const authApi = {
     api.post('/auth/login', data),
 };
 
-// ─── Profile ─────────────────────────────────────────────────────────────────
 export const profileApi = {
   getMe: () => api.get('/profile/me'),
   updateMe: (data: any) => api.put('/profile/me', data),
@@ -34,15 +32,12 @@ export const profileApi = {
   getPRs: () => api.get('/profile/prs'),
 };
 
-// ─── AI Coach ─────────────────────────────────────────────────────────────────
 export const coachApi = {
   chat: (content: string, session_id?: string) =>
     api.post('/coach/chat', { content, session_id }),
-  getHistory: (limit = 20) =>
-    api.get(`/coach/history?limit=${limit}`),
+  getHistory: (limit = 20) => api.get(`/coach/history?limit=${limit}`),
 };
 
-// ─── Workouts ────────────────────────────────────────────────────────────────
 export const workoutApi = {
   createSession: (data: any) => api.post('/workouts/sessions', data),
   getSessions: (limit = 10) => api.get(`/workouts/sessions?limit=${limit}`),
@@ -56,16 +51,14 @@ export const workoutApi = {
     api.get(`/workouts/sessions/${sessionId}/logs`),
 };
 
-// ─── Progress ────────────────────────────────────────────────────────────────
 export const progressApi = {
   logMetrics: (data: any) => api.post('/progress/metrics', data),
   getMetrics: (limit = 30) => api.get(`/progress/metrics?limit=${limit}`),
-  getStrengthHistory: () => api.get('/progress/strength'),
-  logNutrition: (data: any) => api.post('/progress/nutrition', data),
+  logNutrition: (data: any) => api.post('/nutrition/log', data),
   getNutritionTargets: (is_training_day = true) =>
-    api.get(`/progress/nutrition/targets?is_training_day=${is_training_day}`),
+    api.get(`/nutrition/targets?is_training_day=${is_training_day}`),
   getNutritionHistory: (limit = 30) =>
-    api.get(`/progress/nutrition?limit=${limit}`),
+    api.get(`/nutrition/history?limit=${limit}`),
 };
 
 export default api;

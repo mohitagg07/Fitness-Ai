@@ -1,84 +1,74 @@
-/**
- * PulseForge AI — Shared Theme
- * A light, energetic, fitness-forward design language.
- */
+import { useState, useEffect } from 'react';
+import { storage } from '../utils/storage';
 
-export const colors = {
-  // Backgrounds
-  background: '#F6F8FA',
-  surface: '#FFFFFF',
-  surfaceAlt: '#F0F4F8',
-
-  // Borders
-  border: '#E6EAF0',
-  borderStrong: '#D8DEE8',
-
-  // Text
-  textPrimary: '#16202A',
-  textSecondary: '#5C6B7A',
-  textMuted: '#9AA7B5',
-  textOnAccent: '#FFFFFF',
-
-  // Brand
-  primary: '#FF6B35',      // energetic coral-orange — primary CTA
-  primaryDark: '#E2552A',
-  primarySoft: '#FFE8DE',
-
-  secondary: '#2563EB',    // confident blue — accents / badges
-  secondarySoft: '#E3ECFF',
-
-  success: '#15A364',
-  successSoft: '#DDF6E8',
-
-  warning: '#E5A30B',
-  warningSoft: '#FFF3D6',
-
-  danger: '#E5484D',
-  dangerSoft: '#FFE5E6',
-
-  // Fatigue scale
-  fatigueLow: '#15A364',
-  fatigueMid: '#E5A30B',
-  fatigueHigh: '#E5484D',
+let _state = {
+  user: null as any,
+  token: null as string | null,
+  profile: null as any,
+  injuries: [] as any[],
+  prs: {} as Record<string, number>,
+  activeSession: null as any,
+  cnsFatigue: 0,
+  chatHistory: [] as Array<{
+    role: 'user' | 'assistant';
+    content: string;
+    timestamp: Date;
+  }>,
 };
 
-export const radius = {
-  sm: 10,
-  md: 14,
-  lg: 18,
-  xl: 24,
-  pill: 999,
-};
+type State = typeof _state;
+const _listeners = new Set<() => void>();
 
-export const spacing = {
-  xs: 4,
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
-  xxl: 24,
-};
+function setState(partial: Partial<State>) {
+  _state = { ..._state, ...partial };
+  _listeners.forEach(fn => fn());
+}
 
-export const shadow = {
-  card: {
-    shadowColor: '#16202A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 2,
+export const actions = {
+  async setAuth(user: any, token: string) {
+    await storage.setItem('fitai_token', token);
+    await storage.setItem('fitai_user', JSON.stringify(user));
+    setState({ user, token });
   },
-  raised: {
-    shadowColor: '#16202A',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 20,
-    elevation: 4,
+  async logout() {
+    await storage.deleteItem('fitai_token');
+    await storage.deleteItem('fitai_user');
+    setState({
+      user: null, token: null, profile: null,
+      injuries: [], prs: {}, chatHistory: [],
+      activeSession: null, cnsFatigue: 0,
+    });
   },
+  setProfile(profile: any, injuries: any[], prs: any[]) {
+    const prMap: Record<string, number> = {};
+    prs.forEach((p: any) => { prMap[p.exercise_name] = p.weight_kg; });
+    setState({ profile, injuries, prs: prMap });
+  },
+  setActiveSession(session: any) { setState({ activeSession: session }); },
+  addLogToSession(log: any) {
+    if (!_state.activeSession) return;
+    setState({
+      activeSession: {
+        ..._state.activeSession,
+        logs: [...(_state.activeSession.logs || []), log],
+      },
+    });
+  },
+  setCnsFatigue(score: number) { setState({ cnsFatigue: score }); },
+  addChatMessage(role: 'user' | 'assistant', content: string) {
+    setState({
+      chatHistory: [..._state.chatHistory, { role, content, timestamp: new Date() }],
+    });
+  },
+  clearChat() { setState({ chatHistory: [] }); },
 };
 
-export const typography = {
-  heading: { fontWeight: '800' as const, color: colors.textPrimary },
-  subheading: { fontWeight: '700' as const, color: colors.textPrimary },
-  body: { fontWeight: '400' as const, color: colors.textSecondary },
-  label: { fontWeight: '700' as const, color: colors.textMuted, letterSpacing: 1.2 },
-};
+export function useStore() {
+  const [, rerender] = useState(0);
+  useEffect(() => {
+    const fn = () => rerender(n => n + 1);
+    _listeners.add(fn);
+    return () => { _listeners.delete(fn); };
+  }, []);
+  return { ..._state, ...actions };
+}
