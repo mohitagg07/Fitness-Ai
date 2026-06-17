@@ -15,6 +15,7 @@ from langchain_core.output_parsers import JsonOutputParser
 from langgraph.graph import StateGraph, END
 
 from db.chroma_client import query_guardrails
+from db.memory_client import recall, remember
 from schemas.models import PerformanceLog, AgentState
 from core.config import get_settings
 
@@ -32,7 +33,8 @@ class WorkoutGraphState(TypedDict):
     # Intermediate
     parsed_logs: List[dict]      # parsed PerformanceLogs from natural language
     guardrails: List[str]        # retrieved safety rules from ChromaDB
-    emergency: bool              # True if acute injury keyword detected
+    long_term_memories: List[str]  # retrieved personal facts from Memory Agent
+    emergency: bool               # True if acute injury keyword detected
 
     # Output
     workout_blocks: Optional[dict]
@@ -197,6 +199,25 @@ def retrieve_guardrails_node(state: WorkoutGraphState) -> WorkoutGraphState:
     return state
 
 
+# ─── Node 3.5: Recall Long-Term Memory ───────────────────────────────────────
+def recall_memory_node(state: WorkoutGraphState) -> WorkoutGraphState:
+    """
+    Pull relevant personal facts the Memory Agent has accumulated about this
+    user (food likes/dislikes, schedule quirks, recurring discomfort) so the
+    coach's response feels personally aware rather than generic.
+    """
+    if state.get("emergency"):
+        state["long_term_memories"] = []
+        return state
+
+    try:
+        memories = recall(state["user_id"], state["user_message"], n_results=5)
+    except Exception:
+        memories = []
+    state["long_term_memories"] = memories
+    return state
+
+
 # ─── Node 4: Build Workout ────────────────────────────────────────────────────
 def build_workout_node(state: WorkoutGraphState) -> WorkoutGraphState:
     """
@@ -249,6 +270,9 @@ ANTI-HALLUCINATION WEIGHT CAPS (never suggest above these):
 BIOMECHANICAL SAFETY RULES (MANDATORY — apply all relevant rules):
 {guardrails_text if guardrails_text else "No specific guardrails triggered — standard safety applies."}
 
+THINGS YOU REMEMBER ABOUT THIS USER (use naturally, don't just list them back):
+{chr(10).join(f"- {m}" for m in state.get("long_term_memories", [])) if state.get("long_term_memories") else "Nothing specific on file yet."}
+
 RESPONSE RULES:
 1. Never suggest weight > 105% of user's known PR for any exercise.
 2. If injury tag matches an exercise, replace it with the safe alternative.
@@ -267,6 +291,21 @@ RESPONSE RULES:
 
     response = llm.invoke(messages)
     state["reply"] = response.content
+
+    # Lightweight memory extraction — ask the same LLM call's content for a
+    # durable fact worth remembering, without a second round-trip. Keep this
+    # conservative: only store when the user states something durable about
+    # themselves, not workout-specific transient data (that already lives in
+    # exercise_logs/progress_metrics).
+    try:
+        msg_lower = state["user_message"].lower()
+        durable_signals = ["i like", "i love", "i hate", "i can't stand", "i always",
+                            "i never", "i prefer", "my knee", "my shoulder", "my back",
+                            "best in the", "worst in the", "i miss", "i skip"]
+        if any(sig in msg_lower for sig in durable_signals):
+            remember(state["user_id"], state["user_message"], category="general")
+    except Exception:
+        pass  # Memory write failures should never break the chat response
 
     # Try to extract structured workout blocks if present
     try:
@@ -290,12 +329,14 @@ def build_coach_graph():
     graph.add_node("parse_input", parse_input_node)
     graph.add_node("evaluate_fatigue", evaluate_fatigue_node)
     graph.add_node("retrieve_guardrails", retrieve_guardrails_node)
+    graph.add_node("recall_memory", recall_memory_node)
     graph.add_node("build_workout", build_workout_node)
 
     graph.set_entry_point("parse_input")
     graph.add_edge("parse_input", "evaluate_fatigue")
     graph.add_edge("evaluate_fatigue", "retrieve_guardrails")
-    graph.add_edge("retrieve_guardrails", "build_workout")
+    graph.add_edge("retrieve_guardrails", "recall_memory")
+    graph.add_edge("recall_memory", "build_workout")
     graph.add_edge("build_workout", END)
 
     return graph.compile()
@@ -319,6 +360,7 @@ async def run_coach(
         "agent_state": agent_state,
         "parsed_logs": [],
         "guardrails": [],
+        "long_term_memories": [],
         "emergency": False,
         "workout_blocks": None,
         "reply": "",

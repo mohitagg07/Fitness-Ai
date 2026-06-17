@@ -7,7 +7,9 @@ class Settings(BaseSettings):
     # LLM
     openai_api_key: str = ""
     gemini_api_key: str = ""
-    llm_provider: str = "gemini"  # openai | gemini
+    groq_api_key: str = ""
+    groq_model: str = "llama-3.3-70b-versatile"
+    llm_provider: str = "groq"  # openai | gemini | groq
 
     # Supabase
     supabase_url: str = ""

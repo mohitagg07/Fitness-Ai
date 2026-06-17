@@ -52,6 +52,26 @@ class WorkoutType(str, Enum):
     rest = "rest"
 
 
+class ActivityLevel(str, Enum):
+    sedentary = "sedentary"
+    light = "light"
+    moderate = "moderate"
+    very_active = "very_active"
+    extra_active = "extra_active"
+
+
+class CoachStyle(str, Enum):
+    friendly = "friendly"
+    strict = "strict"
+    military = "military"
+
+
+class WorkoutLocation(str, Enum):
+    home = "home"
+    gym = "gym"
+    hybrid = "hybrid"
+
+
 # ─── Auth ────────────────────────────────────────────────────────────────────
 
 class RegisterRequest(BaseModel):
@@ -86,13 +106,25 @@ class OnboardingCreate(BaseModel):
     gender: Gender
     height_cm: float = Field(gt=100, lt=250)
     weight_kg: float = Field(gt=30, lt=300)
+    target_weight_kg: Optional[float] = Field(None, gt=30, lt=300)
+    body_fat_pct: Optional[float] = Field(None, ge=0, le=60)
     goal: Goal
     experience_level: ExperienceLevel
-    gym_or_home: str = Field(default="gym")           # "gym" | "home"
-    workout_days_per_week: int = Field(ge=1, le=7, default=4)
+    activity_level: ActivityLevel = ActivityLevel.moderate
+    sleep_hours: Optional[float] = Field(None, ge=0, le=24)
+    occupation: Optional[str] = Field(None, max_length=100)
+    daily_steps: Optional[int] = Field(None, ge=0)
     injuries: List[dict] = Field(default_factory=list)
-    food_preference: Optional[str] = None             # "veg" | "non-veg" | "vegan"
+    food_preference: Optional[str] = None             # "veg" | "non-veg" | "vegan" | "eggetarian"
+    allergies: List[str] = Field(default_factory=list)
+    food_restrictions: List[str] = Field(default_factory=list)
+    gym_or_home: WorkoutLocation = WorkoutLocation.gym
+    workout_days_per_week: int = Field(ge=1, le=7, default=4)
     equipment: List[str] = Field(default_factory=list)
+    wake_time: Optional[str] = None
+    sleep_time: Optional[str] = None
+    workout_time_preference: Optional[str] = None
+    coach_style: CoachStyle = CoachStyle.friendly
 
 
 # ─── User Profile ─────────────────────────────────────────────────────────────
@@ -103,12 +135,24 @@ class ProfileCreate(BaseModel):
     gender: Gender
     height_cm: float = Field(gt=100, lt=250)
     weight_kg: float = Field(gt=30, lt=300)
+    target_weight_kg: Optional[float] = Field(None, gt=30, lt=300)
+    body_fat_pct: Optional[float] = Field(None, ge=0, le=60)
     goal: Goal
     experience_level: ExperienceLevel
-    gym_or_home: str = "gym"
+    activity_level: ActivityLevel = ActivityLevel.moderate
+    sleep_hours: Optional[float] = Field(None, ge=0, le=24)
+    occupation: Optional[str] = Field(None, max_length=100)
+    daily_steps: Optional[int] = Field(None, ge=0)
+    food_preference: Optional[str] = None              # "veg" | "non-veg" | "vegan" | "eggetarian"
+    allergies: List[str] = Field(default_factory=list)
+    food_restrictions: List[str] = Field(default_factory=list)
+    gym_or_home: WorkoutLocation = WorkoutLocation.gym
     workout_days_per_week: int = Field(ge=1, le=7, default=4)
-    food_preference: Optional[str] = None
     equipment: List[str] = Field(default_factory=list)
+    wake_time: Optional[str] = None                     # "HH:MM"
+    sleep_time: Optional[str] = None                     # "HH:MM"
+    workout_time_preference: Optional[str] = None         # "morning" | "afternoon" | "evening"
+    coach_style: CoachStyle = CoachStyle.friendly
 
 
 class ProfileUpdate(BaseModel):
@@ -118,11 +162,24 @@ class ProfileUpdate(BaseModel):
     gender: Optional[Gender] = None
     height_cm: Optional[float] = Field(None, gt=100, lt=250)
     weight_kg: Optional[float] = Field(None, gt=30, lt=300)
+    target_weight_kg: Optional[float] = Field(None, gt=30, lt=300)
+    body_fat_pct: Optional[float] = Field(None, ge=0, le=60)
     goal: Optional[Goal] = None
     experience_level: Optional[ExperienceLevel] = None
+    activity_level: Optional[ActivityLevel] = None
+    sleep_hours: Optional[float] = Field(None, ge=0, le=24)
+    occupation: Optional[str] = Field(None, max_length=100)
+    daily_steps: Optional[int] = Field(None, ge=0)
     equipment: Optional[List[str]] = None
     food_preference: Optional[str] = None
+    allergies: Optional[List[str]] = None
+    food_restrictions: Optional[List[str]] = None
+    gym_or_home: Optional[WorkoutLocation] = None
     workout_days_per_week: Optional[int] = Field(None, ge=1, le=7)
+    wake_time: Optional[str] = None
+    sleep_time: Optional[str] = None
+    workout_time_preference: Optional[str] = None
+    coach_style: Optional[CoachStyle] = None
 
 
 # ─── Injury Profile ───────────────────────────────────────────────────────────
@@ -264,23 +321,78 @@ class AgentState(BaseModel):
     total_workouts: int = 0
 
 
-# ─── Dashboard ───────────────────────────────────────────────────────────────
+# ─── Today's Mission (Agentic Dashboard) ─────────────────────────────────────
+
+class TankStatus(BaseModel):
+    label: str
+    consumed: float
+    target: float
+    pct: int
+    color: str   # hex, used by the frontend gauge
+
+
+class MissionTask(BaseModel):
+    icon: str
+    text: str
+    agent: str   # which agent generated this — "nutrition" | "workout" | "recovery" | "planner"
+    priority: int = 1   # lower = more urgent
+
 
 class DashboardResponse(BaseModel):
     user_name: str
+    greeting: str
     today_workout_type: str
-    today_workout_duration_min: int
-    calories_remaining: int
-    protein_remaining_g: int
-    calories_target: int
-    protein_target_g: int
+    today_workout_time: Optional[str] = None
+    today_workout_duration_min: int = 0
+    calories_tank: TankStatus
+    protein_tank: TankStatus
+    water_tank: TankStatus
+    next_tasks: List[MissionTask] = Field(default_factory=list)
     last_session_summary: Optional[str] = None
-    next_target: Optional[str] = None  # e.g. "Bench 85kg × 5"
+    next_target: Optional[str] = None
     workout_streak: int = 0
     protein_streak: int = 0
     motivation_message: str = ""
     cns_fatigue_score: int = 0
+    sleep_goal: Optional[str] = None
     mission_text: str = ""
+
+
+# ─── Agent decision payloads ─────────────────────────────────────────────────
+
+class NutritionDecision(BaseModel):
+    message: str
+    suggested_meal: Optional[str] = None
+    calories_remaining: int
+    protein_remaining_g: float
+
+
+class WorkoutDecision(BaseModel):
+    message: str
+    rescheduled: bool = False
+    recommended_type: Optional[str] = None
+
+
+class ProgressDecision(BaseModel):
+    message: str
+    stalled: bool = False
+    suggested_calorie_adjustment: int = 0
+    trend: str = "stable"          # "gaining" | "losing" | "stalled" | "stable"
+
+    @property
+    def calorie_adjustment(self) -> int:
+        """Back-compat alias — some callers may expect the old field name."""
+        return self.suggested_calorie_adjustment
+
+
+class RecoveryDecision(BaseModel):
+    message: str
+    recovery_score: int = Field(ge=0, le=10)
+    action: str = "proceed"        # "proceed" | "replace_with_light" | "rest"
+
+    @property
+    def recommend_deload(self) -> bool:
+        return self.action == "rest"
 
 
 # ─── Streak / Achievements ───────────────────────────────────────────────────

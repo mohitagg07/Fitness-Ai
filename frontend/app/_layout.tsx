@@ -1,38 +1,69 @@
-import 'react-native-gesture-handler';
-import { useEffect } from 'react';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { StyleSheet } from 'react-native';
-import { actions } from '../src/store';
-import { storage } from '../src/utils/storage';
+import { Tabs } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
-export default function RootLayout() {
-  useEffect(() => {
-    (async () => {
-      try {
-        const token = await storage.getItem('fitai_token');
-        const userRaw = await storage.getItem('fitai_user');
-        if (token && userRaw) {
-          await actions.setAuth(JSON.parse(userRaw), token);
-        }
-      } catch {}
-    })();
-  }, []);
-
+export default function TabsLayout() {
   return (
-    <GestureHandlerRootView style={styles.root}>
-      <StatusBar style="light" />
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="login" />
-        <Stack.Screen name="register" />
-        <Stack.Screen name="(tabs)" />
-      </Stack>
-    </GestureHandlerRootView>
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle: {
+          backgroundColor: '#1A1A1A',
+          borderTopColor: '#2A2A2A',
+          borderTopWidth: 1,
+          paddingBottom: 8,
+          paddingTop: 6,
+          height: 62,
+        },
+        tabBarActiveTintColor: '#FFD700',
+        tabBarInactiveTintColor: '#555',
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '600', letterSpacing: 0.5 },
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'HOME',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="coach"
+        options={{
+          title: 'COACH',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbubble-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="workout"
+        options={{
+          title: 'WORKOUT',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="barbell-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="progress"
+        options={{
+          title: 'PROGRESS',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="stats-chart-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'PROFILE',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-outline" size={size} color={color} />
+          ),
+        }}
+      />
+    </Tabs>
   );
 }
-
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#121212' },
-});

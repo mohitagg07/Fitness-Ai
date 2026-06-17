@@ -1,6 +1,7 @@
 # Core
-fastapi
-uvicorn[standard]
+fastapi==0.115.6
+starlette==0.41.3
+uvicorn[standard]==0.34.0
 python-multipart
 
 # Settings & Env
