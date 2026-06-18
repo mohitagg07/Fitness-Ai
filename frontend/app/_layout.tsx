@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Tabs, router } from 'expo-router';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { storage } from '../../src/utils/storage';
+import { storage } from '../src/utils/storage';
 
 export default function TabsLayout() {
   // The tabs group previously had no auth guard at all — only the one-shot
