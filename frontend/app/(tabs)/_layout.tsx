@@ -1,7 +1,36 @@
-import { Tabs } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Tabs, router } from 'expo-router';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { storage } from '../../src/utils/storage';
 
 export default function TabsLayout() {
+  // The tabs group previously had no auth guard at all — only the one-shot
+  // redirect in app/index.tsx stood between an unauthenticated user and the
+  // full tab bar. Any direct navigation here (refresh, deep link, stale
+  // route) bypassed that check entirely. This guard makes the tabs group
+  // fail closed instead of fail open.
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const token = await storage.getItem('fitai_token');
+      if (!token) {
+        router.replace('/login');
+        return;
+      }
+      setAuthChecked(true);
+    })();
+  }, []);
+
+  if (!authChecked) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator color="#FFD700" size="large" />
+      </View>
+    );
+  }
+
   return (
     <Tabs
       screenOptions={{
@@ -67,3 +96,12 @@ export default function TabsLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  loading: {
+    flex: 1,
+    backgroundColor: '#121212',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});

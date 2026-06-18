@@ -24,12 +24,22 @@ def get_supabase() -> Client:
 
 def get_full_user_context(user_id: str) -> tuple[dict, dict]:
     sb = get_supabase()
-    profile_res = sb.table("profiles").select("*").eq("id", user_id).single().execute()
+    # .single() throws if the row doesn't exist yet (new user who hasn't
+    # completed onboarding). Use maybe_single() and default to an empty,
+    # not-onboarded profile instead of crashing every endpoint that needs
+    # user context.
+    profile_res = sb.table("profiles").select("*").eq("id", user_id).maybe_single().execute()
     injuries_res = sb.table("injury_profiles").select("*").eq("user_id", user_id).execute()
     prs_res = sb.table("personal_records").select("*").eq("user_id", user_id).execute()
     state_res = sb.table("agent_states").select("*").eq("user_id", user_id).execute()
 
-    profile = profile_res.data or {}
+    # maybe_single() can return None for the entire response object (not a
+    # response with .data = None) on some postgrest-py versions when no row
+    # matches — guard the object itself, not just its .data attribute.
+    profile = (profile_res.data if profile_res else None) or {
+        "id": user_id,
+        "onboarding_complete": False,
+    }
     profile["injuries"] = injuries_res.data or []
     profile["personal_records"] = {
         row["exercise_name"]: row["weight_kg"]

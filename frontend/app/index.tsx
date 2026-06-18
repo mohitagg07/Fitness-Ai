@@ -1,10 +1,14 @@
-import { useEffect } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { storage } from '../src/utils/storage';
+import AnimatedSplash from '../src/components/splash/AnimatedSplash';
 
 export default function Index() {
+  const [splashDone, setSplashDone] = useState(false);
+
   useEffect(() => {
+    if (!splashDone) return;
     (async () => {
       try {
         const token = await storage.getItem('fitai_token');
@@ -13,11 +17,11 @@ export default function Index() {
         router.replace('/login');
       }
     })();
-  }, []);
+  }, [splashDone]);
 
   return (
     <View style={styles.container}>
-      <ActivityIndicator color="#FFD700" size="large" />
+      <AnimatedSplash onFinished={() => setSplashDone(true)} />
     </View>
   );
 }

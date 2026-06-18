@@ -54,6 +54,17 @@ export default function ProgressScreen() {
 
   const latestWeight = metrics.find((m) => m.weight_kg)?.weight_kg;
 
+  // Real derived stats — no hardcoded numbers. All computed from whatever
+  // the backend actually returned, so this row is honest about having
+  // nothing to show when there's genuinely nothing logged yet.
+  const weighInsWithData = metrics.filter((m) => m.weight_kg);
+  const oldestWeight = weighInsWithData[weighInsWithData.length - 1]?.weight_kg;
+  const weightDelta = latestWeight && oldestWeight ? +(latestWeight - oldestWeight).toFixed(1) : null;
+  const logsThisWeek = nutrition.length;
+  const avgCalories = nutrition.length > 0
+    ? Math.round(nutrition.reduce((sum, n) => sum + (n.calories || 0), 0) / nutrition.length)
+    : null;
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
@@ -66,6 +77,45 @@ export default function ProgressScreen() {
         {latestWeight && (
           <Text style={styles.subtitle}>Current: {latestWeight} kg</Text>
         )}
+      </View>
+
+      {/* Stat summary — hero card (current weight + trend) beside two
+          stacked smaller cards (nutrition logs this week, avg calories).
+          Layout pattern adapted from a reference fitness app; values are
+          all real, derived from state above — never placeholder numbers. */}
+      <View style={styles.statsRow}>
+        <View style={styles.heroStatCard}>
+          <Ionicons name="trending-up-outline" size={20} color="#FFD700" />
+          {latestWeight ? (
+            <>
+              <Text style={styles.heroStatValue}>{latestWeight}</Text>
+              <Text style={styles.heroStatUnit}>kg current</Text>
+              {weightDelta !== null && (
+                <Text style={[
+                  styles.heroStatDelta,
+                  { color: weightDelta <= 0 ? '#7ED957' : '#FF9D5C' },
+                ]}>
+                  {weightDelta > 0 ? '+' : ''}{weightDelta} kg over period
+                </Text>
+              )}
+            </>
+          ) : (
+            <Text style={styles.heroStatEmpty}>Log a weigh-in to see your trend</Text>
+          )}
+        </View>
+
+        <View style={styles.stackedStats}>
+          <View style={styles.smallStatCard}>
+            <Ionicons name="restaurant-outline" size={16} color="#4A9EFF" />
+            <Text style={styles.smallStatValue}>{logsThisWeek}</Text>
+            <Text style={styles.smallStatLabel}>meals logged</Text>
+          </View>
+          <View style={styles.smallStatCard}>
+            <Ionicons name="flame-outline" size={16} color="#FF9D5C" />
+            <Text style={styles.smallStatValue}>{avgCalories ?? '—'}</Text>
+            <Text style={styles.smallStatLabel}>avg kcal/day</Text>
+          </View>
+        </View>
       </View>
 
       {/* Log Weight */}
@@ -164,6 +214,27 @@ const styles = StyleSheet.create({
   },
   title: { color: '#FFF', fontSize: 28, fontWeight: '800' },
   subtitle: { color: '#888', fontSize: 14, marginTop: 4 },
+  statsRow: {
+    flexDirection: 'row', gap: 10,
+    marginHorizontal: 16, marginBottom: 16,
+  },
+  heroStatCard: {
+    flex: 1.1, backgroundColor: '#1E1E1E', borderRadius: 16,
+    padding: 16, borderWidth: 1, borderColor: '#2A2A2A',
+    justifyContent: 'center', minHeight: 130,
+  },
+  heroStatValue: { color: '#FFF', fontSize: 34, fontWeight: '800', marginTop: 8 },
+  heroStatUnit: { color: '#888', fontSize: 13, fontWeight: '600', marginTop: 2 },
+  heroStatDelta: { fontSize: 12, fontWeight: '700', marginTop: 8 },
+  heroStatEmpty: { color: '#555', fontSize: 13, marginTop: 10, lineHeight: 18 },
+  stackedStats: { flex: 1, gap: 10 },
+  smallStatCard: {
+    flex: 1, backgroundColor: '#1E1E1E', borderRadius: 16,
+    padding: 14, borderWidth: 1, borderColor: '#2A2A2A',
+    justifyContent: 'center',
+  },
+  smallStatValue: { color: '#FFF', fontSize: 20, fontWeight: '800', marginTop: 6 },
+  smallStatLabel: { color: '#888', fontSize: 11, fontWeight: '600', marginTop: 2 },
   card: {
     backgroundColor: '#1E1E1E', borderRadius: 16,
     padding: 16, marginHorizontal: 16, marginBottom: 12,

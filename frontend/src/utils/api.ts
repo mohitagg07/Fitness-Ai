@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { router } from 'expo-router';
 import { storage } from './storage';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/api';
@@ -16,6 +17,28 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
+// Single source of truth for "the session is no longer valid." Without
+// this, every screen had to handle 401s on its own — which is how you end
+// up with the login screen getting pushed on top of the tab navigator
+// instead of replacing it, leaving the tab bar visible underneath.
+let isRedirectingToLogin = false;
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error?.response?.status === 401 && !isRedirectingToLogin) {
+      isRedirectingToLogin = true;
+      await storage.deleteItem('fitai_token');
+      await storage.deleteItem('fitai_user');
+      router.replace('/login');
+      // Reset the guard on the next tick so a later, legitimate 401
+      // (e.g. after a fresh login that itself expires) isn't ignored.
+      setTimeout(() => { isRedirectingToLogin = false; }, 1000);
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const authApi = {
   register: (data: { email: string; password: string; full_name: string }) =>
     api.post('/auth/register', data),
@@ -26,6 +49,7 @@ export const authApi = {
 export const profileApi = {
   getMe: () => api.get('/profile/me'),
   updateMe: (data: any) => api.put('/profile/me', data),
+  onboard: (data: any) => api.post('/profile/onboard', data),
   addInjury: (data: any) => api.post('/profile/injuries', data),
   deleteInjury: (id: string) => api.delete(`/profile/injuries/${id}`),
   upsertPR: (data: any) => api.post('/profile/prs', data),
