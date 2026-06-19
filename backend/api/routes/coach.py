@@ -2,6 +2,7 @@
 AI Coach route — chat endpoint backed by the LangGraph coach_agent.
 main.py mounts this at prefix="/api/coach".
 """
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException
 from schemas.models import ChatMessage, ChatResponse
 from core.security import get_current_user
@@ -23,10 +24,9 @@ async def chat(
 ):
     user_id = current_user["user_id"]
 
-    # Save user message
-    save_conversation_message(user_id, payload.session_id, "user", payload.content)
-
-    profile, agent_state = get_full_user_context(user_id)
+    # get_full_user_context does blocking Supabase I/O — run off the event
+    # loop so this request doesn't stall every other concurrent request.
+    profile, agent_state = await asyncio.to_thread(get_full_user_context, user_id)
 
     try:
         result = await run_coach(
@@ -36,13 +36,18 @@ async def chat(
             agent_state=agent_state,
         )
     except Exception as e:
+        # User message is intentionally NOT saved here. Previously it was
+        # saved before this try block, so a failed LLM call left an orphaned
+        # user turn in ai_conversations with no matching assistant reply —
+        # corrupting /coach/history. Only persist once we know the full
+        # turn (user message + assistant reply) can be saved together.
         raise HTTPException(500, f"AI Coach error: {str(e)}")
 
-    # Persist the agent's updated fatigue/spinal-load state
-    upsert_agent_state(user_id, result["updated_agent_state"])
-
-    # Save assistant reply
-    save_conversation_message(user_id, payload.session_id, "assistant", result["reply"])
+    # Both messages are saved only after run_coach succeeds, so a turn is
+    # never half-persisted.
+    await asyncio.to_thread(save_conversation_message, user_id, payload.session_id, "user", payload.content)
+    await asyncio.to_thread(upsert_agent_state, user_id, result["updated_agent_state"])
+    await asyncio.to_thread(save_conversation_message, user_id, payload.session_id, "assistant", result["reply"])
 
     return ChatResponse(
         reply=result["reply"],

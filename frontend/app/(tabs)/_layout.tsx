@@ -3,18 +3,29 @@ import { Tabs, router } from 'expo-router';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { storage } from '../../src/utils/storage';
+import { COLORS } from '../../src/theme/colors';
+
+type TabDef = {
+  name: string;
+  title: string;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  activeIcon: React.ComponentProps<typeof Ionicons>['name'];
+};
+
+const TABS: TabDef[] = [
+  { name: 'index',    title: 'HOME',    icon: 'home-outline',         activeIcon: 'home'         },
+  { name: 'coach',   title: 'COACH',   icon: 'flash-outline',        activeIcon: 'flash'        },
+  { name: 'workout', title: 'WORKOUT', icon: 'barbell-outline',      activeIcon: 'barbell'      },
+  { name: 'progress',title: 'PROGRESS',icon: 'stats-chart-outline',  activeIcon: 'stats-chart'  },
+  { name: 'profile', title: 'PROFILE', icon: 'person-outline',       activeIcon: 'person'       },
+];
 
 export default function TabsLayout() {
-  // The tabs group previously had no auth guard at all — only the one-shot
-  // redirect in app/index.tsx stood between an unauthenticated user and the
-  // full tab bar. Any direct navigation here (refresh, deep link, stale
-  // route) bypassed that check entirely. This guard makes the tabs group
-  // fail closed instead of fail open.
   const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const token = await storage.getItem('fitai_token');
+      const token = await storage.getItem('neurofit_token');
       if (!token) {
         router.replace('/login');
         return;
@@ -26,7 +37,7 @@ export default function TabsLayout() {
   if (!authChecked) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator color="#FFD700" size="large" />
+        <ActivityIndicator color={COLORS.primaryGreen} size="large" />
       </View>
     );
   }
@@ -36,63 +47,44 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#1A1A1A',
-          borderTopColor: '#2A2A2A',
+          backgroundColor: COLORS.tabBg,
+          borderTopColor: COLORS.tabBorder,
           borderTopWidth: 1,
-          paddingBottom: 8,
-          paddingTop: 6,
-          height: 62,
+          paddingBottom: 10,
+          paddingTop: 8,
+          height: 66,
+          elevation: 0,
+          shadowOpacity: 0,
         },
-        tabBarActiveTintColor: '#FFD700',
-        tabBarInactiveTintColor: '#555',
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '600', letterSpacing: 0.5 },
+        tabBarActiveTintColor: COLORS.tabActive,
+        tabBarInactiveTintColor: COLORS.tabInactive,
+        tabBarLabelStyle: {
+          fontSize: 9,
+          fontWeight: '700',
+          letterSpacing: 0.8,
+          marginTop: 2,
+        },
+        tabBarHideOnKeyboard: true,
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'HOME',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="coach"
-        options={{
-          title: 'COACH',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubble-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="workout"
-        options={{
-          title: 'WORKOUT',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="barbell-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="progress"
-        options={{
-          title: 'PROGRESS',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="stats-chart-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'PROFILE',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-outline" size={size} color={color} />
-          ),
-        }}
-      />
+      {TABS.map((t) => (
+        <Tabs.Screen
+          key={t.name}
+          name={t.name}
+          options={{
+            title: t.title,
+            tabBarIcon: ({ color, focused }) => (
+              <View style={focused ? styles.activeWrap : styles.iconWrap}>
+                <Ionicons
+                  name={focused ? t.activeIcon : t.icon}
+                  size={21}
+                  color={color}
+                />
+              </View>
+            ),
+          }}
+        />
+      ))}
     </Tabs>
   );
 }
@@ -100,8 +92,14 @@ export default function TabsLayout() {
 const styles = StyleSheet.create({
   loading: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: COLORS.background,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  iconWrap: { padding: 4 },
+  activeWrap: {
+    padding: 6,
+    backgroundColor: COLORS.primaryGreen + '20',
+    borderRadius: 10,
   },
 });

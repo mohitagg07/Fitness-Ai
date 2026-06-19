@@ -1,9 +1,9 @@
 {
   "expo": {
     "name": "NeuroFit AI",
-    "slug": "fitai-mobile",
+    "slug": "neurofit-ai-mobile",
     "version": "1.0.0",
-    "scheme": "fitai",
+    "scheme": "neurofitai",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "icon": "./assets/icon.png",
@@ -15,14 +15,14 @@
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.fitai.mobile"
+      "bundleIdentifier": "com.neurofit.ai"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#121212"
       },
-      "package": "com.fitai.mobile"
+      "package": "com.neurofit.ai"
     },
     "web": {
       "bundler": "metro",

@@ -11,7 +11,7 @@ export default function Index() {
     if (!splashDone) return;
     (async () => {
       try {
-        const token = await storage.getItem('fitai_token');
+        const token = await storage.getItem('neurofit_token');
         router.replace(token ? '/(tabs)' : '/login');
       } catch {
         router.replace('/login');

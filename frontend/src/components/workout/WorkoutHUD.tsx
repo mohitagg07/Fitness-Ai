@@ -10,6 +10,7 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { workoutApi, coachApi } from '../../utils/api';
 import { useStore } from '../../store';
+import { COLORS } from '../../theme/colors';
 
 interface ExerciseCard {
   name: string;
@@ -144,7 +145,7 @@ export default function WorkoutHUD() {
       <View style={styles.container}>
         <View style={styles.preSession}>
           <View style={styles.preBadge}>
-            <Ionicons name="barbell-outline" size={28} color="#FFD700" />
+            <Ionicons name="barbell-outline" size={28} color={COLORS.primaryGreen} />
           </View>
           <Text style={styles.gymTitle}>GYM MODE</Text>
           <Text style={styles.gymSubtitle}>Your AI spotter is ready</Text>
@@ -156,7 +157,7 @@ export default function WorkoutHUD() {
             <Text style={styles.startBtnText}>START SESSION</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.coachBtn} onPress={askCoachForWorkout}>
-            <Ionicons name="flash" size={16} color="#FFD700" />
+            <Ionicons name="flash" size={16} color={COLORS.primaryGreen} />
             <Text style={styles.coachBtnText}>Ask Coach First</Text>
           </TouchableOpacity>
         </View>
@@ -169,7 +170,7 @@ export default function WorkoutHUD() {
       {timerRunning && (
         <View style={styles.timerBar}>
           <View style={styles.timerLeft}>
-            <Ionicons name="timer-outline" size={18} color="#FFD700" />
+            <Ionicons name="timer-outline" size={18} color={COLORS.primaryGreen} />
             <Text style={styles.timerText}>REST  {restTimer}s</Text>
           </View>
           <TouchableOpacity onPress={() => setTimerRunning(false)}>
@@ -273,11 +274,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#1A2535', alignItems: 'center', justifyContent: 'center',
     marginBottom: 4,
   },
-  gymTitle: { color: '#FFD700', fontSize: 28, fontWeight: '800', letterSpacing: 2 },
+  gymTitle: { color: COLORS.primaryGreen, fontSize: 28, fontWeight: '800', letterSpacing: 2 },
   gymSubtitle: { color: '#888', fontSize: 14, letterSpacing: 1 },
   gymDesc: { color: '#C0C0C0', fontSize: 14, lineHeight: 22, marginVertical: 4 },
   startBtn: {
-    backgroundColor: '#FFD700', borderRadius: 14,
+    backgroundColor: COLORS.primaryGreen, borderRadius: 14,
     padding: 18, alignItems: 'center', marginTop: 8,
   },
   startBtnText: { color: '#000', fontSize: 15, fontWeight: '800', letterSpacing: 1 },
@@ -287,13 +288,13 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#1E3A5F',
     flexDirection: 'row', justifyContent: 'center', gap: 8,
   },
-  coachBtnText: { color: '#FFD700', fontSize: 14, fontWeight: '600' },
+  coachBtnText: { color: COLORS.primaryGreen, fontSize: 14, fontWeight: '600' },
   timerBar: {
     backgroundColor: '#1A2E44', padding: 14,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
   timerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  timerText: { color: '#FFD700', fontSize: 22, fontWeight: '700' },
+  timerText: { color: COLORS.primaryGreen, fontSize: 22, fontWeight: '700' },
   skipTimer: { color: '#888', fontSize: 13 },
   sessionInfo: {
     paddingHorizontal: 16, paddingVertical: 10,
@@ -311,7 +312,7 @@ const styles = StyleSheet.create({
   manualEntry: { marginBottom: 12 },
   manualTitle: { color: '#FFF', fontSize: 18, fontWeight: '700' },
   manualSub: { color: '#888', fontSize: 13, marginTop: 2 },
-  setCount: { color: '#FFD700', fontSize: 11, fontWeight: '700', letterSpacing: 2, marginBottom: 4 },
+  setCount: { color: COLORS.primaryGreen, fontSize: 11, fontWeight: '700', letterSpacing: 2, marginBottom: 4 },
   exerciseName: { color: '#FFF', fontSize: 22, fontWeight: '700', marginBottom: 4 },
   exerciseTarget: { color: '#888', fontSize: 14, marginBottom: 8 },
   cue: { color: '#A0B4C8', fontSize: 13, lineHeight: 18, marginBottom: 14, fontStyle: 'italic' },
@@ -334,7 +335,7 @@ const styles = StyleSheet.create({
   rpeChipText: { color: '#888', fontSize: 12, fontWeight: '600' },
   rpeChipTextActive: { color: '#FFF' },
   logBtn: {
-    backgroundColor: '#FFD700', borderRadius: 14,
+    backgroundColor: COLORS.primaryGreen, borderRadius: 14,
     padding: 16, alignItems: 'center',
     flexDirection: 'row', justifyContent: 'center', gap: 8,
   },

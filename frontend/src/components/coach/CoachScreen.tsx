@@ -7,7 +7,7 @@ import {
   StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { coachApi } from '../../utils/api';
+import { coachApi, describeApiError } from '../../utils/api';
 import { useStore } from '../../store';
 
 const SUGGESTIONS = [
@@ -55,11 +55,8 @@ export default function CoachScreen() {
         Alert.alert('New PR!', data.new_prs.map((p: any) => p.message).join('\n'));
       }
     } catch (err: any) {
-      const msg =
-        err?.response?.status === 401
-          ? 'Session expired. Please log in again.'
-          : 'Connection error. Check your network and try again.';
-      addChatMessage('assistant', msg);
+      const { message } = describeApiError(err);
+      addChatMessage('assistant', message);
     } finally {
       setLoading(false);
     }

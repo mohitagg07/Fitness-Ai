@@ -58,15 +58,35 @@ def recall(user_id: str, query_text: str, n_results: int = 5) -> list[str]:
     given the current conversational context.
     """
     collection = get_memory_collection()
-    # Chroma's `where` filters metadata pre-query so we never leak one
-    # user's facts into another user's retrieval.
-    results = collection.query(
-        query_texts=[query_text],
-        n_results=n_results,
-        where={"user_id": user_id},
-    )
-    docs = results.get("documents") or [[]]
-    return docs[0] if docs else []
+
+    # Guard: ChromaDB >=1.5 raises if n_results exceeds the number of
+    # documents that match the `where` filter. A brand-new user has zero
+    # stored memories on their first chat, so check first and short-circuit
+    # instead of letting `.query()` throw (previously silently swallowed by
+    # the caller's broad except block in coach_agent.py with no logging).
+    try:
+        existing = collection.get(where={"user_id": user_id}, limit=n_results)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Memory lookup failed for user {user_id}: {e}")
+        return []
+
+    available = len(existing.get("ids", []))
+    if available == 0:
+        return []
+
+    try:
+        results = collection.query(
+            query_texts=[query_text],
+            n_results=min(n_results, available),
+            where={"user_id": user_id},
+        )
+        docs = results.get("documents") or [[]]
+        return docs[0] if docs else []
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Memory recall query failed for user {user_id}: {e}")
+        return []
 
 
 def recall_all(user_id: str) -> list[dict]:

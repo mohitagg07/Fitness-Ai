@@ -8,6 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { profileApi } from '../../utils/api';
 import { useStore } from '../../store';
+import { COLORS } from '../../theme/colors';
 
 export default function ProfileScreen() {
   const { user, profile, injuries, prs, setProfile, logout } = useStore();
@@ -46,7 +47,7 @@ export default function ProfileScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color="#FFD700" size="large" />
+        <ActivityIndicator color={COLORS.primaryGreen} size="large" />
       </View>
     );
   }
@@ -54,7 +55,7 @@ export default function ProfileScreen() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <LinearGradient colors={['#FFD700', '#1E3A5F']} style={styles.avatar}>
+        <LinearGradient colors={[COLORS.primaryGreen, '#1E3A5F']} style={styles.avatar}>
           <Text style={styles.avatarText}>
             {(user?.full_name || profile?.full_name || 'A').charAt(0).toUpperCase()}
           </Text>
@@ -83,7 +84,7 @@ export default function ProfileScreen() {
       {Object.keys(prs).length > 0 && (
         <View style={styles.card}>
           <View style={styles.cardLabelRow}>
-            <Ionicons name="trophy-outline" size={13} color="#FFD700" />
+            <Ionicons name="trophy-outline" size={13} color={COLORS.primaryGreen} />
             <Text style={styles.cardLabel}>PERSONAL RECORDS</Text>
           </View>
           {Object.entries(prs).map(([name, weight]) => (
@@ -109,7 +110,7 @@ export default function ProfileScreen() {
                 <Text style={styles.injuryType}>{inj.issue_type}</Text>
               </View>
               <View style={[styles.severityBadge, { backgroundColor: inj.severity >= 7 ? '#3A1A1A' : '#2A2A1A' }]}>
-                <Text style={[styles.severityText, { color: inj.severity >= 7 ? '#FF4500' : '#FFD700' }]}>
+                <Text style={[styles.severityText, { color: inj.severity >= 7 ? '#FF4500' : COLORS.primaryGreen }]}>
                   {inj.severity}/10
                 </Text>
               </View>
@@ -189,7 +190,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#2A2A2A',
   },
   prName: { color: '#C0C0C0', fontSize: 14 },
-  prWeight: { color: '#FFD700', fontSize: 14, fontWeight: '700' },
+  prWeight: { color: COLORS.primaryGreen, fontSize: 14, fontWeight: '700' },
   injuryRow: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', paddingVertical: 10,

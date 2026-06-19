@@ -3,6 +3,7 @@ Dashboard route — assembles the "Today's Mission" agentic summary by
 calling every decision agent once and folding the results into a single
 payload the frontend renders without further client-side logic.
 """
+import asyncio
 from datetime import date
 from fastapi import APIRouter, Depends
 from core.security import get_current_user
@@ -40,8 +41,15 @@ def _today_nutrition_consumed(user_id: str) -> dict:
 async def get_dashboard_summary(
     current_user: dict = Depends(get_current_user)
 ):
+    # NOTE: every agent below does synchronous (blocking) Supabase I/O.
+    # Calling them directly inside this `async def` route blocks FastAPI's
+    # single event loop for the full duration of each call — which starves
+    # every other concurrent request on the server. Each blocking call is
+    # wrapped in asyncio.to_thread() so it runs in a worker thread instead.
+    # recovery_decision depends on workout_decision.recommended_type, so
+    # those two can't be parallelized with each other — everything else can.
     user_id = current_user["user_id"]
-    profile, agent_state = get_full_user_context(user_id)
+    profile, agent_state = await asyncio.to_thread(get_full_user_context, user_id)
 
     full_name = profile.get("full_name") or "there"
     goal_str = profile.get("goal") or "maintain"
@@ -54,35 +62,40 @@ async def get_dashboard_summary(
     food_pref = profile.get("food_preference") or "non-veg"
     coach_style = profile.get("coach_style") or "friendly"
 
-    # ── Nutrition Agent ──────────────────────────────────────────────
-    nutrition_decision = run_nutrition_agent(
-        user_id=user_id,
-        weight_kg=weight_kg,
-        height_cm=height_cm,
-        age=age,
-        gender=gender,
-        goal=goal,
-        food_preference=food_pref,
-        is_training_day=True,
+    # ── Independent calls run concurrently in the thread pool ──────────
+    (
+        nutrition_decision,
+        consumed,
+        workout_decision,
+        progress_decision,
+    ) = await asyncio.gather(
+        asyncio.to_thread(
+            run_nutrition_agent,
+            user_id=user_id,
+            weight_kg=weight_kg,
+            height_cm=height_cm,
+            age=age,
+            gender=gender,
+            goal=goal,
+            food_preference=food_pref,
+            is_training_day=True,
+        ),
+        asyncio.to_thread(_today_nutrition_consumed, user_id),
+        asyncio.to_thread(run_workout_agent, user_id, preferred_time=profile.get("workout_time_preference")),
+        asyncio.to_thread(run_progress_agent, user_id, goal),
     )
     targets = calculate_macros(weight_kg, height_cm, age, gender, goal, is_training_day=True)
-    consumed = _today_nutrition_consumed(user_id)
 
-    # ── Workout Agent ────────────────────────────────────────────────
-    workout_decision = run_workout_agent(user_id, preferred_time=profile.get("workout_time_preference"))
-
-    # ── Progress Agent ───────────────────────────────────────────────
-    progress_decision = run_progress_agent(user_id, goal)
-
-    # ── Recovery Agent ───────────────────────────────────────────────
-    recovery_decision = run_recovery_agent(
+    # ── Recovery Agent — depends on workout_decision, runs after ───────
+    recovery_decision = await asyncio.to_thread(
+        run_recovery_agent,
         user_id,
         sleep_hours=profile.get("sleep_hours"),
         planned_workout_type=workout_decision.recommended_type,
     )
 
     # ── Motivation Agent ─────────────────────────────────────────────
-    motivation_message = get_daily_motivation(user_id, coach_style)
+    motivation_message = await asyncio.to_thread(get_daily_motivation, user_id, coach_style)
 
     calories_remaining = max(0, targets["calories"] - int(consumed["calories"]))
     protein_remaining = max(0.0, targets["protein_g"] - consumed["protein_g"])

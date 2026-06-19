@@ -1,3 +1,4 @@
+import { COLORS } from '../../theme/colors';
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
@@ -49,7 +50,7 @@ export default function RegisterScreen() {
     >
       <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
         <TouchableOpacity onPress={() => router.back()} style={styles.back}>
-          <Ionicons name="chevron-back" size={18} color="#FFD700" />
+          <Ionicons name="chevron-back" size={18} color={COLORS.primaryGreen} />
           <Text style={styles.backText}>Back</Text>
         </TouchableOpacity>
 
@@ -108,7 +109,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#121212' },
   inner: { flexGrow: 1, padding: 28, paddingTop: 60 },
   back: { marginBottom: 32, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  backText: { color: '#FFD700', fontSize: 15 },
+  backText: { color: COLORS.primaryGreen, fontSize: 15 },
   title: { color: '#FFF', fontSize: 28, fontWeight: '800', marginBottom: 8 },
   subtitle: { color: '#888', fontSize: 14, marginBottom: 36 },
   form: { gap: 12 },
@@ -124,7 +125,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   btn: {
-    backgroundColor: '#FFD700',
+    backgroundColor: COLORS.primaryGreen,
     borderRadius: 14,
     padding: 16,
     alignItems: 'center',

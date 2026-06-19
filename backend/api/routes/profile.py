@@ -3,6 +3,7 @@ FIX: Removed prefix="/profile" from APIRouter.
 main.py already mounts this at prefix="/api/profile".
 """
 from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime, timezone
 from schemas.models import ProfileCreate, ProfileUpdate, InjuryCreate, PRCreate
 from core.security import get_current_user
 from db.supabase_client import get_supabase
@@ -37,7 +38,7 @@ async def update_me(
     data = {k: v for k, v in payload.model_dump().items() if v is not None}
     if not data:
         raise HTTPException(400, "No fields to update")
-    data["updated_at"] = "now()"
+    data["updated_at"] = datetime.now(timezone.utc).isoformat()
     res = (
         sb.table("profiles")
         .update(data)
@@ -58,7 +59,7 @@ async def onboard(
     data = payload.model_dump()
     data["id"] = user_id
     data["onboarding_complete"] = True
-    data["updated_at"] = "now()"
+    data["updated_at"] = datetime.now(timezone.utc).isoformat()
     res = sb.table("profiles").upsert(data, on_conflict="id").execute()
     return res.data[0] if res.data else {}
 

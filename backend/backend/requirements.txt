@@ -1,0 +1,28 @@
+# Core
+fastapi==0.115.6
+starlette==0.41.3
+uvicorn[standard]==0.34.0
+python-multipart
+
+# Settings & Env
+pydantic
+pydantic-settings
+
+# Auth & Security
+python-jose[cryptography]
+passlib[bcrypt]
+
+# Database
+supabase
+websockets>=11,<13
+
+# AI / LLM (Groq only — removed openai and google-genai)
+langchain
+langchain-groq
+langgraph
+
+# Vector DB
+chromadb
+
+# HTTP
+httpx

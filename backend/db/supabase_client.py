@@ -3,6 +3,7 @@ Supabase client — database layer for RepMind.
 All DB calls go through this module.
 """
 import logging
+from datetime import datetime, timezone
 from supabase import create_client, Client
 from core.config import get_settings
 from functools import lru_cache
@@ -67,7 +68,11 @@ def get_full_user_context(user_id: str) -> tuple[dict, dict]:
 def upsert_agent_state(user_id: str, state: dict) -> None:
     sb = get_supabase()
     state["user_id"] = user_id
-    state["updated_at"] = "now()"
+    # "now()" was being sent as a literal JSON string, not evaluated as SQL —
+    # supabase-py/PostgREST does not interpret string values as SQL function
+    # calls, so the updated_at column was storing the text "now()" instead of
+    # an actual timestamp. Use a real UTC ISO-8601 timestamp instead.
+    state["updated_at"] = datetime.now(timezone.utc).isoformat()
     sb.table("agent_states").upsert(state, on_conflict="user_id").execute()
 
 

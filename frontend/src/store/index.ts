@@ -26,13 +26,13 @@ function setState(partial: Partial<State>) {
 
 export const actions = {
   async setAuth(user: any, token: string) {
-    await storage.setItem('fitai_token', token);
-    await storage.setItem('fitai_user', JSON.stringify(user));
+    await storage.setItem('neurofit_token', token);
+    await storage.setItem('neurofit_user', JSON.stringify(user));
     setState({ user, token });
   },
   async logout() {
-    await storage.deleteItem('fitai_token');
-    await storage.deleteItem('fitai_user');
+    await storage.deleteItem('neurofit_token');
+    await storage.deleteItem('neurofit_user');
     setState({
       user: null, token: null, profile: null,
       injuries: [], prs: {}, chatHistory: [],

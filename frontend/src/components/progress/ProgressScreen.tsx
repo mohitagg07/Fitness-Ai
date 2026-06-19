@@ -4,12 +4,13 @@ import {
   TextInput, Alert, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { progressApi } from '../../utils/api';
+import { progressApi, describeApiError } from '../../utils/api';
 
 export default function ProgressScreen() {
   const [metrics, setMetrics] = useState<any[]>([]);
   const [nutrition, setNutrition] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [weightInput, setWeightInput] = useState('');
   const [activeTab, setActiveTab] = useState<'body' | 'nutrition'>('body');
 
@@ -17,6 +18,7 @@ export default function ProgressScreen() {
 
   const loadData = async () => {
     setLoading(true);
+    setErrorMsg(null);
     try {
       const [mRes, nRes] = await Promise.all([
         progressApi.getMetrics(14),
@@ -24,8 +26,15 @@ export default function ProgressScreen() {
       ]);
       setMetrics(mRes.data || []);
       setNutrition(nRes.data || []);
-    } catch {}
-    finally { setLoading(false); }
+    } catch (err: any) {
+      // Previously a bare `catch {}` — a failed fetch rendered identically
+      // to "you genuinely have no data yet," which is misleading and gives
+      // no path to recover other than guessing to pull-to-refresh.
+      const { message } = describeApiError(err);
+      setErrorMsg(message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const logWeight = async () => {

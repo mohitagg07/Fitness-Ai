@@ -53,7 +53,16 @@ export default function AuthScreen() {
         const profileRes = await profileApi.getMe();
         const d = profileRes.data;
         actions.setProfile(d.profile || {}, d.injuries || [], d.personal_records || []);
-      } catch {}
+      } catch (profileErr) {
+        // Login itself succeeded — don't block entry to the app over a
+        // profile fetch failure. But silently eating this previously meant
+        // a user could be looking at "Athlete" / empty cards everywhere
+        // with no idea why. Log it so it's visible during development;
+        // the Dashboard's own error state covers the in-app signal.
+        if (__DEV__) {
+          console.warn('[Login] Profile fetch failed after login:', profileErr);
+        }
+      }
       router.replace('/(tabs)');
     } catch (err: any) {
       Alert.alert('Login Failed', err?.response?.data?.detail || 'Check your credentials.');
@@ -69,63 +78,30 @@ export default function AuthScreen() {
     }
     if (regPassword.length < 8) {
       Alert.alert('Weak password', 'Password must be at least 8 characters.');
-    
       return;
-  
-    }
-  
-    setLoading(true);
-  
-    try {
-    
-      console.log('Attempting register to:', process.env.EXPO_PUBLIC_API_URL);
-    
-      const res = await authApi.register({
-    
-        full_name: regName.trim(),
-    
-        email: regEmail.trim(),
-    
-        password: regPassword,
-    
-      });
-    
-      console.log('Register success:', res.data);
-    
-      const { access_token, user_id } = res.data;
-    
-      await actions.setAuth(
-    
-        { id: user_id, email: regEmail.trim(), full_name: regName.trim() },
-    
-        access_token
-    
-      );
-    
-      router.replace('/(tabs)');
-  
-    } catch (err: any) {
-  
-      console.log('Register error:', JSON.stringify(err?.response?.data || err?.message));
-  
-      Alert.alert(
-  
-        'Registration Failed',
-  
-        err?.response?.data?.detail
-  
-        || err?.message
-  
-        || 'Cannot connect to server. Check backend is running.'
-  
-      );
-  
-    } finally {
-  
-      setLoading(false);
-  
     }
 
+    setLoading(true);
+    try {
+      const res = await authApi.register({
+        full_name: regName.trim(),
+        email: regEmail.trim(),
+        password: regPassword,
+      });
+      const { access_token, user_id } = res.data;
+      await actions.setAuth(
+        { id: user_id, email: regEmail.trim(), full_name: regName.trim() },
+        access_token
+      );
+      router.replace('/(tabs)');
+    } catch (err: any) {
+      Alert.alert(
+        'Registration Failed',
+        err?.response?.data?.detail || err?.message || 'Cannot connect to server. Check backend is running.'
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

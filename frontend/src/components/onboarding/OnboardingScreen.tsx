@@ -20,6 +20,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { profileApi } from '../../utils/api';
+import { actions } from '../../store';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const RING_SIZE = 84;
@@ -114,7 +115,7 @@ export default function OnboardingScreen() {
     // Final slide — submit to the backend.
     setSubmitting(true);
     try {
-      await profileApi.onboard({
+      const res = await profileApi.onboard({
         full_name: form.full_name.trim(),
         age: Number(form.age),
         gender: form.gender,
@@ -128,6 +129,13 @@ export default function OnboardingScreen() {
         food_preference: form.food_preference ?? undefined,
         coach_style: form.coach_style,
       });
+      // Previously the store was never updated here, so the Dashboard
+      // (which reads profile.goal / profile.full_name from the store, not
+      // from a fetch of its own) showed stale/empty values immediately
+      // after onboarding until some other screen happened to call
+      // profileApi.getMe(). The /onboard endpoint already returns the
+      // saved row — use it directly instead of waiting on a second round trip.
+      actions.setProfile(res.data || {}, [], []);
       router.replace('/(tabs)');
     } catch (e: any) {
       const detail = e?.response?.data?.detail;
