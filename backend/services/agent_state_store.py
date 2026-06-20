@@ -5,6 +5,7 @@ through this module so fatigue/streak/phase data never drifts out of sync.
 """
 from db.supabase_client import get_supabase
 from schemas.models import AgentState
+from datetime import datetime, timezone
 
 
 def get_agent_state(user_id: str) -> dict:
@@ -22,7 +23,7 @@ def get_agent_state(user_id: str) -> dict:
 
 def save_agent_state(user_id: str, state: dict) -> dict:
     sb = get_supabase()
-    data = {**state, "user_id": user_id, "updated_at": "now()"}
+    data = {**state, "user_id": user_id, "updated_at": datetime.now(timezone.utc).isoformat()}
     # Strip fields that aren't real columns (e.g. accidental extras from agent_state dict)
     allowed = {
         "user_id", "cns_fatigue_score", "accumulated_spinal_load", "last_session_date",

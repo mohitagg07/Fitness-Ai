@@ -1,4 +1,5 @@
 import logging
+from pydantic import Field, AliasChoices
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 
@@ -14,14 +15,24 @@ class Settings(BaseSettings):
     # Supabase
     supabase_url: str = ""
     supabase_anon_key: str = ""
-    supabase_service_key: str = ""
+    # Accept either SUPABASE_SERVICE_KEY (canonical) or SUPABASE_KEY (the
+    # name the README told people to use) so a .env written either way works.
+    supabase_service_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("SUPABASE_SERVICE_KEY", "SUPABASE_KEY"),
+    )
 
     # ChromaDB
     chroma_persist_dir: str = "./chroma_store"
     chroma_collection_name: str = "repmind_guardrails"
 
     # App
-    secret_key: str = "dev-secret-key-change-in-production"
+    # Accept either SECRET_KEY (canonical) or JWT_SECRET (the name the
+    # README told people to use) so a .env written either way works.
+    secret_key: str = Field(
+        default="dev-secret-key-change-in-production",
+        validation_alias=AliasChoices("SECRET_KEY", "JWT_SECRET"),
+    )
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 10080  # 7 days
 
