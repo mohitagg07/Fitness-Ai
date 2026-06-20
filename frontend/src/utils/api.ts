@@ -27,9 +27,22 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Use storage wrapper instead of SecureStore directly
+// Use storage wrapper instead of SecureStore directly.
+//
+// CRITICAL: this key must match exactly what store/index.ts's setAuth()
+// writes to ('neurofit_token'/'neurofit_user'), since that's the only
+// place a token is ever stored. This file previously read/deleted
+// 'fitai_token'/'fitai_user' — a key that nothing in the app ever wrote
+// to — meaning storage.getItem() below always returned null, the
+// Authorization header was never attached to any outgoing request, and
+// every authenticated endpoint failed with 401 "Not authenticated"
+// regardless of whether the user had just registered, just logged in, or
+// had been using the app for days. Login/onboarding still appeared to
+// "work" because the navigation guards in app/index.tsx and
+// app/(tabs)/_layout.tsx correctly checked 'neurofit_token' — only the
+// actual API calls were broken.
 api.interceptors.request.use(async (config) => {
-  const token = await storage.getItem('fitai_token');
+  const token = await storage.getItem('neurofit_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
@@ -44,9 +57,22 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error?.response?.status === 401 && !isRedirectingToLogin) {
+      // Log the actual server-provided reason before wiping the token, so
+      // a forced logout during normal use (e.g. mid-chat) is diagnosable
+      // instead of just "it logged me out for no reason." Common causes:
+      // ORPHANED_SESSION (the account behind this token no longer exists —
+      // e.g. deleted from Supabase Auth while the app still held an old
+      // token), "Invalid or expired token" (JWT signature mismatch — most
+      // often because the backend's SECRET_KEY changed, which invalidates
+      // every previously-issued token at once), or a genuinely expired
+      // token (default lifetime is 7 days).
+      const reason = error?.response?.data?.detail || '(no detail returned)';
+      if (__DEV__) {
+        console.warn(`[Auth] Forced logout — server returned 401: ${reason}`);
+      }
       isRedirectingToLogin = true;
-      await storage.deleteItem('fitai_token');
-      await storage.deleteItem('fitai_user');
+      await storage.deleteItem('neurofit_token');
+      await storage.deleteItem('neurofit_user');
       router.replace('/login');
       // Reset the guard on the next tick so a later, legitimate 401
       // (e.g. after a fresh login that itself expires) isn't ignored.

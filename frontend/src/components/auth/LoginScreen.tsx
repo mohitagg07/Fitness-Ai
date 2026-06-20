@@ -111,15 +111,15 @@ export default function AuthScreen() {
     >
       <Image source={{ uri: HERO_IMAGE_URL }} style={styles.heroImage} resizeMode="cover" />
       <LinearGradient
-        colors={['#121212F2', '#121212E6', '#121212']}
+        colors={['#000000F2', '#000000E6', '#000000']}
         style={styles.heroOverlay}
       />
       <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
         <Animated.View style={{ opacity: fade, transform: [{ translateY: rise }] }}>
 
           {/* Logo */}
-          <LinearGradient colors={['#FFD700', '#FF8A00']} style={styles.logoBadge}>
-            <Ionicons name="barbell" size={34} color="#121212" />
+          <LinearGradient colors={['#00F5D4', '#00B8D9']} style={styles.logoBadge}>
+            <Ionicons name="barbell" size={34} color="#000000" />
           </LinearGradient>
           <Text style={styles.title}>NeuroFit AI</Text>
           <Text style={styles.subtitle}>Your AI Gym Spotter</Text>
@@ -230,9 +230,9 @@ export default function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212' },
+  container: { flex: 1, backgroundColor: '#000000' },
   heroImage: {
-    position: 'absolute', top: 0, left: 0, right: 0, height: '48%', opacity: 0.55,
+    position: 'absolute', top: 0, left: 0, right: 0, height: '48%', opacity: 0.45,
   },
   heroOverlay: {
     position: 'absolute', top: 0, left: 0, right: 0, height: '60%',
@@ -242,37 +242,37 @@ const styles = StyleSheet.create({
     width: 76, height: 76, borderRadius: 22,
     alignItems: 'center', justifyContent: 'center',
     alignSelf: 'center', marginBottom: 14,
-    shadowColor: '#FFD700', shadowOpacity: 0.45, shadowRadius: 16,
+    shadowColor: '#00F5D4', shadowOpacity: 0.45, shadowRadius: 16,
     shadowOffset: { width: 0, height: 6 }, elevation: 8,
   },
-  title: { color: '#FFD700', fontSize: 34, fontWeight: '800', textAlign: 'center', letterSpacing: 2 },
-  subtitle: { color: '#888', fontSize: 13, textAlign: 'center', marginBottom: 36, letterSpacing: 1 },
+  title: { color: '#00F5D4', fontSize: 34, fontWeight: '800', textAlign: 'center', letterSpacing: 2 },
+  subtitle: { color: '#7A8A8E', fontSize: 13, textAlign: 'center', marginBottom: 36, letterSpacing: 1 },
   toggle: {
     flexDirection: 'row',
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#121212',
     borderRadius: 14,
     padding: 4,
     marginBottom: 28,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: '#1F2A2C',
   },
   toggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
-  toggleBtnActive: { backgroundColor: '#FFD700' },
-  toggleText: { color: '#555', fontSize: 12, fontWeight: '700', letterSpacing: 1 },
-  toggleTextActive: { color: '#000' },
+  toggleBtnActive: { backgroundColor: '#00F5D4' },
+  toggleText: { color: '#5C6B6E', fontSize: 12, fontWeight: '700', letterSpacing: 1 },
+  toggleTextActive: { color: '#000000' },
   form: { gap: 10 },
-  label: { color: '#555', fontSize: 11, fontWeight: '700', letterSpacing: 1.5, marginBottom: 2 },
+  label: { color: '#5C6B6E', fontSize: 11, fontWeight: '700', letterSpacing: 1.5, marginBottom: 2 },
   input: {
-    backgroundColor: '#1E1E1E', borderRadius: 12,
+    backgroundColor: '#121212', borderRadius: 12,
     padding: 15, color: '#FFF', fontSize: 15,
-    borderWidth: 1, borderColor: '#2A2A2A', marginBottom: 6,
+    borderWidth: 1, borderColor: '#1F2A2C', marginBottom: 6,
   },
   btn: {
-    backgroundColor: '#FFD700', borderRadius: 14,
+    backgroundColor: '#00F5D4', borderRadius: 14,
     padding: 16, alignItems: 'center', marginTop: 6,
-    shadowColor: '#FFD700', shadowOpacity: 0.35, shadowRadius: 12,
+    shadowColor: '#00F5D4', shadowOpacity: 0.35, shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 }, elevation: 5,
   },
   btnDisabled: { opacity: 0.6 },
-  btnText: { color: '#000', fontSize: 14, fontWeight: '800', letterSpacing: 1 },
+  btnText: { color: '#000000', fontSize: 14, fontWeight: '800', letterSpacing: 1 },
 });

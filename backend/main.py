@@ -21,25 +21,11 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Seed ChromaDB on startup.
-    # DefaultEmbeddingFunction downloads a ~90MB ONNX model from HuggingFace
-    # on first use. Without the timeout guard below, a slow/blocked download
-    # will hang the lifespan hook indefinitely, preventing the server from
-    # ever reaching "Application startup complete" — confirmed via live boot test.
-    import asyncio as _asyncio
+    # Seed ChromaDB on startup
     try:
-        await _asyncio.wait_for(
-            _asyncio.to_thread(seed_guardrails),
-            timeout=30.0,
-        )
-        print("ChromaDB guardrails seeded OK.")
-    except _asyncio.TimeoutError:
-        print(
-            "WARNING: ChromaDB seed timed out (ONNX model download too slow). "
-            "Guardrails will be unavailable until next restart. Server continuing."
-        )
+        seed_guardrails()
     except Exception as e:
-        print(f"WARNING: ChromaDB seed failed: {e}. Server continuing without guardrails.")
+        print(f"ChromaDB seed warning: {e}")
     yield
 
 

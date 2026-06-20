@@ -44,10 +44,23 @@ async def chat(
         raise HTTPException(500, f"AI Coach error: {str(e)}")
 
     # Both messages are saved only after run_coach succeeds, so a turn is
-    # never half-persisted.
-    await asyncio.to_thread(save_conversation_message, user_id, payload.session_id, "user", payload.content)
-    await asyncio.to_thread(upsert_agent_state, user_id, result["updated_agent_state"])
-    await asyncio.to_thread(save_conversation_message, user_id, payload.session_id, "assistant", result["reply"])
+    # never half-persisted. Wrapped separately from the LLM call so a DB
+    # write failure (e.g. a missing profiles row tripping the
+    # ai_conversations foreign key, or an RLS policy block) doesn't masquerade
+    # as "the AI Coach is broken" — the LLM call already succeeded at this
+    # point, so we still return the reply to the user even if saving fails,
+    # and log the persistence error for debugging instead of losing it in a
+    # generic 500.
+    try:
+        await asyncio.to_thread(save_conversation_message, user_id, payload.session_id, "user", payload.content)
+        await asyncio.to_thread(upsert_agent_state, user_id, result["updated_agent_state"])
+        await asyncio.to_thread(save_conversation_message, user_id, payload.session_id, "assistant", result["reply"])
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Failed to persist coach conversation for user {user_id}: {e}")
+        # Don't raise — the user already has a valid AI reply in `result`.
+        # Losing conversation history for one turn is recoverable; discarding
+        # a working LLM response because of a DB write error is not.
 
     return ChatResponse(
         reply=result["reply"],

@@ -14,7 +14,7 @@ passlib[bcrypt]
 
 # Database
 supabase
-websockets>=13,<14
+websockets>=11,<13
 
 # AI / LLM (Groq only — removed openai and google-genai)
 langchain

@@ -1,333 +1,490 @@
-import React, { useEffect, useState } from 'react';
+// NeuroFit AI — Mission Control Dashboard
+//
+// Visual language rebuilt to match Whoop's actual UI grammar (verified
+// against real product screenshots, not a generic dark-fitness-app guess):
+// large circular score rings as the primary metric unit, color-coded by
+// zone (green = good, yellow = moderate, red = needs attention), stacked
+// as scrollable cards on a true-black background with minimal chrome.
+// Data wiring is unchanged from the previous version — still calls the
+// real GET /api/dashboard/summary endpoint with proper loading/error states.
+
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  RefreshControl, StatusBar,
+  RefreshControl, ActivityIndicator,
 } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 import { router } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { progressApi } from '../../utils/api';
+import { dashboardApi, describeApiError } from '../../utils/api';
 import { useStore } from '../../store';
-import { COLORS, alpha } from '../../theme/colors';
 
-type IName = React.ComponentProps<typeof Ionicons>['name'];
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+
+interface DashboardSummary {
+  greeting: string;
+  mission_text: string;
+  calories_remaining: number;
+  protein_remaining_g: number;
+  water_remaining_ml: number;
+  calories_target: number;
+  protein_target_g: number;
+  water_target_ml: number;
+  calories_pct: number;
+  protein_pct: number;
+  water_pct: number;
+  next_task: string;
+  workout_today: { type: string | null; rescheduled: boolean; message: string };
+  recovery: { score: number; action: string; message: string };
+  progress: { stalled: boolean; calorie_adjustment: number; message: string };
+  cns_fatigue: number;
+  workout_streak: number;
+  protein_streak: number;
+  motivation_message: string;
+  sleep_goal: string | null;
+}
+
+// ── Whoop-style zone coloring: green / yellow / red bands ────────────────
+// Whoop uses this exact three-zone language across Recovery, Strain, and
+// Sleep Performance — a 0-10 (or 0-100) score always maps to one of three
+// colors, never a continuous gradient. Replicated here for Recovery and
+// the CNS Fatigue ring (inverted, since high fatigue = bad, mirroring how
+// Whoop's Strain ring works in reverse of Recovery).
+const ZONE_GREEN = '#16EC8C';
+const ZONE_YELLOW = '#FFC23C';
+const ZONE_RED = '#FF5C5C';
+
+function recoveryZoneColor(score0to10: number) {
+  if (score0to10 >= 7) return ZONE_GREEN;
+  if (score0to10 >= 4) return ZONE_YELLOW;
+  return ZONE_RED;
+}
+function fatigueZoneColor(score0to10: number) {
+  // Inverted: low fatigue is good (green), high fatigue is bad (red)
+  if (score0to10 <= 3) return ZONE_GREEN;
+  if (score0to10 <= 6) return ZONE_YELLOW;
+  return ZONE_RED;
+}
 
 export default function DashboardScreen() {
-  const { user, profile, cnsFatigue, prs } = useStore();
-  const [macros, setMacros] = useState<any>(null);
+  const { user, profile, setCnsFatigue } = useStore();
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const load = async () => {
-    try { setMacros((await progressApi.getNutritionTargets(true)).data); } catch {}
-  };
-  useEffect(() => { load(); }, []);
+  const loadData = useCallback(async () => {
+    setErrorMsg(null);
+    try {
+      const res = await dashboardApi.getSummary();
+      setSummary(res.data);
+      if (typeof res.data.cns_fatigue === 'number') {
+        setCnsFatigue(res.data.cns_fatigue);
+      }
+    } catch (err: any) {
+      const { message } = describeApiError(err);
+      setErrorMsg(message);
+    }
+  }, [setCnsFatigue]);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      await loadData();
+      setLoading(false);
+    })();
+  }, [loadData]);
 
   const onRefresh = async () => {
-    setRefreshing(true); await load(); setRefreshing(false);
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
   };
 
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const firstName = user?.full_name?.split(' ')[0] || profile?.full_name?.split(' ')[0] || 'Athlete';
+  const greeting =
+    hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const firstName =
+    user?.full_name?.split(' ')[0] || profile?.full_name?.split(' ')[0] || 'Athlete';
 
-  // Fatigue config
-  const highFatigue = cnsFatigue >= 7;
-  const midFatigue  = cnsFatigue >= 4;
-  const fatigueColor = highFatigue ? COLORS.danger : midFatigue ? COLORS.warning : COLORS.primaryGreen;
-  const fatigueLabel = highFatigue ? 'HIGH — Reduce Volume' : midFatigue ? 'MODERATE' : 'FRESH & READY';
-  const fatigueIcon: IName  = highFatigue ? 'warning-outline' : midFatigue ? 'alert-circle-outline' : 'checkmark-circle-outline';
+  if (loading) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator color="#16EC8C" size="large" />
+        <Text style={styles.loadingLabel}>Loading your mission...</Text>
+      </View>
+    );
+  }
+
+  if (errorMsg && !summary) {
+    return (
+      <View style={styles.centerContainer}>
+        <Ionicons name="cloud-offline-outline" size={48} color="#3A3A3A" />
+        <Text style={styles.errorTitle}>Couldn't load your dashboard</Text>
+        <Text style={styles.errorBody}>{errorMsg}</Text>
+        <TouchableOpacity style={styles.retryBtn} onPress={onRefresh}>
+          <Ionicons name="refresh" size={16} color="#000" />
+          <Text style={styles.retryText}>Try Again</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const cnsFatigue = summary?.cns_fatigue ?? 0;
+  const recoveryScore = summary?.recovery.score ?? 0;
 
   return (
     <ScrollView
       style={styles.container}
-      showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primaryGreen} />}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#16EC8C" />
+      }
     >
-      <StatusBar barStyle="light-content" />
+      {errorMsg && summary && (
+        <View style={styles.staleBanner}>
+          <Ionicons name="warning-outline" size={14} color="#FFC23C" />
+          <Text style={styles.staleBannerText}>Showing last loaded data — {errorMsg}</Text>
+        </View>
+      )}
 
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>{greeting},</Text>
-          <Text style={styles.name}>{firstName}</Text>
+          <Text style={styles.greeting}>{greeting}</Text>
+          <Text style={styles.name}>{summary?.greeting || firstName}</Text>
         </View>
-        <View style={styles.headerRight}>
-          {profile?.goal && (
-            <View style={styles.goalBadge}>
-              <Ionicons name="flag-outline" size={10} color={COLORS.primaryBlue} />
-              <Text style={styles.goalText}>{profile.goal.toUpperCase()}</Text>
-            </View>
-          )}
-          <TouchableOpacity style={styles.notifBtn} onPress={() => router.push('/(tabs)/coach')}>
-            <Ionicons name="notifications-outline" size={20} color={COLORS.textSecondary} />
-          </TouchableOpacity>
-        </View>
+        {profile?.goal && (
+          <View style={styles.phaseBadge}>
+            <Text style={styles.phaseText}>{profile.goal.toUpperCase()}</Text>
+          </View>
+        )}
       </View>
 
-      {/* AI Coach Banner */}
-      <LinearGradient
-        colors={[alpha(COLORS.primaryGreen, 0.12), alpha(COLORS.primaryBlue, 0.12)]}
-        start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-        style={styles.coachCard}
-      >
-        <View style={styles.coachLeft}>
-          <LinearGradient
-            colors={[COLORS.primaryGreen, COLORS.primaryBlue]}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-            style={styles.coachIcon}
-          >
-            <Ionicons name="flash" size={16} color="#000" />
-          </LinearGradient>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.coachLabel}>NEUROFIT AI COACH</Text>
-            <Text style={styles.coachText}>
-              {highFatigue
-                ? 'High CNS fatigue detected. Recovery day recommended.'
-                : "You're fresh. Tell me what you lifted or ask for today's plan."}
-            </Text>
-          </View>
+      {/* ── Primary score rings row: Recovery + CNS Load — the Whoop-style
+          centerpiece. Two large rings side by side, exactly mirroring how
+          Whoop pairs Recovery % with Strain on its home screen. ──────── */}
+      <View style={styles.ringsRow}>
+        <ScoreRing
+          size={150}
+          stroke={14}
+          value={recoveryScore}
+          max={10}
+          color={recoveryZoneColor(recoveryScore)}
+          label="RECOVERY"
+          sublabel={summary?.recovery.action.replace(/_/g, ' ').toUpperCase() || '—'}
+        />
+        <ScoreRing
+          size={150}
+          stroke={14}
+          value={cnsFatigue}
+          max={10}
+          color={fatigueZoneColor(cnsFatigue)}
+          label="CNS LOAD"
+          sublabel={
+            cnsFatigue >= 7 ? 'HIGH' : cnsFatigue >= 4 ? 'MODERATE' : 'FRESH'
+          }
+        />
+      </View>
+
+      {summary?.recovery.message && (
+        <Text style={styles.ringCaption}>{summary.recovery.message}</Text>
+      )}
+
+      {/* Daily Mission / Next Action */}
+      <View style={styles.feedCard}>
+        <View style={styles.feedLabelRow}>
+          <Ionicons name="flash" size={12} color="#16EC8C" />
+          <Text style={styles.feedLabel}>TODAY'S MISSION</Text>
         </View>
-        <TouchableOpacity style={styles.coachBtn} onPress={() => router.push('/(tabs)/coach')}>
-          <Text style={styles.coachBtnText}>Chat</Text>
-          <Ionicons name="arrow-forward" size={12} color="#000" />
+        <Text style={styles.feedText}>
+          {summary?.mission_text || summary?.next_task || 'Open the Coach to get your first recommendation.'}
+        </Text>
+        <TouchableOpacity style={styles.feedBtn} onPress={() => router.push('/(tabs)/coach')}>
+          <Text style={styles.feedBtnText}>Open Coach</Text>
+          <Ionicons name="arrow-forward" size={14} color="#16EC8C" />
         </TouchableOpacity>
-      </LinearGradient>
-
-      {/* Stats Row — inspired by Flutter app's statistics row */}
-      <View style={styles.statsRow}>
-        <StatCard
-          icon="flame-outline" iconColor={COLORS.primaryGreen}
-          value={String(cnsFatigue)} label="CNS Score" sub="/10"
-        />
-        <StatCard
-          icon="barbell-outline" iconColor={COLORS.primaryBlue}
-          value={Object.keys(prs).length ? String(Object.keys(prs).length) : '—'}
-          label="PRs Tracked" sub="total"
-        />
-        <StatCard
-          icon="trophy-outline" iconColor={COLORS.warning}
-          value={profile?.experience_level ? profile.experience_level.slice(0,3).toUpperCase() : '—'}
-          label="Level" sub=""
-        />
       </View>
 
-      {/* CNS Fatigue Card */}
-      <View style={[styles.card, { borderColor: fatigueColor + '30' }]}>
-        <View style={styles.cardLabelRow}>
-          <Ionicons name="pulse-outline" size={12} color={COLORS.textMuted} />
-          <Text style={styles.cardLabel}>CNS FATIGUE INDEX</Text>
+      {/* ── Secondary ring row: Calories / Protein / Water — smaller rings,
+          same visual grammar as the primary pair but used for daily
+          nutrition targets the way Whoop uses smaller rings for sub-metrics
+          (e.g. Sleep stages) beneath the main Recovery ring. ──────────── */}
+      {summary && (
+        <View style={styles.miniRingsRow}>
+          <MiniRing
+            pct={summary.calories_pct}
+            color="#16EC8C"
+            label="CALORIES"
+            value={`${summary.calories_remaining}`}
+            sub={`of ${summary.calories_target}`}
+          />
+          <MiniRing
+            pct={summary.protein_pct}
+            color="#5CC8FF"
+            label="PROTEIN"
+            value={`${Math.round(summary.protein_remaining_g)}g`}
+            sub={`of ${Math.round(summary.protein_target_g)}g`}
+          />
+          <MiniRing
+            pct={summary.water_pct}
+            color="#3CA7FF"
+            label="WATER"
+            value={`${(Math.round(summary.water_remaining_ml / 100) / 10).toFixed(1)}L`}
+            sub={`of ${(Math.round(summary.water_target_ml / 100) / 10).toFixed(1)}L`}
+          />
         </View>
-        <View style={styles.fatigueRow}>
-          <View style={styles.fatigueLeft}>
-            <Text style={[styles.fatigueScore, { color: fatigueColor }]}>{cnsFatigue}</Text>
-            <Text style={styles.fatigueDenom}>/10</Text>
-          </View>
-          <View style={styles.fatigueRight}>
-            <Ionicons name={fatigueIcon} size={20} color={fatigueColor} />
-            <Text style={[styles.fatigueLabel, { color: fatigueColor }]}>{fatigueLabel}</Text>
-          </View>
-        </View>
-        <View style={styles.barBg}>
-          <View style={[styles.barFill, { width: `${cnsFatigue * 10}%` as any, backgroundColor: fatigueColor }]} />
-        </View>
-      </View>
+      )}
 
-      {/* Macros — Flutter-style 4-column grid */}
-      {macros && (
+      {/* Workout Recommendation */}
+      {summary && (
         <View style={styles.card}>
-          <View style={styles.cardLabelRow}>
-            <Ionicons name="nutrition-outline" size={12} color={COLORS.textMuted} />
-            <Text style={styles.cardLabel}>TODAY'S TARGETS</Text>
+          <Text style={styles.cardLabel}>WORKOUT TODAY</Text>
+          <View style={styles.workoutRow}>
+            <Ionicons name="barbell-outline" size={20} color="#5CC8FF" />
+            <Text style={styles.workoutType}>
+              {summary.workout_today.type ? summary.workout_today.type.toUpperCase() : 'NOT PLANNED YET'}
+            </Text>
+            {summary.workout_today.rescheduled && (
+              <View style={styles.rescheduledBadge}>
+                <Text style={styles.rescheduledText}>RESCHEDULED</Text>
+              </View>
+            )}
           </View>
-          <View style={styles.macroGrid}>
-            <MacroCell icon="flame-outline"  color={COLORS.calories}     label="CAL"     value={String(macros.calories)} />
-            <MacroCell icon="fish-outline"   color={COLORS.protein}      label="PROTEIN" value={`${macros.protein_g}g`} />
-            <MacroCell icon="leaf-outline"   color={COLORS.carbs}        label="CARBS"   value={`${macros.carbs_g}g`} />
-            <MacroCell icon="water-outline"  color={COLORS.fat}          label="FAT"     value={`${macros.fat_g}g`} />
+          <Text style={styles.cardMessage}>{summary.workout_today.message}</Text>
+        </View>
+      )}
+
+      {/* Streaks */}
+      {summary && (summary.workout_streak > 0 || summary.protein_streak > 0) && (
+        <View style={styles.streakRow}>
+          <View style={styles.streakCard}>
+            <Ionicons name="flame" size={22} color={ZONE_YELLOW} />
+            <Text style={styles.streakValue}>{summary.workout_streak}</Text>
+            <Text style={styles.streakLabel}>WORKOUT STREAK</Text>
           </View>
-          <View style={styles.waterRow}>
-            <Ionicons name="water" size={13} color={COLORS.primaryBlue} />
-            <Text style={styles.waterText}>  {(macros.water_ml / 1000).toFixed(1)}L water daily</Text>
+          <View style={styles.streakCard}>
+            <Ionicons name="nutrition" size={22} color={ZONE_GREEN} />
+            <Text style={styles.streakValue}>{summary.protein_streak}</Text>
+            <Text style={styles.streakLabel}>PROTEIN STREAK</Text>
           </View>
         </View>
       )}
 
-      {/* Quick Actions — Flutter-style horizontal scroll cards */}
-      <Text style={styles.sectionLabel}>QUICK START</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickScroll}>
-        <QuickCard icon="chatbubble-ellipses-outline" label="Ask Coach"  accent={COLORS.primaryGreen} onPress={() => router.push('/(tabs)/coach')} />
-        <QuickCard icon="barbell-outline"             label="Gym Mode"   accent={COLORS.primaryBlue}  onPress={() => router.push('/(tabs)/workout')} />
-        <QuickCard icon="stats-chart-outline"         label="Progress"   accent={COLORS.warning}      onPress={() => router.push('/(tabs)/progress')} />
-        <QuickCard icon="trophy-outline"              label="My PRs"     accent={COLORS.primaryGreen} onPress={() => router.push('/(tabs)/profile')} />
-      </ScrollView>
-
-      {/* Personal Records */}
-      {Object.keys(prs).length > 0 && (
-        <>
-          <Text style={styles.sectionLabel}>PERSONAL RECORDS</Text>
-          <View style={styles.card}>
-            {Object.entries(prs).slice(0, 5).map(([name, weight], i) => (
-              <View key={name} style={[styles.prRow, i === 0 && { borderTopWidth: 0 }]}>
-                <View style={styles.prLeft}>
-                  <Ionicons name="medal-outline" size={14} color={COLORS.primaryGreen} />
-                  <Text style={styles.prName}>{name}</Text>
-                </View>
-                <Text style={[styles.prWeight, { color: COLORS.primaryGreen }]}>{weight} kg</Text>
-              </View>
-            ))}
-          </View>
-        </>
+      {summary?.motivation_message && (
+        <View style={styles.motivationCard}>
+          <Ionicons name="sparkles-outline" size={16} color="#16EC8C" />
+          <Text style={styles.motivationText}>{summary.motivation_message}</Text>
+        </View>
       )}
 
-      <View style={{ height: 28 }} />
+      <Text style={styles.sectionLabel}>QUICK START</Text>
+      <View style={styles.quickGrid}>
+        <QuickBtn label="Ask Coach" icon="chatbubble-outline" onPress={() => router.push('/(tabs)/coach')} accent="#16EC8C" />
+        <QuickBtn label="Gym Mode" icon="barbell-outline" onPress={() => router.push('/(tabs)/workout')} accent="#5CC8FF" />
+        <QuickBtn label="Progress" icon="stats-chart-outline" onPress={() => router.push('/(tabs)/progress')} accent="#FFC23C" />
+        <QuickBtn label="My PRs" icon="trophy-outline" onPress={() => router.push('/(tabs)/profile')} accent="#B98CFF" />
+      </View>
+
+      <View style={{ height: 24 }} />
     </ScrollView>
   );
 }
 
-function StatCard({ icon, iconColor, value, label, sub }: {
-  icon: IName; iconColor: string; value: string; label: string; sub: string;
+// ── Reusable ring primitives ─────────────────────────────────────────────
+
+function ScoreRing({
+  size, stroke, value, max, color, label, sublabel,
+}: {
+  size: number; stroke: number; value: number; max: number;
+  color: string; label: string; sublabel: string;
 }) {
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const pct = Math.max(0, Math.min(1, value / max));
+  const dashOffset = circumference * (1 - pct);
+
   return (
-    <View style={sStyles.wrap}>
-      <Ionicons name={icon} size={18} color={iconColor} />
-      <View style={sStyles.row}>
-        <Text style={[sStyles.value, { color: iconColor }]}>{value}</Text>
-        {sub ? <Text style={sStyles.sub}>{sub}</Text> : null}
+    <View style={[styles.ringWrap, { width: size, height: size }]}>
+      <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
+        <Circle
+          cx={size / 2} cy={size / 2} r={radius}
+          stroke="#161616" strokeWidth={stroke} fill="none"
+        />
+        <Circle
+          cx={size / 2} cy={size / 2} r={radius}
+          stroke={color} strokeWidth={stroke} fill="none"
+          strokeDasharray={`${circumference} ${circumference}`}
+          strokeDashoffset={dashOffset}
+          strokeLinecap="round"
+          // Rotate so the ring starts at 12 o'clock, matching Whoop's
+          // convention, instead of SVG's default 3 o'clock start.
+          rotation={-90}
+          origin={`${size / 2}, ${size / 2}`}
+        />
+      </Svg>
+      <View style={styles.ringCenter}>
+        <Text style={[styles.ringValue, { color }]}>{Math.round((value / max) * 100)}</Text>
+        <Text style={styles.ringPercentSign}>%</Text>
       </View>
-      <Text style={sStyles.label}>{label}</Text>
+      <Text style={styles.ringLabel}>{label}</Text>
+      <Text style={[styles.ringSublabel, { color }]}>{sublabel}</Text>
     </View>
   );
 }
 
-function MacroCell({ icon, color, label, value }: {
-  icon: IName; color: string; label: string; value: string;
+function MiniRing({
+  pct, color, label, value, sub,
+}: {
+  pct: number; color: string; label: string; value: string; sub: string;
 }) {
+  const size = 64;
+  const stroke = 6;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const clamped = Math.max(0, Math.min(1, pct / 100));
+  const dashOffset = circumference * (1 - clamped);
+
   return (
-    <View style={[mStyles.wrap, { borderColor: color + '30' }]}>
-      <Ionicons name={icon} size={16} color={color} />
-      <Text style={[mStyles.value, { color }]}>{value}</Text>
-      <Text style={mStyles.label}>{label}</Text>
+    <View style={styles.miniRingWrap}>
+      <View style={{ width: size, height: size }}>
+        <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
+          <Circle cx={size / 2} cy={size / 2} r={radius} stroke="#161616" strokeWidth={stroke} fill="none" />
+          <Circle
+            cx={size / 2} cy={size / 2} r={radius}
+            stroke={color} strokeWidth={stroke} fill="none"
+            strokeDasharray={`${circumference} ${circumference}`}
+            strokeDashoffset={dashOffset}
+            strokeLinecap="round"
+            rotation={-90}
+            origin={`${size / 2}, ${size / 2}`}
+          />
+        </Svg>
+      </View>
+      <Text style={styles.miniRingValue}>{value}</Text>
+      <Text style={styles.miniRingLabel}>{label}</Text>
+      <Text style={styles.miniRingSub}>{sub}</Text>
     </View>
   );
 }
 
-function QuickCard({ icon, label, accent, onPress }: {
-  icon: IName; label: string; accent: string; onPress: () => void;
-}) {
+function QuickBtn({
+  label, icon, onPress, accent,
+}: { label: string; icon: IoniconName; onPress: () => void; accent: string }) {
   return (
-    <TouchableOpacity
-      style={[qStyles.card, { borderColor: accent + '30' }]}
-      onPress={onPress} activeOpacity={0.7}
-    >
-      <View style={[qStyles.iconWrap, { backgroundColor: accent + '18' }]}>
-        <Ionicons name={icon} size={22} color={accent} />
-      </View>
-      <Text style={qStyles.label}>{label}</Text>
+    <TouchableOpacity style={[styles.quickBtn, { borderColor: accent + '33' }]} onPress={onPress}>
+      <Ionicons name={icon} size={24} color={accent} />
+      <Text style={styles.quickLabel}>{label}</Text>
     </TouchableOpacity>
   );
 }
 
-const sStyles = StyleSheet.create({
-  wrap: {
-    flex: 1, alignItems: 'center', backgroundColor: COLORS.card,
-    borderRadius: 14, padding: 14, gap: 4,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
-  row: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
-  value: { fontSize: 20, fontWeight: '800' },
-  sub: { color: COLORS.textMuted, fontSize: 11 },
-  label: { color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 0.8, textAlign: 'center' },
-});
-
-const mStyles = StyleSheet.create({
-  wrap: {
-    flex: 1, alignItems: 'center', paddingVertical: 12,
-    backgroundColor: COLORS.inputBg, borderRadius: 12, borderWidth: 1, gap: 4,
-  },
-  value: { fontSize: 15, fontWeight: '800' },
-  label: { color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
-});
-
-const qStyles = StyleSheet.create({
-  card: {
-    width: 110, borderRadius: 16, padding: 14,
-    borderWidth: 1, alignItems: 'center', gap: 10,
-    backgroundColor: COLORS.card, marginRight: 10,
-  },
-  iconWrap: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  label: { color: COLORS.text, fontSize: 12, fontWeight: '700', textAlign: 'center' },
-});
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1, backgroundColor: '#000000' },
+  centerContainer: {
+    flex: 1, backgroundColor: '#000000',
+    justifyContent: 'center', alignItems: 'center', padding: 32,
+  },
+  loadingLabel: { color: '#5C6B6E', fontSize: 13, marginTop: 14 },
+  errorTitle: { color: '#FFF', fontSize: 17, fontWeight: '700', marginTop: 16, textAlign: 'center' },
+  errorBody: { color: '#5C6B6E', fontSize: 13, marginTop: 8, textAlign: 'center', lineHeight: 19 },
+  retryBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#16EC8C', borderRadius: 12,
+    paddingVertical: 12, paddingHorizontal: 24, marginTop: 20,
+  },
+  retryText: { color: '#000', fontSize: 13, fontWeight: '700' },
+  staleBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#1A1606', paddingVertical: 8, paddingHorizontal: 16,
+  },
+  staleBannerText: { color: '#FFC23C', fontSize: 11, flex: 1 },
   header: {
-    paddingHorizontal: 20, paddingTop: 60, paddingBottom: 20,
+    padding: 24, paddingTop: 60,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
   },
-  greeting: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '500' },
-  name: { color: COLORS.text, fontSize: 26, fontWeight: '800', marginTop: 2 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
-  goalBadge: {
-    backgroundColor: alpha(COLORS.primaryBlue, 0.12), borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 5,
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    borderWidth: 1, borderColor: alpha(COLORS.primaryBlue, 0.25),
+  greeting: { color: '#5C6B6E', fontSize: 14 },
+  name: { color: '#FFF', fontSize: 24, fontWeight: '800' },
+  phaseBadge: { backgroundColor: '#0E1F1A', borderRadius: 8, padding: 8, marginTop: 4 },
+  phaseText: { color: '#16EC8C', fontSize: 10, fontWeight: '700', letterSpacing: 1 },
+
+  // Primary rings
+  ringsRow: {
+    flexDirection: 'row', justifyContent: 'center', gap: 20,
+    paddingHorizontal: 16, marginBottom: 8,
   },
-  goalText: { color: COLORS.primaryBlue, fontSize: 10, fontWeight: '700', letterSpacing: 1 },
-  notifBtn: {
-    width: 36, height: 36, borderRadius: 10,
-    backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border,
-    alignItems: 'center', justifyContent: 'center',
+  ringWrap: { alignItems: 'center', justifyContent: 'center' },
+  ringCenter: { alignItems: 'center', flexDirection: 'row' },
+  ringValue: { fontSize: 36, fontWeight: '800' },
+  ringPercentSign: { color: '#5C6B6E', fontSize: 16, fontWeight: '600', marginLeft: 2, marginTop: 6 },
+  ringLabel: {
+    position: 'absolute', bottom: -20, color: '#5C6B6E',
+    fontSize: 11, fontWeight: '700', letterSpacing: 1.5,
   },
-  coachCard: {
-    marginHorizontal: 16, marginBottom: 16,
-    borderRadius: 18, padding: 16,
-    borderWidth: 1, borderColor: alpha(COLORS.primaryGreen, 0.2),
+  ringSublabel: {
+    position: 'absolute', bottom: -36, fontSize: 10, fontWeight: '700', letterSpacing: 0.5,
   },
-  coachLeft: { flexDirection: 'row', gap: 12, marginBottom: 12, alignItems: 'flex-start' },
-  coachIcon: {
-    width: 34, height: 34, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center',
+  ringCaption: {
+    color: '#7A8A8E', fontSize: 12, textAlign: 'center',
+    marginTop: 28, marginBottom: 8, paddingHorizontal: 32, lineHeight: 17,
   },
-  coachLabel: { color: COLORS.primaryGreen, fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 4 },
-  coachText: { color: COLORS.textSecondary, fontSize: 13, lineHeight: 19, flex: 1 },
-  coachBtn: {
-    alignSelf: 'flex-start',
-    backgroundColor: COLORS.primaryGreen, borderRadius: 10,
-    paddingVertical: 8, paddingHorizontal: 14,
-    flexDirection: 'row', alignItems: 'center', gap: 5,
+
+  feedCard: {
+    margin: 16, marginTop: 16,
+    backgroundColor: '#0C1714', borderRadius: 16, padding: 16,
+    borderWidth: 1, borderColor: '#16352A',
   },
-  coachBtnText: { color: '#000', fontSize: 12, fontWeight: '700' },
-  statsRow: { flexDirection: 'row', marginHorizontal: 16, gap: 10, marginBottom: 12 },
+  feedLabelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 },
+  feedLabel: { color: '#16EC8C', fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
+  feedText: { color: '#C8D2D4', fontSize: 14, lineHeight: 20, marginBottom: 12 },
+  feedBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' },
+  feedBtnText: { color: '#16EC8C', fontSize: 13, fontWeight: '600' },
+
+  // Mini rings (nutrition)
+  miniRingsRow: {
+    flexDirection: 'row', justifyContent: 'space-around',
+    marginHorizontal: 16, marginBottom: 16, marginTop: 8,
+  },
+  miniRingWrap: { alignItems: 'center', width: 90 },
+  miniRingValue: { color: '#FFF', fontSize: 13, fontWeight: '800', marginTop: 8 },
+  miniRingLabel: { color: '#5C6B6E', fontSize: 9, fontWeight: '700', letterSpacing: 1, marginTop: 2 },
+  miniRingSub: { color: '#3F4A4C', fontSize: 9, marginTop: 1 },
+
   card: {
-    backgroundColor: COLORS.card, borderRadius: 18,
-    padding: 16, marginHorizontal: 16, marginBottom: 12,
-    borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: '#0E0E0E', borderRadius: 16, padding: 16,
+    marginHorizontal: 16, marginBottom: 12,
+    borderWidth: 1, borderColor: '#1C1C1C',
   },
-  cardLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
-  cardLabel: { color: COLORS.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
-  fatigueRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  fatigueLeft: { flexDirection: 'row', alignItems: 'baseline', gap: 3 },
-  fatigueScore: { fontSize: 46, fontWeight: '800', lineHeight: 50 },
-  fatigueDenom: { color: COLORS.textMuted, fontSize: 20 },
-  fatigueRight: { alignItems: 'flex-end', gap: 5 },
-  fatigueLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 1 },
-  barBg: { height: 5, backgroundColor: COLORS.border, borderRadius: 3, overflow: 'hidden' },
-  barFill: { height: '100%' as any, borderRadius: 3 },
-  macroGrid: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  waterRow: { flexDirection: 'row', alignItems: 'center' },
-  waterText: { color: COLORS.textMuted, fontSize: 12 },
+  cardLabel: { color: '#5C6B6E', fontSize: 11, fontWeight: '700', letterSpacing: 1.5, marginBottom: 12 },
+  cardMessage: { color: '#C8D2D4', fontSize: 13, lineHeight: 19, marginTop: 4 },
+  workoutRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  workoutType: { color: '#FFF', fontSize: 16, fontWeight: '700', flex: 1 },
+  rescheduledBadge: { backgroundColor: '#1A1606', borderRadius: 6, paddingVertical: 3, paddingHorizontal: 8 },
+  rescheduledText: { color: '#FFC23C', fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
+
+  streakRow: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 12, gap: 10 },
+  streakCard: {
+    flex: 1, backgroundColor: '#0E0E0E', borderRadius: 14, padding: 14,
+    alignItems: 'center', borderWidth: 1, borderColor: '#1C1C1C',
+  },
+  streakValue: { color: '#FFF', fontSize: 22, fontWeight: '800', marginTop: 4 },
+  streakLabel: { color: '#5C6B6E', fontSize: 9, fontWeight: '700', letterSpacing: 0.5, marginTop: 2 },
+
+  motivationCard: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+    backgroundColor: '#0E0E0E', borderRadius: 14,
+    marginHorizontal: 16, marginBottom: 12, padding: 14,
+    borderWidth: 1, borderColor: '#1C1C1C',
+  },
+  motivationText: { color: '#C8D2D4', fontSize: 13, lineHeight: 19, flex: 1 },
+
   sectionLabel: {
-    color: COLORS.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 2,
-    marginHorizontal: 16, marginBottom: 10, marginTop: 4,
+    color: '#5C6B6E', fontSize: 11, fontWeight: '700', letterSpacing: 1.5,
+    marginHorizontal: 16, marginBottom: 8, marginTop: 8,
   },
-  quickScroll: { paddingHorizontal: 16, paddingBottom: 4, marginBottom: 12 },
-  prRow: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', paddingVertical: 11,
-    borderTopWidth: 1, borderTopColor: COLORS.border,
+  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: 16, gap: 8, marginBottom: 12 },
+  quickBtn: {
+    width: '47%', backgroundColor: '#0E0E0E', borderRadius: 14, padding: 16,
+    borderWidth: 1, alignItems: 'center', gap: 6,
   },
-  prLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  prName: { color: COLORS.textSecondary, fontSize: 14 },
-  prWeight: { fontSize: 14, fontWeight: '700' },
+  quickLabel: { color: '#C0C0C0', fontSize: 13, fontWeight: '600' },
 });

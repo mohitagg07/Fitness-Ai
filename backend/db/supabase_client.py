@@ -30,17 +30,56 @@ def get_full_user_context(user_id: str) -> tuple[dict, dict]:
     # not-onboarded profile instead of crashing every endpoint that needs
     # user context.
     profile_res = sb.table("profiles").select("*").eq("id", user_id).maybe_single().execute()
-    injuries_res = sb.table("injury_profiles").select("*").eq("user_id", user_id).execute()
-    prs_res = sb.table("personal_records").select("*").eq("user_id", user_id).execute()
-    state_res = sb.table("agent_states").select("*").eq("user_id", user_id).execute()
 
     # maybe_single() can return None for the entire response object (not a
     # response with .data = None) on some postgrest-py versions when no row
     # matches — guard the object itself, not just its .data attribute.
-    profile = (profile_res.data if profile_res else None) or {
-        "id": user_id,
-        "onboarding_complete": False,
-    }
+    profile = profile_res.data if profile_res else None
+
+    if profile is None:
+        # ROOT CAUSE FIX: every table that stores per-user data (ai_conversations,
+        # agent_states, personal_records, injury_profiles, workout_plans, ...)
+        # has a foreign key against profiles.id, not auth.users.id. A user can
+        # hold a perfectly valid JWT (they're in auth.users — login succeeds,
+        # /profile/me returns 200) while having no profiles row at all, because
+        # that row was previously only created by POST /profile/onboard.
+        #
+        # Concretely this broke AI Coach with:
+        #   postgrest.exceptions.APIError: insert or update on table
+        #   "ai_conversations" violates foreign key constraint
+        #   "ai_conversations_user_id_fkey" ... Key (user_id)=(...) is not
+        #   present in table "profiles".
+        #
+        # Previously this function only returned an in-memory fallback dict
+        # without ever writing it to the database, so the foreign key gap
+        # persisted no matter how many times this function ran. Auto-creating
+        # a minimal row here means ANY route that touches user data — not
+        # just onboarding — closes the gap the first time it runs for this
+        # user, instead of requiring onboarding to have completed first.
+        try:
+            insert_res = (
+                sb.table("profiles")
+                .insert({"id": user_id, "onboarding_complete": False})
+                .execute()
+            )
+            profile = insert_res.data[0] if insert_res.data else {
+                "id": user_id,
+                "onboarding_complete": False,
+            }
+            logger.info(f"Auto-created missing profiles row for user {user_id}")
+        except Exception as e:
+            # Insert can race with a concurrent request doing the same thing,
+            # or the unlikely case of a real DB error. Either way, fall back
+            # to an in-memory profile so this request can still complete —
+            # but the underlying FK gap will remain until a profile row
+            # actually exists, so re-raise context is logged for visibility.
+            logger.warning(f"Could not auto-create profiles row for {user_id}: {e}")
+            profile = {"id": user_id, "onboarding_complete": False}
+
+    injuries_res = sb.table("injury_profiles").select("*").eq("user_id", user_id).execute()
+    prs_res = sb.table("personal_records").select("*").eq("user_id", user_id).execute()
+    state_res = sb.table("agent_states").select("*").eq("user_id", user_id).execute()
+
     profile["injuries"] = injuries_res.data or []
     profile["personal_records"] = {
         row["exercise_name"]: row["weight_kg"]
