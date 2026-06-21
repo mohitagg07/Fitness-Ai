@@ -1,21 +1,31 @@
 """
 ChromaDB — biomechanical guardrails vector store.
 Injects relevant safety rules into every LLM prompt via RAG.
+
+FIX (2025): The self-heal logic for stale embedding dimensions was catching
+InvalidArgumentError, but newer ChromaDB versions (>=0.5) raise a plain
+Exception / ValueError with "dimension" in the message instead of
+InvalidArgumentError. Fixed to catch both. Also added a nuclear fallback:
+delete the entire chroma_store directory and start fresh if the collection
+is irrecoverably corrupt. The lru_cache is also cleared so the next call
+rebuilds cleanly.
 """
 import chromadb
-# Cross-version safe import: newer chromadb releases moved/renamed this
-# exception (it was reported missing from chromadb.errors entirely on
-# some 0.5.x/1.x builds depending on how chromadb was installed). Try the
-# documented path first, fall back to a couple of older locations, and
-# finally fall back to the generic ValueError chromadb also raises for
-# this case so the app never fails to import over this.
+import logging
+import shutil
+import os
+
+logger = logging.getLogger(__name__)
+
+# Cross-version safe import for InvalidArgumentError
 try:
     from chromadb.errors import InvalidArgumentError
 except ImportError:
     try:
         from chromadb.api.types import InvalidArgumentError
     except ImportError:
-        InvalidArgumentError = ValueError  # chromadb raises ValueError pre-0.5
+        InvalidArgumentError = ValueError
+
 from core.config import get_settings
 from db.local_embeddings import LocalHashEmbeddingFunction
 from functools import lru_cache
@@ -86,6 +96,44 @@ GUARDRAIL_DOCS = [
 ]
 
 
+def _is_dimension_error(e: Exception) -> bool:
+    """Detect embedding dimension mismatch across all ChromaDB versions."""
+    msg = str(e).lower()
+    return "dimension" in msg and ("match" in msg or "expect" in msg or "got" in msg)
+
+
+def _nuke_and_rebuild_collection():
+    """
+    Last-resort recovery: wipe the chroma_store directory entirely and
+    return a fresh, empty collection. Called only when the dimension mismatch
+    can't be healed via delete_collection alone (can happen if ChromaDB's
+    internal HNSW index files are also stale).
+    """
+    persist_dir = settings.chroma_persist_dir
+    logger.warning(
+        f"Nuking stale chroma_store at '{persist_dir}' and rebuilding. "
+        f"This is a one-time recovery — all stored embeddings will be reseeded."
+    )
+    # Clear lru_cache so get_chroma_client() returns a fresh client next call
+    get_chroma_client.cache_clear()
+    get_guardrail_collection.cache_clear()
+
+    try:
+        if os.path.exists(persist_dir):
+            shutil.rmtree(persist_dir)
+    except Exception as rm_err:
+        logger.error(f"Could not delete chroma_store: {rm_err}")
+
+    ef = LocalHashEmbeddingFunction()
+    client = chromadb.PersistentClient(path=persist_dir)
+    collection = client.get_or_create_collection(
+        name=settings.chroma_collection_name,
+        embedding_function=ef,
+        metadata={"hnsw:space": "cosine"},
+    )
+    return collection
+
+
 @lru_cache()
 def get_chroma_client() -> chromadb.PersistentClient:
     return chromadb.PersistentClient(path=settings.chroma_persist_dir)
@@ -94,18 +142,13 @@ def get_chroma_client() -> chromadb.PersistentClient:
 @lru_cache()
 def get_guardrail_collection():
     """
-    Returns the guardrails collection, self-healing a stale embedding
-    dimension from a previous run if needed (see below). Cached with
-    lru_cache so the one-time dimension check below only runs once per
-    process — not on every single chat message.
+    Returns the guardrails collection. Self-heals a stale embedding dimension
+    from a previous run in two stages:
+      1. Try delete_collection + recreate (fast path).
+      2. If that still fails, nuke the whole chroma_store directory (nuclear path).
+    Cached with lru_cache — the dimension check only runs once per process.
     """
     client = get_chroma_client()
-    # LocalHashEmbeddingFunction (not chromadb's DefaultEmbeddingFunction):
-    # the default lazily downloads an ~80MB ONNX model from S3 on first
-    # use, *inside* the request path of /api/coach/chat. A slow or
-    # interrupted download there raised an unhandled ValueError on every
-    # chat message, even when Groq itself was working fine. See
-    # db/local_embeddings.py for the full explanation.
     ef = LocalHashEmbeddingFunction()
     collection = client.get_or_create_collection(
         name=settings.chroma_collection_name,
@@ -113,31 +156,35 @@ def get_guardrail_collection():
         metadata={"hnsw:space": "cosine"},
     )
 
-    # Self-heal: a collection created by an EARLIER run of this app, before
-    # this fix, was built with chromadb's old 384-dim ONNX embedding
-    # function. Querying or adding to it now with our 256-dim local
-    # embedding raises InvalidArgumentError("Collection expecting
-    # embedding with dimension of 384, got 256"). Detect that specific
-    # case on a cheap dummy call and transparently rebuild the collection
-    # rather than requiring the user to manually delete chroma_store.
+    # Probe with a dummy query to detect a stale dimension mismatch.
     try:
         collection.query(query_texts=["dimension check"], n_results=1)
-    except InvalidArgumentError as e:
-        if "dimension" in str(e).lower():
-            import logging
-            logging.getLogger(__name__).warning(
-                f"Guardrails collection has a stale embedding dimension "
-                f"from a previous run — rebuilding it. ({e})"
+    except Exception as e:
+        if _is_dimension_error(e):
+            logger.warning(
+                f"Guardrails collection has stale embedding dimension — "
+                f"attempting fast-path rebuild. ({e})"
             )
-            client.delete_collection(settings.chroma_collection_name)
-            collection = client.get_or_create_collection(
-                name=settings.chroma_collection_name,
-                embedding_function=ef,
-                metadata={"hnsw:space": "cosine"},
-            )
-            seed_guardrails(collection=collection)
-        else:
-            raise
+            try:
+                client.delete_collection(settings.chroma_collection_name)
+                collection = client.get_or_create_collection(
+                    name=settings.chroma_collection_name,
+                    embedding_function=ef,
+                    metadata={"hnsw:space": "cosine"},
+                )
+                seed_guardrails(collection=collection)
+                # Verify the rebuild worked
+                collection.query(query_texts=["dimension check"], n_results=1)
+            except Exception as e2:
+                if _is_dimension_error(e2):
+                    # Fast path didn't work — go nuclear
+                    collection = _nuke_and_rebuild_collection()
+                    seed_guardrails(collection=collection)
+                else:
+                    raise
+        # Non-dimension errors on an empty collection are harmless (no docs yet)
+        elif "no documents" not in str(e).lower():
+            logger.warning(f"Guardrails collection probe warning: {e}")
 
     return collection
 
@@ -149,7 +196,7 @@ def seed_guardrails(collection=None):
 
     docs_to_add = [d for d in GUARDRAIL_DOCS if d["id"] not in existing]
     if not docs_to_add:
-        print("ChromaDB already seeded — skipping.")
+        logger.debug("ChromaDB already seeded — skipping.")
         return
 
     collection.add(
@@ -157,17 +204,13 @@ def seed_guardrails(collection=None):
         documents=[d["content"] for d in docs_to_add],
         metadatas=[{"tags": ",".join(d["tags"])} for d in docs_to_add],
     )
-    print(f"Seeded {len(docs_to_add)} guardrail documents into ChromaDB.")
+    logger.info(f"Seeded {len(docs_to_add)} guardrail documents into ChromaDB.")
 
 
-def query_guardrails(query_text: str, injury_tags: list[str] = None, n_results: int = 4) -> list[str]:
+def query_guardrails(query_text: str, injury_tags: list = None, n_results: int = 4) -> list:
     """
     Returns the most relevant safety guardrail documents for this query.
-    On ANY failure (corrupted local index, disk issue, etc.) this returns
-    an empty list rather than raising — a missing guardrail lookup should
-    degrade the coach's response quality, not take down the whole chat
-    endpoint. build_workout_node already handles an empty guardrails list
-    fine ("standard safety applies" fallback text).
+    Never raises — any failure returns [] so the coach degrades gracefully.
     """
     try:
         collection = get_guardrail_collection()
@@ -180,11 +223,11 @@ def query_guardrails(query_text: str, injury_tags: list[str] = None, n_results: 
 
         results = collection.query(
             query_texts=[query_text],
-            n_results=n_results,
+            n_results=min(n_results, max(1, collection.count())),
             where=None,
         )
-        return results["documents"][0] if results["documents"] else []
+        docs = results.get("documents") or [[]]
+        return docs[0] if docs else []
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(f"Guardrails query failed, continuing without them: {e}")
+        logger.warning(f"Guardrails query failed, continuing without them: {e}")
         return []

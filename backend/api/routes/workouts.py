@@ -1,16 +1,58 @@
 """
-FIX: Removed prefix="/workouts" from APIRouter.
-main.py already mounts this at prefix="/api/workouts".
-"""
-from fastapi import APIRouter, Depends, HTTPException
-from schemas.models import SessionCreate, SetLog
-from core.security import get_current_user
-from db.supabase_client import get_supabase
-from typing import Optional
+Workouts route.
+main.py mounts this at prefix="/api/workouts".
 
-# ✅ NO prefix here — main.py sets prefix="/api/workouts"
+FIXES:
+  1. set_number was required (Field ge=1) but the frontend never sends it —
+     every POST /sessions/{id}/logs returned 422 Unprocessable Entity.
+     SetLog.set_number is now auto-computed from how many logs already exist
+     for this session, so the frontend only needs: exercise_name, weight_kg,
+     reps, and optionally rpe/notes.
+
+  2. complete_session now updates agent_state: increments workout_streak,
+     total_workouts, last_session_date, weekly_session_count, and
+     consecutive_high_rpe_days. Previously these counters were defined in
+     the schema and displayed on the dashboard but NEVER updated — every
+     user's streak was permanently 0.
+"""
+import asyncio
+from datetime import date, timedelta
+from fastapi import APIRouter, Depends, HTTPException
+from schemas.models import SetLog
+from core.security import get_current_user
+from db.supabase_client import get_supabase, upsert_agent_state, get_full_user_context
+from typing import Optional
+from pydantic import BaseModel, Field
+
 router = APIRouter(tags=["Workouts"])
 
+
+# ─── Schemas ─────────────────────────────────────────────────────────────────
+
+class SessionCreate(BaseModel):
+    plan_id: Optional[str] = None
+    session_date: Optional[date] = None
+    day_label: Optional[str] = Field(None, max_length=50)
+    workout_type: Optional[str] = None
+    muscle_groups: list = Field(default_factory=list)
+    cns_fatigue_before: Optional[int] = Field(None, ge=1, le=10)
+    notes: Optional[str] = Field(None, max_length=500)
+
+
+class SetLogRequest(BaseModel):
+    """
+    FIX: set_number removed as required field — auto-computed server-side.
+    Frontend only needs exercise_name + weight_kg + reps.
+    """
+    exercise_name: str = Field(min_length=1)
+    weight_kg: float = Field(gt=0)
+    reps: int = Field(ge=1)
+    rpe: Optional[float] = Field(None, ge=1, le=10)
+    equipment_modifiers: list = Field(default_factory=list)
+    notes: Optional[str] = Field(None, max_length=300)
+
+
+# ─── Routes ──────────────────────────────────────────────────────────────────
 
 @router.post("/sessions", status_code=201)
 async def create_session(
@@ -52,29 +94,149 @@ async def complete_session(
     current_user: dict = Depends(get_current_user)
 ):
     sb = get_supabase()
+    user_id = current_user["user_id"]
+
     update_data = {"completed": True}
     if cns_fatigue_after is not None:
         update_data["cns_fatigue_after"] = cns_fatigue_after
+
     res = (
         sb.table("workout_sessions")
         .update(update_data)
         .eq("id", session_id)
-        .eq("user_id", current_user["user_id"])
+        .eq("user_id", user_id)
         .execute()
     )
-    return res.data[0] if res.data else {}
+    session = res.data[0] if res.data else {}
+
+    # FIX: Update agent_state counters that were defined but never incremented.
+    # streak, total_workouts, last_session_date, weekly_session_count,
+    # and consecutive_high_rpe_days were always 0 for every user.
+    try:
+        await asyncio.to_thread(_update_agent_state_on_completion, user_id, cns_fatigue_after)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            f"Could not update agent_state after session complete for {user_id}: {e}"
+        )
+        # Don't fail the request — session is already marked complete.
+
+    return session
+
+
+def _update_agent_state_on_completion(user_id: str, cns_fatigue_after: Optional[int]):
+    """
+    Recompute and persist the agent_state fields that track longitudinal
+    training history. Called synchronously in a thread after a session
+    is marked complete.
+    """
+    sb = get_supabase()
+    today = date.today()
+
+    # Load current agent state
+    state_res = sb.table("agent_states").select("*").eq("user_id", user_id).execute()
+    state = state_res.data[0] if state_res.data else {}
+
+    # ── Workout streak ──────────────────────────────────────────────────
+    # Count consecutive days (up to today) with a completed session.
+    # Only go back 90 days max for performance.
+    cutoff = str(today - timedelta(days=90))
+    sessions_res = (
+        sb.table("workout_sessions")
+        .select("session_date")
+        .eq("user_id", user_id)
+        .eq("completed", True)
+        .gte("session_date", cutoff)
+        .order("session_date", desc=True)
+        .execute()
+    )
+    session_dates = sorted(
+        set(r["session_date"] for r in (sessions_res.data or [])),
+        reverse=True,
+    )
+
+    streak = 0
+    check_date = today
+    for d in session_dates:
+        d_parsed = date.fromisoformat(d) if isinstance(d, str) else d
+        if d_parsed == check_date or d_parsed == check_date - timedelta(days=1):
+            streak += 1
+            check_date = d_parsed
+        elif d_parsed < check_date - timedelta(days=1):
+            break
+
+    # ── Weekly session count ────────────────────────────────────────────
+    week_start = today - timedelta(days=today.weekday())
+    weekly_res = (
+        sb.table("workout_sessions")
+        .select("id", count="exact")
+        .eq("user_id", user_id)
+        .eq("completed", True)
+        .gte("session_date", str(week_start))
+        .execute()
+    )
+    weekly_count = weekly_res.count or 0
+
+    # ── Total workouts ──────────────────────────────────────────────────
+    total_res = (
+        sb.table("workout_sessions")
+        .select("id", count="exact")
+        .eq("user_id", user_id)
+        .eq("completed", True)
+        .execute()
+    )
+    total = total_res.count or 0
+
+    # ── Consecutive high-RPE days ───────────────────────────────────────
+    # Increment if this session had cns_fatigue_after >= 7, else reset to 0
+    high_rpe_days = state.get("consecutive_high_rpe_days", 0)
+    if cns_fatigue_after is not None:
+        if cns_fatigue_after >= 7:
+            high_rpe_days = high_rpe_days + 1
+        else:
+            high_rpe_days = 0
+
+    # ── Protein streak is updated by nutrition route, not here ──────────
+
+    updated_state = {
+        **state,
+        "user_id": user_id,
+        "workout_streak": streak,
+        "total_workouts": total,
+        "weekly_session_count": weekly_count,
+        "consecutive_high_rpe_days": high_rpe_days,
+        "last_session_date": str(today),
+    }
+    if cns_fatigue_after is not None:
+        updated_state["cns_fatigue_score"] = cns_fatigue_after
+
+    upsert_agent_state(user_id, updated_state)
 
 
 @router.post("/sessions/{session_id}/logs", status_code=201)
 async def log_set(
     session_id: str,
-    payload: SetLog,
+    payload: SetLogRequest,
     current_user: dict = Depends(get_current_user)
 ):
     sb = get_supabase()
+    user_id = current_user["user_id"]
+
+    # FIX: Auto-compute set_number so the frontend doesn't need to track it.
+    existing_res = (
+        sb.table("exercise_logs")
+        .select("id", count="exact")
+        .eq("session_id", session_id)
+        .eq("exercise_name", payload.exercise_name)
+        .execute()
+    )
+    set_number = (existing_res.count or 0) + 1
+
     data = payload.model_dump()
     data["session_id"] = session_id
-    data["user_id"] = current_user["user_id"]
+    data["user_id"] = user_id
+    data["set_number"] = set_number
+
     res = sb.table("exercise_logs").insert(data).execute()
     if not res.data:
         raise HTTPException(500, "Failed to log set")
