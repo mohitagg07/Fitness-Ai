@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { profileApi } from '../../utils/api';
 import { actions } from '../../store';
+import { COLORS } from '../../theme/colors';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const RING_SIZE = 84;
@@ -250,7 +251,7 @@ function ProgressRing({
           cx={RING_SIZE / 2}
           cy={RING_SIZE / 2}
           r={RING_RADIUS}
-          stroke="#FFD700"
+          stroke={COLORS.primaryGreen}
           strokeWidth={RING_STROKE}
           fill="none"
           strokeDasharray={`${RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`}
@@ -533,7 +534,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#2A2A2A',
   },
-  pillActive: { backgroundColor: '#FFD700', borderColor: '#FFD700' },
+  pillActive: { backgroundColor: COLORS.primaryGreen, borderColor: COLORS.primaryGreen },
   pillText: { color: '#9AA5B1', fontSize: 13, fontWeight: '600' },
   pillTextActive: { color: '#0A0A0A' },
   stepperRow: { flexDirection: 'row', gap: 8 },
@@ -542,7 +543,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#2A2A2A',
     alignItems: 'center', justifyContent: 'center',
   },
-  stepperPillActive: { backgroundColor: '#FFD700', borderColor: '#FFD700' },
+  stepperPillActive: { backgroundColor: COLORS.primaryGreen, borderColor: COLORS.primaryGreen },
   stepperText: { color: '#9AA5B1', fontWeight: '700' },
   stepperTextActive: { color: '#0A0A0A' },
   errorBanner: {
@@ -554,7 +555,7 @@ const styles = StyleSheet.create({
   footer: { paddingHorizontal: 24, paddingBottom: 28, paddingTop: 8 },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginBottom: 18 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#2A2A2A' },
-  dotActive: { backgroundColor: '#FFD700', width: 18 },
+  dotActive: { backgroundColor: COLORS.primaryGreen, width: 18 },
   controlsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   backButton: {
     width: 44, height: 44, borderRadius: 22,
@@ -565,7 +566,7 @@ const styles = StyleSheet.create({
   ringWrap: { width: RING_SIZE, height: RING_SIZE, alignItems: 'center', justifyContent: 'center' },
   nextButton: {
     width: RING_SIZE - 20, height: RING_SIZE - 20, borderRadius: (RING_SIZE - 20) / 2,
-    backgroundColor: '#FFD700',
+    backgroundColor: COLORS.primaryGreen,
     alignItems: 'center', justifyContent: 'center',
   },
 });

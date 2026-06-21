@@ -18,6 +18,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { dashboardApi, describeApiError } from '../../utils/api';
 import { useStore } from '../../store';
+import { COLORS, recoveryColor as whoopRecoveryColor } from '../../theme/colors';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -50,9 +51,13 @@ interface DashboardSummary {
 // colors, never a continuous gradient. Replicated here for Recovery and
 // the CNS Fatigue ring (inverted, since high fatigue = bad, mirroring how
 // Whoop's Strain ring works in reverse of Recovery).
-const ZONE_GREEN = '#16EC8C';
-const ZONE_YELLOW = '#FFC23C';
-const ZONE_RED = '#FF5C5C';
+// Official WHOOP Recovery vocabulary (see theme/colors.ts) — previously
+// this file used close-but-not-exact approximations (#16EC8C/#FFC23C/
+// #FF5C5C); now sourced from the single COLORS definition so every
+// screen in the app agrees on the same three hex values.
+const ZONE_GREEN = COLORS.recoveryHigh;   // #16EC06
+const ZONE_YELLOW = COLORS.recoveryMed;   // #FFDE00
+const ZONE_RED = COLORS.recoveryLow;      // #FF0026
 
 function recoveryZoneColor(score0to10: number) {
   if (score0to10 >= 7) return ZONE_GREEN;
@@ -110,7 +115,7 @@ export default function DashboardScreen() {
   if (loading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator color="#16EC8C" size="large" />
+        <ActivityIndicator color={COLORS.recoveryHigh} size="large" />
         <Text style={styles.loadingLabel}>Loading your mission...</Text>
       </View>
     );
@@ -119,7 +124,7 @@ export default function DashboardScreen() {
   if (errorMsg && !summary) {
     return (
       <View style={styles.centerContainer}>
-        <Ionicons name="cloud-offline-outline" size={48} color="#3A3A3A" />
+        <Ionicons name="cloud-offline-outline" size={48} color={COLORS.textDim} />
         <Text style={styles.errorTitle}>Couldn't load your dashboard</Text>
         <Text style={styles.errorBody}>{errorMsg}</Text>
         <TouchableOpacity style={styles.retryBtn} onPress={onRefresh}>
@@ -137,12 +142,12 @@ export default function DashboardScreen() {
     <ScrollView
       style={styles.container}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#16EC8C" />
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.recoveryHigh} />
       }
     >
       {errorMsg && summary && (
         <View style={styles.staleBanner}>
-          <Ionicons name="warning-outline" size={14} color="#FFC23C" />
+          <Ionicons name="warning-outline" size={14} color={COLORS.recoveryMed} />
           <Text style={styles.staleBannerText}>Showing last loaded data — {errorMsg}</Text>
         </View>
       )}
@@ -193,7 +198,7 @@ export default function DashboardScreen() {
       {/* Daily Mission / Next Action */}
       <View style={styles.feedCard}>
         <View style={styles.feedLabelRow}>
-          <Ionicons name="flash" size={12} color="#16EC8C" />
+          <Ionicons name="flash" size={12} color={COLORS.recoveryHigh} />
           <Text style={styles.feedLabel}>TODAY'S MISSION</Text>
         </View>
         <Text style={styles.feedText}>
@@ -201,7 +206,7 @@ export default function DashboardScreen() {
         </Text>
         <TouchableOpacity style={styles.feedBtn} onPress={() => router.push('/(tabs)/coach')}>
           <Text style={styles.feedBtnText}>Open Coach</Text>
-          <Ionicons name="arrow-forward" size={14} color="#16EC8C" />
+          <Ionicons name="arrow-forward" size={14} color={COLORS.recoveryHigh} />
         </TouchableOpacity>
       </View>
 
@@ -213,14 +218,14 @@ export default function DashboardScreen() {
         <View style={styles.miniRingsRow}>
           <MiniRing
             pct={summary.calories_pct}
-            color="#16EC8C"
+            color={COLORS.recoveryHigh}
             label="CALORIES"
             value={`${summary.calories_remaining}`}
             sub={`of ${summary.calories_target}`}
           />
           <MiniRing
             pct={summary.protein_pct}
-            color="#5CC8FF"
+            color={COLORS.strain}
             label="PROTEIN"
             value={`${Math.round(summary.protein_remaining_g)}g`}
             sub={`of ${Math.round(summary.protein_target_g)}g`}
@@ -240,7 +245,7 @@ export default function DashboardScreen() {
         <View style={styles.card}>
           <Text style={styles.cardLabel}>WORKOUT TODAY</Text>
           <View style={styles.workoutRow}>
-            <Ionicons name="barbell-outline" size={20} color="#5CC8FF" />
+            <Ionicons name="barbell-outline" size={20} color={COLORS.strain} />
             <Text style={styles.workoutType}>
               {summary.workout_today.type ? summary.workout_today.type.toUpperCase() : 'NOT PLANNED YET'}
             </Text>
@@ -272,17 +277,17 @@ export default function DashboardScreen() {
 
       {summary?.motivation_message && (
         <View style={styles.motivationCard}>
-          <Ionicons name="sparkles-outline" size={16} color="#16EC8C" />
+          <Ionicons name="sparkles-outline" size={16} color={COLORS.recoveryHigh} />
           <Text style={styles.motivationText}>{summary.motivation_message}</Text>
         </View>
       )}
 
       <Text style={styles.sectionLabel}>QUICK START</Text>
       <View style={styles.quickGrid}>
-        <QuickBtn label="Ask Coach" icon="chatbubble-outline" onPress={() => router.push('/(tabs)/coach')} accent="#16EC8C" />
-        <QuickBtn label="Gym Mode" icon="barbell-outline" onPress={() => router.push('/(tabs)/workout')} accent="#5CC8FF" />
-        <QuickBtn label="Progress" icon="stats-chart-outline" onPress={() => router.push('/(tabs)/progress')} accent="#FFC23C" />
-        <QuickBtn label="My PRs" icon="trophy-outline" onPress={() => router.push('/(tabs)/profile')} accent="#B98CFF" />
+        <QuickBtn label="Ask Coach" icon="chatbubble-outline" onPress={() => router.push('/(tabs)/coach')} accent={COLORS.recoveryHigh} />
+        <QuickBtn label="Gym Mode" icon="barbell-outline" onPress={() => router.push('/(tabs)/workout')} accent={COLORS.strain} />
+        <QuickBtn label="Progress" icon="stats-chart-outline" onPress={() => router.push('/(tabs)/progress')} accent={COLORS.recoveryMed} />
+        <QuickBtn label="My PRs" icon="trophy-outline" onPress={() => router.push('/(tabs)/profile')} accent={COLORS.sleep} />
       </View>
 
       <View style={{ height: 24 }} />
@@ -389,7 +394,7 @@ const styles = StyleSheet.create({
   errorBody: { color: '#5C6B6E', fontSize: 13, marginTop: 8, textAlign: 'center', lineHeight: 19 },
   retryBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#16EC8C', borderRadius: 12,
+    backgroundColor: COLORS.recoveryHigh, borderRadius: 12,
     paddingVertical: 12, paddingHorizontal: 24, marginTop: 20,
   },
   retryText: { color: '#000', fontSize: 13, fontWeight: '700' },
@@ -397,7 +402,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: '#1A1606', paddingVertical: 8, paddingHorizontal: 16,
   },
-  staleBannerText: { color: '#FFC23C', fontSize: 11, flex: 1 },
+  staleBannerText: { color: COLORS.recoveryMed, fontSize: 11, flex: 1 },
   header: {
     padding: 24, paddingTop: 60,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
@@ -405,7 +410,7 @@ const styles = StyleSheet.create({
   greeting: { color: '#5C6B6E', fontSize: 14 },
   name: { color: '#FFF', fontSize: 24, fontWeight: '800' },
   phaseBadge: { backgroundColor: '#0E1F1A', borderRadius: 8, padding: 8, marginTop: 4 },
-  phaseText: { color: '#16EC8C', fontSize: 10, fontWeight: '700', letterSpacing: 1 },
+  phaseText: { color: COLORS.recoveryHigh, fontSize: 10, fontWeight: '700', letterSpacing: 1 },
 
   // Primary rings
   ringsRow: {
@@ -434,10 +439,10 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#16352A',
   },
   feedLabelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 },
-  feedLabel: { color: '#16EC8C', fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
+  feedLabel: { color: COLORS.recoveryHigh, fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
   feedText: { color: '#C8D2D4', fontSize: 14, lineHeight: 20, marginBottom: 12 },
   feedBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' },
-  feedBtnText: { color: '#16EC8C', fontSize: 13, fontWeight: '600' },
+  feedBtnText: { color: COLORS.recoveryHigh, fontSize: 13, fontWeight: '600' },
 
   // Mini rings (nutrition)
   miniRingsRow: {
@@ -459,7 +464,7 @@ const styles = StyleSheet.create({
   workoutRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   workoutType: { color: '#FFF', fontSize: 16, fontWeight: '700', flex: 1 },
   rescheduledBadge: { backgroundColor: '#1A1606', borderRadius: 6, paddingVertical: 3, paddingHorizontal: 8 },
-  rescheduledText: { color: '#FFC23C', fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
+  rescheduledText: { color: COLORS.recoveryMed, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
 
   streakRow: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 12, gap: 10 },
   streakCard: {

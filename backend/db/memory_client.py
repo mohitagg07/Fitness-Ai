@@ -12,8 +12,21 @@ user, without needing a rigid schema for every possible preference.
 """
 import uuid
 import chromadb
-from chromadb.utils import embedding_functions
+# Cross-version safe import — see db/chroma_client.py for the full
+# explanation. Newer chromadb releases moved/renamed this exception
+# (reported missing from chromadb.errors entirely on some 0.5.x/1.x
+# installs), so we try the documented path, fall back to an older
+# internal location, and finally fall back to the generic ValueError
+# chromadb raised for this case before the dedicated exception existed.
+try:
+    from chromadb.errors import InvalidArgumentError
+except ImportError:
+    try:
+        from chromadb.api.types import InvalidArgumentError
+    except ImportError:
+        InvalidArgumentError = ValueError
 from core.config import get_settings
+from db.local_embeddings import LocalHashEmbeddingFunction
 from functools import lru_cache
 
 settings = get_settings()
@@ -26,9 +39,14 @@ def get_memory_chroma_client() -> chromadb.PersistentClient:
     return chromadb.PersistentClient(path=settings.chroma_persist_dir)
 
 
+@lru_cache()
 def get_memory_collection():
     client = get_memory_chroma_client()
-    ef = embedding_functions.DefaultEmbeddingFunction()
+    # Same network-dependency concern as db/chroma_client.py — see
+    # db/local_embeddings.py for why this isn't chromadb's
+    # DefaultEmbeddingFunction. Cached with lru_cache so this only runs
+    # once per process.
+    ef = LocalHashEmbeddingFunction()
     return client.get_or_create_collection(
         name=MEMORY_COLLECTION_NAME,
         embedding_function=ef,
@@ -36,20 +54,46 @@ def get_memory_collection():
     )
 
 
-def remember(user_id: str, fact: str, category: str = "general") -> str:
+def _is_dimension_mismatch(e: Exception) -> bool:
+    return isinstance(e, InvalidArgumentError) and "dimension" in str(e).lower()
+
+
+def remember(user_id: str, fact: str, category: str = "general") -> str | None:
     """
     Store a new long-term fact about a user.
     category examples: "food_preference", "schedule_pattern", "injury",
     "training_preference", "general"
+
+    Returns None on failure instead of raising — coach_agent.py already
+    wraps its call to this in a try/except (a failed memory write should
+    never break the chat response that triggered it), but this function
+    fails safe on its own too in case anything else calls it directly.
     """
-    collection = get_memory_collection()
-    fact_id = str(uuid.uuid4())
-    collection.add(
-        ids=[fact_id],
-        documents=[fact],
-        metadatas=[{"user_id": user_id, "category": category}],
-    )
-    return fact_id
+    try:
+        collection = get_memory_collection()
+        fact_id = str(uuid.uuid4())
+        collection.add(
+            ids=[fact_id],
+            documents=[fact],
+            metadatas=[{"user_id": user_id, "category": category}],
+        )
+        return fact_id
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        if _is_dimension_mismatch(e):
+            logger.error(
+                f"Memory collection has a stale embedding dimension from a "
+                f"previous run and could not store a new memory for user "
+                f"{user_id}. This collection holds real user data, so it is "
+                f"not auto-rebuilt like the guardrails collection — delete "
+                f"the '{MEMORY_COLLECTION_NAME}' collection from your "
+                f"chroma_store manually (or wipe chroma_store entirely if "
+                f"you don't need to keep existing memories) to fix this. ({e})"
+            )
+        else:
+            logger.warning(f"Failed to store memory for user {user_id}: {e}")
+        return None
 
 
 def recall(user_id: str, query_text: str, n_results: int = 5) -> list[str]:

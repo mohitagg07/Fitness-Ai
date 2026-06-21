@@ -9,6 +9,7 @@ import Animated, {
   Easing,
   runOnJS,
 } from 'react-native-reanimated';
+import { COLORS } from '../../theme/colors';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const HERO_SIZE = Math.min(SCREEN_W * 0.78, 360);
@@ -93,7 +94,7 @@ export default function AnimatedSplash({ onFinished }: AnimatedSplashProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0A0A',
+    backgroundColor: COLORS.background, // #000000 — true black, per WHOOP
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -109,20 +110,20 @@ const styles = StyleSheet.create({
   wordmark: {
     fontSize: 30,
     fontWeight: '800',
-    color: '#E8ECEF',
+    color: COLORS.text,
     letterSpacing: 1,
   },
   wordmarkFit: {
-    color: '#7ED957',
+    color: COLORS.recoveryHigh, // #16EC06 — official WHOOP High Recovery green
   },
   wordmarkAi: {
-    color: '#4A9EFF',
+    color: COLORS.strain, // #0093E7 — official WHOOP Strain blue
   },
   tagline: {
     marginTop: 8,
     fontSize: 11,
     fontWeight: '500',
-    color: '#9AA5B1',
+    color: COLORS.textSecondary,
     letterSpacing: 2.5,
   },
 });

@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { progressApi, describeApiError } from '../../utils/api';
+import { COLORS } from '../../theme/colors';
 
 export default function ProgressScreen() {
   const [metrics, setMetrics] = useState<any[]>([]);
@@ -56,7 +57,7 @@ export default function ProgressScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color="#FFD700" size="large" />
+        <ActivityIndicator color={COLORS.primaryGreen} size="large" />
       </View>
     );
   }
@@ -79,7 +80,7 @@ export default function ProgressScreen() {
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <View style={styles.headerIcon}>
-            <Ionicons name="stats-chart" size={18} color="#FFD700" />
+            <Ionicons name="stats-chart" size={18} color={COLORS.primaryGreen} />
           </View>
           <Text style={styles.title}>Progress</Text>
         </View>
@@ -94,7 +95,7 @@ export default function ProgressScreen() {
           all real, derived from state above — never placeholder numbers. */}
       <View style={styles.statsRow}>
         <View style={styles.heroStatCard}>
-          <Ionicons name="trending-up-outline" size={20} color="#FFD700" />
+          <Ionicons name="trending-up-outline" size={20} color={COLORS.primaryGreen} />
           {latestWeight ? (
             <>
               <Text style={styles.heroStatValue}>{latestWeight}</Text>
@@ -102,7 +103,7 @@ export default function ProgressScreen() {
               {weightDelta !== null && (
                 <Text style={[
                   styles.heroStatDelta,
-                  { color: weightDelta <= 0 ? '#7ED957' : '#FF9D5C' },
+                  { color: weightDelta <= 0 ? COLORS.recoveryHigh : '#FF9D5C' },
                 ]}>
                   {weightDelta > 0 ? '+' : ''}{weightDelta} kg over period
                 </Text>
@@ -115,7 +116,7 @@ export default function ProgressScreen() {
 
         <View style={styles.stackedStats}>
           <View style={styles.smallStatCard}>
-            <Ionicons name="restaurant-outline" size={16} color="#4A9EFF" />
+            <Ionicons name="restaurant-outline" size={16} color={COLORS.strain} />
             <Text style={styles.smallStatValue}>{logsThisWeek}</Text>
             <Text style={styles.smallStatLabel}>meals logged</Text>
           </View>
@@ -155,7 +156,7 @@ export default function ProgressScreen() {
           <Ionicons
             name="body-outline"
             size={14}
-            color={activeTab === 'body' ? '#FFD700' : '#555'}
+            color={activeTab === 'body' ? COLORS.primaryGreen : COLORS.textMuted}
           />
           <Text style={[styles.tabText, activeTab === 'body' && styles.tabTextActive]}>BODY</Text>
         </TouchableOpacity>
@@ -166,7 +167,7 @@ export default function ProgressScreen() {
           <Ionicons
             name="restaurant-outline"
             size={14}
-            color={activeTab === 'nutrition' ? '#FFD700' : '#555'}
+            color={activeTab === 'nutrition' ? COLORS.primaryGreen : COLORS.textMuted}
           />
           <Text style={[styles.tabText, activeTab === 'nutrition' && styles.tabTextActive]}>NUTRITION</Text>
         </TouchableOpacity>
@@ -257,7 +258,7 @@ const styles = StyleSheet.create({
     color: '#FFF', fontSize: 16,
   },
   logBtn: {
-    backgroundColor: '#FFD700', borderRadius: 12,
+    backgroundColor: COLORS.primaryGreen, borderRadius: 12,
     paddingHorizontal: 18, justifyContent: 'center',
     flexDirection: 'row', alignItems: 'center', gap: 5,
   },
@@ -274,7 +275,7 @@ const styles = StyleSheet.create({
   },
   tabActive: { backgroundColor: '#1E3A5F', borderColor: '#2A4A7F' },
   tabText: { color: '#555', fontSize: 12, fontWeight: '700', letterSpacing: 1 },
-  tabTextActive: { color: '#FFD700' },
+  tabTextActive: { color: COLORS.primaryGreen },
   empty: { color: '#555', fontSize: 13, textAlign: 'center', paddingVertical: 20 },
   metricRow: {
     flexDirection: 'row', justifyContent: 'space-between',
@@ -283,5 +284,5 @@ const styles = StyleSheet.create({
   },
   metricDate: { color: '#888', fontSize: 13 },
   metricSub: { color: '#555', fontSize: 11, marginTop: 2 },
-  metricValue: { color: '#FFD700', fontSize: 15, fontWeight: '700' },
+  metricValue: { color: COLORS.primaryGreen, fontSize: 15, fontWeight: '700' },
 });

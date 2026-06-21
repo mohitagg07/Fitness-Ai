@@ -1,50 +1,88 @@
-// NeuroFit AI — Centralized Color System
-// Splash screen already uses these exact values — now everything else does too.
+/**
+ * NeuroFit AI — Design System
+ * Modeled directly on WHOOP's official Brand & Design Guidelines:
+ * https://developer.whoop.com/docs/developing/design-guidelines/
+ *
+ * Typography: Proxima Nova for words, DIN Pro (tabular) for numbers —
+ * we use Inter as the closest free equivalent for words and a
+ * monospace-leaning system font for numbers (see theme/typography.ts).
+ *
+ * Color: pitch-black canvas, three-color Recovery vocabulary
+ * (Green/Yellow/Red), Strain Blue, Sleep Blue — exactly as WHOOP
+ * defines them, re-themed slightly for NeuroFit AI's own accent.
+ */
 
 export const COLORS = {
-  // Brand
-  primaryGreen: '#7ED957',
-  primaryBlue:  '#4A9EFF',
+  // ── Canvas ──────────────────────────────────────────────
+  background:     '#000000',   // WHOOP "Cod Gray" / pitch black
+  backgroundTop:  '#101518',   // WHOOP background gradient start
+  backgroundBot:  '#283339',   // WHOOP background gradient end
+  card:           '#0D0D0D',
+  cardElevated:   '#161616',
+  cardBorder:     '#1F1F1F',
+  inputBg:        '#161616',
 
-  // Backgrounds
-  background:   '#0A0A0A',
-  card:         '#121212',
-  cardBorder:   '#1E1E1E',
-  inputBg:      '#1A1A1A',
+  // ── Text ────────────────────────────────────────────────
+  text:           '#FFFFFF',
+  textSecondary:  '#9A9A9A',
+  textMuted:      '#5C5C5C',
+  textDim:        '#3A3A3A',
 
-  // Text
-  text:          '#FFFFFF',
-  textSecondary: '#A0A0A0',
-  textMuted:     '#555555',
+  // ── Borders ─────────────────────────────────────────────
+  border:         '#1F1F1F',
+  borderLight:    '#2A2A2A',
 
-  // Borders
-  border:        '#1E1E1E',
-  borderLight:   '#2A2A2A',
+  // ── WHOOP Recovery vocabulary — exact official hex values ──
+  recoveryHigh:   '#16EC06',   // 67-100%  High Recovery (green)
+  recoveryMed:    '#FFDE00',   // 34-66%   Medium Recovery (yellow)
+  recoveryLow:    '#FF0026',   // 0-33%    Low Recovery (red)
 
-  // Semantic
-  success:  '#7ED957',  // = primaryGreen
-  info:     '#4A9EFF',  // = primaryBlue
-  warning:  '#FF9F0A',
-  danger:   '#FF453A',
+  // ── WHOOP Strain / Sleep / CTA colors ──────────────────
+  strain:         '#0093E7',   // Strain Blue — activity, exertion
+  strainGlow:     '#00F19F',   // Teal — CTAs, highlights, positive evals
+  sleep:          '#7BA1BB',   // Sleep — muted blue-gray
+  recoveryBlue:   '#67AEE6',   // Recovery data without valuation
 
-  // Tab bar
-  tabActive:   '#7ED957',
-  tabInactive: '#555555',
-  tabBg:       '#0A0A0A',
-  tabBorder:   '#1E1E1E',
+  // ── NeuroFit AI brand accent (used for AI/Coach-specific UI only) ──
+  primaryGreen:   '#16EC06',   // = recoveryHigh, single source of truth
+  primaryBlue:    '#0093E7',   // = strain
 
-  // Accent for user chat bubble
-  userBubble: '#1A3A5F',
+  // ── Semantic ────────────────────────────────────────────
+  success:  '#16EC06',
+  warning:  '#FFDE00',
+  danger:   '#FF0026',
+  info:     '#0093E7',
 
-  // Macros
+  // ── Tab bar ─────────────────────────────────────────────
+  tabActive:   '#16EC06',
+  tabInactive: '#4A4A4A',
+  tabBg:       '#000000',
+  tabBorder:   '#1A1A1A',
+
+  // ── Chat ────────────────────────────────────────────────
+  userBubble: '#0093E730',
+
+  // ── Macros (kept distinct from Recovery vocabulary on purpose) ──
   calories: '#FF6B35',
-  protein:  '#FF453A',
-  carbs:    '#7ED957',
-  fat:      '#4A9EFF',
-  water:    '#4A9EFF',
+  protein:  '#FF0026',
+  carbs:    '#16EC06',
+  fat:      '#0093E7',
+  water:    '#67AEE6',
 };
 
-// Hex with alpha helpers
+/** Returns the WHOOP-standard Recovery color for a 0-100 score. */
+export function recoveryColor(score: number): string {
+  if (score >= 67) return COLORS.recoveryHigh;
+  if (score >= 34) return COLORS.recoveryMed;
+  return COLORS.recoveryLow;
+}
+
+export function recoveryLabel(score: number): string {
+  if (score >= 67) return 'HIGH RECOVERY';
+  if (score >= 34) return 'MEDIUM RECOVERY';
+  return 'LOW RECOVERY';
+}
+
 export const alpha = (hex: string, opacity: number): string => {
   const a = Math.round(opacity * 255).toString(16).padStart(2, '0');
   return `${hex}${a}`;

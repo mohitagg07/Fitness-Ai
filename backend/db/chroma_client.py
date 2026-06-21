@@ -3,8 +3,21 @@ ChromaDB — biomechanical guardrails vector store.
 Injects relevant safety rules into every LLM prompt via RAG.
 """
 import chromadb
-from chromadb.utils import embedding_functions
+# Cross-version safe import: newer chromadb releases moved/renamed this
+# exception (it was reported missing from chromadb.errors entirely on
+# some 0.5.x/1.x builds depending on how chromadb was installed). Try the
+# documented path first, fall back to a couple of older locations, and
+# finally fall back to the generic ValueError chromadb also raises for
+# this case so the app never fails to import over this.
+try:
+    from chromadb.errors import InvalidArgumentError
+except ImportError:
+    try:
+        from chromadb.api.types import InvalidArgumentError
+    except ImportError:
+        InvalidArgumentError = ValueError  # chromadb raises ValueError pre-0.5
 from core.config import get_settings
+from db.local_embeddings import LocalHashEmbeddingFunction
 from functools import lru_cache
 
 settings = get_settings()
@@ -78,19 +91,60 @@ def get_chroma_client() -> chromadb.PersistentClient:
     return chromadb.PersistentClient(path=settings.chroma_persist_dir)
 
 
+@lru_cache()
 def get_guardrail_collection():
+    """
+    Returns the guardrails collection, self-healing a stale embedding
+    dimension from a previous run if needed (see below). Cached with
+    lru_cache so the one-time dimension check below only runs once per
+    process — not on every single chat message.
+    """
     client = get_chroma_client()
-    ef = embedding_functions.DefaultEmbeddingFunction()
+    # LocalHashEmbeddingFunction (not chromadb's DefaultEmbeddingFunction):
+    # the default lazily downloads an ~80MB ONNX model from S3 on first
+    # use, *inside* the request path of /api/coach/chat. A slow or
+    # interrupted download there raised an unhandled ValueError on every
+    # chat message, even when Groq itself was working fine. See
+    # db/local_embeddings.py for the full explanation.
+    ef = LocalHashEmbeddingFunction()
     collection = client.get_or_create_collection(
         name=settings.chroma_collection_name,
         embedding_function=ef,
         metadata={"hnsw:space": "cosine"},
     )
+
+    # Self-heal: a collection created by an EARLIER run of this app, before
+    # this fix, was built with chromadb's old 384-dim ONNX embedding
+    # function. Querying or adding to it now with our 256-dim local
+    # embedding raises InvalidArgumentError("Collection expecting
+    # embedding with dimension of 384, got 256"). Detect that specific
+    # case on a cheap dummy call and transparently rebuild the collection
+    # rather than requiring the user to manually delete chroma_store.
+    try:
+        collection.query(query_texts=["dimension check"], n_results=1)
+    except InvalidArgumentError as e:
+        if "dimension" in str(e).lower():
+            import logging
+            logging.getLogger(__name__).warning(
+                f"Guardrails collection has a stale embedding dimension "
+                f"from a previous run — rebuilding it. ({e})"
+            )
+            client.delete_collection(settings.chroma_collection_name)
+            collection = client.get_or_create_collection(
+                name=settings.chroma_collection_name,
+                embedding_function=ef,
+                metadata={"hnsw:space": "cosine"},
+            )
+            seed_guardrails(collection=collection)
+        else:
+            raise
+
     return collection
 
 
-def seed_guardrails():
-    collection = get_guardrail_collection()
+def seed_guardrails(collection=None):
+    if collection is None:
+        collection = get_guardrail_collection()
     existing = collection.get()["ids"]
 
     docs_to_add = [d for d in GUARDRAIL_DOCS if d["id"] not in existing]
@@ -107,17 +161,30 @@ def seed_guardrails():
 
 
 def query_guardrails(query_text: str, injury_tags: list[str] = None, n_results: int = 4) -> list[str]:
-    collection = get_guardrail_collection()
+    """
+    Returns the most relevant safety guardrail documents for this query.
+    On ANY failure (corrupted local index, disk issue, etc.) this returns
+    an empty list rather than raising — a missing guardrail lookup should
+    degrade the coach's response quality, not take down the whole chat
+    endpoint. build_workout_node already handles an empty guardrails list
+    fine ("standard safety applies" fallback text).
+    """
+    try:
+        collection = get_guardrail_collection()
 
-    emergency_keywords = ["sharp pain", "pop", "snap", "tore", "injured", "hurt badly"]
-    if any(kw in query_text.lower() for kw in emergency_keywords):
-        emergency = collection.get(ids=["acute_pain_emergency"])
-        if emergency["documents"]:
-            return emergency["documents"]
+        emergency_keywords = ["sharp pain", "pop", "snap", "tore", "injured", "hurt badly"]
+        if any(kw in query_text.lower() for kw in emergency_keywords):
+            emergency = collection.get(ids=["acute_pain_emergency"])
+            if emergency["documents"]:
+                return emergency["documents"]
 
-    results = collection.query(
-        query_texts=[query_text],
-        n_results=n_results,
-        where=None,
-    )
-    return results["documents"][0] if results["documents"] else []
+        results = collection.query(
+            query_texts=[query_text],
+            n_results=n_results,
+            where=None,
+        )
+        return results["documents"][0] if results["documents"] else []
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Guardrails query failed, continuing without them: {e}")
+        return []

@@ -102,3 +102,122 @@ anything that only shows up with live data. After that's confirmed
 working, the frontend (onboarding + dashboard redesign) is the right next
 piece of work — and given its size, doing it in Claude Code rather than
 continued back-and-forth here will get you a better result.
+
+---
+
+# Round — Fixed the actual `/api/coach/chat` 500 (this session)
+
+You reported `/api/coach/chat` returning a 500, with a Groq key you'd
+already confirmed works elsewhere. It does — the 500 wasn't coming from
+Groq at all.
+
+## Root cause
+
+`db/chroma_client.py` and `db/memory_client.py` both used chromadb's
+`DefaultEmbeddingFunction`, which **lazily downloads an ~80MB ONNX model
+from an S3 bucket the first time it's actually used** — and that first
+use happens *inside* the request path of `/api/coach/chat`, via
+`retrieve_guardrails_node`'s call to `query_guardrails()`. That call had
+**no error handling at all**. If the download is slow, interrupted, or
+the connection to that specific S3 endpoint is flaky (which it can be on
+some networks/regions/proxies), chromadb raises a `ValueError` ("does
+not match expected SHA256 hash") — and since this happens *before*
+`build_workout_node` ever calls Groq, the request 500s with no LLM call
+having been made at all. This is also what the
+`Failed to send telemetry event ... capture() takes 1 positional
+argument but 3 were given` noise in your logs was — a side effect of
+chromadb's default-embedding-function code path, specifically; it's
+gone now that this is removed.
+
+(The `42P01 relation "supabase_migrations.schema_migrations" does not
+exist` line in what you pasted is unrelated to this — that's Supabase
+CLI migration-tooling output, not anything this app queries. It looks
+like terminal output from a different command got captured alongside
+the server log.)
+
+## Fix
+
+Added `db/local_embeddings.py` — a small, fully local, dependency-free
+embedding function (hashed bag-of-words with a hand-tuned domain synonym
+map, since the guardrail set is a fixed ~12-document list, not an
+open-ended corpus). No network calls, no model download, ever. Wired
+into both `chroma_client.py` and `memory_client.py` in place of
+`DefaultEmbeddingFunction`.
+
+Also, since this wasn't just "make it not crash":
+- `query_guardrails()` is now wrapped in a try/except — any failure
+  (this one or anything else) returns an empty guardrail list instead of
+  raising, so a guardrails-layer problem degrades response quality
+  rather than breaking the whole chat endpoint. `build_workout_node`
+  already handles an empty guardrails list fine.
+- **Self-healing for anyone who already ran the app before this fix:**
+  your existing `chroma_store` (if you have one) was built with the old
+  384-dimension embeddings. Switching embedding functions on a
+  collection that already has vectors at a different dimensionality
+  raises `InvalidArgumentError("Collection expecting embedding with
+  dimension of 384, got 256")`. `get_guardrail_collection()` now detects
+  exactly that error on startup and automatically deletes + rebuilds +
+  re-seeds the guardrails collection — no manual `rm -rf chroma_store`
+  needed. (The separate user-memory collection is NOT auto-rebuilt the
+  same way, since it holds real per-user data instead of a fixed seedable
+  set — if you hit the same dimension error there, `remember()` now logs
+  a clear message telling you exactly what to delete.)
+
+Verified end-to-end with a mocked Groq response: parse → fatigue eval →
+guardrails retrieval → memory recall → LLM call → reply, all complete
+with zero network calls for the guardrails/memory layer. Retrieval
+quality spot-checked across several phrasings (e.g. "I deadlifted
+100kg, my lower back feels tight" correctly surfaces the
+spinal/deadlift-compression rule, not a random unrelated one).
+
+## A pattern worth flagging directly
+
+This is the second time in a row that several specific things have come
+back after being fixed: the stale `backend/backend/` duplicate folder,
+the root `app/_layout.tsx` being a `<Tabs>` navigator instead of a
+`<Stack>` (same bug, different exact code each time — it's being
+regenerated, not reverted), `expo-font` missing from `package.json`,
+`axios` pinned back to a vulnerable version, the four placeholder
+1×1-pixel image assets, and `#FFD700` gold colors in `CoachScreen.tsx` /
+`ProgressScreen.tsx` / `OnboardingScreen.tsx`.
+
+All of these are fixed again as of this round (gold colors swapped for
+`COLORS.primaryGreen`/`COLORS.primaryBlue`, `package-lock.json`
+regenerated, `icon.png`/`splash.png`/`adaptive-icon.png`/`favicon.png`/
+`hero-splash.png` rebuilt from the brand mark at correct sizes — this
+time using `assets/branding/neurofit-ai-icon-mark.svg`, which had
+already been added but never actually rendered into real PNGs or wired
+into `app.json`). But if something else is regenerating these files
+between sessions — another tool, a parallel Claude Code session, a
+template being reapplied — it's worth finding that source, because
+otherwise this list will likely come back a third time. `LoginScreen.tsx`
+also reverted to its own internal sign-up-mode + remote Unsplash-photo
+version rather than the link-to-`/register` + local-icon version from
+last round; left as-is this time since it isn't broken, just
+stylistically inconsistent with the shared `COLORS` theme — worth
+deciding deliberately rather than me flip-flopping it back and forth
+each round.
+
+## Verified this round
+
+- `python -c "from main import app"` imports cleanly, 29 routes register.
+- `seed_guardrails()` + `query_guardrails()` run with zero network calls
+  and return correct, relevant results across multiple test phrasings.
+- Full `run_coach()` pipeline completes with a mocked LLM call — no
+  exception anywhere before or after the (mocked) Groq call.
+- `npm install` clean (789 packages, no ERESOLVE), `npx tsc --noEmit`
+  zero errors, `npx expo export --platform web` bundles all modules with
+  no errors, `npx expo-doctor` back to 15/18 (the 3 failures are the same
+  sandbox-network-blocked / benign-nested-copy items as before, not
+  project bugs).
+
+## Still not verified
+
+- Not run against your actual live Supabase + Groq credentials end to
+  end (both blocked from my sandbox's network egress) — only verified
+  with a mocked LLM response and fake Supabase credentials. The fix
+  removes the specific failure mode in your logs; if `/api/coach/chat`
+  still 500s after this with your real keys, the error detail in the
+  response body (the route returns `f"AI Coach error: {str(e)}"`) will
+  say exactly what's failing now — paste that exact text rather than
+  just the log lines around it.

@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { authApi, profileApi } from '../../utils/api';
 import { actions } from '../../store';
+import { COLORS } from '../../theme/colors';
 
 // Free-to-use Unsplash photo (Victor Freitas) — purely decorative hero backdrop,
 // dimmed by the gradient overlay so it never competes with the form.
@@ -111,15 +112,15 @@ export default function AuthScreen() {
     >
       <Image source={{ uri: HERO_IMAGE_URL }} style={styles.heroImage} resizeMode="cover" />
       <LinearGradient
-        colors={['#000000F2', '#000000E6', '#000000']}
+        colors={[COLORS.background + 'F2', COLORS.background + 'E6', COLORS.background]}
         style={styles.heroOverlay}
       />
       <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
         <Animated.View style={{ opacity: fade, transform: [{ translateY: rise }] }}>
 
           {/* Logo */}
-          <LinearGradient colors={['#00F5D4', '#00B8D9']} style={styles.logoBadge}>
-            <Ionicons name="barbell" size={34} color="#000000" />
+          <LinearGradient colors={[COLORS.recoveryHigh, COLORS.strain]} style={styles.logoBadge}>
+            <Ionicons name="barbell" size={34} color={COLORS.background} />
           </LinearGradient>
           <Text style={styles.title}>NeuroFit AI</Text>
           <Text style={styles.subtitle}>Your AI Gym Spotter</Text>
@@ -230,7 +231,7 @@ export default function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000000' },
+  container: { flex: 1, backgroundColor: COLORS.background },
   heroImage: {
     position: 'absolute', top: 0, left: 0, right: 0, height: '48%', opacity: 0.45,
   },
@@ -242,37 +243,37 @@ const styles = StyleSheet.create({
     width: 76, height: 76, borderRadius: 22,
     alignItems: 'center', justifyContent: 'center',
     alignSelf: 'center', marginBottom: 14,
-    shadowColor: '#00F5D4', shadowOpacity: 0.45, shadowRadius: 16,
+    shadowColor: COLORS.recoveryHigh, shadowOpacity: 0.45, shadowRadius: 16,
     shadowOffset: { width: 0, height: 6 }, elevation: 8,
   },
-  title: { color: '#00F5D4', fontSize: 34, fontWeight: '800', textAlign: 'center', letterSpacing: 2 },
-  subtitle: { color: '#7A8A8E', fontSize: 13, textAlign: 'center', marginBottom: 36, letterSpacing: 1 },
+  title: { color: COLORS.recoveryHigh, fontSize: 34, fontWeight: '800', textAlign: 'center', letterSpacing: 2 },
+  subtitle: { color: COLORS.textSecondary, fontSize: 13, textAlign: 'center', marginBottom: 36, letterSpacing: 1 },
   toggle: {
     flexDirection: 'row',
-    backgroundColor: '#121212',
+    backgroundColor: COLORS.cardElevated,
     borderRadius: 14,
     padding: 4,
     marginBottom: 28,
     borderWidth: 1,
-    borderColor: '#1F2A2C',
+    borderColor: COLORS.border,
   },
   toggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
-  toggleBtnActive: { backgroundColor: '#00F5D4' },
-  toggleText: { color: '#5C6B6E', fontSize: 12, fontWeight: '700', letterSpacing: 1 },
-  toggleTextActive: { color: '#000000' },
+  toggleBtnActive: { backgroundColor: COLORS.recoveryHigh },
+  toggleText: { color: COLORS.textMuted, fontSize: 12, fontWeight: '700', letterSpacing: 1 },
+  toggleTextActive: { color: COLORS.background },
   form: { gap: 10 },
-  label: { color: '#5C6B6E', fontSize: 11, fontWeight: '700', letterSpacing: 1.5, marginBottom: 2 },
+  label: { color: COLORS.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1.5, marginBottom: 2 },
   input: {
-    backgroundColor: '#121212', borderRadius: 12,
-    padding: 15, color: '#FFF', fontSize: 15,
-    borderWidth: 1, borderColor: '#1F2A2C', marginBottom: 6,
+    backgroundColor: COLORS.inputBg, borderRadius: 12,
+    padding: 15, color: COLORS.text, fontSize: 15,
+    borderWidth: 1, borderColor: COLORS.border, marginBottom: 6,
   },
   btn: {
-    backgroundColor: '#00F5D4', borderRadius: 14,
+    backgroundColor: COLORS.recoveryHigh, borderRadius: 14,
     padding: 16, alignItems: 'center', marginTop: 6,
-    shadowColor: '#00F5D4', shadowOpacity: 0.35, shadowRadius: 12,
+    shadowColor: COLORS.recoveryHigh, shadowOpacity: 0.35, shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 }, elevation: 5,
   },
   btnDisabled: { opacity: 0.6 },
-  btnText: { color: '#000000', fontSize: 14, fontWeight: '800', letterSpacing: 1 },
+  btnText: { color: COLORS.background, fontSize: 14, fontWeight: '800', letterSpacing: 1 },
 });

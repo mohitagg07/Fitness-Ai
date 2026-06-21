@@ -9,6 +9,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { coachApi, describeApiError } from '../../utils/api';
 import { useStore } from '../../store';
+import { COLORS } from '../../theme/colors';
 
 const SUGGESTIONS = [
   "Give me today's chest workout",
@@ -72,7 +73,7 @@ export default function CoachScreen() {
     <View style={[styles.bubble, item.role === 'user' ? styles.userBubble : styles.aiBubble]}>
       {item.role === 'assistant' && (
         <View style={styles.roleLabelRow}>
-          <Ionicons name="flash" size={10} color="#FFD700" />
+          <Ionicons name="flash" size={10} color={COLORS.primaryGreen} />
           <Text style={styles.roleLabel}>NEUROFIT COACH</Text>
         </View>
       )}
@@ -91,7 +92,7 @@ export default function CoachScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerIcon}>
-          <Ionicons name="flash" size={20} color="#FFD700" />
+          <Ionicons name="flash" size={20} color={COLORS.primaryGreen} />
         </View>
         <View>
           <Text style={styles.headerTitle}>AI Coach</Text>
@@ -128,7 +129,7 @@ export default function CoachScreen() {
 
       {loading && (
         <View style={styles.loadingRow}>
-          <ActivityIndicator color="#FFD700" size="small" />
+          <ActivityIndicator color={COLORS.primaryGreen} size="small" />
           <Text style={styles.loadingText}>Coach thinking...</Text>
         </View>
       )}
@@ -149,7 +150,7 @@ export default function CoachScreen() {
           onPress={() => sendMessage()}
           disabled={!input.trim() || loading}
         >
-          <Ionicons name="arrow-up" size={18} color={input.trim() && !loading ? '#000' : '#555'} />
+          <Ionicons name="arrow-up" size={18} color={input.trim() && !loading ? COLORS.background : COLORS.textMuted} />
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -180,7 +181,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 6,
   },
   roleLabel: {
-    color: '#FFD700', fontSize: 10, fontWeight: '700', letterSpacing: 1.5,
+    color: COLORS.primaryGreen, fontSize: 10, fontWeight: '700', letterSpacing: 1.5,
   },
   messageText: { color: '#E8E8E8', fontSize: 15, lineHeight: 22 },
   userText: { color: '#FFF' },
@@ -198,7 +199,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 20, paddingVertical: 8, gap: 10,
   },
-  loadingText: { color: '#FFD700', fontSize: 13 },
+  loadingText: { color: COLORS.primaryGreen, fontSize: 13 },
   inputRow: {
     flexDirection: 'row', alignItems: 'flex-end',
     padding: 12, backgroundColor: '#1A1A1A',
@@ -211,7 +212,7 @@ const styles = StyleSheet.create({
     color: '#FFF', fontSize: 15, maxHeight: 120,
   },
   sendBtn: {
-    backgroundColor: '#FFD700', width: 40, height: 40,
+    backgroundColor: COLORS.primaryGreen, width: 40, height: 40,
     borderRadius: 20, alignItems: 'center', justifyContent: 'center',
   },
   sendBtnDisabled: { backgroundColor: '#252525' },
