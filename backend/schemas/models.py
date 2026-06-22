@@ -240,6 +240,22 @@ class ChatMessage(BaseModel):
     session_id: Optional[str] = None
 
 
+class StructuredDecision(BaseModel):
+    """
+    Structured coach decision returned alongside the free-form reply.
+    All fields are optional so partial decisions are valid.
+    """
+    mission: Optional[str] = None          # e.g. "Push Day"
+    workout_type: Optional[str] = None     # e.g. "Push", "Pull", "Legs", "Rest"
+    recovery: Optional[int] = None         # 0–100
+    calories: Optional[int] = None
+    protein: Optional[int] = None
+    next_action: Optional[str] = None      # e.g. "Bench Press 80kg × 5"
+    reason: Optional[str] = None
+    intensity: Optional[str] = None        # "High" | "Moderate" | "Low" | "Rest"
+    coach_insight: Optional[str] = None    # 1-sentence summary shown below cards
+
+
 class ChatResponse(BaseModel):
     reply: str
     guardrails_triggered: List[str] = Field(default_factory=list)
@@ -248,6 +264,7 @@ class ChatResponse(BaseModel):
     workout_blocks: Optional[dict] = None
     new_prs: List[dict] = Field(default_factory=list)
     motivation_message: Optional[str] = None
+    structured_decision: Optional[StructuredDecision] = None
 
 
 class ConversationMessage(BaseModel):

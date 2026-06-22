@@ -70,6 +70,7 @@ async def chat(
         workout_blocks=result["workout_blocks"],
         new_prs=[],
         motivation_message=None,
+        structured_decision=result.get("structured_decision"),
     )
 
 

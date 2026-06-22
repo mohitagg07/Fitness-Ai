@@ -44,7 +44,7 @@ class WorkoutGraphState(TypedDict):
     user_id: str
     user_profile: dict
     agent_state: dict
-    prior_messages: List[dict]   # NEW: injected chat history from DB
+    prior_messages: List[dict]   # injected chat history from DB
 
     parsed_logs: List[dict]
     guardrails: List[str]
@@ -55,6 +55,7 @@ class WorkoutGraphState(TypedDict):
     reply: str
     cns_fatigue_score: int
     guardrails_triggered: List[str]
+    structured_decision: Optional[dict]   # JSON decision card payload
 
 
 def get_llm():
@@ -324,6 +325,70 @@ RESPONSE RULES:
     except Exception:
         state["workout_blocks"] = None
 
+    state["structured_decision"] = None
+    return state
+
+
+# ─── Node 5: Generate Structured Decision ─────────────────────────────────────
+def structured_decision_node(state: WorkoutGraphState) -> WorkoutGraphState:
+    """
+    After the main reply is generated, ask the LLM to distil it into a
+    strict JSON decision card.  If parsing fails we set None so the
+    frontend gracefully falls back to plain text — never crash.
+    """
+    if state.get("emergency"):
+        state["structured_decision"] = None
+        return state
+
+    reply_text = state.get("reply", "")
+    profile = state.get("user_profile", {})
+    fatigue = state.get("cns_fatigue_score", 0)
+    # Convert 0-10 CNS fatigue to a 0-100 recovery score (inverse)
+    recovery_pct = max(0, min(100, round((10 - fatigue) / 10 * 100)))
+
+    distil_prompt = f"""You are a JSON extractor for a fitness app.
+
+Given this AI coach reply and context, extract a structured decision card.
+
+COACH REPLY:
+{reply_text}
+
+CONTEXT:
+- Goal: {profile.get("goal", "maintain")}
+- CNS Fatigue: {fatigue}/10
+- Computed Recovery: {recovery_pct}%
+
+Return ONLY a valid JSON object with these exact keys (all optional, use null if not present):
+{{
+  "mission": "short workout name e.g. Push Day / Pull Day / Rest Day / Nutrition Focus",
+  "workout_type": "Push | Pull | Legs | Upper | Lower | Full Body | Cardio | Rest",
+  "recovery": {recovery_pct},
+  "calories": <integer daily target or null>,
+  "protein": <integer grams target or null>,
+  "next_action": "single most important next action e.g. Bench Press 80kg × 5",
+  "reason": "one sentence reason for the decision",
+  "intensity": "High | Moderate | Low | Rest",
+  "coach_insight": "one punchy motivating sentence"
+}}
+
+Rules:
+- Return ONLY the JSON object — no markdown fences, no explanation, no preamble.
+- If the reply is general conversation (not a workout plan), set mission to null but still fill coach_insight.
+- recovery must always be an integer 0-100."""
+
+    try:
+        llm = get_llm()
+        response = llm.invoke([HumanMessage(content=distil_prompt)])
+        raw = response.content.strip().replace("```json", "").replace("```", "").strip()
+        parsed = json.loads(raw)
+        # Clamp recovery to valid range in case LLM drifts
+        if isinstance(parsed.get("recovery"), (int, float)):
+            parsed["recovery"] = max(0, min(100, int(parsed["recovery"])))
+        state["structured_decision"] = parsed
+    except Exception as e:
+        logger.debug(f"structured_decision_node: could not parse JSON: {e}")
+        state["structured_decision"] = None
+
     return state
 
 
@@ -335,12 +400,14 @@ def build_coach_graph():
     graph.add_node("retrieve_guardrails", retrieve_guardrails_node)
     graph.add_node("recall_memory", recall_memory_node)
     graph.add_node("build_workout", build_workout_node)
+    graph.add_node("structured_decision", structured_decision_node)
     graph.set_entry_point("parse_input")
     graph.add_edge("parse_input", "evaluate_fatigue")
     graph.add_edge("evaluate_fatigue", "retrieve_guardrails")
     graph.add_edge("retrieve_guardrails", "recall_memory")
     graph.add_edge("recall_memory", "build_workout")
-    graph.add_edge("build_workout", END)
+    graph.add_edge("build_workout", "structured_decision")
+    graph.add_edge("structured_decision", END)
     return graph.compile()
 
 
@@ -368,6 +435,7 @@ async def run_coach(
         "reply": "",
         "cns_fatigue_score": agent_state.get("cns_fatigue_score", 0),
         "guardrails_triggered": [],
+        "structured_decision": None,
     }
 
     result = await coach_graph.ainvoke(initial_state)
@@ -379,4 +447,5 @@ async def run_coach(
         "workout_blocks": result["workout_blocks"],
         "updated_agent_state": result["agent_state"],
         "parsed_logs": result["parsed_logs"],
+        "structured_decision": result.get("structured_decision"),
     }

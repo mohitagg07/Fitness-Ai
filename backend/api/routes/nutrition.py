@@ -147,3 +147,123 @@ async def get_nutrition_history(
         .execute()
     )
     return res.data
+
+# ─── FatSecret food search ──────────────────────────────────────────────────────
+import httpx as _httpx
+import time as _time
+import re as _re
+import os as _os
+
+_fs_token_cache: dict = {}   # holds {token, expires_at}
+
+
+async def _get_fatsecret_token() -> str:
+    """
+    Exchange client_credentials for a FatSecret OAuth2 bearer token.
+    Token is cached in memory until 60 s before expiry so we don't hit
+    the token endpoint on every search request.
+    """
+    client_id     = _os.getenv("FATSECRET_CLIENT_ID", "")
+    client_secret = _os.getenv("FATSECRET_CLIENT_SECRET", "")
+    if not client_id or not client_secret:
+        raise HTTPException(
+            status_code=503,
+            detail="FatSecret credentials not set. Add FATSECRET_CLIENT_ID and FATSECRET_CLIENT_SECRET to backend/.env",
+        )
+
+    now    = _time.time()
+    cached = _fs_token_cache.get("data")
+    if cached and cached["expires_at"] > now + 60:
+        return cached["token"]
+
+    async with _httpx.AsyncClient() as client:
+        resp = await client.post(
+            "https://oauth.fatsecret.com/connect/token",
+            data={"grant_type": "client_credentials", "scope": "basic"},
+            auth=(client_id, client_secret),
+            timeout=10,
+        )
+    if resp.status_code != 200:
+        raise HTTPException(502, f"FatSecret token error {resp.status_code}: {resp.text[:300]}")
+
+    body = resp.json()
+    _fs_token_cache["data"] = {
+        "token":      body["access_token"],
+        "expires_at": now + body.get("expires_in", 3600),
+    }
+    return _fs_token_cache["data"]["token"]
+
+
+def _parse_fs_description(desc: str) -> dict:
+    """
+    Parse FatSecret's food_description string, e.g.:
+      'Per 100g - Calories: 165kcal | Fat: 3.57g | Carbs: 0g | Protein: 31.02g'
+    Returns {calories, fat_g, carbs_g, protein_g}.
+    """
+    def _grab(label: str, default: float = 0.0) -> float:
+        m = _re.search(rf"{label}:?\s*([\d.]+)", desc, _re.IGNORECASE)
+        return float(m.group(1)) if m else default
+
+    return {
+        "calories":  int(_grab("Calories")),
+        "fat_g":     round(_grab("Fat"),     2),
+        "carbs_g":   round(_grab("Carbs"),   2),
+        "protein_g": round(_grab("Protein"), 2),
+    }
+
+
+@router.get("/search")
+async def search_food(
+    q: str,
+    max_results: int = 8,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Search FatSecret for food items matching *q*.
+    Returns a ranked list of food items with pre-parsed macros so the
+    frontend can auto-fill the log-meal form in one tap.
+
+    GET /api/nutrition/search?q=chicken+rice&max_results=8
+    """
+    if not q or len(q.strip()) < 2:
+        raise HTTPException(400, "Query must be at least 2 characters")
+
+    token = await _get_fatsecret_token()
+    clamp = min(max(1, max_results), 20)
+
+    async with _httpx.AsyncClient() as client:
+        resp = await client.get(
+            "https://platform.fatsecret.com/rest/server.api",
+            params={
+                "method":            "foods.search",
+                "search_expression": q.strip(),
+                "format":            "json",
+                "max_results":       clamp,
+                "page_number":       0,
+            },
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=12,
+        )
+
+    if resp.status_code != 200:
+        raise HTTPException(502, f"FatSecret search failed {resp.status_code}: {resp.text[:300]}")
+
+    data       = resp.json()
+    raw_foods  = data.get("foods", {}).get("food", [])
+    # API returns a plain dict (not list) when only 1 result
+    if isinstance(raw_foods, dict):
+        raw_foods = [raw_foods]
+
+    results = []
+    for f in raw_foods:
+        desc = f.get("food_description", "")
+        results.append({
+            "food_id":             f.get("food_id"),
+            "name":                f.get("food_name", "Unknown"),
+            "brand":               f.get("brand_name") or "",
+            "food_type":           f.get("food_type", ""),
+            "serving_description": desc,
+            **_parse_fs_description(desc),
+        })
+
+    return {"results": results, "total": len(results)}
