@@ -1,3 +1,15 @@
+/**
+ * app/index.tsx — Root entry point
+ *
+ * Flow:
+ *   1. Animated splash (logo)
+ *   2a. No token → /login
+ *   2b. Token but no onboarding done → /onboarding
+ *   2c. Token + onboarded → /(tabs)
+ *
+ * This guarantees the logo always shows first, onboarding runs exactly
+ * once after registration, and authenticated users land straight on tabs.
+ */
 import { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
@@ -9,10 +21,24 @@ export default function Index() {
 
   useEffect(() => {
     if (!splashDone) return;
+
     (async () => {
       try {
         const token = await storage.getItem('neurofit_token');
-        router.replace(token ? '/(tabs)' : '/login');
+        if (!token) {
+          router.replace('/login');
+          return;
+        }
+
+        // Check whether the user has completed onboarding.
+        // The flag is written by OnboardingScreen on successful submit.
+        const onboarded = await storage.getItem('neurofit_onboarded');
+        if (!onboarded) {
+          router.replace('/onboarding');
+          return;
+        }
+
+        router.replace('/(tabs)');
       } catch {
         router.replace('/login');
       }
@@ -27,5 +53,10 @@ export default function Index() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212', justifyContent: 'center', alignItems: 'center' },
+  container: {
+    flex: 1,
+    backgroundColor: '#121212',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });
