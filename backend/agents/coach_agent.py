@@ -4,6 +4,12 @@ LangGraph Stateful Workout Coach Agent
 Graph flow:
   parse_input → evaluate_fatigue → retrieve_guardrails → recall_memory → build_workout → END
 
+build_workout_node is the ONLY node that calls the LLM for the coaching
+decision. It outputs a structured "Mission Control" decision card directly
+(analysis → ai_decision → next_action → coaching_cue) in a single call —
+there is no separate "write an essay, then distil it to JSON" step anymore.
+Philosophy: less reading, less thinking, more lifting.
+
 FIXES:
   BUG 1 — "can only join an iterable" (original crash):
     retrieve_guardrails_node used i['body_part'] and i['issue_type'] directly.
@@ -19,6 +25,23 @@ FIXES:
     stored in DB but never re-injected. Added prior_messages parameter to
     run_coach() and injected as HumanMessage/AIMessage pairs in build_workout_node,
     giving the coach genuine within-session recall.
+
+  BUG 4 — Two LLM calls doing one job's worth of work:
+    The graph used to have build_workout_node write a free-text "elite coach"
+    essay, then a second node (structured_decision_node) made another LLM
+    call to distil that essay back into the JSON decision card the UI
+    actually needs. That doubled latency and Groq cost on every turn for no
+    benefit — the model already "knows" the structured answer when it writes
+    prose, so asking it to skip straight to the structured answer is strictly
+    better. structured_decision_node is removed; build_workout_node now
+    returns the decision card directly.
+
+  BUG 5 — StructuredDecision schema/prompt field mismatch:
+    The old distil prompt asked the LLM for `ai_decision`, `protein_target`,
+    `calories_target`, but the Pydantic schema only declared `reason`,
+    `protein`, `calories`. Pydantic silently drops unknown fields, so
+    `ai_decision` was always None in every API response regardless of what
+    the LLM returned. Schema now matches what the agent actually produces.
 """
 from __future__ import annotations
 import json
@@ -215,7 +238,7 @@ def recall_memory_node(state: WorkoutGraphState) -> WorkoutGraphState:
     return state
 
 
-# ─── Node 4: Build Workout ────────────────────────────────────────────────────
+# ─── Node 4: Build Workout (single-call Mission Control decision) ───────────
 def build_workout_node(state: WorkoutGraphState) -> WorkoutGraphState:
     if state.get("emergency"):
         state["reply"] = (
@@ -229,11 +252,20 @@ def build_workout_node(state: WorkoutGraphState) -> WorkoutGraphState:
             "See a doctor before returning to training. Your safety is the priority."
         )
         state["workout_blocks"] = None
+        state["structured_decision"] = {
+            "mode": "emergency",
+            "analysis": "Acute injury signal detected.",
+            "ai_decision": "Stop training immediately.",
+            "next_action": "Apply R.I.C.E. See a doctor before returning.",
+            "coaching_cue": "Your safety is the priority — no exceptions.",
+            "coach_insight": "Sharp pain overrides every other goal today.",
+        }
         return state
 
     profile = state.get("user_profile", {})
     prs = profile.get("personal_records") or {}
     fatigue = state.get("cns_fatigue_score", 0)
+    recovery_pct = max(0, min(100, round((10 - fatigue) / 10 * 100)))
     guardrails_text = "\n".join(state.get("guardrails", []))
 
     weight_caps = {
@@ -248,8 +280,20 @@ def build_workout_node(state: WorkoutGraphState) -> WorkoutGraphState:
         if memories else "Nothing specific on file yet."
     )
 
-    system_prompt = f"""You are an elite AI fitness coach. Authoritative, precise, science-driven.
-You generate highly tactical, personalized workout plans and coaching responses.
+    # NeuroFit AI — Mission Control prompt.
+    # Replaces the old "elite coach writes an essay" prompt. The job here is
+    # to REDUCE decision making, not narrate it. One LLM call produces the
+    # final decision card directly — no second call to distil prose into
+    # JSON afterward (that's what structured_decision_node used to do, and
+    # it doubled latency/cost for no benefit since the LLM already "knows"
+    # the structured answer when it writes the prose version).
+    system_prompt = f"""You are NeuroFit AI — an autonomous gym spotter, not a chatbot.
+
+Your job is to REDUCE decision making, not generate reading material.
+Never write a workout article. Never explain at length. Never ask a question
+unless the input is too ambiguous to act on at all.
+
+Philosophy: Less Reading. Less Thinking. More Lifting.
 
 ATHLETE PROFILE:
 - Goal: {profile.get('goal', 'general fitness')}
@@ -259,7 +303,7 @@ ATHLETE PROFILE:
 - Equipment: {', '.join(profile.get('equipment') or ['full gym'])}
 - Injuries: {json.dumps(profile.get('injuries') or [])}
 
-CNS FATIGUE SCORE: {fatigue}/10
+CNS FATIGUE SCORE: {fatigue}/10 (recovery ≈ {recovery_pct}%)
 {"⚠️ HIGH FATIGUE — shift remaining session to machine-only, reduce volume 40%" if fatigue >= 7 else ""}
 
 ANTI-HALLUCINATION WEIGHT CAPS (never suggest above these):
@@ -271,22 +315,38 @@ BIOMECHANICAL SAFETY RULES (MANDATORY):
 LONG-TERM MEMORY (things you know about this user):
 {memories_text}
 
-RESPONSE RULES:
+DECISION RULES:
 1. Never suggest weight > 105% of user's known PR for any exercise.
-2. If injury tag matches an exercise, replace it with the safe alternative.
-3. Structure workouts as: BLOCK A (compounds) → BLOCK B (isolation) → BLOCK C (decompression/finisher).
-4. Include: exercise name, sets × reps, load target, execution cue.
-5. Mention mandatory dead hang after Deadlifts/Squats.
-6. Tone: tactical, motivating, no generic fluff.
-7. If user is logging a completed session, acknowledge it and give next-session guidance.
-8. This is an ongoing conversation — refer to what was said earlier when relevant.
+2. If an injury tag matches an exercise, silently substitute the safe alternative in your decision — don't lecture about it.
+3. If the user just logged a set/exercise (e.g. "Deadlift 150kg x 3 @ RPE 9"), this is a LIVE_SET turn:
+   judge that set, then give the next concrete action (adjust load/reps, or proceed).
+4. If the user is asking "what's today's session" or similar with no live set logged, this is a SESSION_PLAN turn:
+   give ONE next exercise with load/reps/RPE target — not a full multi-block program dump.
+5. If the message is general chat with no actionable training decision, this is a CHAT turn:
+   answer in one line, still no essay.
+6. Mention mandatory dead hang after Deadlifts/Squats only if directly relevant to the decision.
+7. This is an ongoing conversation — use prior turns for continuity, but never re-explain past context.
+
+OUTPUT FORMAT — return ONLY a valid JSON object, no markdown fences, no preamble, no text outside the JSON:
+{{
+  "mode": "live_set" | "session_plan" | "chat",
+  "analysis": "One short line: what happened. e.g. 'Performance: Strong. Fatigue: High. Recovery cost: Significant.'",
+  "ai_decision": "The single decision/call itself. e.g. 'Reduce next set to 145kg for 2 reps.' Never a question.",
+  "next_action": "The concrete next step only, e.g. '145kg × 2' or 'Train before 7 PM'. Short as possible.",
+  "coaching_cue": "ONE short technical or motivating cue. e.g. 'Brace harder before the pull.' Never more than one sentence.",
+  "coach_insight": "One punchy line, always filled, usable as a standalone summary.",
+  "intensity": "High" | "Moderate" | "Low" | "Rest" | null,
+  "workout_type": "Push" | "Pull" | "Legs" | "Upper" | "Lower" | "Full Body" | "Cardio" | "Rest" | null
+}}
+
+Hard limits:
+- Total words across all string fields combined: under 150 unless the user explicitly asks for detail.
+- No bullet-pointed essays. No "Here's why..." paragraphs. Prefer numbers over adjectives.
+- If you genuinely cannot decide without more info, set ai_decision to a single direct clarifying question — still under 150 words total, still no preamble.
 """
 
     llm = get_llm()
 
-    # FIX: Inject prior conversation turns as actual LangChain message objects.
-    # Previously every message was sent cold (no history). Now the LLM sees
-    # the full recent conversation and can refer back to it naturally.
     messages = [SystemMessage(content=system_prompt)]
 
     for turn in state.get("prior_messages", []):
@@ -302,7 +362,42 @@ RESPONSE RULES:
     messages.append(HumanMessage(content=state["user_message"]))
 
     response = llm.invoke(messages)
-    state["reply"] = response.content
+    raw = response.content.strip().replace("```json", "").replace("```", "").strip()
+
+    try:
+        decision = json.loads(raw)
+    except Exception as e:
+        logger.warning(f"build_workout_node: LLM did not return valid JSON, falling back to plain text: {e}")
+        # Graceful degradation: still give the user something usable rather
+        # than a 500. The frontend should treat a missing structured_decision
+        # as "render reply as plain text".
+        decision = {
+            "mode": "chat",
+            "analysis": None,
+            "ai_decision": raw[:300],
+            "next_action": None,
+            "coaching_cue": None,
+            "coach_insight": raw[:150],
+            "intensity": None,
+            "workout_type": None,
+        }
+
+    decision["recovery"] = recovery_pct
+    decision.setdefault("calories", None)
+    decision.setdefault("protein", None)
+    decision.setdefault("mission", None)
+    # Backward-compat alias: some older frontend code may still read `reason`
+    decision["reason"] = decision.get("ai_decision")
+
+    # Build a short plain-text fallback string too (for clients/screens that
+    # haven't migrated to the card UI yet, and for conversation history).
+    fallback_parts = [
+        decision.get("analysis"),
+        decision.get("ai_decision"),
+        decision.get("next_action"),
+        decision.get("coaching_cue"),
+    ]
+    state["reply"] = " ".join(p for p in fallback_parts if p) or decision.get("coach_insight", "")
 
     # Store durable personal facts in long-term memory
     try:
@@ -317,86 +412,18 @@ RESPONSE RULES:
     except Exception:
         pass
 
-    try:
-        if "BLOCK A" in response.content or "BLOCK B" in response.content:
-            state["workout_blocks"] = {"raw": response.content, "generated": True}
-        else:
-            state["workout_blocks"] = None
-    except Exception:
-        state["workout_blocks"] = None
-
-    state["structured_decision"] = None
+    state["workout_blocks"] = None  # block-style prose dumps are gone by design
+    state["structured_decision"] = decision
     return state
 
 
-# ─── Node 5: Generate Structured Decision ─────────────────────────────────────
-def structured_decision_node(state: WorkoutGraphState) -> WorkoutGraphState:
-    """
-    After the main reply is generated, ask the LLM to distil it into a
-    strict JSON decision card.  If parsing fails we set None so the
-    frontend gracefully falls back to plain text — never crash.
-    """
-    if state.get("emergency"):
-        state["structured_decision"] = None
-        return state
-
-    reply_text = state.get("reply", "")
-    profile = state.get("user_profile", {})
-    fatigue = state.get("cns_fatigue_score", 0)
-    # Convert 0-10 CNS fatigue to a 0-100 recovery score (inverse)
-    recovery_pct = max(0, min(100, round((10 - fatigue) / 10 * 100)))
-
-    distil_prompt = f"""You are a JSON extractor for NeuroFit AI — an autonomous fitness OS.
-
-Given this AI coach reply and context, extract a structured decision card.
-The card is rendered DIRECTLY in the app — no markdown, no prose anywhere.
-
-COACH REPLY:
-{reply_text}
-
-CONTEXT:
-- Goal: {profile.get("goal", "maintain")}
-- CNS Fatigue: {fatigue}/10
-- Computed Recovery: {recovery_pct}%
-
-Return ONLY a valid JSON object with EXACTLY these keys:
-{{
-  "mission":        "Push Day",                        // e.g. Push Day / Pull Day / Rest Day / Nutrition Focus
-  "recovery":       {recovery_pct},                    // integer 0-100, MUST be present
-  "protein_target": null,                              // integer grams from reply or null
-  "calories_target": null,                             // integer kcal from reply or null
-  "ai_decision":    "Bench Press 80kg × 5",            // single most important exercise or action
-  "next_action":    "Train before 7 PM",               // one concrete time-bound next step
-  "coach_insight":  "One punchy motivating sentence.", // ALWAYS fill this
-  "intensity":      "High",                            // High | Moderate | Low | Rest
-  "workout_type":   "Push"                             // Push | Pull | Legs | Upper | Lower | Full Body | Cardio | Rest | null
-}}
-
-Rules:
-- Return ONLY the JSON object — no markdown fences, no explanation, no preamble.
-- Every field must be present (use null only for protein_target, calories_target, workout_type).
-- recovery must be an integer 0-100.
-- ai_decision and next_action must be short, concrete, actionable — never a question.
-- If reply is general chat (not a workout plan), set mission to "Chat Session", intensity to null,
-  ai_decision to null, but ALWAYS fill coach_insight."""
-
-    try:
-        llm = get_llm()
-        response = llm.invoke([HumanMessage(content=distil_prompt)])
-        raw = response.content.strip().replace("```json", "").replace("```", "").strip()
-        parsed = json.loads(raw)
-        # Clamp recovery to valid range in case LLM drifts
-        if isinstance(parsed.get("recovery"), (int, float)):
-            parsed["recovery"] = max(0, min(100, int(parsed["recovery"])))
-        state["structured_decision"] = parsed
-    except Exception as e:
-        logger.debug(f"structured_decision_node: could not parse JSON: {e}")
-        state["structured_decision"] = None
-
-    return state
 
 
 # ─── Build the Graph ──────────────────────────────────────────────────────────
+# NOTE: there used to be a 5th node here ("structured_decision") that took
+# build_workout_node's free-text reply and made a SECOND LLM call to distil
+# it into JSON. That was pure waste: build_workout_node now produces the
+# decision card directly in its one call, so the graph is back to 4 nodes.
 def build_coach_graph():
     graph = StateGraph(WorkoutGraphState)
     graph.add_node("parse_input", parse_input_node)
@@ -404,14 +431,12 @@ def build_coach_graph():
     graph.add_node("retrieve_guardrails", retrieve_guardrails_node)
     graph.add_node("recall_memory", recall_memory_node)
     graph.add_node("build_workout", build_workout_node)
-    graph.add_node("structured_decision", structured_decision_node)
     graph.set_entry_point("parse_input")
     graph.add_edge("parse_input", "evaluate_fatigue")
     graph.add_edge("evaluate_fatigue", "retrieve_guardrails")
     graph.add_edge("retrieve_guardrails", "recall_memory")
     graph.add_edge("recall_memory", "build_workout")
-    graph.add_edge("build_workout", "structured_decision")
-    graph.add_edge("structured_decision", END)
+    graph.add_edge("build_workout", END)
     return graph.compile()
 
 

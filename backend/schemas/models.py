@@ -242,16 +242,22 @@ class ChatMessage(BaseModel):
 
 class StructuredDecision(BaseModel):
     """
-    Structured coach decision returned alongside the free-form reply.
-    All fields are optional so partial decisions are valid.
+    Structured coach decision — the ONLY thing build_workout_node produces
+    for a coaching turn. There is no separate free-text reply to distil;
+    this IS the reply. All fields optional so partial decisions are valid
+    (e.g. plain chat has no sets/loads to report).
     """
+    mode: Optional[str] = None             # "live_set" | "session_plan" | "chat" | "emergency"
+    analysis: Optional[str] = None         # 1 short line: what just happened
     mission: Optional[str] = None          # e.g. "Push Day"
     workout_type: Optional[str] = None     # e.g. "Push", "Pull", "Legs", "Rest"
     recovery: Optional[int] = None         # 0–100
     calories: Optional[int] = None
     protein: Optional[int] = None
-    next_action: Optional[str] = None      # e.g. "Bench Press 80kg × 5"
-    reason: Optional[str] = None
+    ai_decision: Optional[str] = None      # the call itself, e.g. "Reduce next set to 145kg x 2"
+    next_action: Optional[str] = None      # concrete next step, e.g. "145kg × 2"
+    coaching_cue: Optional[str] = None     # ONE short technical/motivating cue
+    reason: Optional[str] = None           # kept for backward-compat
     intensity: Optional[str] = None        # "High" | "Moderate" | "Low" | "Rest"
     coach_insight: Optional[str] = None    # 1-sentence summary shown below cards
 
