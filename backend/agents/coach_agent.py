@@ -346,9 +346,10 @@ def structured_decision_node(state: WorkoutGraphState) -> WorkoutGraphState:
     # Convert 0-10 CNS fatigue to a 0-100 recovery score (inverse)
     recovery_pct = max(0, min(100, round((10 - fatigue) / 10 * 100)))
 
-    distil_prompt = f"""You are a JSON extractor for a fitness app.
+    distil_prompt = f"""You are a JSON extractor for NeuroFit AI — an autonomous fitness OS.
 
 Given this AI coach reply and context, extract a structured decision card.
+The card is rendered DIRECTLY in the app — no markdown, no prose anywhere.
 
 COACH REPLY:
 {reply_text}
@@ -358,23 +359,26 @@ CONTEXT:
 - CNS Fatigue: {fatigue}/10
 - Computed Recovery: {recovery_pct}%
 
-Return ONLY a valid JSON object with these exact keys (all optional, use null if not present):
+Return ONLY a valid JSON object with EXACTLY these keys:
 {{
-  "mission": "short workout name e.g. Push Day / Pull Day / Rest Day / Nutrition Focus",
-  "workout_type": "Push | Pull | Legs | Upper | Lower | Full Body | Cardio | Rest",
-  "recovery": {recovery_pct},
-  "calories": <integer daily target or null>,
-  "protein": <integer grams target or null>,
-  "next_action": "single most important next action e.g. Bench Press 80kg × 5",
-  "reason": "one sentence reason for the decision",
-  "intensity": "High | Moderate | Low | Rest",
-  "coach_insight": "one punchy motivating sentence"
+  "mission":        "Push Day",                        // e.g. Push Day / Pull Day / Rest Day / Nutrition Focus
+  "recovery":       {recovery_pct},                    // integer 0-100, MUST be present
+  "protein_target": null,                              // integer grams from reply or null
+  "calories_target": null,                             // integer kcal from reply or null
+  "ai_decision":    "Bench Press 80kg × 5",            // single most important exercise or action
+  "next_action":    "Train before 7 PM",               // one concrete time-bound next step
+  "coach_insight":  "One punchy motivating sentence.", // ALWAYS fill this
+  "intensity":      "High",                            // High | Moderate | Low | Rest
+  "workout_type":   "Push"                             // Push | Pull | Legs | Upper | Lower | Full Body | Cardio | Rest | null
 }}
 
 Rules:
 - Return ONLY the JSON object — no markdown fences, no explanation, no preamble.
-- If the reply is general conversation (not a workout plan), set mission to null but still fill coach_insight.
-- recovery must always be an integer 0-100."""
+- Every field must be present (use null only for protein_target, calories_target, workout_type).
+- recovery must be an integer 0-100.
+- ai_decision and next_action must be short, concrete, actionable — never a question.
+- If reply is general chat (not a workout plan), set mission to "Chat Session", intensity to null,
+  ai_decision to null, but ALWAYS fill coach_insight."""
 
     try:
         llm = get_llm()

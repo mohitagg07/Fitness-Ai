@@ -2,9 +2,14 @@
 Nutrition route.
 main.py mounts this at prefix="/api/nutrition".
 
-FIX: protein_streak was defined in agent_state and displayed on the dashboard
-but NEVER updated anywhere. Added _update_protein_streak() called on every
-successful nutrition log so the streak counter actually works.
+FIXES applied in this version:
+  1. protein_streak now updated after every nutrition log (was never updated).
+  2. Added POST /quick-log — logs a meal from FatSecret food_id in one tap,
+     no manual macro entry needed. Frontend just passes food_id + grams.
+  3. Added GET /today — aggregated today's intake vs targets in one call
+     so the dashboard never needs to compute remaining macros client-side.
+  4. POST /log now accepts log_date defaulting to today if omitted (was
+     silently inserting NULL which broke per-day history queries).
 """
 import asyncio
 from datetime import date, timedelta
@@ -19,6 +24,8 @@ import logging
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Nutrition"])
 
+
+# ─── Targets ─────────────────────────────────────────────────────────────────
 
 @router.get("/targets")
 async def get_nutrition_targets(
@@ -37,6 +44,81 @@ async def get_nutrition_targets(
         is_training_day=is_training_day,
     )
 
+
+# ─── Today's Summary ─────────────────────────────────────────────────────────
+
+@router.get("/today")
+async def get_today_nutrition(
+    is_training_day: bool = True,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    One-call nutrition dashboard for the frontend.
+    Returns consumed + targets + remaining for calories, protein, carbs, fat, water.
+    No client-side math needed.
+    """
+    user_id = current_user["user_id"]
+    sb = get_supabase()
+    today = str(date.today())
+
+    profile, agent_state = get_full_user_context(user_id)
+    goal_str = profile.get("goal") or "maintain"
+    goal = Goal(goal_str) if goal_str in Goal._value2member_map_ else Goal.maintain
+    targets = calculate_macros(
+        weight_kg=profile.get("weight_kg") or 75,
+        height_cm=profile.get("height_cm") or 175,
+        age=profile.get("age") or 28,
+        gender=profile.get("gender") or "male",
+        goal=goal,
+        is_training_day=is_training_day,
+    )
+
+    res = (
+        sb.table("nutrition_logs")
+        .select("calories, protein_g, carbs_g, fat_g, water_ml, meal_name, log_date, id")
+        .eq("user_id", user_id)
+        .eq("log_date", today)
+        .order("id", desc=False)
+        .execute()
+    )
+    logs = res.data or []
+
+    consumed = {
+        "calories": sum(l.get("calories") or 0 for l in logs),
+        "protein_g": round(sum(l.get("protein_g") or 0 for l in logs), 1),
+        "carbs_g": round(sum(l.get("carbs_g") or 0 for l in logs), 1),
+        "fat_g": round(sum(l.get("fat_g") or 0 for l in logs), 1),
+        "water_ml": sum(l.get("water_ml") or 0 for l in logs),
+    }
+
+    remaining = {
+        "calories": max(0, targets["calories"] - consumed["calories"]),
+        "protein_g": round(max(0.0, targets["protein_g"] - consumed["protein_g"]), 1),
+        "carbs_g": round(max(0.0, targets["carbs_g"] - consumed["carbs_g"]), 1),
+        "fat_g": round(max(0.0, targets["fat_g"] - consumed["fat_g"]), 1),
+        "water_ml": max(0, targets["water_ml"] - consumed["water_ml"]),
+    }
+
+    pct = lambda consumed_v, target_v: round(100 * consumed_v / max(1, target_v))
+
+    return {
+        "date": today,
+        "targets": targets,
+        "consumed": consumed,
+        "remaining": remaining,
+        "percent": {
+            "calories": pct(consumed["calories"], targets["calories"]),
+            "protein": pct(consumed["protein_g"], targets["protein_g"]),
+            "carbs": pct(consumed["carbs_g"], targets["carbs_g"]),
+            "fat": pct(consumed["fat_g"], targets["fat_g"]),
+            "water": pct(consumed["water_ml"], targets["water_ml"]),
+        },
+        "meals_today": logs,
+        "protein_streak": agent_state.get("protein_streak", 0),
+    }
+
+
+# ─── AI Decision ─────────────────────────────────────────────────────────────
 
 @router.get("/decision")
 async def get_nutrition_decision(
@@ -58,26 +140,32 @@ async def get_nutrition_decision(
     )
 
 
+# ─── Log a Meal (manual) ─────────────────────────────────────────────────────
+
 @router.post("/log", status_code=201)
 async def log_nutrition(
     payload: NutritionCreate,
     current_user: dict = Depends(get_current_user)
 ):
+    """
+    Log a meal manually.  log_date defaults to today if not supplied —
+    previously NULL was inserted which broke per-day history queries.
+    """
     sb = get_supabase()
     user_id = current_user["user_id"]
 
     data = {k: v for k, v in payload.model_dump().items() if v is not None}
     data["user_id"] = user_id
-    if data.get("log_date"):
+    # FIX: always store a date so log_date IS NULL never occurs
+    data.setdefault("log_date", str(date.today()))
+    if isinstance(data.get("log_date"), date):
         data["log_date"] = str(data["log_date"])
 
     res = sb.table("nutrition_logs").insert(data).execute()
     if not res.data:
         raise HTTPException(500, "Failed to log nutrition entry")
 
-    # FIX: Update protein_streak after every nutrition log.
-    # Check if today's total protein now meets the target — if so, extend
-    # the streak; if it breaks (no log yesterday), reset to 1.
+    # Update protein_streak asynchronously (non-blocking)
     try:
         profile, agent_state = await asyncio.to_thread(get_full_user_context, user_id)
         await asyncio.to_thread(_update_protein_streak, user_id, profile, agent_state)
@@ -87,50 +175,106 @@ async def log_nutrition(
     return res.data[0]
 
 
-def _update_protein_streak(user_id: str, profile: dict, agent_state: dict) -> None:
-    """
-    Recompute protein_streak: number of consecutive days the user hit their
-    protein target. Called synchronously in a thread after each nutrition log.
-    """
-    sb = get_supabase()
-    today = date.today()
+# ─── Quick-Log from FatSecret food_id ────────────────────────────────────────
 
-    goal_str = profile.get("goal") or "maintain"
-    from schemas.models import Goal
-    goal = Goal(goal_str) if goal_str in Goal._value2member_map_ else Goal.maintain
-    targets = calculate_macros(
-        weight_kg=profile.get("weight_kg") or 75,
-        height_cm=profile.get("height_cm") or 175,
-        age=profile.get("age") or 28,
-        gender=profile.get("gender") or "male",
-        goal=goal,
-        is_training_day=True,
-    )
-    protein_target = targets["protein_g"]
+@router.post("/quick-log", status_code=201)
+async def quick_log_from_search(
+    food_id: str,
+    grams: float,
+    meal_name: str | None = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    One-tap meal logging: user picks a FatSecret result, enters grams,
+    we fetch the macros server-side and insert the log row.
 
-    # Check consecutive days going back up to 30 days
-    streak = 0
-    check_date = today
-    for _ in range(30):
-        day_res = (
-            sb.table("nutrition_logs")
-            .select("protein_g")
-            .eq("user_id", user_id)
-            .eq("log_date", str(check_date))
-            .execute()
+    Why: the old flow required the frontend to pass ALL macro fields.
+    This endpoint only needs food_id + grams — macros are fetched here.
+    If FatSecret is unavailable, raises 502 so the frontend can fall back
+    to the manual /log endpoint.
+    """
+    if grams <= 0:
+        raise HTTPException(400, "grams must be positive")
+
+    token = await _get_fatsecret_token()
+
+    import httpx
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            "https://platform.fatsecret.com/rest/server.api",
+            params={"method": "food.get.v4", "food_id": food_id, "format": "json"},
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=12,
         )
-        day_logs = day_res.data or []
-        day_protein = sum(l.get("protein_g") or 0 for l in day_logs)
 
-        if day_protein >= protein_target * 0.9:  # 90% counts as hitting target
-            streak += 1
-            check_date -= timedelta(days=1)
-        else:
-            break
+    if resp.status_code != 200:
+        raise HTTPException(502, f"FatSecret food.get failed: {resp.status_code}")
 
-    updated = {**agent_state, "protein_streak": streak}
-    upsert_agent_state(user_id, updated)
+    food_data = resp.json().get("food", {})
+    servings = food_data.get("servings", {}).get("serving", [])
+    if isinstance(servings, dict):
+        servings = [servings]
 
+    # Prefer the "100g" serving for consistent per-gram math
+    base = next((s for s in servings if "100" in str(s.get("serving_description", ""))), None)
+    if not base and servings:
+        base = servings[0]
+    if not base:
+        raise HTTPException(404, "No serving data found for this food")
+
+    def _safe_float(val, default=0.0) -> float:
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return default
+
+    # Base values are per serving_description amount; compute per-gram ratios
+    base_amount = _safe_float(base.get("metric_serving_amount") or base.get("number_of_units") or 100)
+    ratio = grams / max(base_amount, 1)
+
+    calories = round(_safe_float(base.get("calories")) * ratio)
+    protein_g = round(_safe_float(base.get("protein")) * ratio, 1)
+    carbs_g = round(_safe_float(base.get("carbohydrate")) * ratio, 1)
+    fat_g = round(_safe_float(base.get("fat")) * ratio, 1)
+
+    log_entry = NutritionCreate(
+        meal_name=meal_name or food_data.get("food_name", food_id),
+        log_date=date.today(),
+        calories=calories,
+        protein_g=protein_g,
+        carbs_g=carbs_g,
+        fat_g=fat_g,
+    )
+
+    sb = get_supabase()
+    user_id = current_user["user_id"]
+    data = {k: v for k, v in log_entry.model_dump().items() if v is not None}
+    data["user_id"] = user_id
+    data["log_date"] = str(data["log_date"])
+
+    res = sb.table("nutrition_logs").insert(data).execute()
+    if not res.data:
+        raise HTTPException(500, "Failed to insert quick-log entry")
+
+    try:
+        profile, agent_state = await asyncio.to_thread(get_full_user_context, user_id)
+        await asyncio.to_thread(_update_protein_streak, user_id, profile, agent_state)
+    except Exception as e:
+        logger.warning(f"protein_streak update failed: {e}")
+
+    return {
+        "logged": res.data[0],
+        "computed_macros": {
+            "calories": calories,
+            "protein_g": protein_g,
+            "carbs_g": carbs_g,
+            "fat_g": fat_g,
+            "grams_used": grams,
+        },
+    }
+
+
+# ─── History ─────────────────────────────────────────────────────────────────
 
 @router.get("/history")
 async def get_nutrition_history(
@@ -148,21 +292,58 @@ async def get_nutrition_history(
     )
     return res.data
 
-# ─── FatSecret food search ──────────────────────────────────────────────────────
+
+# ─── Protein streak helper ────────────────────────────────────────────────────
+
+def _update_protein_streak(user_id: str, profile: dict, agent_state: dict) -> None:
+    sb = get_supabase()
+    today = date.today()
+
+    goal_str = profile.get("goal") or "maintain"
+    from schemas.models import Goal as _Goal
+    goal = _Goal(goal_str) if goal_str in _Goal._value2member_map_ else _Goal.maintain
+    targets = calculate_macros(
+        weight_kg=profile.get("weight_kg") or 75,
+        height_cm=profile.get("height_cm") or 175,
+        age=profile.get("age") or 28,
+        gender=profile.get("gender") or "male",
+        goal=goal,
+        is_training_day=True,
+    )
+    protein_target = targets["protein_g"]
+
+    streak = 0
+    check_date = today
+    for _ in range(30):
+        day_res = (
+            sb.table("nutrition_logs")
+            .select("protein_g")
+            .eq("user_id", user_id)
+            .eq("log_date", str(check_date))
+            .execute()
+        )
+        day_logs = day_res.data or []
+        day_protein = sum(l.get("protein_g") or 0 for l in day_logs)
+
+        if day_protein >= protein_target * 0.9:
+            streak += 1
+            check_date -= timedelta(days=1)
+        else:
+            break
+
+    upsert_agent_state(user_id, {**agent_state, "protein_streak": streak})
+
+
+# ─── FatSecret food search ────────────────────────────────────────────────────
 import httpx as _httpx
 import time as _time
 import re as _re
 import os as _os
 
-_fs_token_cache: dict = {}   # holds {token, expires_at}
+_fs_token_cache: dict = {}
 
 
 async def _get_fatsecret_token() -> str:
-    """
-    Exchange client_credentials for a FatSecret OAuth2 bearer token.
-    Token is cached in memory until 60 s before expiry so we don't hit
-    the token endpoint on every search request.
-    """
     client_id     = _os.getenv("FATSECRET_CLIENT_ID", "")
     client_secret = _os.getenv("FATSECRET_CLIENT_SECRET", "")
     if not client_id or not client_secret:
@@ -195,11 +376,6 @@ async def _get_fatsecret_token() -> str:
 
 
 def _parse_fs_description(desc: str) -> dict:
-    """
-    Parse FatSecret's food_description string, e.g.:
-      'Per 100g - Calories: 165kcal | Fat: 3.57g | Carbs: 0g | Protein: 31.02g'
-    Returns {calories, fat_g, carbs_g, protein_g}.
-    """
     def _grab(label: str, default: float = 0.0) -> float:
         m = _re.search(rf"{label}:?\s*([\d.]+)", desc, _re.IGNORECASE)
         return float(m.group(1)) if m else default
@@ -218,13 +394,6 @@ async def search_food(
     max_results: int = 8,
     current_user: dict = Depends(get_current_user),
 ):
-    """
-    Search FatSecret for food items matching *q*.
-    Returns a ranked list of food items with pre-parsed macros so the
-    frontend can auto-fill the log-meal form in one tap.
-
-    GET /api/nutrition/search?q=chicken+rice&max_results=8
-    """
     if not q or len(q.strip()) < 2:
         raise HTTPException(400, "Query must be at least 2 characters")
 
@@ -250,7 +419,6 @@ async def search_food(
 
     data       = resp.json()
     raw_foods  = data.get("foods", {}).get("food", [])
-    # API returns a plain dict (not list) when only 1 result
     if isinstance(raw_foods, dict):
         raw_foods = [raw_foods]
 
