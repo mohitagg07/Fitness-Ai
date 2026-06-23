@@ -1,33 +1,25 @@
-/**
- * api.ts — additions to progressApi for food search & nutrition log.
- *
- * Add these to your existing api.ts file (or merge the progressApi block).
- * The food search hits GET /nutrition/search?q=<query>
- * The quick-log hits POST /nutrition/quick-log
- * The manual-log hits POST /nutrition/log (existing)
- */
-
-// ── APPEND / MERGE INTO YOUR EXISTING progressApi EXPORT ──────────────────
-
-// Example of what to add to your progressApi object:
-//
-// nutritionSearch: (q: string) =>
-//   api.get('/nutrition/search', { params: { q, max_results: 8 } }),
-//
-// quickLog: (food_id: string, grams: number, meal_name?: string) =>
-//   api.post('/nutrition/quick-log', null, {
-//     params: { food_id, grams, meal_name },
-//   }),
-//
-// getTodayNutrition: (is_training_day = true) =>
-//   api.get('/nutrition/today', { params: { is_training_day } }),
-
-// ── FULL UPDATED progressApi (replace existing) ───────────────────────────
 import axios from 'axios';
 import { router } from 'expo-router';
 import { storage } from './storage';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/api';
+
+// "localhost" only resolves correctly in a web browser or the iOS
+// Simulator. On a physical device or the Android Emulator it points at
+// the device itself, not your dev machine — every request then fails as
+// a generic network error, which is the most common cause of the AI
+// Coach's "Connection error" message and a silently empty Dashboard.
+// This warning makes the misconfiguration visible immediately instead of
+// being discovered after debugging several screens.
+if (__DEV__ && !process.env.EXPO_PUBLIC_API_URL) {
+  console.warn(
+    '[NeuroFit AI] EXPO_PUBLIC_API_URL is not set — falling back to ' +
+    `"${API_BASE}". This will NOT work on a physical device or the Android ` +
+    'Emulator. Copy frontend/.env.example to frontend/.env and set your ' +
+    'machine\'s LAN IP (or 10.0.2.2 for Android Emulator), then restart ' +
+    '`expo start --clear`.'
+  );
+}
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -35,42 +27,101 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+// Use storage wrapper instead of SecureStore directly.
+//
+// CRITICAL: this key must match exactly what store/index.ts's setAuth()
+// writes to ('neurofit_token'/'neurofit_user'), since that's the only
+// place a token is ever stored. This file previously read/deleted
+// 'fitai_token'/'fitai_user' — a key that nothing in the app ever wrote
+// to — meaning storage.getItem() below always returned null, the
+// Authorization header was never attached to any outgoing request, and
+// every authenticated endpoint failed with 401 "Not authenticated"
+// regardless of whether the user had just registered, just logged in, or
+// had been using the app for days. Login/onboarding still appeared to
+// "work" because the navigation guards in app/index.tsx and
+// app/(tabs)/_layout.tsx correctly checked 'neurofit_token' — only the
+// actual API calls were broken.
 api.interceptors.request.use(async (config) => {
   const token = await storage.getItem('neurofit_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
+// Single source of truth for "the session is no longer valid." Without
+// this, every screen had to handle 401s on its own — which is how you end
+// up with the login screen getting pushed on top of the tab navigator
+// instead of replacing it, leaving the tab bar visible underneath.
 let isRedirectingToLogin = false;
 
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error?.response?.status === 401 && !isRedirectingToLogin) {
+      // Log the actual server-provided reason before wiping the token, so
+      // a forced logout during normal use (e.g. mid-chat) is diagnosable
+      // instead of just "it logged me out for no reason." Common causes:
+      // ORPHANED_SESSION (the account behind this token no longer exists —
+      // e.g. deleted from Supabase Auth while the app still held an old
+      // token), "Invalid or expired token" (JWT signature mismatch — most
+      // often because the backend's SECRET_KEY changed, which invalidates
+      // every previously-issued token at once), or a genuinely expired
+      // token (default lifetime is 7 days).
+      const reason = error?.response?.data?.detail || '(no detail returned)';
+      if (__DEV__) {
+        console.warn(`[Auth] Forced logout — server returned 401: ${reason}`);
+      }
       isRedirectingToLogin = true;
       await storage.deleteItem('neurofit_token');
       await storage.deleteItem('neurofit_user');
       router.replace('/login');
+      // Reset the guard on the next tick so a later, legitimate 401
+      // (e.g. after a fresh login that itself expires) isn't ignored.
       setTimeout(() => { isRedirectingToLogin = false; }, 1000);
     }
     return Promise.reject(error);
   }
 );
 
+// Classifies an axios/network error into a user-facing message and a
+// machine-checkable kind, so screens stop collapsing every possible
+// failure (no network, wrong API URL, server 500, auth expiry, validation
+// error) into one indistinguishable "Connection error" string. Screens
+// should prefer this over writing their own ad-hoc err?.response?.status
+// checks, so error handling stays consistent across the app.
 export type ApiErrorKind = 'network' | 'timeout' | 'auth' | 'server' | 'client' | 'unknown';
 
 export function describeApiError(err: any): { kind: ApiErrorKind; message: string } {
   if (err?.code === 'ECONNABORTED') {
-    return { kind: 'timeout', message: 'Request timed out. Please try again.' };
+    return {
+      kind: 'timeout',
+      message: 'The request took too long. The server may be slow or unreachable — please try again.',
+    };
   }
   if (!err?.response) {
-    return { kind: 'network', message: `Can't reach the server. Check your network.` };
+    // axios sets no `response` when the request never reached a server at
+    // all — wrong host/port, device has no network, or CORS rejection.
+    return {
+      kind: 'network',
+      message: `Can't reach the server at ${API_BASE}. Check your network connection and that the backend is running and reachable from this device.`,
+    };
   }
   const status = err.response.status;
-  if (status === 401) return { kind: 'auth', message: 'Session expired. Please log in again.' };
-  if (status >= 500) return { kind: 'server', message: err.response.data?.detail || 'Server error. Try again.' };
-  if (status >= 400) return { kind: 'client', message: err.response.data?.detail || 'Bad request.' };
-  return { kind: 'unknown', message: 'Something went wrong.' };
+  if (status === 401) {
+    return { kind: 'auth', message: 'Your session has expired. Please log in again.' };
+  }
+  if (status >= 500) {
+    return {
+      kind: 'server',
+      message: err.response.data?.detail || 'The server hit an error processing this request. Please try again shortly.',
+    };
+  }
+  if (status >= 400) {
+    return {
+      kind: 'client',
+      message: err.response.data?.detail || 'That request could not be completed. Please check your input and try again.',
+    };
+  }
+  return { kind: 'unknown', message: 'Something unexpected happened. Please try again.' };
 }
 
 export const authApi = {
@@ -112,31 +163,38 @@ export const workoutApi = {
 export const progressApi = {
   logMetrics: (data: any) => api.post('/progress/metrics', data),
   getMetrics: (limit = 30) => api.get(`/progress/metrics?limit=${limit}`),
-
-  // Nutrition
   logNutrition: (data: any) => api.post('/nutrition/log', data),
   getNutritionTargets: (is_training_day = true) =>
     api.get(`/nutrition/targets?is_training_day=${is_training_day}`),
   getNutritionHistory: (limit = 30) =>
     api.get(`/nutrition/history?limit=${limit}`),
-
-  // NEW: food search (FatSecret via backend)
-  nutritionSearch: (q: string) =>
-    api.get('/nutrition/search', { params: { q, max_results: 8 } }),
-
-  // NEW: one-tap quick-log from search result
-  quickLog: (food_id: string, grams: number, meal_name?: string) =>
-    api.post('/nutrition/quick-log', null, {
-      params: { food_id, grams, ...(meal_name ? { meal_name } : {}) },
-    }),
-
-  // NEW: today's totals vs targets in one call
-  getTodayNutrition: (is_training_day = true) =>
-    api.get('/nutrition/today', { params: { is_training_day } }),
 };
 
+// Was previously missing entirely — DashboardScreen had no way to call
+// GET /api/dashboard/summary, the one endpoint that actually assembles
+// mission text, recovery score, AI recommendations, and remaining (not
+// just target) calories/protein/water in a single response.
 export const dashboardApi = {
   getSummary: () => api.get('/dashboard/summary'),
 };
 
 export default api;
+// ─── FatSecret food search ─────────────────────────────────────────────────
+export interface FoodResult {
+  food_id: string;
+  name: string;
+  brand: string;
+  food_type: string;
+  serving_description: string;
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+}
+
+export const fatsecretApi = {
+  search: (q: string, max = 8) =>
+    api.get<{ results: FoodResult[]; total: number }>(
+      `/nutrition/search?q=${encodeURIComponent(q)}&max_results=${max}`
+    ),
+};

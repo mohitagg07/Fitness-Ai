@@ -435,3 +435,68 @@ async def search_food(
         })
 
     return {"results": results, "total": len(results)}
+
+
+# ─── FatSecret food search ──────────────────────────────────────────────────────
+import httpx as _httpx
+import time as _time
+import re as _re
+import os as _os
+
+_fs_token_cache: dict = {}
+
+
+async def _get_fatsecret_token() -> str:
+    client_id     = _os.getenv("FATSECRET_CLIENT_ID", "")
+    client_secret = _os.getenv("FATSECRET_CLIENT_SECRET", "")
+    if not client_id or not client_secret:
+        raise HTTPException(503, detail="FatSecret credentials not set. Add FATSECRET_CLIENT_ID and FATSECRET_CLIENT_SECRET to backend/.env")
+    now = _time.time()
+    cached = _fs_token_cache.get("data")
+    if cached and cached["expires_at"] > now + 60:
+        return cached["token"]
+    async with _httpx.AsyncClient() as c:
+        resp = await c.post(
+            "https://oauth.fatsecret.com/connect/token",
+            data={"grant_type": "client_credentials", "scope": "basic"},
+            auth=(client_id, client_secret), timeout=10,
+        )
+    if resp.status_code != 200:
+        raise HTTPException(502, detail=f"FatSecret token error: {resp.text[:200]}")
+    body = resp.json()
+    _fs_token_cache["data"] = {"token": body["access_token"], "expires_at": now + body.get("expires_in", 3600)}
+    return _fs_token_cache["data"]["token"]
+
+
+def _parse_fs(desc: str) -> dict:
+    def grab(label: str, default: float = 0.0) -> float:
+        m = _re.search(rf"{label}:?\s*([\d.]+)", desc, _re.IGNORECASE)
+        return float(m.group(1)) if m else default
+    return {"calories": int(grab("Calories")), "fat_g": round(grab("Fat"), 2),
+            "carbs_g": round(grab("Carbs"), 2), "protein_g": round(grab("Protein"), 2)}
+
+
+@router.get("/search")
+async def search_food(q: str, max_results: int = 8, current_user: dict = Depends(get_current_user)):
+    if not q or len(q.strip()) < 2:
+        raise HTTPException(400, detail="Query must be at least 2 characters")
+    token = await _get_fatsecret_token()
+    async with _httpx.AsyncClient() as c:
+        resp = await c.get(
+            "https://platform.fatsecret.com/rest/server.api",
+            params={"method": "foods.search", "search_expression": q.strip(),
+                    "format": "json", "max_results": min(max_results, 20), "page_number": 0},
+            headers={"Authorization": f"Bearer {token}"}, timeout=12,
+        )
+    if resp.status_code != 200:
+        raise HTTPException(502, detail=f"FatSecret error {resp.status_code}")
+    raw = resp.json().get("foods", {}).get("food", [])
+    if isinstance(raw, dict):
+        raw = [raw]
+    results = []
+    for f in raw:
+        desc = f.get("food_description", "")
+        results.append({"food_id": f.get("food_id"), "name": f.get("food_name", ""),
+                         "brand": f.get("brand_name") or "", "food_type": f.get("food_type", ""),
+                         "serving_description": desc, **_parse_fs(desc)})
+    return {"results": results, "total": len(results)}
