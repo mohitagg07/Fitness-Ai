@@ -30,6 +30,17 @@ if settings.secret_key == "dev-secret-key-change-in-production":
         "now and keep it stable to avoid this."
     )
 
+# Print a short, non-reversible fingerprint of the active key at import time
+# (i.e. once per process start). If you ever see "logged in fine, then every
+# next request 401s", the fastest way to confirm/rule out a key mismatch
+# between processes is to compare this fingerprint across terminals/restarts
+# — if it changes between the request that issued your token and the
+# request that's rejecting it, that IS the bug, full stop.
+import hashlib
+_key_fingerprint = hashlib.sha256(settings.secret_key.encode()).hexdigest()[:8]
+import logging
+logging.getLogger(__name__).info(f"Auth using SECRET_KEY fingerprint: {_key_fingerprint}")
+
 
 def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
@@ -152,20 +163,33 @@ async def _ensure_profile_exists(user_id: str) -> None:
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid or expired token",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+    def _reject(reason: str):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid or expired token: {reason}",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     try:
         payload = jwt.decode(
             token, settings.secret_key, algorithms=[settings.algorithm]
         )
-        user_id: str = payload.get("sub")
-        if not user_id:
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
+    except jwt.ExpiredSignatureError:
+        # Token decoded fine but its exp claim is in the past.
+        _reject("token expired — please log in again")
+    except JWTError as e:
+        # Covers bad signature (signed with a different SECRET_KEY than
+        # this process is currently using — e.g. .env changed or wasn't
+        # loaded the same way between the process that issued the token
+        # and the process verifying it now) and malformed tokens alike.
+        # Surfacing str(e) here (jose's own message, e.g. "Signature
+        # verification failed") is the single fastest way to tell those
+        # two apart without more guessing.
+        _reject(str(e))
+
+    user_id: str = payload.get("sub")
+    if not user_id:
+        _reject("token has no subject claim")
 
     await _ensure_profile_exists(user_id)
     return {"user_id": user_id, "email": payload.get("email")}

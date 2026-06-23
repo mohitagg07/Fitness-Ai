@@ -41,7 +41,16 @@ class Settings(BaseSettings):
     # pointing at deleted accounts.
 
     # CORS
-    allowed_origins: str = "http://localhost:3000,http://localhost:8081,http://localhost:5173"
+    # Dev tooling (Expo Metro, `npx serve`) frequently falls back to a
+    # random port when its default is already occupied — this happened
+    # repeatedly in practice (port 3000 occupied -> served on 51559,
+    # 57262, etc), and a hardcoded port list silently 400s every preflight
+    # from those fallback ports with no visible error on the frontend
+    # (CORS failures never reach your app code, they're blocked by the
+    # browser before your fetch/axios call ever fires).
+    # allow_origin_regex in main.py (see comment there) handles the
+    # "any localhost port" case; this list covers the common explicit ones.
+    allowed_origins: str = "http://localhost:3000,http://localhost:8081,http://localhost:5173,http://localhost:19006"
 
     # Logging
     log_level: str = "INFO"
