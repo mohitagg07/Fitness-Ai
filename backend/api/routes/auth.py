@@ -8,9 +8,9 @@ was being caught by the broad `except Exception` and re-raised as a
 confusing 400 "Registration failed: The read operation timed out".
 """
 import asyncio
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from schemas.models import RegisterRequest, LoginRequest, TokenResponse
-from core.security import create_access_token
+from core.security import create_access_token, get_current_user
 from db.supabase_client import get_supabase
 
 router = APIRouter(tags=["Authentication"])
@@ -115,3 +115,8 @@ async def login(payload: LoginRequest):
 
     token = create_access_token({"sub": user.id, "email": user.email})
     return TokenResponse(access_token=token, user_id=user.id)
+
+@router.get("/verify")
+async def verify_token(current_user: dict = Depends(get_current_user)):
+    """Validate a stored token. Returns 200 if valid, 401 if not."""
+    return {"valid": True, "user_id": current_user["user_id"]}
