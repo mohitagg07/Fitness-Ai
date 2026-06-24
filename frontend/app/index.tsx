@@ -4,17 +4,48 @@
  * Flow:
  *   1. Animated splash (logo)
  *   2a. No token → /login
- *   2b. Token but no onboarding done → /onboarding
- *   2c. Token + onboarded → /(tabs)
+ *   2b. Token present but INVALID (expired/orphaned) → clear storage → /login
+ *   2c. Valid token, no onboarding done → /onboarding
+ *   2d. Valid token + onboarded → /(tabs)
  *
- * This guarantees the logo always shows first, onboarding runs exactly
- * once after registration, and authenticated users land straight on tabs.
+ * The extra token-verify step (2b) prevents the "I logged in, it worked,
+ * but now it just keeps showing the loading screen" symptom caused by a
+ * stale token from a previous Supabase project/secret-key rotation sitting
+ * in SecureStore and passing the "token exists" check while being rejected
+ * by every actual API call.
  */
 import { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { storage } from '../src/utils/storage';
 import AnimatedSplash from '../src/components/splash/AnimatedSplash';
+
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/api';
+
+type VerifyResult = 'valid' | 'orphaned' | 'unreachable';
+
+async function verifyToken(token: string): Promise<VerifyResult> {
+  try {
+    const res = await fetch(`${API_BASE}/auth/verify`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(4000),
+    });
+    if (res.ok) return 'valid';
+    // Only treat as truly dead if backend explicitly says so
+    try {
+      const body = await res.json();
+      if (typeof body?.detail === 'string' && body.detail.startsWith('ORPHANED_SESSION')) {
+        return 'orphaned';
+      }
+    } catch {}
+    // Any other 401/403 (profile missing, transient error) — let the
+    // user in. The route handler will surface the real error if needed.
+    return 'valid';
+  } catch {
+    // Network error or timeout — assume fine, fail-open.
+    return 'unreachable';
+  }
+}
 
 export default function Index() {
   const [splashDone, setSplashDone] = useState(false);
@@ -26,15 +57,16 @@ export default function Index() {
     const safetyTimer = setTimeout(() => {
       if (!settled) {
         settled = true;
-        console.warn('[Index] Auth/onboarding check timed out after 5s — redirecting to /login');
+        console.warn('[Index] Auth check timed out after 8s — redirecting to /login');
         router.replace('/login');
       }
-    }, 5000);
+    }, 8000);
 
     (async () => {
       try {
         const token = await storage.getItem('neurofit_token');
         if (settled) return;
+
         if (!token) {
           settled = true;
           clearTimeout(safetyTimer);
@@ -42,12 +74,27 @@ export default function Index() {
           return;
         }
 
-        // Check whether the user has completed onboarding.
-        // The flag is written by OnboardingScreen on successful submit.
+        // Verify the token — only wipe storage if backend explicitly says
+        // this session is orphaned (user deleted from Supabase, etc.).
+        // A plain network error or any other 401 lets the user in; the
+        // normal axios 401 interceptor handles genuinely expired tokens.
+        const verifyResult = await verifyToken(token);
+        if (settled) return;
+
+        if (verifyResult === 'orphaned') {
+          await storage.deleteItem('neurofit_token');
+          await storage.deleteItem('neurofit_user');
+          settled = true;
+          clearTimeout(safetyTimer);
+          router.replace('/login');
+          return;
+        }
+
         const onboarded = await storage.getItem('neurofit_onboarded');
         if (settled) return;
         settled = true;
         clearTimeout(safetyTimer);
+
         if (!onboarded) {
           router.replace('/onboarding');
           return;
@@ -58,7 +105,7 @@ export default function Index() {
         if (settled) return;
         settled = true;
         clearTimeout(safetyTimer);
-        console.warn('[Index] Auth/onboarding check threw an error:', err);
+        console.warn('[Index] Auth check threw an error:', err);
         router.replace('/login');
       }
     })();
@@ -79,7 +126,7 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#000000',
     justifyContent: 'center',
     alignItems: 'center',
   },

@@ -31,7 +31,7 @@ function MacroArc({ value, total, color, cx, cy, r, stroke }: any) {
   const circ = 2 * Math.PI * r;
   const dash = circ * pct;
   return (
-    <Svg.Circle
+    <Circle
       cx={cx} cy={cy} r={r}
       fill="none"
       stroke={color}
@@ -124,7 +124,7 @@ function MacroDonut({ protein, carbs, fat, calories, targetCal }: any) {
     <View style={styles.donutRow}>
       <Svg width={SIZE} height={SIZE}>
         {/* bg circle */}
-        <Svg.Circle cx={SIZE / 2} cy={SIZE / 2} r={R} fill="none" stroke="#2A2A2A" strokeWidth={STROKE} />
+        <Circle cx={SIZE / 2} cy={SIZE / 2} r={R} fill="none" stroke="#2A2A2A" strokeWidth={STROKE} />
         {segments.map((seg, i) => {
           if (!total) return null;
           const pct = seg.value / total;
@@ -132,7 +132,7 @@ function MacroDonut({ protein, carbs, fat, calories, targetCal }: any) {
           const offset = -C * cumulativePct;
           cumulativePct += pct;
           return (
-            <Svg.Circle
+            <Circle
               key={i}
               cx={SIZE / 2} cy={SIZE / 2} r={R}
               fill="none"

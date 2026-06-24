@@ -1,3 +1,10 @@
+/**
+ * app/(tabs)/_layout.tsx — Tab bar layout
+ *
+ * Only rendered when the user is inside the authenticated tab area.
+ * Has its own auth guard — if somehow a user lands here without a token
+ * (e.g. direct deep link), they get bounced to /login.
+ */
 import { useEffect, useState } from 'react';
 import { Tabs, router } from 'expo-router';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
@@ -13,11 +20,11 @@ type TabDef = {
 };
 
 const TABS: TabDef[] = [
-  { name: 'index',    title: 'HOME',    icon: 'home-outline',         activeIcon: 'home'         },
-  { name: 'coach',   title: 'COACH',   icon: 'flash-outline',        activeIcon: 'flash'        },
-  { name: 'workout', title: 'WORKOUT', icon: 'barbell-outline',      activeIcon: 'barbell'      },
-  { name: 'progress',title: 'PROGRESS',icon: 'stats-chart-outline',  activeIcon: 'stats-chart'  },
-  { name: 'profile', title: 'PROFILE', icon: 'person-outline',       activeIcon: 'person'       },
+  { name: 'index',    title: 'HOME',    icon: 'home-outline',        activeIcon: 'home'        },
+  { name: 'coach',   title: 'COACH',   icon: 'flash-outline',       activeIcon: 'flash'       },
+  { name: 'workout', title: 'WORKOUT', icon: 'barbell-outline',     activeIcon: 'barbell'     },
+  { name: 'progress',title: 'PROGRESS',icon: 'stats-chart-outline', activeIcon: 'stats-chart' },
+  { name: 'profile', title: 'PROFILE', icon: 'person-outline',      activeIcon: 'person'      },
 ];
 
 export default function TabsLayout() {
@@ -25,15 +32,9 @@ export default function TabsLayout() {
 
   useEffect(() => {
     let settled = false;
-
-    // Safety net: if anything in the check below hangs or throws without
-    // being caught, this guarantees the screen never sits on the spinner
-    // forever with zero console output and zero network request — exactly
-    // the failure mode that was previously invisible from the outside.
     const safetyTimer = setTimeout(() => {
       if (!settled) {
         settled = true;
-        console.warn('[TabsLayout] Auth check timed out after 5s — redirecting to /login');
         router.replace('/login');
       }
     }, 5000);
@@ -51,19 +52,15 @@ export default function TabsLayout() {
         settled = true;
         clearTimeout(safetyTimer);
         setAuthChecked(true);
-      } catch (err) {
+      } catch {
         if (settled) return;
         settled = true;
         clearTimeout(safetyTimer);
-        console.warn('[TabsLayout] Auth check threw an error:', err);
         router.replace('/login');
       }
     })();
 
-    return () => {
-      settled = true;
-      clearTimeout(safetyTimer);
-    };
+    return () => { settled = true; clearTimeout(safetyTimer); };
   }, []);
 
   if (!authChecked) {

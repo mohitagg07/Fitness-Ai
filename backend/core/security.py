@@ -109,11 +109,17 @@ async def _ensure_profile_exists(user_id: str) -> None:
 
     def _check_and_create():
         sb = get_supabase()
-        existing = (
-            sb.table("profiles").select("id").eq("id", user_id).maybe_single().execute()
-        )
+        try:
+            existing = (
+                sb.table("profiles").select("id").eq("id", user_id).maybe_single().execute()
+            )
+        except Exception:
+            # Supabase unreachable — don't block the request, let the
+            # actual route handler surface the DB error.
+            return
         if existing and existing.data:
             return
+        # Profile row missing — try to create it.
         try:
             sb.table("profiles").insert(
                 {"id": user_id, "onboarding_complete": False}
@@ -123,24 +129,24 @@ async def _ensure_profile_exists(user_id: str) -> None:
             if "profiles_id_fkey" in err_str or (
                 "not present in table" in err_str and "users" in err_str
             ):
-                # The insert failed because profiles.id -> auth.users.id has
-                # no match — meaning this JWT's user_id was never created in
-                # the CURRENT database, not just missing a profile row. This
-                # happens when a Supabase project gets reset/recreated while
-                # a browser or device still has an old token cached in
-                # localStorage/SecureStore — the JWT signature still
-                # verifies fine (same secret_key), but the user it points at
-                # is gone. Surfacing this distinctly (rather than letting it
-                # fall through to a generic "Could not auto-create" warning,
-                # which then cascades into separate confusing 500s on every
-                # other route that tries to write data) lets the client
-                # catch ORPHANED_SESSION specifically and force a clean
-                # logout instead of repeatedly retrying writes that can
-                # never succeed for this token.
+                # FK violation means this user_id has no matching row in
+                # auth.users. Before raising OrphanedSessionError, verify
+                # the user genuinely doesn't exist (guards against a
+                # Supabase RLS quirk where maybe_single() returns None for
+                # a row the service-role key can't see, causing a spurious
+                # FK error for a real user).
+                try:
+                    auth_check = sb.auth.admin.get_user_by_id(user_id)
+                    if auth_check and auth_check.user:
+                        # User exists in auth.users — profile insert failed
+                        # for another reason (race, transient error). Safe
+                        # to proceed; the row will be created on next call.
+                        return
+                except Exception:
+                    pass
                 raise _OrphanedSessionError(user_id)
-            # Anything else is most likely a race with a concurrent request
-            # for the same user already having inserted the row between our
-            # SELECT and INSERT — harmless, the row exists either way.
+            # Anything else (unique violation from a concurrent insert, etc.)
+            # is harmless — the row exists either way.
 
     try:
         await asyncio.to_thread(_check_and_create)
@@ -191,5 +197,11 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     if not user_id:
         _reject("token has no subject claim")
 
-    await _ensure_profile_exists(user_id)
+    # DO NOT call _ensure_profile_exists here. get_current_user's only job
+    # is JWT validation. Profile auto-creation is handled by get_full_user_context
+    # in supabase_client.py (called by any route that needs profile data).
+    # Putting a DB call here caused every authenticated request — including
+    # /auth/verify — to hit Supabase, and any FK error there surfaced as a
+    # spurious ORPHANED_SESSION 401 for brand-new valid users whose profile
+    # insert during /auth/register had silently failed.
     return {"user_id": user_id, "email": payload.get("email")}
