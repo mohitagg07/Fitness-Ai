@@ -26,8 +26,7 @@
 import axios from 'axios';
 import { router } from 'expo-router';
 import { storage } from './storage';
-
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/api';
+import { API_BASE } from './config';
 
 const api = axios.create({
   baseURL: API_BASE,

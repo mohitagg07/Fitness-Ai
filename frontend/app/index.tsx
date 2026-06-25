@@ -19,8 +19,7 @@ import { View, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { storage } from '../src/utils/storage';
 import AnimatedSplash from '../src/components/splash/AnimatedSplash';
-
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/api';
+import { API_BASE } from '../src/utils/config';
 
 type VerifyResult = 'valid' | 'orphaned' | 'unreachable';
 

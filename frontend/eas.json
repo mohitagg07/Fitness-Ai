@@ -1,0 +1,36 @@
+{
+  "cli": {
+    "version": ">= 12.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "env": {
+          "EXPO_PUBLIC_API_URL": "http://YOUR_LOCAL_IP:8000/api"
+        }
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "env": {
+          "EXPO_PUBLIC_API_URL": "https://YOUR-RAILWAY-APP.up.railway.app/api"
+        }
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "android": {
+        "env": {
+          "EXPO_PUBLIC_API_URL": "https://YOUR-RAILWAY-APP.up.railway.app/api"
+        }
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
