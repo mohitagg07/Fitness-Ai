@@ -1,15 +1,15 @@
 /**
  * app/(tabs)/_layout.tsx — Tab bar layout
  *
- * Only rendered when the user is inside the authenticated tab area.
- * Has its own auth guard — if somehow a user lands here without a token
- * (e.g. direct deep link), they get bounced to /login.
+ * Auth is handled entirely by app/index.tsx — no token means the user
+ * never reaches this layout in the first place. A second guard here
+ * creates a race condition: the 5s safety timer fires before SecureStore
+ * resolves on slower devices, kicking the user back to /login mid-session
+ * and leaving a blank screen.
  */
-import { useEffect, useState } from 'react';
-import { Tabs, router } from 'expo-router';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { Tabs } from 'expo-router';
+import { View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { storage } from '../../src/utils/storage';
 import { COLORS } from '../../src/theme/colors';
 
 type TabDef = {
@@ -28,49 +28,6 @@ const TABS: TabDef[] = [
 ];
 
 export default function TabsLayout() {
-  const [authChecked, setAuthChecked] = useState(false);
-
-  useEffect(() => {
-    let settled = false;
-    const safetyTimer = setTimeout(() => {
-      if (!settled) {
-        settled = true;
-        router.replace('/login');
-      }
-    }, 5000);
-
-    (async () => {
-      try {
-        const token = await storage.getItem('neurofit_token');
-        if (settled) return;
-        if (!token) {
-          settled = true;
-          clearTimeout(safetyTimer);
-          router.replace('/login');
-          return;
-        }
-        settled = true;
-        clearTimeout(safetyTimer);
-        setAuthChecked(true);
-      } catch {
-        if (settled) return;
-        settled = true;
-        clearTimeout(safetyTimer);
-        router.replace('/login');
-      }
-    })();
-
-    return () => { settled = true; clearTimeout(safetyTimer); };
-  }, []);
-
-  if (!authChecked) {
-    return (
-      <View style={styles.loading}>
-        <ActivityIndicator color={COLORS.primaryGreen} size="large" />
-      </View>
-    );
-  }
-
   return (
     <Tabs
       screenOptions={{
@@ -119,12 +76,6 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
-  loading: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   iconWrap: { padding: 4 },
   activeWrap: {
     padding: 6,
