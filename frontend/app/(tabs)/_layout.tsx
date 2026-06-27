@@ -1,15 +1,12 @@
 /**
- * app/(tabs)/_layout.tsx — Tab bar layout
+ * app/(tabs)/_layout.tsx — Tab bar layout (tab bar hidden)
  *
- * Auth is handled entirely by app/index.tsx — no token means the user
- * never reaches this layout in the first place. A second guard here
- * creates a race condition: the 5s safety timer fires before SecureStore
- * resolves on slower devices, kicking the user back to /login mid-session
- * and leaving a blank screen.
+ * Navigation between sections is handled by custom buttons in each screen.
+ * The tab bar is hidden — we keep the Tabs navigator for routing only.
  */
 import { Tabs } from 'expo-router';
-import { View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { View, StyleSheet } from 'react-native';
 import { COLORS } from '../../src/theme/colors';
 
 type TabDef = {
@@ -32,25 +29,7 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: COLORS.tabBg,
-          borderTopColor: COLORS.tabBorder,
-          borderTopWidth: 1,
-          paddingBottom: 10,
-          paddingTop: 8,
-          height: 66,
-          elevation: 0,
-          shadowOpacity: 0,
-        },
-        tabBarActiveTintColor: COLORS.tabActive,
-        tabBarInactiveTintColor: COLORS.tabInactive,
-        tabBarLabelStyle: {
-          fontSize: 9,
-          fontWeight: '700',
-          letterSpacing: 0.8,
-          marginTop: 2,
-        },
-        tabBarHideOnKeyboard: true,
+        tabBarStyle: { display: 'none' },
       }}
     >
       {TABS.map((t) => (
