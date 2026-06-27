@@ -1,13 +1,5 @@
 /**
- * ProgressScreen.tsx — complete rewrite
- *
- * What's new vs the old version:
- *   1. Weight chart — SVG sparkline with min/max labels & trend line
- *   2. Macro ring chart — visual macro breakdown (protein/carbs/fat)
- *   3. Food search — type a food name, results auto-appear from FatSecret
- *   4. One-tap log — select a food item → enter grams → done
- *   5. Streak & motivation banner — consecutive logging days
- *   6. Real today's macro targets vs consumed
+ * ProgressScreen.tsx
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -24,7 +16,6 @@ const { width: SCREEN_W } = Dimensions.get('window');
 const CHART_W = SCREEN_W - 64;
 const CHART_H = 120;
 
-// ─── Macro ring (SVG arc) ────────────────────────────────────────────────────
 function MacroArc({ value, total, color, cx, cy, r, stroke }: any) {
   if (!total) return null;
   const pct = Math.min(value / total, 1);
@@ -43,7 +34,6 @@ function MacroArc({ value, total, color, cx, cy, r, stroke }: any) {
   );
 }
 
-// ─── Weight sparkline ────────────────────────────────────────────────────────
 function WeightChart({ data }: { data: { date: string; weight: number }[] }) {
   if (data.length < 2) {
     return (
@@ -72,7 +62,6 @@ function WeightChart({ data }: { data: { date: string; weight: number }[] }) {
   return (
     <View>
       <Svg width={CHART_W} height={CHART_H}>
-        {/* Grid lines */}
         {[0, 0.5, 1].map((t) => (
           <Line
             key={t}
@@ -81,7 +70,6 @@ function WeightChart({ data }: { data: { date: string; weight: number }[] }) {
             stroke="#2A2A2A" strokeWidth={1}
           />
         ))}
-        {/* Trend line */}
         <Polyline
           points={points}
           fill="none"
@@ -90,9 +78,7 @@ function WeightChart({ data }: { data: { date: string; weight: number }[] }) {
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        {/* Last point dot */}
         <Circle cx={lastX} cy={lastY} r={4} fill={COLORS.primaryGreen} />
-        {/* Labels */}
         <SvgText x={pad} y={pad - 4} fill="#555" fontSize={10}>{maxW} kg</SvgText>
         <SvgText x={pad} y={pad + innerH + 12} fill="#555" fontSize={10}>{minW} kg</SvgText>
       </Svg>
@@ -104,7 +90,6 @@ function WeightChart({ data }: { data: { date: string; weight: number }[] }) {
   );
 }
 
-// ─── Macro donut ─────────────────────────────────────────────────────────────
 function MacroDonut({ protein, carbs, fat, calories, targetCal }: any) {
   const total = protein * 4 + carbs * 4 + fat * 9;
   const R = 48;
@@ -123,7 +108,6 @@ function MacroDonut({ protein, carbs, fat, calories, targetCal }: any) {
   return (
     <View style={styles.donutRow}>
       <Svg width={SIZE} height={SIZE}>
-        {/* bg circle */}
         <Circle cx={SIZE / 2} cy={SIZE / 2} r={R} fill="none" stroke="#2A2A2A" strokeWidth={STROKE} />
         {segments.map((seg, i) => {
           if (!total) return null;
@@ -145,16 +129,10 @@ function MacroDonut({ protein, carbs, fat, calories, targetCal }: any) {
             />
           );
         })}
-        <SvgText
-          x={SIZE / 2} y={SIZE / 2 - 6}
-          textAnchor="middle" fill="#FFF" fontSize={16} fontWeight="800"
-        >
+        <SvgText x={SIZE / 2} y={SIZE / 2 - 6} textAnchor="middle" fill="#FFF" fontSize={16} fontWeight="800">
           {calories}
         </SvgText>
-        <SvgText
-          x={SIZE / 2} y={SIZE / 2 + 12}
-          textAnchor="middle" fill="#555" fontSize={10}
-        >
+        <SvgText x={SIZE / 2} y={SIZE / 2 + 12} textAnchor="middle" fill="#555" fontSize={10}>
           kcal
         </SvgText>
       </Svg>
@@ -179,7 +157,6 @@ function MacroDonut({ protein, carbs, fat, calories, targetCal }: any) {
   );
 }
 
-// ─── Food search modal ────────────────────────────────────────────────────────
 function FoodSearchModal({ visible, onClose, onLog }: {
   visible: boolean;
   onClose: () => void;
@@ -250,12 +227,16 @@ function FoodSearchModal({ visible, onClose, onLog }: {
                   onChangeText={setQuery}
                   placeholder="Search foods (e.g. chicken breast)"
                   placeholderTextColor="#555"
-                  autoFocus
+                  // autoFocus REMOVED — crashes Android inside Modal
                 />
                 {searching && <ActivityIndicator size="small" color={COLORS.primaryGreen} />}
               </View>
 
-              <ScrollView style={styles.resultsList} keyboardShouldPersistTaps="handled">
+              <ScrollView
+                style={styles.resultsList}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+              >
                 {results.map((item, i) => (
                   <TouchableOpacity
                     key={i}
@@ -314,7 +295,6 @@ function FoodSearchModal({ visible, onClose, onLog }: {
   );
 }
 
-// ─── Main screen ─────────────────────────────────────────────────────────────
 export default function ProgressScreen() {
   const [metrics, setMetrics] = useState<any[]>([]);
   const [nutrition, setNutrition] = useState<any[]>([]);
@@ -372,7 +352,6 @@ export default function ProgressScreen() {
       fat_g: Math.round((item.fat_g || 0) * ratio),
     };
     try {
-      // Try quick-log (food_id) first, fall back to manual log
       if (item.food_id) {
         await progressApi.quickLog(item.food_id, grams, item.food_name);
       } else {
@@ -393,7 +372,6 @@ export default function ProgressScreen() {
     );
   }
 
-  // Derived weight chart data
   const weightData = metrics
     .filter((m) => m.weight_kg)
     .map((m) => ({ date: (m.recorded_date || '').slice(5), weight: m.weight_kg }))
@@ -403,11 +381,9 @@ export default function ProgressScreen() {
   const firstWeight = weightData[0]?.weight;
   const weightDelta = latestWeight && firstWeight ? +(latestWeight - firstWeight).toFixed(1) : null;
 
-  // Today macro totals
   const todayConsumed = todayNutrition?.consumed;
   const todayTarget = todayNutrition?.targets;
 
-  // Streak calculation
   const today = new Date().toISOString().split('T')[0];
   let streak = 0;
   const sortedNut = [...nutrition].sort((a, b) => (b.log_date || '').localeCompare(a.log_date || ''));
@@ -422,7 +398,6 @@ export default function ProgressScreen() {
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
 
-      {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <View style={styles.headerIcon}>
@@ -445,7 +420,6 @@ export default function ProgressScreen() {
         </View>
       )}
 
-      {/* Stat cards row */}
       <View style={styles.statsRow}>
         <View style={styles.heroStatCard}>
           <Ionicons name="trending-up-outline" size={18} color={COLORS.primaryGreen} />
@@ -480,7 +454,6 @@ export default function ProgressScreen() {
         </View>
       </View>
 
-      {/* Tabs */}
       <View style={styles.tabs}>
         {(['body', 'nutrition'] as const).map((tab) => (
           <TouchableOpacity
@@ -500,10 +473,8 @@ export default function ProgressScreen() {
         ))}
       </View>
 
-      {/* ─── BODY TAB ─── */}
       {activeTab === 'body' && (
         <>
-          {/* Log weight */}
           <View style={styles.card}>
             <Text style={styles.cardLabel}>LOG BODYWEIGHT</Text>
             <View style={styles.row}>
@@ -522,13 +493,11 @@ export default function ProgressScreen() {
             </View>
           </View>
 
-          {/* Weight chart */}
           <View style={styles.card}>
             <Text style={styles.cardLabel}>WEIGHT TREND (30 DAYS)</Text>
             <WeightChart data={weightData} />
           </View>
 
-          {/* Weight history list */}
           <View style={styles.card}>
             <Text style={styles.cardLabel}>HISTORY</Text>
             {metrics.filter((m) => m.weight_kg).length === 0 ? (
@@ -545,10 +514,8 @@ export default function ProgressScreen() {
         </>
       )}
 
-      {/* ─── NUTRITION TAB ─── */}
       {activeTab === 'nutrition' && (
         <>
-          {/* Today's macro donut */}
           {todayConsumed && (
             <View style={styles.card}>
               <Text style={styles.cardLabel}>TODAY'S MACROS</Text>
@@ -584,13 +551,11 @@ export default function ProgressScreen() {
             </View>
           )}
 
-          {/* Log food button */}
           <TouchableOpacity style={styles.addFoodBtn} onPress={() => setShowFoodSearch(true)}>
             <Ionicons name="search-outline" size={18} color="#000" />
             <Text style={styles.addFoodBtnText}>Search & Log Food</Text>
           </TouchableOpacity>
 
-          {/* Recent nutrition logs */}
           <View style={styles.card}>
             <Text style={styles.cardLabel}>RECENT MEALS</Text>
             {nutrition.length === 0 ? (
@@ -633,7 +598,6 @@ export default function ProgressScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#121212' },
   center: { flex: 1, backgroundColor: '#121212', justifyContent: 'center', alignItems: 'center' },
-
   header: { padding: 24, paddingTop: 60 },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerIcon: {
@@ -641,7 +605,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#1A2535', alignItems: 'center', justifyContent: 'center',
   },
   title: { color: '#FFF', fontSize: 28, fontWeight: '800' },
-
   streakBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: '#1A2A1A', borderRadius: 10, paddingHorizontal: 12,
@@ -649,14 +612,12 @@ const styles = StyleSheet.create({
   },
   streakEmoji: { fontSize: 16 },
   streakText: { color: COLORS.primaryGreen, fontSize: 13, fontWeight: '600', flex: 1 },
-
   errorBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: '#2A1A1A', marginHorizontal: 16, borderRadius: 10,
     padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#3A2A2A',
   },
   errorBannerText: { color: '#FF5C5C', fontSize: 12, flex: 1 },
-
   statsRow: { flexDirection: 'row', gap: 10, marginHorizontal: 16, marginBottom: 16 },
   heroStatCard: {
     flex: 1.1, backgroundColor: '#1E1E1E', borderRadius: 16,
@@ -673,7 +634,6 @@ const styles = StyleSheet.create({
   },
   smallStatValue: { color: '#FFF', fontSize: 20, fontWeight: '800', marginTop: 6 },
   smallStatLabel: { color: '#888', fontSize: 11, fontWeight: '600', marginTop: 2 },
-
   tabs: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 12, gap: 8 },
   tab: {
     flex: 1, paddingVertical: 10, borderRadius: 10,
@@ -684,14 +644,12 @@ const styles = StyleSheet.create({
   tabActive: { backgroundColor: '#1E3A5F', borderColor: '#2A4A7F' },
   tabText: { color: '#555', fontSize: 12, fontWeight: '700', letterSpacing: 1 },
   tabTextActive: { color: COLORS.primaryGreen },
-
   card: {
     backgroundColor: '#1E1E1E', borderRadius: 16,
     padding: 16, marginHorizontal: 16, marginBottom: 12,
     borderWidth: 1, borderColor: '#2A2A2A',
   },
   cardLabel: { color: '#555', fontSize: 11, fontWeight: '700', letterSpacing: 1.5, marginBottom: 12 },
-
   row: { flexDirection: 'row', gap: 10 },
   input: {
     flex: 1, backgroundColor: '#252525', borderRadius: 12,
@@ -703,35 +661,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 5,
   },
   logBtnText: { color: '#000', fontWeight: '700', fontSize: 13 },
-
   chartEmpty: { paddingVertical: 20, alignItems: 'center' },
   chartEmptyText: { color: '#555', fontSize: 13, textAlign: 'center' },
   chartDateRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 },
   chartDate: { color: '#555', fontSize: 10 },
-
   donutRow: { flexDirection: 'row', alignItems: 'center', gap: 20, marginVertical: 8 },
   donutLegend: { flex: 1, gap: 8 },
   donutLegendRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   donutDot: { width: 8, height: 8, borderRadius: 4 },
   donutLegendLabel: { color: '#888', fontSize: 13, flex: 1 },
   donutLegendVal: { color: '#FFF', fontSize: 13, fontWeight: '700' },
-
   macroTargetRow: { gap: 10, marginTop: 16 },
   macroTargetItem: { gap: 4 },
   macroTargetLabel: { color: '#888', fontSize: 11, fontWeight: '600', letterSpacing: 0.5 },
-  macroBar: {
-    height: 6, backgroundColor: '#2A2A2A', borderRadius: 3, overflow: 'hidden',
-  },
+  macroBar: { height: 6, backgroundColor: '#2A2A2A', borderRadius: 3, overflow: 'hidden' },
   macroBarFill: { height: 6, borderRadius: 3 },
   macroTargetNumbers: { color: '#555', fontSize: 11 },
-
   addFoodBtn: {
     backgroundColor: COLORS.primaryGreen, borderRadius: 14,
     marginHorizontal: 16, marginBottom: 12, paddingVertical: 15,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
   },
   addFoodBtnText: { color: '#000', fontWeight: '800', fontSize: 15 },
-
   metricRow: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', paddingVertical: 10,
@@ -741,18 +692,11 @@ const styles = StyleSheet.create({
   metricDate: { color: '#888', fontSize: 12 },
   metricSub: { color: '#555', fontSize: 11, marginTop: 2 },
   metricValue: { color: COLORS.primaryGreen, fontSize: 15, fontWeight: '700', marginLeft: 8 },
-
   emptyNutrition: { alignItems: 'center', paddingVertical: 24, gap: 8 },
   empty: { color: '#555', fontSize: 13, textAlign: 'center' },
   emptyHint: { color: '#444', fontSize: 12, textAlign: 'center' },
-
   label: { color: '#888', fontSize: 12, fontWeight: '700', letterSpacing: 1, marginBottom: 8, marginTop: 4 },
-
-  // Modal
-  modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.8)',
-    justifyContent: 'flex-end',
-  },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' },
   modalSheet: {
     backgroundColor: '#1A1A1A', borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: 20, maxHeight: '85%',
@@ -777,7 +721,6 @@ const styles = StyleSheet.create({
   resultName: { color: '#FFF', fontSize: 14, fontWeight: '600' },
   resultMeta: { color: '#888', fontSize: 12, marginTop: 2 },
   noResults: { color: '#555', fontSize: 13, textAlign: 'center', paddingVertical: 20 },
-
   confirmPane: { gap: 12 },
   confirmFoodName: { color: '#FFF', fontSize: 17, fontWeight: '700' },
   confirmMacros: { color: '#888', fontSize: 12 },

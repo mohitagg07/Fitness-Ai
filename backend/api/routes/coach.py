@@ -24,9 +24,23 @@ async def chat(
 ):
     user_id = current_user["user_id"]
 
-    # get_full_user_context does blocking Supabase I/O — run off the event
-    # loop so this request doesn't stall every other concurrent request.
     profile, agent_state = await asyncio.to_thread(get_full_user_context, user_id)
+
+    # Fetch last 10 conversation turns so coach has real session memory
+    # and responds based on this user's history, not generically.
+    try:
+        sb = get_supabase()
+        history_res = (
+            sb.table("ai_conversations")
+            .select("role,content")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .limit(10)
+            .execute()
+        )
+        prior_messages = list(reversed(history_res.data or []))
+    except Exception:
+        prior_messages = []
 
     try:
         result = await run_coach(
@@ -34,23 +48,11 @@ async def chat(
             user_id=user_id,
             user_profile=profile,
             agent_state=agent_state,
+            prior_messages=prior_messages,
         )
     except Exception as e:
-        # User message is intentionally NOT saved here. Previously it was
-        # saved before this try block, so a failed LLM call left an orphaned
-        # user turn in ai_conversations with no matching assistant reply —
-        # corrupting /coach/history. Only persist once we know the full
-        # turn (user message + assistant reply) can be saved together.
         raise HTTPException(500, f"AI Coach error: {str(e)}")
 
-    # Both messages are saved only after run_coach succeeds, so a turn is
-    # never half-persisted. Wrapped separately from the LLM call so a DB
-    # write failure (e.g. a missing profiles row tripping the
-    # ai_conversations foreign key, or an RLS policy block) doesn't masquerade
-    # as "the AI Coach is broken" — the LLM call already succeeded at this
-    # point, so we still return the reply to the user even if saving fails,
-    # and log the persistence error for debugging instead of losing it in a
-    # generic 500.
     try:
         await asyncio.to_thread(save_conversation_message, user_id, payload.session_id, "user", payload.content)
         await asyncio.to_thread(upsert_agent_state, user_id, result["updated_agent_state"])
@@ -58,9 +60,6 @@ async def chat(
     except Exception as e:
         import logging
         logging.getLogger(__name__).error(f"Failed to persist coach conversation for user {user_id}: {e}")
-        # Don't raise — the user already has a valid AI reply in `result`.
-        # Losing conversation history for one turn is recoverable; discarding
-        # a working LLM response because of a DB write error is not.
 
     return ChatResponse(
         reply=result["reply"],
@@ -82,10 +81,10 @@ async def get_history(
     sb = get_supabase()
     res = (
         sb.table("ai_conversations")
-        .select("*")
+        .select("role,content,created_at")
         .eq("user_id", current_user["user_id"])
-        .order("created_at", desc=True)
+        .order("created_at", desc=False)
         .limit(limit)
         .execute()
     )
-    return list(reversed(res.data))
+    return res.data
