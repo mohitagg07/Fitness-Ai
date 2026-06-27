@@ -1,12 +1,10 @@
 /**
- * app/(tabs)/_layout.tsx — Tab bar layout (tab bar hidden)
- *
- * Navigation between sections is handled by custom buttons in each screen.
- * The tab bar is hidden — we keep the Tabs navigator for routing only.
+ * app/(tabs)/_layout.tsx — Tab bar layout
+ * Beautiful pill-style active indicator, 5 tabs including PR board.
  */
 import { Tabs } from 'expo-router';
+import { View, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { View, StyleSheet } from 'react-native';
 import { COLORS } from '../src/theme/colors';
 
 type TabDef = {
@@ -20,8 +18,8 @@ const TABS: TabDef[] = [
   { name: 'index',    title: 'HOME',    icon: 'home-outline',        activeIcon: 'home'        },
   { name: 'coach',   title: 'COACH',   icon: 'flash-outline',       activeIcon: 'flash'       },
   { name: 'workout', title: 'WORKOUT', icon: 'barbell-outline',     activeIcon: 'barbell'     },
-  { name: 'progress',title: 'PROGRESS',icon: 'stats-chart-outline', activeIcon: 'stats-chart' },
-  { name: 'profile', title: 'PROFILE', icon: 'person-outline',      activeIcon: 'person'      },
+  { name: 'prs',     title: 'PRs',     icon: 'trophy-outline',      activeIcon: 'trophy'      },
+  { name: 'profile', title: 'ME',      icon: 'person-outline',      activeIcon: 'person'      },
 ];
 
 export default function TabsLayout() {
@@ -29,7 +27,25 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: { display: 'none' },
+        tabBarStyle: {
+          backgroundColor: '#0A0A0A',
+          borderTopColor: '#1A1A1A',
+          borderTopWidth: 1,
+          paddingBottom: Platform.OS === 'ios' ? 20 : 10,
+          paddingTop: 8,
+          height: Platform.OS === 'ios' ? 82 : 66,
+          elevation: 0,
+          shadowOpacity: 0,
+        },
+        tabBarActiveTintColor: COLORS.primaryGreen,
+        tabBarInactiveTintColor: '#3A3A3A',
+        tabBarLabelStyle: {
+          fontSize: 9,
+          fontWeight: '700',
+          letterSpacing: 0.8,
+          marginTop: 2,
+        },
+        tabBarHideOnKeyboard: true,
       }}
     >
       {TABS.map((t) => (
@@ -39,7 +55,7 @@ export default function TabsLayout() {
           options={{
             title: t.title,
             tabBarIcon: ({ color, focused }) => (
-              <View style={focused ? styles.activeWrap : styles.iconWrap}>
+              <View style={[styles.iconWrap, focused && styles.activeWrap]}>
                 <Ionicons
                   name={focused ? t.activeIcon : t.icon}
                   size={21}
@@ -55,10 +71,14 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
-  iconWrap: { padding: 4 },
-  activeWrap: {
-    padding: 6,
-    backgroundColor: COLORS.primaryGreen + '20',
+  iconWrap: {
+    width: 40, height: 32,
+    alignItems: 'center', justifyContent: 'center',
     borderRadius: 10,
+  },
+  activeWrap: {
+    backgroundColor: COLORS.primaryGreen + '18',
+    borderWidth: 1,
+    borderColor: COLORS.primaryGreen + '30',
   },
 });

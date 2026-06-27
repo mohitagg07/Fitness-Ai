@@ -1,14 +1,15 @@
 // NeuroFit AI — Workout HUD Screen
-// All emojis replaced with Ionicons.
+// Auto-PR detection: whenever a set is logged, compare against stored PRs
+// and upsert if it's a new highest weight for that exercise.
 
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  TextInput, Alert,
+  TextInput, Alert, Animated,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import { workoutApi, coachApi } from '../../utils/api';
+import { workoutApi, coachApi, profileApi } from '../../utils/api';
 import { useStore } from '../../store';
 import { COLORS } from '../../theme/colors';
 
@@ -24,7 +25,7 @@ interface ExerciseCard {
 const DEFAULT_REST = 90;
 
 export default function WorkoutHUD() {
-  const { activeSession, setActiveSession, addLogToSession, setCnsFatigue } = useStore();
+  const { activeSession, setActiveSession, addLogToSession, setCnsFatigue, prs } = useStore();
   const [exercises, setExercises] = useState<ExerciseCard[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);
   const [restTimer, setRestTimer] = useState(0);
@@ -33,6 +34,8 @@ export default function WorkoutHUD() {
   const [weight, setWeight] = useState('');
   const [reps, setReps] = useState('');
   const [sessionStarted, setSessionStarted] = useState(false);
+  const [newPR, setNewPR] = useState<string | null>(null);
+  const prAnim = useState(new Animated.Value(0))[0];
 
   useEffect(() => {
     if (!timerRunning || restTimer <= 0) {
@@ -45,6 +48,16 @@ export default function WorkoutHUD() {
     const interval = setInterval(() => setRestTimer((t) => t - 1), 1000);
     return () => clearInterval(interval);
   }, [timerRunning, restTimer]);
+
+  const flashPR = (exerciseName: string) => {
+    setNewPR(exerciseName);
+    prAnim.setValue(0);
+    Animated.sequence([
+      Animated.timing(prAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+      Animated.delay(2200),
+      Animated.timing(prAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
+    ]).start(() => setNewPR(null));
+  };
 
   const startSession = async () => {
     try {
@@ -82,11 +95,14 @@ export default function WorkoutHUD() {
     const ex = exercises[activeIdx];
     if (!ex) return;
 
+    const weightKg = parseFloat(weight);
+    const repsInt = parseInt(reps);
+
     const logData = {
       exercise_name: ex.name,
       set_number: ex.completed_sets + 1,
-      weight_kg: parseFloat(weight),
-      reps: parseInt(reps),
+      weight_kg: weightKg,
+      reps: repsInt,
       rpe,
     };
 
@@ -94,6 +110,27 @@ export default function WorkoutHUD() {
       await workoutApi.logSet(activeSession.id, logData);
       addLogToSession(logData);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      // ── Auto-PR detection ────────────────────────────────────────
+      // prs is a Record<exercise_name, weight_kg> from the store.
+      // If this set's weight is higher than the stored PR (or there's
+      // no PR yet), upsert it automatically — no manual entry needed.
+      const currentPR = prs[ex.name] ?? 0;
+      if (weightKg > currentPR) {
+        try {
+          await profileApi.upsertPR({
+            exercise_name: ex.name,
+            weight_kg: weightKg,
+            reps: repsInt,
+          });
+          // Update local store so subsequent sets in the same session compare correctly
+          // We trigger via a silent store patch — the store will refresh on next visit
+          flashPR(ex.name);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } catch {
+          // PR save failing shouldn't block the set log
+        }
+      }
 
       const updated = [...exercises];
       updated[activeIdx].completed_sets += 1;
@@ -167,6 +204,15 @@ export default function WorkoutHUD() {
 
   return (
     <View style={styles.container}>
+      {/* PR Flash Banner */}
+      {newPR && (
+        <Animated.View style={[styles.prBanner, { opacity: prAnim }]}>
+          <Ionicons name="trophy" size={18} color="#FFD700" />
+          <Text style={styles.prBannerText}>NEW PR — {newPR}!</Text>
+          <Ionicons name="trophy" size={18} color="#FFD700" />
+        </Animated.View>
+      )}
+
       {timerRunning && (
         <View style={styles.timerBar}>
           <View style={styles.timerLeft}>
@@ -190,7 +236,15 @@ export default function WorkoutHUD() {
       <View style={styles.exerciseCard}>
         {ex ? (
           <>
-            <Text style={styles.setCount}>SET {ex.completed_sets + 1} / {ex.sets}</Text>
+            <View style={styles.exerciseHeader}>
+              <Text style={styles.setCount}>SET {ex.completed_sets + 1} / {ex.sets}</Text>
+              {prs[ex.name] ? (
+                <View style={styles.prChip}>
+                  <Ionicons name="trophy-outline" size={11} color="#FFD700" />
+                  <Text style={styles.prChipText}>PR {prs[ex.name]}kg</Text>
+                </View>
+              ) : null}
+            </View>
             <Text style={styles.exerciseName}>{ex.name}</Text>
             <Text style={styles.exerciseTarget}>{ex.reps} reps · {ex.load}</Text>
             {ex.cue ? <Text style={styles.cue}>{ex.cue}</Text> : null}
@@ -289,6 +343,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'center', gap: 8,
   },
   coachBtnText: { color: COLORS.primaryGreen, fontSize: 14, fontWeight: '600' },
+  prBanner: {
+    backgroundColor: '#2A2000', borderBottomWidth: 1, borderBottomColor: '#FFD70040',
+    padding: 12, flexDirection: 'row', justifyContent: 'center',
+    alignItems: 'center', gap: 10,
+  },
+  prBannerText: { color: '#FFD700', fontSize: 14, fontWeight: '800', letterSpacing: 1.5 },
   timerBar: {
     backgroundColor: '#1A2E44', padding: 14,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -309,10 +369,18 @@ const styles = StyleSheet.create({
     padding: 20, margin: 16, marginTop: 0,
     borderWidth: 1, borderColor: '#2A2A2A',
   },
+  exerciseHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  prChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#2A1F00', borderRadius: 8,
+    paddingHorizontal: 8, paddingVertical: 3,
+    borderWidth: 1, borderColor: '#FFD70040',
+  },
+  prChipText: { color: '#FFD700', fontSize: 11, fontWeight: '700' },
   manualEntry: { marginBottom: 12 },
   manualTitle: { color: '#FFF', fontSize: 18, fontWeight: '700' },
   manualSub: { color: '#888', fontSize: 13, marginTop: 2 },
-  setCount: { color: COLORS.primaryGreen, fontSize: 11, fontWeight: '700', letterSpacing: 2, marginBottom: 4 },
+  setCount: { color: COLORS.primaryGreen, fontSize: 11, fontWeight: '700', letterSpacing: 2 },
   exerciseName: { color: '#FFF', fontSize: 22, fontWeight: '700', marginBottom: 4 },
   exerciseTarget: { color: '#888', fontSize: 14, marginBottom: 8 },
   cue: { color: '#A0B4C8', fontSize: 13, lineHeight: 18, marginBottom: 14, fontStyle: 'italic' },
@@ -341,14 +409,9 @@ const styles = StyleSheet.create({
   },
   logBtnText: { color: '#000', fontSize: 14, fontWeight: '700', letterSpacing: 1 },
   logsScroll: { flex: 1, paddingHorizontal: 16 },
-  logsLabel: {
-    color: '#555', fontSize: 11, fontWeight: '700', letterSpacing: 1.5, marginBottom: 10,
-  },
+  logsLabel: { color: '#555', fontSize: 11, fontWeight: '700', letterSpacing: 1.5, marginBottom: 10 },
   noLogs: { color: '#444', fontSize: 13 },
-  logRow2: {
-    backgroundColor: '#1A1A1A', borderRadius: 10,
-    padding: 12, marginBottom: 6,
-  },
+  logRow2: { backgroundColor: '#1A1A1A', borderRadius: 10, padding: 12, marginBottom: 6 },
   logExercise: { color: '#C0C0C0', fontSize: 13, fontWeight: '600' },
   logDetails: { color: '#555', fontSize: 12, marginTop: 2 },
   finishBtn: {

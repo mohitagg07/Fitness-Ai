@@ -8,7 +8,10 @@ class Settings(BaseSettings):
     # LLM
     openai_api_key: str = ""
     gemini_api_key: str = ""
-    groq_api_key: str = ""
+    groq_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("GROQ_API_KEY", "GROQ_KEY"),
+    )
     groq_model: str = "llama-3.3-70b-versatile"
     llm_provider: str = "groq"  # openai | gemini | groq
 

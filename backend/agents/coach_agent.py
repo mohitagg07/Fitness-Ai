@@ -82,6 +82,11 @@ class WorkoutGraphState(TypedDict):
 
 
 def get_llm():
+    if not settings.groq_api_key:
+        raise RuntimeError(
+            "GROQ_API_KEY is not set. Add it in Render → Environment → GROQ_API_KEY. "
+            "Get a free key at https://console.groq.com"
+        )
     return ChatGroq(
         model=settings.groq_model,
         api_key=settings.groq_api_key,
