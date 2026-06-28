@@ -13,6 +13,7 @@ from api.routes.progress import router as progress_router
 from api.routes.coach import router as coach_router
 from api.routes.nutrition import router as nutrition_router
 from api.routes.dashboard import router as dashboard_router
+from api.routes.memory import router as memory_router
 from core.config import get_settings
 from db.chroma_client import seed_guardrails
 
@@ -52,6 +53,7 @@ app.include_router(progress_router,  prefix="/api/progress",  tags=["Progress"])
 app.include_router(coach_router,     prefix="/api/coach",     tags=["AI Coach"])
 app.include_router(nutrition_router, prefix="/api/nutrition", tags=["Nutrition"])
 app.include_router(dashboard_router, prefix="/api/dashboard", tags=["Dashboard"])
+app.include_router(memory_router,   prefix="/api/memory",    tags=["Memory"])
 
 
 @app.get("/")

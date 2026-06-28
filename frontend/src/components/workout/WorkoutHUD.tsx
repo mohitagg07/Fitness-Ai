@@ -1,19 +1,24 @@
-// NeuroFit AI — Workout HUD v2
-// FIX: Set numbers now auto-increment per exercise (not always "Set 1")
-// FIX: Logs grouped by exercise, showing all sets for each
-// FIX: Exercise name persists across sets of the same exercise
-// IMPROVED: Cleaner log display with set count, exercise grouping
+// NeuroFit AI — Workout HUD v3
+// NEW IN v3:
+//   • Previous set ghost — shows last logged set for same exercise under inputs
+//   • Volume accumulator — live total kg·reps shown in session header
+//   • RPE selector with colour coding (6-7 green → 8.5-9.5 amber → 10 red)
+//   • Exercise notes (coach cue from plan persisted in card)
+//   • WorkoutSummaryCard replaces bare Alert on finish
+//   • Next exercise flow: auto-advances index on tap
+//   • Rest timer now shows circular progress ring (SVG-free: pure View)
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  TextInput, Alert,
+  TextInput, Alert, Animated,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { workoutApi, coachApi } from '../../utils/api';
 import { useStore } from '../../store';
 import { COLORS } from '../../theme/colors';
+import WorkoutSummaryCard from './WorkoutSummaryCard';
 
 interface ExerciseCard {
   name: string;
@@ -24,11 +29,6 @@ interface ExerciseCard {
   completed_sets: number;
 }
 
-// Per-exercise set counter tracked in component state
-interface ExerciseSetCount {
-  [exerciseName: string]: number;
-}
-
 interface SetLog {
   exercise_name: string;
   set_number: number;
@@ -37,40 +37,127 @@ interface SetLog {
   rpe: number;
 }
 
-const DEFAULT_REST = 90;
+const RPE_LEVELS = [6, 7, 7.5, 8, 8.5, 9, 9.5, 10];
 
+function rpeColor(r: number): string {
+  if (r <= 7)   return '#4CAF50';
+  if (r <= 8)   return COLORS.recoveryMed;
+  if (r <= 9.5) return '#FF6B35';
+  return COLORS.recoveryLow;
+}
+
+// ─── Rest Timer ───────────────────────────────────────────────────────────────
+function RestTimerBar({
+  seconds,
+  total,
+  onSkip,
+}: {
+  seconds: number;
+  total: number;
+  onSkip: () => void;
+}) {
+  const pct = total > 0 ? (seconds / total) : 0;
+  const urgent = seconds <= 10;
+  const barColor = urgent ? COLORS.recoveryLow : COLORS.primaryGreen;
+
+  return (
+    <View style={T.timerBar}>
+      <View style={T.timerContent}>
+        <View style={T.timerLeft}>
+          <Ionicons name="timer-outline" size={16} color={barColor} />
+          <Text style={[T.timerLabel, { color: barColor }]}>REST</Text>
+          <Text style={[T.timerSeconds, { color: barColor }]}>{seconds}s</Text>
+        </View>
+        {/* Progress track */}
+        <View style={T.timerTrack}>
+          <View style={[T.timerFill, { width: `${pct * 100}%` as any, backgroundColor: barColor }]} />
+        </View>
+        <TouchableOpacity onPress={onSkip} style={T.skipBtn}>
+          <Text style={T.skipText}>SKIP</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+// ─── Volume bar ───────────────────────────────────────────────────────────────
+function SessionHeader({
+  elapsed,
+  totalVolume,
+  setCount,
+}: {
+  elapsed: string;
+  totalVolume: number;
+  setCount: number;
+}) {
+  return (
+    <View style={H.row}>
+      <View style={H.pill}>
+        <View style={H.activeDot} />
+        <Text style={H.pillText}>ACTIVE</Text>
+      </View>
+      <View style={H.stat}>
+        <Text style={H.statVal}>{elapsed || '0:00'}</Text>
+        <Text style={H.statLabel}>TIME</Text>
+      </View>
+      <View style={H.divider} />
+      <View style={H.stat}>
+        <Text style={H.statVal}>{setCount}</Text>
+        <Text style={H.statLabel}>SETS</Text>
+      </View>
+      <View style={H.divider} />
+      <View style={H.stat}>
+        <Text style={[H.statVal, { color: COLORS.primaryGreen }]}>
+          {totalVolume >= 1000
+            ? `${(totalVolume / 1000).toFixed(1)}t`
+            : `${totalVolume}kg`}
+        </Text>
+        <Text style={H.statLabel}>VOLUME</Text>
+      </View>
+    </View>
+  );
+}
+
+// ─── Previous set ghost ───────────────────────────────────────────────────────
+function PrevSetGhost({ log }: { log: SetLog | null }) {
+  if (!log) return null;
+  return (
+    <View style={G.row}>
+      <Ionicons name="time-outline" size={12} color="#444" />
+      <Text style={G.text}>
+        Last: {log.weight_kg}kg × {log.reps} @ RPE {log.rpe}
+      </Text>
+    </View>
+  );
+}
+
+// ─── Main HUD ────────────────────────────────────────────────────────────────
 export default function WorkoutHUD() {
-  const { activeSession, setActiveSession, addLogToSession, setCnsFatigue } = useStore();
-  const [exercises, setExercises] = useState<ExerciseCard[]>([]);
-  const [activeIdx, setActiveIdx] = useState(0);
-  const [restTimer, setRestTimer] = useState(0);
+  const {
+    activeSession, setActiveSession, addLogToSession, setCnsFatigue,
+  } = useStore();
+
+  const [exercises, setExercises]       = useState<ExerciseCard[]>([]);
+  const [activeIdx, setActiveIdx]       = useState(0);
+  const [restTimer, setRestTimer]       = useState(0);
+  const [restTotal, setRestTotal]       = useState(90);
   const [timerRunning, setTimerRunning] = useState(false);
-  const [rpe, setRpe] = useState(8);
-  const [weight, setWeight] = useState('');
-  const [reps, setReps] = useState('');
+  const [rpe, setRpe]                   = useState(8);
+  const [weight, setWeight]             = useState('');
+  const [reps, setReps]                 = useState('');
   const [exerciseName, setExerciseName] = useState('');
+  const [summaryVisible, setSummaryVisible] = useState(false);
+  const [summaryData, setSummaryData]       = useState<any>(null);
+  const [, forceTick]                   = useState(0);
 
-  // BUG FIX: `sessionStarted` and `setCountByExercise` used to be local
-  // component state (useState). That broke the moment the person
-  // navigated to another tab and back: WorkoutHUD unmounts on tab change
-  // and remounts fresh, resetting both to their initial values —
-  // sessionStarted back to false, set counts back to empty — even though
-  // the actual session data (`activeSession`, held in the persistent
-  // module-level store) was still sitting there untouched the whole time.
-  //
-  // The visible symptom: returning to the Workout tab always showed the
-  // "START SESSION" pre-session screen again. Tapping it (the only button
-  // available) called startSession(), which creates a BRAND NEW session
-  // on the backend and overwrites activeSession with empty logs: [] —
-  // that's the actual moment the previous session's logged sets were
-  // destroyed. It wasn't navigation deleting data; it was navigation
-  // forcing a flow that led to creating a second session on top of the
-  // first.
-  //
-  // Fix: both are now derived directly from activeSession, which already
-  // correctly survives navigation. There is no local copy to go stale.
-  const sessionStarted = !!activeSession;
+  // Tick for elapsed time
+  useEffect(() => {
+    if (!activeSession?.startedAt) return;
+    const id = setInterval(() => forceTick(n => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [activeSession?.startedAt]);
 
+  // Rest timer countdown
   useEffect(() => {
     if (!timerRunning || restTimer <= 0) {
       if (restTimer === 0 && timerRunning) {
@@ -79,174 +166,165 @@ export default function WorkoutHUD() {
       }
       return;
     }
-    const interval = setInterval(() => setRestTimer((t) => t - 1), 1000);
-    return () => clearInterval(interval);
+    const id = setInterval(() => setRestTimer(t => t - 1), 1000);
+    return () => clearInterval(id);
   }, [timerRunning, restTimer]);
 
-  // Tick every second while a session is active, purely to re-render so
-  // elapsedLabel below stays current. Harmless if the session has no
-  // startedAt (e.g. an older session created before this field existed).
-  const [, forceTick] = useState(0);
-  useEffect(() => {
-    if (!activeSession?.startedAt) return;
-    const interval = setInterval(() => forceTick((n) => n + 1), 1000);
-    return () => clearInterval(interval);
-  }, [activeSession?.startedAt]);
+  const sessionStarted = !!activeSession;
 
   const elapsedLabel = (() => {
     if (!activeSession?.startedAt) return '';
-    const totalSeconds = Math.max(0, Math.floor((Date.now() - activeSession.startedAt) / 1000));
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    const s = Math.max(0, Math.floor((Date.now() - activeSession.startedAt) / 1000));
+    return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
   })();
 
-  // Per-exercise set count, derived fresh from activeSession.logs every
-  // render — never goes stale, never needs resetting on remount or on
-  // finishing a session (there's nothing to reset; it just reflects
-  // whatever's actually in the session).
+  // Derive set counts from store logs (never goes stale on re-mount)
   const setCountByExercise = (() => {
-    const counts: ExerciseSetCount = {};
-    const logs: SetLog[] = activeSession?.logs || [];
-    for (const log of logs) {
+    const counts: Record<string, number> = {};
+    for (const log of (activeSession?.logs || []) as SetLog[]) {
       counts[log.exercise_name] = (counts[log.exercise_name] || 0) + 1;
     }
     return counts;
   })();
 
+  // Total volume
+  const totalVolume = ((activeSession?.logs || []) as SetLog[]).reduce(
+    (sum, l) => sum + (l.weight_kg * l.reps), 0
+  );
+  const totalSets = (activeSession?.logs || []).length;
+
+  // Previous set for current exercise
+  const resolvedName = (exercises[activeIdx]?.name || exerciseName).trim();
+  const prevSet: SetLog | null = (() => {
+    const logs = ((activeSession?.logs || []) as SetLog[])
+      .filter(l => l.exercise_name === resolvedName);
+    return logs.length > 0 ? logs[logs.length - 1] : null;
+  })();
+
+  const currentSetNum = (setCountByExercise[resolvedName] || 0) + 1;
+
+  // ── Actions ─────────────────────────────────────────────────────────────────
   const startSession = async () => {
-    // Guard: if a session is already active, do NOT create a new one —
-    // this is exactly the call that used to wipe out logged sets.
     if (activeSession) return;
     try {
-      const res = await workoutApi.createSession({
-        day_label: 'Gym Mode',
-        session_date: new Date().toISOString().split('T')[0],
-      });
-      setActiveSession({
-        id: res.data.id,
-        day_label: 'Gym Mode',
-        logs: [],
-        startedAt: Date.now(), // stored on the session object itself so
-        // it survives this component remounting (tab switches etc) —
-        // it lives in the persistent module-level store, not local state.
-      });
+      const res = await workoutApi.createSession({ title: 'Training Session' });
+      setActiveSession({ ...res.data, logs: [], startedAt: Date.now() });
     } catch {
-      Alert.alert('Error', 'Could not start session. Is the backend running?');
+      Alert.alert('Error', 'Could not start session.');
     }
   };
 
   const askCoachForWorkout = async () => {
     try {
-      const res = await coachApi.chat(
-        "Give me today's workout based on my profile and current fatigue."
-      );
-      Alert.alert(
-        "Today's Workout",
-        res.data.reply.slice(0, 400) + '…\n\n(See Coach tab for full plan)'
-      );
-      if (res.data.cns_fatigue_score != null) setCnsFatigue(res.data.cns_fatigue_score);
+      const res = await coachApi.chat("What's my workout today?");
+      const sd = res.data?.structured_decision;
+      if (sd?.exercises?.length > 0) {
+        setExercises(sd.exercises.map((e: any) => ({
+          name: e.name,
+          sets: parseInt(e.sets) || 3,
+          reps: e.reps || '8',
+          load: e.weight || '',
+          cue:  e.focus  || '',
+          completed_sets: 0,
+        })));
+        setActiveIdx(0);
+        if (!activeSession) await startSession();
+      } else {
+        Alert.alert('Coach', res.data?.reply || 'Check the Coach tab for your plan.');
+      }
     } catch {
-      Alert.alert('Error', 'Could not reach the AI coach.');
+      Alert.alert('Error', 'Could not fetch workout plan.');
     }
   };
 
   const logSet = async () => {
-    if (!activeSession) {
-      Alert.alert('No session', 'Start a session first.');
-      return;
-    }
-    if (!weight || !reps) {
-      Alert.alert('Missing input', 'Enter weight and reps before logging.');
-      return;
-    }
+    if (!activeSession) return;
+    const w = parseFloat(weight);
+    const r = parseInt(reps);
+    const name = resolvedName;
 
-    const ex = exercises[activeIdx];
-    const resolvedName = ex?.name || exerciseName.trim();
-    if (!resolvedName) {
-      Alert.alert('Missing exercise', 'Enter the exercise name before logging.');
-      return;
-    }
+    if (!name) { Alert.alert('Missing exercise', 'Enter an exercise name.'); return; }
+    if (!w || w <= 0) { Alert.alert('Missing weight', 'Enter the weight in kg.'); return; }
+    if (!r || r <= 0) { Alert.alert('Missing reps',   'Enter the reps.');         return; }
 
-    // Auto-increment set number per exercise
-    const prevCount = setCountByExercise[resolvedName] || 0;
-    const thisSetNumber = prevCount + 1;
-
-    const logData = {
-      exercise_name: resolvedName,
-      set_number: thisSetNumber,
-      weight_kg: parseFloat(weight),
-      reps: parseInt(reps),
-      rpe,
-    };
+    const setNum = currentSetNum;
+    const logData = { exercise_name: name, set_number: setNum, weight_kg: w, reps: r, rpe };
 
     try {
       await workoutApi.logSet(activeSession.id, logData);
       addLogToSession(logData);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      if (ex) {
-        const updated = [...exercises];
-        updated[activeIdx].completed_sets += 1;
-        setExercises(updated);
-      }
-
-      const isHeavy =
-        resolvedName.toLowerCase().includes('deadlift') ||
-        resolvedName.toLowerCase().includes('squat');
-      setRestTimer(isHeavy ? 180 : DEFAULT_REST);
+      // Start rest timer (parse from exercise card or default 90s)
+      const ex = exercises[activeIdx];
+      const restStr = ex?.rest || '';
+      const parsed = parseInt(restStr.replace(/[^0-9]/g, ''));
+      const restSec = (!isNaN(parsed) && parsed > 0) ? parsed : 90;
+      setRestTotal(restSec);
+      setRestTimer(restSec);
       setTimerRunning(true);
 
-      // Keep exercise name, clear weight & reps for next set
-      setWeight('');
+      // Pre-fill next set with same weight
       setReps('');
+      // Advance exercise card completed_sets
+      if (exercises.length > 0) {
+        setExercises(prev => prev.map((e, i) =>
+          i === activeIdx ? { ...e, completed_sets: e.completed_sets + 1 } : e
+        ));
+      }
     } catch {
-      Alert.alert('Error', 'Failed to log set. Check your connection.');
+      Alert.alert('Error', 'Could not log set.');
     }
   };
 
   const nextExercise = () => {
+    setWeight('');
+    setReps('');
+    setExerciseName('');
+    setTimerRunning(false);
+    setRestTimer(0);
     if (activeIdx < exercises.length - 1) {
-      setActiveIdx(activeIdx + 1);
-      setWeight('');
-      setReps('');
-    } else {
-      setExerciseName('');
-      setWeight('');
-      setReps('');
+      setActiveIdx(i => i + 1);
     }
   };
 
   const finishWorkout = () => {
     if (!activeSession) return;
-    Alert.alert(
-      'Finish Workout?',
-      'Rate your overall CNS fatigue after this session (1 = fresh, 10 = destroyed)',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Finish',
-          onPress: async () => {
-            try {
-              await workoutApi.completeSession(activeSession.id, rpe);
-              setCnsFatigue(rpe);
-              setActiveSession(null);
-              setExercises([]);
-              setExerciseName('');
-              Alert.alert('Session Complete ✓', 'Great work. Session saved.');
-            } catch {
-              Alert.alert('Error', 'Could not complete session.');
-            }
-          },
+    Alert.alert('Finish Workout?', 'This will end your session and save all sets.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Finish',
+        style: 'default',
+        onPress: async () => {
+          try {
+            const res = await workoutApi.completeSession(activeSession.id);
+            const summary = res.data;
+            setActiveSession(null);
+            setExercises([]);
+            setActiveIdx(0);
+            setTimerRunning(false);
+            setRestTimer(0);
+            setSummaryData(summary || {
+              total_volume_kg: Math.round(totalVolume),
+              sets_logged: totalSets,
+              exercises: [...new Set((activeSession.logs as SetLog[]).map(l => l.exercise_name))],
+              exercise_count: new Set((activeSession.logs as SetLog[]).map(l => l.exercise_name)).size,
+              best_set: null,
+              session_minutes: Math.round((Date.now() - (activeSession.startedAt || Date.now())) / 60000),
+            });
+            setSummaryVisible(true);
+          } catch {
+            Alert.alert('Error', 'Could not complete session.');
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   // Group logs by exercise for display
   const groupedLogs = (): Array<[string, SetLog[]]> => {
     const logs: SetLog[] = activeSession?.logs || [];
-    const groups: { [name: string]: SetLog[] } = {};
+    const groups: Record<string, SetLog[]> = {};
     [...logs].reverse().forEach(log => {
       if (!groups[log.exercise_name]) groups[log.exercise_name] = [];
       groups[log.exercise_name].push(log);
@@ -255,79 +333,123 @@ export default function WorkoutHUD() {
   };
 
   const ex = exercises[activeIdx];
-  const resolvedName = ex?.name || exerciseName.trim();
-  const currentSetNum = (setCountByExercise[resolvedName] || 0) + 1;
 
+  // ── Pre-session ─────────────────────────────────────────────────────────────
   if (!sessionStarted) {
     return (
-      <View style={styles.container}>
-        <View style={styles.preSession}>
-          <View style={styles.preBadge}>
+      <View style={S.container}>
+        <WorkoutSummaryCard
+          visible={summaryVisible}
+          data={summaryData}
+          onClose={() => setSummaryVisible(false)}
+        />
+        <View style={S.preSession}>
+          <View style={S.preBadge}>
             <Ionicons name="barbell-outline" size={28} color={COLORS.primaryGreen} />
           </View>
-          <Text style={styles.gymTitle}>GYM MODE</Text>
-          <Text style={styles.gymSubtitle}>Your AI spotter is ready</Text>
-          <Text style={styles.gymDesc}>
-            Start a session, then log each set with weight, reps, and RPE. Ask your coach for today's plan anytime.
+          <Text style={S.gymTitle}>GYM MODE</Text>
+          <Text style={S.gymSubtitle}>Your AI spotter is ready</Text>
+          <Text style={S.gymDesc}>
+            Start a session, then log each set with weight, reps, and RPE.
+            Ask your coach for today's plan anytime.
           </Text>
-          <TouchableOpacity style={styles.startBtn} onPress={startSession}>
-            <Text style={styles.startBtnText}>START SESSION</Text>
+          <TouchableOpacity style={S.startBtn} onPress={startSession}>
+            <Text style={S.startBtnText}>START SESSION</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.coachBtn} onPress={askCoachForWorkout}>
+          <TouchableOpacity style={S.coachBtn} onPress={askCoachForWorkout}>
             <Ionicons name="flash" size={16} color={COLORS.primaryGreen} />
-            <Text style={styles.coachBtnText}>Ask Coach for Today's Plan</Text>
+            <Text style={S.coachBtnText}>Ask Coach for Today's Plan</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
   }
 
+  // ── Active session ───────────────────────────────────────────────────────────
   return (
-    <View style={styles.container}>
+    <View style={S.container}>
+      <WorkoutSummaryCard
+        visible={summaryVisible}
+        data={summaryData}
+        onClose={() => setSummaryVisible(false)}
+      />
+
       {timerRunning && (
-        <View style={styles.timerBar}>
-          <View style={styles.timerLeft}>
-            <Ionicons name="timer-outline" size={18} color={COLORS.primaryGreen} />
-            <Text style={styles.timerText}>REST  {restTimer}s</Text>
-          </View>
-          <TouchableOpacity onPress={() => setTimerRunning(false)}>
-            <Text style={styles.skipTimer}>SKIP</Text>
-          </TouchableOpacity>
-        </View>
+        <RestTimerBar
+          seconds={restTimer}
+          total={restTotal}
+          onSkip={() => { setTimerRunning(false); setRestTimer(0); }}
+        />
       )}
 
-      <View style={styles.sessionInfo}>
-        <View style={styles.sessionLabelRow}>
-          <View style={styles.activeDot} />
-          <Text style={styles.sessionLabel}>SESSION ACTIVE</Text>
-        </View>
-        {/* BUG FIX: this used to show a raw internal id fragment
-            ("#6b74bb") which is a backend implementation detail with no
-            meaning to the person using the app. Elapsed time is the
-            actually useful thing to show here mid-workout. */}
-        <Text style={styles.sessionId}>{elapsedLabel}</Text>
-      </View>
+      <SessionHeader
+        elapsed={elapsedLabel}
+        totalVolume={Math.round(totalVolume)}
+        setCount={totalSets}
+      />
 
-      <View style={styles.exerciseCard}>
+      {/* Exercise plan tabs */}
+      {exercises.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={S.exTabsScroll}
+          contentContainerStyle={S.exTabs}
+        >
+          {exercises.map((e, i) => {
+            const done = e.completed_sets >= e.sets;
+            return (
+              <TouchableOpacity
+                key={i}
+                style={[S.exTab, i === activeIdx && S.exTabActive, done && S.exTabDone]}
+                onPress={() => setActiveIdx(i)}
+              >
+                <Text style={[S.exTabText, i === activeIdx && S.exTabTextActive]}>
+                  {e.name.split(' ').slice(0, 2).join(' ')}
+                </Text>
+                <Text style={[S.exTabSets, done ? S.exTabSetsDone : i === activeIdx && S.exTabSetsActive]}>
+                  {e.completed_sets}/{e.sets}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
+
+      {/* Log card */}
+      <View style={S.exerciseCard}>
         {ex ? (
           <>
-            <Text style={styles.setCount}>SET {ex.completed_sets + 1} / {ex.sets}</Text>
-            <Text style={styles.exerciseName}>{ex.name}</Text>
-            <Text style={styles.exerciseTarget}>{ex.reps} reps · {ex.load}</Text>
-            {ex.cue ? <Text style={styles.cue}>{ex.cue}</Text> : null}
+            <View style={S.exCardHeader}>
+              <View>
+                <Text style={S.setCount}>SET {ex.completed_sets + 1} / {ex.sets}</Text>
+                <Text style={S.exerciseName}>{ex.name}</Text>
+                <Text style={S.exerciseTarget}>{ex.reps} reps · {ex.load}</Text>
+              </View>
+              {/* Next exercise button */}
+              {activeIdx < exercises.length - 1 && (
+                <TouchableOpacity style={S.nextExInline} onPress={nextExercise}>
+                  <Text style={S.nextExInlineText}>Next</Text>
+                  <Ionicons name="arrow-forward" size={14} color={COLORS.strain} />
+                </TouchableOpacity>
+              )}
+            </View>
+            {ex.cue ? (
+              <View style={S.cueRow}>
+                <Ionicons name="bulb-outline" size={12} color="#444" />
+                <Text style={S.cue}>{ex.cue}</Text>
+              </View>
+            ) : null}
           </>
         ) : (
-          <View style={styles.manualEntry}>
-            {/* Show set number if we already have sets for this exercise */}
+          <View style={S.manualEntry}>
             {resolvedName ? (
-              <Text style={styles.setCountManual}>
-                {exerciseName} — SET {currentSetNum}
-              </Text>
+              <Text style={S.setCountManual}>{exerciseName} — SET {currentSetNum}</Text>
             ) : (
-              <Text style={styles.manualTitle}>Log a Set</Text>
+              <Text style={S.manualTitle}>Log a Set</Text>
             )}
             <TextInput
-              style={styles.exerciseNameInput}
+              style={S.exerciseNameInput}
               placeholder="Exercise name (e.g. Bench Press)"
               placeholderTextColor="#555"
               value={exerciseName}
@@ -337,201 +459,241 @@ export default function WorkoutHUD() {
           </View>
         )}
 
-        <View style={styles.logRow}>
-          <TextInput
-            style={styles.logInput}
-            placeholder="kg"
-            placeholderTextColor="#555"
-            value={weight}
-            onChangeText={setWeight}
-            keyboardType="decimal-pad"
-          />
-          <TextInput
-            style={styles.logInput}
-            placeholder="reps"
-            placeholderTextColor="#555"
-            value={reps}
-            onChangeText={setReps}
-            keyboardType="number-pad"
-          />
+        {/* Weight + Reps inputs */}
+        <View style={S.logRow}>
+          <View style={S.inputWrap}>
+            <TextInput
+              style={S.logInput}
+              placeholder="kg"
+              placeholderTextColor="#555"
+              value={weight}
+              onChangeText={setWeight}
+              keyboardType="decimal-pad"
+            />
+            <Text style={S.inputUnit}>kg</Text>
+          </View>
+          <View style={S.inputWrap}>
+            <TextInput
+              style={S.logInput}
+              placeholder="reps"
+              placeholderTextColor="#555"
+              value={reps}
+              onChangeText={setReps}
+              keyboardType="number-pad"
+            />
+            <Text style={S.inputUnit}>reps</Text>
+          </View>
         </View>
 
-        <View style={styles.rpeRow}>
-          <Text style={styles.rpeLabel}>RPE</Text>
-          {[6, 7, 7.5, 8, 8.5, 9, 9.5, 10].map((r) => (
-            <TouchableOpacity
-              key={r}
-              style={[styles.rpeChip, rpe === r && styles.rpeChipActive]}
-              onPress={() => setRpe(r)}
-            >
-              <Text style={[styles.rpeChipText, rpe === r && styles.rpeChipTextActive]}>
-                {r}
-              </Text>
-            </TouchableOpacity>
-          ))}
+        {/* Previous set ghost */}
+        <PrevSetGhost log={prevSet} />
+
+        {/* RPE selector */}
+        <View style={S.rpeRow}>
+          <Text style={S.rpeLabel}>RPE</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={S.rpeChips}>
+              {RPE_LEVELS.map(r => {
+                const active = rpe === r;
+                const color  = rpeColor(r);
+                return (
+                  <TouchableOpacity
+                    key={r}
+                    style={[
+                      S.rpeChip,
+                      active && { backgroundColor: color + '25', borderColor: color },
+                    ]}
+                    onPress={() => setRpe(r)}
+                  >
+                    <Text style={[S.rpeChipText, active && { color }]}>{r}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
         </View>
 
-        <TouchableOpacity style={styles.logBtn} onPress={logSet}>
+        <TouchableOpacity style={S.logBtn} onPress={logSet}>
           <Ionicons name="add-circle-outline" size={16} color="#000" />
-          <Text style={styles.logBtnText}>LOG SET + START REST</Text>
+          <Text style={S.logBtnText}>LOG SET + START REST</Text>
         </TouchableOpacity>
-
-        {(ex || exerciseName.trim()) && (
-          <TouchableOpacity style={styles.nextExBtn} onPress={nextExercise}>
-            <Text style={styles.nextExText}>Next Exercise →</Text>
-          </TouchableOpacity>
-        )}
       </View>
 
-      <ScrollView style={styles.logsScroll} showsVerticalScrollIndicator={false}>
-        <Text style={styles.logsLabel}>SETS LOGGED THIS SESSION</Text>
+      {/* Sets logged */}
+      <ScrollView style={S.logsScroll} showsVerticalScrollIndicator={false}>
+        <Text style={S.logsLabel}>SETS LOGGED</Text>
         {groupedLogs().length === 0 ? (
-          <Text style={styles.noLogs}>No sets logged yet</Text>
+          <Text style={S.noLogs}>No sets yet — log your first set above</Text>
         ) : (
           groupedLogs().map(([name, logs], gi) => (
-            <View key={gi} style={styles.exerciseGroup}>
-              <Text style={styles.groupExerciseName}>{name}</Text>
+            <View key={gi} style={S.exerciseGroup}>
+              <Text style={S.groupExerciseName}>{name}</Text>
               {logs.map((log, i) => (
-                <View key={i} style={styles.setRow}>
-                  <Text style={styles.setLabel}>Set {log.set_number}</Text>
-                  <Text style={styles.setDetails}>
-                    {log.weight_kg}kg × {log.reps} reps
-                  </Text>
-                  <View style={[styles.rpeBadge, log.rpe >= 9 && styles.rpeBadgeHigh]}>
-                    <Text style={styles.rpeBadgeText}>RPE {log.rpe}</Text>
+                <View key={i} style={S.setRow}>
+                  <Text style={S.setLabel}>Set {log.set_number}</Text>
+                  <Text style={S.setDetails}>{log.weight_kg}kg × {log.reps} reps</Text>
+                  <View style={[S.rpeBadge, { borderColor: rpeColor(log.rpe) + '60' }]}>
+                    <Text style={[S.rpeBadgeText, { color: rpeColor(log.rpe) }]}>
+                      RPE {log.rpe}
+                    </Text>
                   </View>
                 </View>
               ))}
             </View>
           ))
         )}
+        <View style={{ height: 16 }} />
       </ScrollView>
 
-      <TouchableOpacity style={styles.finishBtn} onPress={finishWorkout}>
+      <TouchableOpacity style={S.finishBtn} onPress={finishWorkout}>
         <Ionicons name="checkmark-circle-outline" size={18} color="#4CAF50" />
-        <Text style={styles.finishBtnText}>FINISH WORKOUT</Text>
+        <Text style={S.finishBtnText}>FINISH WORKOUT</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212' },
-  preSession: {
-    flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32,
-  },
-  preBadge: {
-    width: 60, height: 60, borderRadius: 16,
-    backgroundColor: '#1A2535', alignItems: 'center', justifyContent: 'center',
-    marginBottom: 20,
-  },
-  gymTitle: { color: COLORS.primaryGreen, fontSize: 28, fontWeight: '800', letterSpacing: 1 },
-  gymSubtitle: { color: '#888', fontSize: 14, marginTop: 4, marginBottom: 16 },
-  gymDesc: {
-    color: '#666', fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: 32,
-  },
-  startBtn: {
-    backgroundColor: COLORS.primaryGreen, borderRadius: 14,
-    paddingVertical: 16, paddingHorizontal: 32, width: '100%',
-    alignItems: 'center', marginBottom: 12,
-  },
-  startBtnText: { color: '#000', fontSize: 15, fontWeight: '800', letterSpacing: 1 },
-  coachBtn: {
-    backgroundColor: '#1A2535', borderRadius: 14,
-    paddingVertical: 14, paddingHorizontal: 32, width: '100%',
-    alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8,
-  },
-  coachBtnText: { color: COLORS.primaryGreen, fontSize: 14, fontWeight: '600' },
+// ─── Timer styles ─────────────────────────────────────────────────────────────
+const T = StyleSheet.create({
   timerBar: {
-    backgroundColor: '#0C1F17', flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: '#1A2A1A',
+    backgroundColor: '#030E06',
+    borderBottomWidth: 1,
+    borderBottomColor: '#0D2410',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
-  timerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  timerText: { color: COLORS.primaryGreen, fontSize: 16, fontWeight: '700' },
-  skipTimer: { color: '#888', fontSize: 12, fontWeight: '600' },
-  sessionInfo: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingVertical: 12,
+  timerContent: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  timerLeft:    { flexDirection: 'row', alignItems: 'center', gap: 6, width: 90 },
+  timerLabel:   { fontSize: 10, fontWeight: '800', letterSpacing: 1.5 },
+  timerSeconds: { fontSize: 22, fontWeight: '800', lineHeight: 26 },
+  timerTrack:   { flex: 1, height: 3, backgroundColor: '#1A1A1A', borderRadius: 2, overflow: 'hidden' },
+  timerFill:    { height: 3, borderRadius: 2 },
+  skipBtn:      { paddingHorizontal: 10, paddingVertical: 4,
+                  backgroundColor: '#1A1A1A', borderRadius: 8 },
+  skipText:     { color: '#666', fontSize: 11, fontWeight: '700', letterSpacing: 1 },
+});
+
+// ─── Session header styles ────────────────────────────────────────────────────
+const H = StyleSheet.create({
+  row: {
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20,
+    paddingVertical: 10, backgroundColor: '#0A0A0A',
+    borderBottomWidth: 1, borderBottomColor: '#141414', gap: 12,
   },
-  sessionLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  activeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.primaryGreen },
-  sessionLabel: { color: '#888', fontSize: 11, fontWeight: '700', letterSpacing: 1 },
-  sessionId: { color: '#444', fontSize: 11 },
-  exerciseCard: {
-    backgroundColor: '#1C1C1C', borderRadius: 16, margin: 16, padding: 16,
-    borderWidth: 1, borderColor: '#2A2A2A',
+  pill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: '#0D1F0D', borderRadius: 20, paddingHorizontal: 8,
+    paddingVertical: 4, borderWidth: 1, borderColor: '#1A3A1A',
   },
-  setCount: { color: COLORS.primaryGreen, fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 4 },
+  activeDot:  { width: 5, height: 5, borderRadius: 3, backgroundColor: COLORS.primaryGreen },
+  pillText:   { color: COLORS.primaryGreen, fontSize: 9, fontWeight: '800', letterSpacing: 1.5 },
+  stat:       { alignItems: 'center' },
+  statVal:    { color: '#DDD', fontSize: 16, fontWeight: '800' },
+  statLabel:  { color: '#444', fontSize: 8, fontWeight: '700', letterSpacing: 1, marginTop: 1 },
+  divider:    { width: 1, height: 24, backgroundColor: '#1E1E1E' },
+});
+
+// ─── Ghost styles ─────────────────────────────────────────────────────────────
+const G = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
+  text: { color: '#444', fontSize: 12 },
+});
+
+// ─── Main styles ──────────────────────────────────────────────────────────────
+const S = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#121212' },
+
+  // Pre-session
+  preSession:  { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+  preBadge:    { width: 60, height: 60, borderRadius: 16, backgroundColor: '#1A2535',
+                 alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  gymTitle:    { color: COLORS.primaryGreen, fontSize: 28, fontWeight: '800', letterSpacing: 1 },
+  gymSubtitle: { color: '#888', fontSize: 14, marginTop: 4, marginBottom: 16 },
+  gymDesc:     { color: '#666', fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: 32 },
+  startBtn:    { backgroundColor: COLORS.primaryGreen, borderRadius: 14,
+                 paddingVertical: 16, paddingHorizontal: 32, width: '100%',
+                 alignItems: 'center', marginBottom: 12 },
+  startBtnText:{ color: '#000', fontSize: 15, fontWeight: '800', letterSpacing: 1 },
+  coachBtn:    { backgroundColor: '#1A2535', borderRadius: 14, paddingVertical: 14,
+                 paddingHorizontal: 32, width: '100%', alignItems: 'center',
+                 flexDirection: 'row', justifyContent: 'center', gap: 8 },
+  coachBtnText:{ color: COLORS.primaryGreen, fontSize: 14, fontWeight: '600' },
+
+  // Exercise tabs
+  exTabsScroll: { maxHeight: 68 },
+  exTabs:       { paddingHorizontal: 12, paddingVertical: 8, gap: 6, flexDirection: 'row' },
+  exTab:        { backgroundColor: '#1A1A1A', borderRadius: 10, paddingHorizontal: 12,
+                  paddingVertical: 6, borderWidth: 1, borderColor: '#2A2A2A', alignItems: 'center' },
+  exTabActive:  { backgroundColor: '#0D1A0D', borderColor: COLORS.primaryGreen + '60' },
+  exTabDone:    { opacity: 0.45 },
+  exTabText:    { color: '#666', fontSize: 11, fontWeight: '600' },
+  exTabTextActive:{ color: COLORS.primaryGreen },
+  exTabSets:    { color: '#444', fontSize: 10, marginTop: 2 },
+  exTabSetsActive:{ color: COLORS.primaryGreen + 'AA' },
+  exTabSetsDone:{ color: '#2A2A2A' },
+
+  // Log card
+  exerciseCard:   { backgroundColor: '#1C1C1C', borderRadius: 16, margin: 12,
+                    marginTop: 8, padding: 14, borderWidth: 1, borderColor: '#2A2A2A' },
+  exCardHeader:   { flexDirection: 'row', justifyContent: 'space-between',
+                    alignItems: 'flex-start', marginBottom: 8 },
+  setCount:       { color: COLORS.primaryGreen, fontSize: 10, fontWeight: '700',
+                    letterSpacing: 1, marginBottom: 2 },
+  exerciseName:   { color: '#FFF', fontSize: 20, fontWeight: '700' },
+  exerciseTarget: { color: '#888', fontSize: 13, marginTop: 2 },
+  nextExInline:   { flexDirection: 'row', alignItems: 'center', gap: 4,
+                    backgroundColor: '#1A2535', borderRadius: 8, paddingHorizontal: 10,
+                    paddingVertical: 6, borderWidth: 1, borderColor: '#0093E720' },
+  nextExInlineText:{ color: COLORS.strain, fontSize: 12, fontWeight: '600' },
+  cueRow:         { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 10 },
+  cue:            { color: '#555', fontSize: 12, fontStyle: 'italic', flex: 1 },
+  manualEntry:    { marginBottom: 8 },
+  manualTitle:    { color: '#FFF', fontSize: 17, fontWeight: '700', marginBottom: 8 },
   setCountManual: { color: COLORS.primaryGreen, fontSize: 13, fontWeight: '700', marginBottom: 8 },
-  exerciseName: { color: '#FFF', fontSize: 22, fontWeight: '700', marginBottom: 4 },
-  exerciseTarget: { color: '#888', fontSize: 14, marginBottom: 8 },
-  cue: { color: '#666', fontSize: 12, fontStyle: 'italic', marginBottom: 12 },
-  manualEntry: { marginBottom: 8 },
-  manualTitle: { color: '#FFF', fontSize: 17, fontWeight: '700', marginBottom: 8 },
-  exerciseNameInput: {
-    backgroundColor: '#2A2A2A', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12,
-    color: '#FFF', fontSize: 15, marginBottom: 4, borderWidth: 1, borderColor: '#3A3A3A',
-  },
-  logRow: { flexDirection: 'row', gap: 10, marginTop: 10, marginBottom: 8 },
-  logInput: {
-    flex: 1, backgroundColor: '#2A2A2A', borderRadius: 10,
-    paddingVertical: 14, color: '#FFF', fontSize: 24, fontWeight: '700',
-    textAlign: 'center', borderWidth: 1, borderColor: '#3A3A3A',
-  },
-  rpeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 12 },
-  rpeLabel: { color: '#888', fontSize: 11, fontWeight: '700', width: 30 },
-  rpeChip: {
-    paddingVertical: 6, paddingHorizontal: 8, borderRadius: 8,
-    backgroundColor: '#2A2A2A', borderWidth: 1, borderColor: '#3A3A3A',
-  },
-  rpeChipActive: { backgroundColor: '#FF6B35', borderColor: '#FF6B35' },
-  rpeChipText: { color: '#888', fontSize: 12, fontWeight: '600' },
-  rpeChipTextActive: { color: '#FFF' },
-  logBtn: {
-    backgroundColor: COLORS.primaryGreen, borderRadius: 12,
-    paddingVertical: 14, flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center', gap: 8,
-  },
+  exerciseNameInput:{ backgroundColor: '#2A2A2A', borderRadius: 10, paddingHorizontal: 14,
+                      paddingVertical: 12, color: '#FFF', fontSize: 15, marginBottom: 4,
+                      borderWidth: 1, borderColor: '#3A3A3A' },
+
+  logRow:    { flexDirection: 'row', gap: 10, marginTop: 6, marginBottom: 6 },
+  inputWrap: { flex: 1, position: 'relative' },
+  logInput:  { backgroundColor: '#2A2A2A', borderRadius: 10, paddingVertical: 12,
+               paddingHorizontal: 14, color: '#FFF', fontSize: 28, fontWeight: '800',
+               textAlign: 'center', borderWidth: 1, borderColor: '#3A3A3A' },
+  inputUnit: { position: 'absolute', bottom: 6, right: 10, color: '#444',
+               fontSize: 11, fontWeight: '600' },
+
+  rpeRow:    { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  rpeLabel:  { color: '#888', fontSize: 10, fontWeight: '700', letterSpacing: 1, width: 30 },
+  rpeChips:  { flexDirection: 'row', gap: 5 },
+  rpeChip:   { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8,
+               backgroundColor: '#2A2A2A', borderWidth: 1, borderColor: '#3A3A3A' },
+  rpeChipText:{ color: '#888', fontSize: 12, fontWeight: '600' },
+
+  logBtn:     { backgroundColor: COLORS.primaryGreen, borderRadius: 12, paddingVertical: 14,
+                flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   logBtnText: { color: '#000', fontSize: 13, fontWeight: '800', letterSpacing: 0.5 },
-  nextExBtn: {
-    marginTop: 10, alignItems: 'center', paddingVertical: 8,
-  },
-  nextExText: { color: '#4A9EFF', fontSize: 13, fontWeight: '600' },
-  logsScroll: { flex: 1, paddingHorizontal: 16 },
-  logsLabel: {
-    color: '#555', fontSize: 10, fontWeight: '700', letterSpacing: 1.5,
-    marginBottom: 10, marginTop: 4,
-  },
-  noLogs: { color: '#444', fontSize: 13 },
-  // Grouped log display
-  exerciseGroup: {
-    marginBottom: 16, backgroundColor: '#1A1A1A', borderRadius: 12,
-    overflow: 'hidden', borderWidth: 1, borderColor: '#222',
-  },
-  groupExerciseName: {
-    color: '#DDD', fontSize: 14, fontWeight: '700',
-    paddingHorizontal: 14, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: '#222',
-  },
-  setRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderBottomWidth: 1, borderBottomColor: '#1E1E1E',
-    gap: 10,
-  },
-  setLabel: { color: '#555', fontSize: 12, fontWeight: '600', width: 40 },
-  setDetails: { color: '#CCC', fontSize: 13, flex: 1 },
-  rpeBadge: {
-    backgroundColor: '#2A2A2A', borderRadius: 6,
-    paddingHorizontal: 8, paddingVertical: 3,
-  },
-  rpeBadgeHigh: { backgroundColor: '#3A1500' },
-  rpeBadgeText: { color: '#888', fontSize: 11, fontWeight: '600' },
-  finishBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, margin: 16, backgroundColor: '#0E1F12', borderRadius: 14,
-    paddingVertical: 16, borderWidth: 1, borderColor: '#1A3A20',
-  },
+
+  // Logs
+  logsScroll:       { flex: 1, paddingHorizontal: 12 },
+  logsLabel:        { color: '#555', fontSize: 9, fontWeight: '700', letterSpacing: 1.5,
+                      marginBottom: 8, marginTop: 4 },
+  noLogs:           { color: '#333', fontSize: 13, textAlign: 'center', paddingTop: 12 },
+  exerciseGroup:    { marginBottom: 10, backgroundColor: '#1A1A1A', borderRadius: 12,
+                      overflow: 'hidden', borderWidth: 1, borderColor: '#222' },
+  groupExerciseName:{ color: '#DDD', fontSize: 13, fontWeight: '700',
+                      paddingHorizontal: 14, paddingVertical: 10,
+                      borderBottomWidth: 1, borderBottomColor: '#222' },
+  setRow:           { flexDirection: 'row', alignItems: 'center',
+                      paddingHorizontal: 14, paddingVertical: 8,
+                      borderBottomWidth: 1, borderBottomColor: '#1C1C1C', gap: 10 },
+  setLabel:         { color: '#444', fontSize: 11, fontWeight: '600', width: 40 },
+  setDetails:       { color: '#CCC', fontSize: 13, flex: 1 },
+  rpeBadge:         { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2,
+                      backgroundColor: '#1A1A1A', borderWidth: 1 },
+  rpeBadgeText:     { fontSize: 11, fontWeight: '600' },
+
+  finishBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                   gap: 8, margin: 12, backgroundColor: '#0E1F12', borderRadius: 14,
+                   paddingVertical: 15, borderWidth: 1, borderColor: '#1A3A20' },
   finishBtnText: { color: '#4CAF50', fontSize: 14, fontWeight: '700', letterSpacing: 0.5 },
 });

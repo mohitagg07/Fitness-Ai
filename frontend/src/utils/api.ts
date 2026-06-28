@@ -158,6 +158,9 @@ export const workoutApi = {
     api.post(`/workouts/sessions/${sessionId}/logs`, data),
   getSessionLogs: (sessionId: string) =>
     api.get(`/workouts/sessions/${sessionId}/logs`),
+  // Returns weekly best weight for a given exercise (last N weeks)
+  getStrengthProgression: (exercise: string, weeks = 8) =>
+    api.get('/workouts/strength-progression', { params: { exercise, weeks } }),
 };
 
 export const progressApi = {
@@ -207,3 +210,10 @@ export const dashboardApi = {
 };
 
 export default api;
+// Memory API — "What my coach knows" card, manual remember/forget
+export const memoryApi = {
+  getAll: () => api.get('/memory'),
+  add: (fact: string, category = 'general') =>
+    api.post('/memory', { fact, category }),
+  delete: (factId: string) => api.delete(`/memory/${factId}`),
+};

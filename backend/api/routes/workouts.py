@@ -405,3 +405,50 @@ async def get_session_logs(
         .execute()
     )
     return res.data
+
+@router.get("/strength-progression")
+async def get_strength_progression(
+    exercise: str,
+    weeks: int = 8,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Returns the weekly best weight (kg) for a given exercise over the last N weeks.
+    Used by StrengthProgressionChart on the Progress screen.
+    """
+    from datetime import date, timedelta
+    import math
+
+    sb = get_supabase()
+    cutoff = (date.today() - timedelta(weeks=weeks)).isoformat()
+
+    res = (
+        sb.table("exercise_logs")
+        .select("weight_kg, reps, logged_at")
+        .eq("user_id", current_user["user_id"])
+        .ilike("exercise_name", f"%{exercise}%")
+        .gte("logged_at", cutoff)
+        .order("logged_at")
+        .execute()
+    )
+
+    if not res.data:
+        return {"exercise": exercise, "data": []}
+
+    # Group by ISO week, take best weight per week
+    weeks_map: dict = {}
+    for row in res.data:
+        dt = date.fromisoformat(row["logged_at"][:10])
+        # ISO week key e.g. "2025-W03"
+        week_key = f"{dt.isocalendar()[0]}-W{dt.isocalendar()[1]:02d}"
+        w = row.get("weight_kg") or 0
+        if week_key not in weeks_map or w > weeks_map[week_key]["weight_kg"]:
+            weeks_map[week_key] = {
+                "week": week_key,
+                "weight_kg": w,
+                "reps": row.get("reps") or 0,
+                "date": row["logged_at"][:10],
+            }
+
+    data = sorted(weeks_map.values(), key=lambda x: x["week"])
+    return {"exercise": exercise, "data": data}
