@@ -209,6 +209,13 @@ export const dashboardApi = {
   getSummary: () => api.get('/dashboard/summary', { params: { local_hour: new Date().getHours() } }),
 };
 
+// Mission API — richer endpoint with proactive AI brief + pattern insights
+// Use this instead of dashboardApi.getSummary when you need the full
+// Coach Brain output (pattern_insights, proactive_brief, reasoning_steps).
+export const missionApi = {
+  getToday: () => api.get('/mission/today'),
+};
+
 export default api;
 // Memory API — "What my coach knows" card, manual remember/forget
 export const memoryApi = {
@@ -217,3 +224,12 @@ export const memoryApi = {
     api.post('/memory', { fact, category }),
   delete: (factId: string) => api.delete(`/memory/${factId}`),
 };
+
+// Weekly AI Review — GET /api/review/weekly
+export const reviewApi = {
+  getWeekly: (weeksAgo = 0) =>
+    api.get('/review/weekly', { params: { weeks_ago: weeksAgo } }),
+};
+
+// Pattern insights — already embedded in /api/mission/today as pattern_insights[]
+// Proactive brief — already embedded in /api/mission/today as proactive_brief{}

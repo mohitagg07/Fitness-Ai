@@ -21,9 +21,10 @@ import NutritionSearchModal from './NutritionSearchModal';
 import WeightChart from './WeightChart';
 import StrengthProgressionChart from './StrengthProgressionChart';
 import Logo from '../shared/Logo';
+import WeeklyReviewScreen from './WeeklyReviewScreen';
 import { SkeletonCard } from '../shared/LoadingOverlay';
 
-type Tab = 'body' | 'strength' | 'nutrition' | 'recovery';
+type Tab = 'body' | 'strength' | 'nutrition' | 'recovery' | 'review';
 
 // ─── Protein Adherence 7-day bar ──────────────────────────────────────────────
 function ProteinAdherenceBar({ history }: { history: any[] }) {
@@ -387,6 +388,7 @@ export default function ProgressScreen() {
     { key: 'strength',  label: 'Strength',  icon: 'barbell-outline' },
     { key: 'nutrition', label: 'Nutrition', icon: 'nutrition-outline' },
     { key: 'recovery',  label: 'Recovery',  icon: 'pulse-outline' },
+    { key: 'review',    label: 'Review',    icon: 'document-text-outline' },
   ];
 
   const targetCal = todayData?.targets?.calories || 2000;
@@ -568,8 +570,20 @@ export default function ProgressScreen() {
             </>
           )}
 
-          <View style={{ height: 40 }} />
+          {/* Review Tab — AI Weekly Coach Review */}
+          {activeTab === 'review' && (
+            <View style={{ flex: 1 }}>
+              <WeeklyReviewScreen />
+            </View>
+          )}
+
+          {activeTab !== 'review' && <View style={{ height: 40 }} />}
         </ScrollView>
+      )}
+
+      {/* When review tab active, don't use the outer ScrollView */}
+      {activeTab === 'review' && !loading && (
+        <WeeklyReviewScreen />
       )}
     </View>
   );

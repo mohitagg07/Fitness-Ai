@@ -17,9 +17,11 @@ import Logo from '../shared/Logo';
 import Svg, { Circle } from 'react-native-svg';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { dashboardApi, describeApiError } from '../../utils/api';
+import { dashboardApi, missionApi, describeApiError } from '../../utils/api';
 import { useStore } from '../../store';
 import { COLORS, recoveryColor as whoopRecoveryColor } from '../../theme/colors';
+import ProactiveBriefCard from './ProactiveBriefCard';
+import PatternInsightsCard from './PatternInsightsCard';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -44,6 +46,25 @@ interface DashboardSummary {
   protein_streak: number;
   motivation_message: string;
   sleep_goal: string | null;
+  pattern_insights?: Array<{
+    category: string;
+    severity: 'critical' | 'warning' | 'info';
+    title: string;
+    detail: string;
+    recommendation: string;
+    confidence: string;
+  }>;
+  proactive_brief?: {
+    coach_message: string;
+    todays_focus: string;
+    recommendation: string;
+    suggested_top_set: string | null;
+    confidence_pct: number;
+    confidence: string;
+    why_summary: string;
+    proactive_notices: string[];
+    reasoning_steps?: Array<{ label: string; finding: string; implication: string }>;
+  };
 }
 
 // ── Whoop-style zone coloring: green / yellow / red bands ────────────────
@@ -82,7 +103,13 @@ export default function DashboardScreen() {
   const loadData = useCallback(async () => {
     setErrorMsg(null);
     try {
-      const res = await dashboardApi.getSummary();
+      // Try mission endpoint first (has proactive_brief + pattern_insights)
+      let res;
+      try {
+        res = await missionApi.getToday();
+      } catch {
+        res = await dashboardApi.getSummary();
+      }
       setSummary(res.data);
       if (typeof res.data.cns_fatigue === 'number') {
         setCnsFatigue(res.data.cns_fatigue);
@@ -294,8 +321,21 @@ export default function DashboardScreen() {
 
 
 
-      {/* AI Insights card */}
-      {summary?.motivation_message && (
+      {/* Proactive AI Coach Brief — coach thinks before user types */}
+      {summary?.proactive_brief && (
+        <ProactiveBriefCard
+          brief={summary.proactive_brief}
+          firstName={firstName}
+        />
+      )}
+
+      {/* Pattern Detection Insights */}
+      {summary?.pattern_insights && summary.pattern_insights.length > 0 && (
+        <PatternInsightsCard insights={summary.pattern_insights} />
+      )}
+
+      {/* AI Insights card (motivation fallback) */}
+      {summary?.motivation_message && !summary?.proactive_brief && (
         <View style={styles.aiInsightsCard}>
           <View style={styles.aiInsightsHeader}>
             <Ionicons name="sparkles" size={13} color={COLORS.strainGlow} />
