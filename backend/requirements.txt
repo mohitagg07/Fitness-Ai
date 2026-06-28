@@ -14,18 +14,18 @@ passlib[bcrypt]
 
 # Database
 supabase
-websockets>=14
+websockets>=11,<13
 
-# AI / LLM (Groq only — removed openai and google-genai)
+# AI / LLM
 langchain
 langchain-groq
 langgraph
 
 # Vector DB
-# Pin >=1.0.0 — versions <0.5.0 used np.float_ which was removed in NumPy 2.0,
-# causing an AttributeError crash at import time on Render (and any env with NumPy 2.x).
-chromadb>=1.0.0
-numpy>=1.26,<3
+chromadb
 
 # HTTP
 httpx
+
+# Sentence embeddings (ChromaDB memory)
+sentence-transformers
