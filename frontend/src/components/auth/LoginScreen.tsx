@@ -5,11 +5,11 @@ import {
   Image, Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { authApi, profileApi } from '../../utils/api';
 import { actions } from '../../store';
 import { COLORS } from '../../theme/colors';
+import Logo from '../shared/Logo';
 
 // Free-to-use Unsplash photo (Victor Freitas) — purely decorative hero backdrop,
 // dimmed by the gradient overlay so it never competes with the form.
@@ -119,10 +119,9 @@ export default function AuthScreen() {
         <Animated.View style={{ opacity: fade, transform: [{ translateY: rise }] }}>
 
           {/* Logo */}
-          <LinearGradient colors={[COLORS.recoveryHigh, COLORS.strain]} style={styles.logoBadge}>
-            <Ionicons name="barbell" size={34} color={COLORS.background} />
-          </LinearGradient>
-          <Text style={styles.title}>NeuroFit AI</Text>
+          <View style={styles.logoWrap}>
+            <Logo size="lg" vertical />
+          </View>
           <Text style={styles.subtitle}>Your AI Gym Spotter</Text>
 
           {/* Toggle */}
@@ -239,14 +238,11 @@ const styles = StyleSheet.create({
     position: 'absolute', top: 0, left: 0, right: 0, height: '60%',
   },
   inner: { flexGrow: 1, justifyContent: 'center', padding: 28 },
-  logoBadge: {
-    width: 76, height: 76, borderRadius: 22,
-    alignItems: 'center', justifyContent: 'center',
+  logoWrap: {
     alignSelf: 'center', marginBottom: 14,
-    shadowColor: COLORS.recoveryHigh, shadowOpacity: 0.45, shadowRadius: 16,
+    shadowColor: COLORS.recoveryHigh, shadowOpacity: 0.3, shadowRadius: 16,
     shadowOffset: { width: 0, height: 6 }, elevation: 8,
   },
-  title: { color: COLORS.recoveryHigh, fontSize: 34, fontWeight: '800', textAlign: 'center', letterSpacing: 2 },
   subtitle: { color: COLORS.textSecondary, fontSize: 13, textAlign: 'center', marginBottom: 36, letterSpacing: 1 },
   toggle: {
     flexDirection: 'row',

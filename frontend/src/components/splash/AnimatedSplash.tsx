@@ -10,6 +10,7 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { COLORS } from '../../theme/colors';
+import Logo from '../shared/Logo';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const HERO_SIZE = Math.min(SCREEN_W * 0.78, 360);
@@ -81,10 +82,7 @@ export default function AnimatedSplash({ onFinished }: AnimatedSplashProps) {
       </Animated.View>
 
       <Animated.View style={[styles.textBlock, textStyle]}>
-        <Text style={styles.wordmark}>
-          NEURO<Text style={styles.wordmarkFit}>FIT</Text>
-          <Text style={styles.wordmarkAi}> AI</Text>
-        </Text>
+        <Logo size="xl" showBadge={false} />
         <Text style={styles.tagline}>AI GYM SPOTTER. NEVER LIFT ALONE.</Text>
       </Animated.View>
     </Animated.View>
@@ -106,18 +104,6 @@ const styles = StyleSheet.create({
   textBlock: {
     marginTop: 28,
     alignItems: 'center',
-  },
-  wordmark: {
-    fontSize: 30,
-    fontWeight: '800',
-    color: COLORS.text,
-    letterSpacing: 1,
-  },
-  wordmarkFit: {
-    color: COLORS.recoveryHigh, // #16EC06 — official WHOOP High Recovery green
-  },
-  wordmarkAi: {
-    color: COLORS.strain, // #0093E7 — official WHOOP Strain blue
   },
   tagline: {
     marginTop: 8,

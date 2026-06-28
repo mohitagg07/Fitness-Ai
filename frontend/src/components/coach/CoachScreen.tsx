@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { coachApi, describeApiError } from '../../utils/api';
 import { useStore } from '../../store';
 import { COLORS } from '../../theme/colors';
+import Logo from '../shared/Logo';
 
 const SUGGESTIONS = [
   "What's my workout today?",
@@ -293,13 +294,8 @@ export default function CoachScreen() {
     >
       {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerIcon}>
-          <Ionicons name="flash" size={20} color={COLORS.primaryGreen} />
-        </View>
-        <View>
-          <Text style={styles.headerTitle}>AI Coach</Text>
-          <Text style={styles.headerSub}>Your personal AI spotter</Text>
-        </View>
+        <Logo size="sm" />
+        <Text style={styles.headerSub}>AI Coach</Text>
       </View>
 
       {chatHistory.length === 0 ? (
@@ -321,7 +317,7 @@ export default function CoachScreen() {
         <FlatList
           ref={flatListRef}
           data={chatHistory}
-          keyExtractor={(_, i) => String(i)}
+          keyExtractor={(_: unknown, i: number) => String(i)}
           renderItem={renderMessage}
           contentContainerStyle={styles.messageList}
           showsVerticalScrollIndicator={false}
@@ -428,14 +424,9 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 20, paddingTop: 60, paddingBottom: 12,
     borderBottomWidth: 1, borderBottomColor: '#2A2A2A',
-    flexDirection: 'row', alignItems: 'center', gap: 12,
+    gap: 4,
   },
-  headerIcon: {
-    width: 36, height: 36, borderRadius: 10,
-    backgroundColor: '#1A2535', alignItems: 'center', justifyContent: 'center',
-  },
-  headerTitle: { color: '#FFF', fontSize: 20, fontWeight: '700' },
-  headerSub: { color: '#555', fontSize: 12, marginTop: 1 },
+  headerSub: { color: '#888', fontSize: 13, fontWeight: '600' },
   messageList: { padding: 16, paddingBottom: 8 },
   bubble: { marginBottom: 12, borderRadius: 16, padding: 14, maxWidth: '90%' },
   userBubble: { backgroundColor: '#1E3A5F', alignSelf: 'flex-end' },

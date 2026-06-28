@@ -29,6 +29,14 @@ interface ExerciseSetCount {
   [exerciseName: string]: number;
 }
 
+interface SetLog {
+  exercise_name: string;
+  set_number: number;
+  weight_kg: number;
+  reps: number;
+  rpe: number;
+}
+
 const DEFAULT_REST = 90;
 
 export default function WorkoutHUD() {
@@ -41,9 +49,27 @@ export default function WorkoutHUD() {
   const [weight, setWeight] = useState('');
   const [reps, setReps] = useState('');
   const [exerciseName, setExerciseName] = useState('');
-  const [sessionStarted, setSessionStarted] = useState(false);
-  // Track how many sets logged per exercise name
-  const [setCountByExercise, setSetCountByExercise] = useState<ExerciseSetCount>({});
+
+  // BUG FIX: `sessionStarted` and `setCountByExercise` used to be local
+  // component state (useState). That broke the moment the person
+  // navigated to another tab and back: WorkoutHUD unmounts on tab change
+  // and remounts fresh, resetting both to their initial values —
+  // sessionStarted back to false, set counts back to empty — even though
+  // the actual session data (`activeSession`, held in the persistent
+  // module-level store) was still sitting there untouched the whole time.
+  //
+  // The visible symptom: returning to the Workout tab always showed the
+  // "START SESSION" pre-session screen again. Tapping it (the only button
+  // available) called startSession(), which creates a BRAND NEW session
+  // on the backend and overwrites activeSession with empty logs: [] —
+  // that's the actual moment the previous session's logged sets were
+  // destroyed. It wasn't navigation deleting data; it was navigation
+  // forcing a flow that led to creating a second session on top of the
+  // first.
+  //
+  // Fix: both are now derived directly from activeSession, which already
+  // correctly survives navigation. There is no local copy to go stale.
+  const sessionStarted = !!activeSession;
 
   useEffect(() => {
     if (!timerRunning || restTimer <= 0) {
@@ -57,15 +83,54 @@ export default function WorkoutHUD() {
     return () => clearInterval(interval);
   }, [timerRunning, restTimer]);
 
+  // Tick every second while a session is active, purely to re-render so
+  // elapsedLabel below stays current. Harmless if the session has no
+  // startedAt (e.g. an older session created before this field existed).
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    if (!activeSession?.startedAt) return;
+    const interval = setInterval(() => forceTick((n) => n + 1), 1000);
+    return () => clearInterval(interval);
+  }, [activeSession?.startedAt]);
+
+  const elapsedLabel = (() => {
+    if (!activeSession?.startedAt) return '';
+    const totalSeconds = Math.max(0, Math.floor((Date.now() - activeSession.startedAt) / 1000));
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  })();
+
+  // Per-exercise set count, derived fresh from activeSession.logs every
+  // render — never goes stale, never needs resetting on remount or on
+  // finishing a session (there's nothing to reset; it just reflects
+  // whatever's actually in the session).
+  const setCountByExercise = (() => {
+    const counts: ExerciseSetCount = {};
+    const logs: SetLog[] = activeSession?.logs || [];
+    for (const log of logs) {
+      counts[log.exercise_name] = (counts[log.exercise_name] || 0) + 1;
+    }
+    return counts;
+  })();
+
   const startSession = async () => {
+    // Guard: if a session is already active, do NOT create a new one —
+    // this is exactly the call that used to wipe out logged sets.
+    if (activeSession) return;
     try {
       const res = await workoutApi.createSession({
         day_label: 'Gym Mode',
         session_date: new Date().toISOString().split('T')[0],
       });
-      setActiveSession({ id: res.data.id, day_label: 'Gym Mode', logs: [] });
-      setSessionStarted(true);
-      setSetCountByExercise({});
+      setActiveSession({
+        id: res.data.id,
+        day_label: 'Gym Mode',
+        logs: [],
+        startedAt: Date.now(), // stored on the session object itself so
+        // it survives this component remounting (tab switches etc) —
+        // it lives in the persistent module-level store, not local state.
+      });
     } catch {
       Alert.alert('Error', 'Could not start session. Is the backend running?');
     }
@@ -120,12 +185,6 @@ export default function WorkoutHUD() {
       addLogToSession(logData);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      // Update set counter for this exercise
-      setSetCountByExercise(prev => ({
-        ...prev,
-        [resolvedName]: thisSetNumber,
-      }));
-
       if (ex) {
         const updated = [...exercises];
         updated[activeIdx].completed_sets += 1;
@@ -172,10 +231,8 @@ export default function WorkoutHUD() {
               await workoutApi.completeSession(activeSession.id, rpe);
               setCnsFatigue(rpe);
               setActiveSession(null);
-              setSessionStarted(false);
               setExercises([]);
               setExerciseName('');
-              setSetCountByExercise({});
               Alert.alert('Session Complete ✓', 'Great work. Session saved.');
             } catch {
               Alert.alert('Error', 'Could not complete session.');
@@ -187,9 +244,9 @@ export default function WorkoutHUD() {
   };
 
   // Group logs by exercise for display
-  const groupedLogs = () => {
-    const logs = activeSession?.logs || [];
-    const groups: { [name: string]: typeof logs } = {};
+  const groupedLogs = (): Array<[string, SetLog[]]> => {
+    const logs: SetLog[] = activeSession?.logs || [];
+    const groups: { [name: string]: SetLog[] } = {};
     [...logs].reverse().forEach(log => {
       if (!groups[log.exercise_name]) groups[log.exercise_name] = [];
       groups[log.exercise_name].push(log);
@@ -244,7 +301,11 @@ export default function WorkoutHUD() {
           <View style={styles.activeDot} />
           <Text style={styles.sessionLabel}>SESSION ACTIVE</Text>
         </View>
-        <Text style={styles.sessionId}>#{activeSession?.id.slice(-6)}</Text>
+        {/* BUG FIX: this used to show a raw internal id fragment
+            ("#6b74bb") which is a backend implementation detail with no
+            meaning to the person using the app. Elapsed time is the
+            actually useful thing to show here mid-workout. */}
+        <Text style={styles.sessionId}>{elapsedLabel}</Text>
       </View>
 
       <View style={styles.exerciseCard}>

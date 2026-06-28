@@ -196,6 +196,65 @@ async def quick_log_from_search(
     if grams <= 0:
         raise HTTPException(400, "grams must be positive")
 
+    # BUG FIX: search results can include LOCAL Indian-food fallback
+    # entries (food_id like "IND001") added because FatSecret's free-tier
+    # dataset has very limited Indian food coverage (see
+    # _search_indian_foods below). Those synthetic IDs only exist in this
+    # app's own INDIAN_FOODS table — they are not real FatSecret food IDs.
+    # Quick-log was unconditionally calling FatSecret's food.get.v4 with
+    # whatever food_id it received, which correctly finds no serving data
+    # for an ID FatSecret has never seen ("No serving data found for this
+    # food", 404) — even though the search step had already shown the
+    # person real macro numbers for that exact item. Local IDs now resolve
+    # against the local table directly, scaled by grams, never touching
+    # FatSecret at all.
+    if food_id.startswith("IND"):
+        local_food = next((f for f in INDIAN_FOODS if f["food_id"] == food_id), None)
+        if not local_food:
+            raise HTTPException(404, "Food not found")
+
+        ratio = grams / 100  # INDIAN_FOODS values are all per-100g
+        calories = round(local_food["calories"] * ratio)
+        protein_g = round(local_food["protein_g"] * ratio, 1)
+        carbs_g = round(local_food["carbs_g"] * ratio, 1)
+        fat_g = round(local_food["fat_g"] * ratio, 1)
+
+        log_entry = NutritionCreate(
+            meal_name=meal_name or local_food["name"],
+            log_date=date.today(),
+            calories=calories,
+            protein_g=protein_g,
+            carbs_g=carbs_g,
+            fat_g=fat_g,
+        )
+
+        sb = get_supabase()
+        user_id = current_user["user_id"]
+        data = {k: v for k, v in log_entry.model_dump().items() if v is not None}
+        data["user_id"] = user_id
+        data["log_date"] = str(data["log_date"])
+
+        res = sb.table("nutrition_logs").insert(data).execute()
+        if not res.data:
+            raise HTTPException(500, "Failed to insert quick-log entry")
+
+        try:
+            profile, agent_state = await asyncio.to_thread(get_full_user_context, user_id)
+            await asyncio.to_thread(_update_protein_streak, user_id, profile, agent_state)
+        except Exception as e:
+            logger.warning(f"protein_streak update failed: {e}")
+
+        return {
+            "logged": res.data[0],
+            "computed_macros": {
+                "calories": calories,
+                "protein_g": protein_g,
+                "carbs_g": carbs_g,
+                "fat_g": fat_g,
+                "grams_used": grams,
+            },
+        }
+
     token = await _get_fatsecret_token()
 
     import httpx
