@@ -1,31 +1,46 @@
-# Core
+# backend/requirements.txt
+# ─────────────────────────────────────────────────────────────────────────────
+# CHANGES vs previous:
+#   • sentence-transformers now has a pinned version (was "===")
+#   • numpy pinned to <2.0 to avoid ChromaDB/NumPy 2.0 incompatibility
+#   • groq added explicitly (langchain-groq needs it at runtime)
+#   • langchain-core pinned to stable range
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Core web framework ───────────────────────────────────────────────────────
 fastapi==0.115.6
 starlette==0.41.3
 uvicorn[standard]==0.34.0
 python-multipart
 
-# Settings & Env
-pydantic
-pydantic-settings
+# ── Settings & env ───────────────────────────────────────────────────────────
+pydantic>=2.0,<3.0
+pydantic-settings>=2.0,<3.0
 
-# Auth & Security
+# ── Auth & security ──────────────────────────────────────────────────────────
 python-jose[cryptography]
 passlib[bcrypt]
 
-# Database
+# ── Database ─────────────────────────────────────────────────────────────────
 supabase
 websockets>=11,<13
 
-# AI / LLM
-langchain
-langchain-groq
-langgraph
+# ── AI / LLM ─────────────────────────────────────────────────────────────────
+groq>=0.9.0                     # runtime dep for langchain-groq
+langchain>=0.2.0,<0.4.0
+langchain-core>=0.2.0,<0.4.0
+langchain-groq>=0.1.6
+langgraph>=0.2.0,<0.3.0
 
-# Vector DB
-chromadb
+# ── Vector DB ────────────────────────────────────────────────────────────────
+chromadb>=0.5.0,<0.6.0
 
-# HTTP
-httpx
+# ── NumPy — MUST be <2.0 (ChromaDB uses deprecated NumPy 1.x API) ───────────
+numpy>=1.24.0,<2.0.0
 
-# Sentence embeddings (ChromaDB memory)
-sentence-transformers
+# ── Sentence embeddings (ChromaDB local memory) ──────────────────────────────
+sentence-transformers>=2.7.0,<3.0.0
+torch>=2.0.0                    # required by sentence-transformers
+
+# ── HTTP client ──────────────────────────────────────────────────────────────
+httpx>=0.27.0,<1.0.0

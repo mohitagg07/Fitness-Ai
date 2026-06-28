@@ -1,5 +1,19 @@
+// frontend/src/store/index.ts
+// CHANGES:
+//  1. ChatMessage now carries structured_decision?: any
+//  2. addChatMessage accepts the optional third arg
+//  3. Everything else untouched
+
 import { useState, useEffect } from 'react';
 import { storage } from '../utils/storage';
+
+// ── Types ──────────────────────────────────────────────────────────────────
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+  structured_decision?: any; // ← NEW: rendered as cards/tables in CoachScreen
+}
 
 let _state = {
   user: null as any,
@@ -9,11 +23,7 @@ let _state = {
   prs: {} as Record<string, number>,
   activeSession: null as any,
   cnsFatigue: 0,
-  chatHistory: [] as Array<{
-    role: 'user' | 'assistant';
-    content: string;
-    timestamp: Date;
-  }>,
+  chatHistory: [] as ChatMessage[],
 };
 
 type State = typeof _state;
@@ -30,6 +40,7 @@ export const actions = {
     await storage.setItem('neurofit_user', JSON.stringify(user));
     setState({ user, token });
   },
+
   async logout() {
     await storage.deleteItem('neurofit_token');
     await storage.deleteItem('neurofit_user');
@@ -39,12 +50,15 @@ export const actions = {
       activeSession: null, cnsFatigue: 0,
     });
   },
+
   setProfile(profile: any, injuries: any[], prs: any[]) {
     const prMap: Record<string, number> = {};
     prs.forEach((p: any) => { prMap[p.exercise_name] = p.weight_kg; });
     setState({ profile, injuries, prs: prMap });
   },
+
   setActiveSession(session: any) { setState({ activeSession: session }); },
+
   addLogToSession(log: any) {
     if (!_state.activeSession) return;
     setState({
@@ -54,12 +68,23 @@ export const actions = {
       },
     });
   },
+
   setCnsFatigue(score: number) { setState({ cnsFatigue: score }); },
-  addChatMessage(role: 'user' | 'assistant', content: string) {
+
+  // ← UPDATED: now accepts structured_decision as optional third arg
+  addChatMessage(
+    role: 'user' | 'assistant',
+    content: string,
+    structured_decision?: any,
+  ) {
     setState({
-      chatHistory: [..._state.chatHistory, { role, content, timestamp: new Date() }],
+      chatHistory: [
+        ..._state.chatHistory,
+        { role, content, timestamp: new Date(), structured_decision },
+      ],
     });
   },
+
   clearChat() { setState({ chatHistory: [] }); },
 };
 
