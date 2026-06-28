@@ -203,7 +203,7 @@ export const nutritionApi = {
 // mission text, recovery score, AI recommendations, and remaining (not
 // just target) calories/protein/water in a single response.
 export const dashboardApi = {
-  getSummary: () => api.get('/dashboard/summary'),
+  getSummary: () => api.get('/dashboard/summary', { params: { local_hour: new Date().getHours() } }),
 };
 
 export default api;

@@ -39,7 +39,8 @@ def _today_nutrition_consumed(user_id: str) -> dict:
 
 @router.get("/summary")
 async def get_dashboard_summary(
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    local_hour: int | None = None,  # FIXED: accept local hour from frontend
 ):
     # NOTE: every agent below does synchronous (blocking) Supabase I/O.
     # Calling them directly inside this `async def` route blocks FastAPI's
@@ -79,6 +80,7 @@ async def get_dashboard_summary(
             goal=goal,
             food_preference=food_pref,
             is_training_day=True,
+            local_hour=local_hour,
         ),
         asyncio.to_thread(_today_nutrition_consumed, user_id),
         asyncio.to_thread(run_workout_agent, user_id, preferred_time=profile.get("workout_time_preference")),

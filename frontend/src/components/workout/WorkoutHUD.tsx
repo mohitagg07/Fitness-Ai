@@ -1,5 +1,5 @@
 // NeuroFit AI — Workout HUD Screen
-// All emojis replaced with Ionicons.
+// FIXED: exercise name input, multi-exercise support, set saving
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -32,6 +32,8 @@ export default function WorkoutHUD() {
   const [rpe, setRpe] = useState(7);
   const [weight, setWeight] = useState('');
   const [reps, setReps] = useState('');
+  // FIX: exercise name field for manual entry
+  const [exerciseName, setExerciseName] = useState('');
   const [sessionStarted, setSessionStarted] = useState(false);
 
   useEffect(() => {
@@ -75,16 +77,26 @@ export default function WorkoutHUD() {
   };
 
   const logSet = async () => {
-    if (!activeSession || !weight || !reps) {
+    if (!activeSession) {
+      Alert.alert('No session', 'Start a session first.');
+      return;
+    }
+    if (!weight || !reps) {
       Alert.alert('Missing input', 'Enter weight and reps before logging.');
       return;
     }
+
     const ex = exercises[activeIdx];
-    if (!ex) return;
+    // FIX: use exercise name from field if no AI plan loaded
+    const resolvedName = ex?.name || exerciseName.trim();
+    if (!resolvedName) {
+      Alert.alert('Missing exercise', 'Enter the exercise name before logging.');
+      return;
+    }
 
     const logData = {
-      exercise_name: ex.name,
-      set_number: ex.completed_sets + 1,
+      exercise_name: resolvedName,
+      set_number: (ex?.completed_sets ?? 0) + 1,
       weight_kg: parseFloat(weight),
       reps: parseInt(reps),
       rpe,
@@ -95,20 +107,39 @@ export default function WorkoutHUD() {
       addLogToSession(logData);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      const updated = [...exercises];
-      updated[activeIdx].completed_sets += 1;
-      setExercises(updated);
+      if (ex) {
+        const updated = [...exercises];
+        updated[activeIdx].completed_sets += 1;
+        setExercises(updated);
+      }
 
       const isHeavy =
-        ex.name.toLowerCase().includes('deadlift') ||
-        ex.name.toLowerCase().includes('squat');
+        resolvedName.toLowerCase().includes('deadlift') ||
+        resolvedName.toLowerCase().includes('squat');
       setRestTimer(isHeavy ? 180 : DEFAULT_REST);
       setTimerRunning(true);
 
+      // FIX: only clear weight/reps, keep exercise name so user can log
+      // multiple sets of the same exercise without re-typing
       setWeight('');
       setReps('');
     } catch {
       Alert.alert('Error', 'Failed to log set. Check your connection.');
+    }
+  };
+
+  // FIX: helper to move to next exercise (or allow typing a new name)
+  const nextExercise = () => {
+    if (activeIdx < exercises.length - 1) {
+      setActiveIdx(activeIdx + 1);
+      setWeight('');
+      setReps('');
+    } else {
+      // No more AI exercises: clear name field so user can type a new one
+      setExerciseName('');
+      setWeight('');
+      setReps('');
+      Alert.alert('Add another exercise', 'Type the next exercise name in the field above kg/reps.');
     }
   };
 
@@ -128,6 +159,7 @@ export default function WorkoutHUD() {
               setActiveSession(null);
               setSessionStarted(false);
               setExercises([]);
+              setExerciseName('');
               Alert.alert('Session Complete', 'Great work. Session saved.');
             } catch {
               Alert.alert('Error', 'Could not complete session.');
@@ -198,7 +230,15 @@ export default function WorkoutHUD() {
         ) : (
           <View style={styles.manualEntry}>
             <Text style={styles.manualTitle}>Log a Set</Text>
-            <Text style={styles.manualSub}>Enter exercise details below</Text>
+            {/* FIX: exercise name input field */}
+            <TextInput
+              style={styles.exerciseNameInput}
+              placeholder="Exercise name (e.g. Bench Press)"
+              placeholderTextColor="#555"
+              value={exerciseName}
+              onChangeText={setExerciseName}
+              returnKeyType="next"
+            />
           </View>
         )}
 
@@ -240,6 +280,13 @@ export default function WorkoutHUD() {
           <Ionicons name="add-circle-outline" size={16} color="#000" />
           <Text style={styles.logBtnText}>LOG SET + START REST</Text>
         </TouchableOpacity>
+
+        {/* FIX: Next Exercise button */}
+        {(ex || exerciseName.trim()) && (
+          <TouchableOpacity style={styles.nextExBtn} onPress={nextExercise}>
+            <Text style={styles.nextExText}>Next Exercise →</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <ScrollView style={styles.logsScroll} showsVerticalScrollIndicator={false}>
@@ -268,94 +315,100 @@ export default function WorkoutHUD() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#121212' },
-  preSession: { flex: 1, justifyContent: 'center', padding: 28, gap: 14 },
-  preBadge: {
-    width: 56, height: 56, borderRadius: 16,
-    backgroundColor: '#1A2535', alignItems: 'center', justifyContent: 'center',
-    marginBottom: 4,
+  preSession: {
+    flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32,
   },
-  gymTitle: { color: COLORS.primaryGreen, fontSize: 28, fontWeight: '800', letterSpacing: 2 },
-  gymSubtitle: { color: '#888', fontSize: 14, letterSpacing: 1 },
-  gymDesc: { color: '#C0C0C0', fontSize: 14, lineHeight: 22, marginVertical: 4 },
+  preBadge: {
+    width: 60, height: 60, borderRadius: 16,
+    backgroundColor: '#1A2535', alignItems: 'center', justifyContent: 'center',
+    marginBottom: 20,
+  },
+  gymTitle: { color: COLORS.primaryGreen, fontSize: 28, fontWeight: '800', letterSpacing: 1 },
+  gymSubtitle: { color: '#888', fontSize: 14, marginTop: 4, marginBottom: 16 },
+  gymDesc: {
+    color: '#666', fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: 32,
+  },
   startBtn: {
     backgroundColor: COLORS.primaryGreen, borderRadius: 14,
-    padding: 18, alignItems: 'center', marginTop: 8,
+    paddingVertical: 16, paddingHorizontal: 32, width: '100%',
+    alignItems: 'center', marginBottom: 12,
   },
   startBtnText: { color: '#000', fontSize: 15, fontWeight: '800', letterSpacing: 1 },
   coachBtn: {
     backgroundColor: '#1A2535', borderRadius: 14,
-    padding: 16, alignItems: 'center',
-    borderWidth: 1, borderColor: '#1E3A5F',
-    flexDirection: 'row', justifyContent: 'center', gap: 8,
+    paddingVertical: 14, paddingHorizontal: 32, width: '100%',
+    alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8,
   },
   coachBtnText: { color: COLORS.primaryGreen, fontSize: 14, fontWeight: '600' },
   timerBar: {
-    backgroundColor: '#1A2E44', padding: 14,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: '#0C1F17', flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: '#1A2A1A',
   },
   timerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  timerText: { color: COLORS.primaryGreen, fontSize: 22, fontWeight: '700' },
-  skipTimer: { color: '#888', fontSize: 13 },
+  timerText: { color: COLORS.primaryGreen, fontSize: 16, fontWeight: '700' },
+  skipTimer: { color: '#888', fontSize: 12, fontWeight: '600' },
   sessionInfo: {
-    paddingHorizontal: 16, paddingVertical: 10,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingVertical: 12,
   },
   sessionLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  activeDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#4CAF50' },
-  sessionLabel: { color: '#4CAF50', fontSize: 11, fontWeight: '700', letterSpacing: 1.5 },
-  sessionId: { color: '#555', fontSize: 12 },
+  activeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.primaryGreen },
+  sessionLabel: { color: '#888', fontSize: 11, fontWeight: '700', letterSpacing: 1 },
+  sessionId: { color: '#444', fontSize: 11 },
   exerciseCard: {
-    backgroundColor: '#1E1E1E', borderRadius: 20,
-    padding: 20, margin: 16, marginTop: 0,
+    backgroundColor: '#1C1C1C', borderRadius: 16, margin: 16, padding: 16,
     borderWidth: 1, borderColor: '#2A2A2A',
   },
-  manualEntry: { marginBottom: 12 },
-  manualTitle: { color: '#FFF', fontSize: 18, fontWeight: '700' },
-  manualSub: { color: '#888', fontSize: 13, marginTop: 2 },
-  setCount: { color: COLORS.primaryGreen, fontSize: 11, fontWeight: '700', letterSpacing: 2, marginBottom: 4 },
+  setCount: { color: '#888', fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 4 },
   exerciseName: { color: '#FFF', fontSize: 22, fontWeight: '700', marginBottom: 4 },
   exerciseTarget: { color: '#888', fontSize: 14, marginBottom: 8 },
-  cue: { color: '#A0B4C8', fontSize: 13, lineHeight: 18, marginBottom: 14, fontStyle: 'italic' },
-  logRow: { flexDirection: 'row', gap: 12, marginBottom: 14, marginTop: 12 },
+  cue: { color: '#666', fontSize: 12, fontStyle: 'italic', marginBottom: 12 },
+  manualEntry: { marginBottom: 8 },
+  manualTitle: { color: '#FFF', fontSize: 17, fontWeight: '700', marginBottom: 8 },
+  // FIX: new exercise name input style
+  exerciseNameInput: {
+    backgroundColor: '#2A2A2A', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12,
+    color: '#FFF', fontSize: 15, marginBottom: 4, borderWidth: 1, borderColor: '#3A3A3A',
+  },
+  logRow: { flexDirection: 'row', gap: 10, marginTop: 10, marginBottom: 8 },
   logInput: {
-    flex: 1, backgroundColor: '#252525',
-    borderRadius: 12, padding: 14,
-    color: '#FFF', fontSize: 18, fontWeight: '600', textAlign: 'center',
+    flex: 1, backgroundColor: '#2A2A2A', borderRadius: 10,
+    paddingVertical: 14, color: '#FFF', fontSize: 24, fontWeight: '700',
+    textAlign: 'center', borderWidth: 1, borderColor: '#3A3A3A',
   },
-  rpeRow: {
-    flexDirection: 'row', alignItems: 'center',
-    gap: 6, marginBottom: 14, flexWrap: 'wrap',
-  },
-  rpeLabel: { color: '#666', fontSize: 11, fontWeight: '600', marginRight: 4 },
+  rpeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 12 },
+  rpeLabel: { color: '#888', fontSize: 11, fontWeight: '700', width: 30 },
   rpeChip: {
-    backgroundColor: '#252525', borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 6,
+    paddingVertical: 6, paddingHorizontal: 8, borderRadius: 8,
+    backgroundColor: '#2A2A2A', borderWidth: 1, borderColor: '#3A3A3A',
   },
-  rpeChipActive: { backgroundColor: '#FF4500' },
+  rpeChipActive: { backgroundColor: '#FF6B35', borderColor: '#FF6B35' },
   rpeChipText: { color: '#888', fontSize: 12, fontWeight: '600' },
   rpeChipTextActive: { color: '#FFF' },
   logBtn: {
-    backgroundColor: COLORS.primaryGreen, borderRadius: 14,
-    padding: 16, alignItems: 'center',
-    flexDirection: 'row', justifyContent: 'center', gap: 8,
+    backgroundColor: COLORS.primaryGreen, borderRadius: 12,
+    paddingVertical: 14, flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', gap: 8,
   },
-  logBtnText: { color: '#000', fontSize: 14, fontWeight: '700', letterSpacing: 1 },
+  logBtnText: { color: '#000', fontSize: 13, fontWeight: '800', letterSpacing: 0.5 },
+  // FIX: Next exercise button
+  nextExBtn: {
+    marginTop: 10, alignItems: 'center', paddingVertical: 8,
+  },
+  nextExText: { color: '#4A9EFF', fontSize: 13, fontWeight: '600' },
   logsScroll: { flex: 1, paddingHorizontal: 16 },
-  logsLabel: {
-    color: '#555', fontSize: 11, fontWeight: '700', letterSpacing: 1.5, marginBottom: 10,
-  },
+  logsLabel: { color: '#555', fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 8, marginTop: 4 },
   noLogs: { color: '#444', fontSize: 13 },
   logRow2: {
-    backgroundColor: '#1A1A1A', borderRadius: 10,
-    padding: 12, marginBottom: 6,
+    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#1C1C1C',
   },
-  logExercise: { color: '#C0C0C0', fontSize: 13, fontWeight: '600' },
-  logDetails: { color: '#555', fontSize: 12, marginTop: 2 },
+  logExercise: { color: '#DDD', fontSize: 14, fontWeight: '600' },
+  logDetails: { color: '#666', fontSize: 12, marginTop: 2 },
   finishBtn: {
-    margin: 16, backgroundColor: '#1A3A1A',
-    borderRadius: 14, padding: 16, alignItems: 'center',
-    borderWidth: 1, borderColor: '#2E5C2E',
-    flexDirection: 'row', justifyContent: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, margin: 16, backgroundColor: '#0E1F12', borderRadius: 14,
+    paddingVertical: 16, borderWidth: 1, borderColor: '#1A3A20',
   },
-  finishBtnText: { color: '#4CAF50', fontSize: 14, fontWeight: '700', letterSpacing: 1 },
+  finishBtnText: { color: '#4CAF50', fontSize: 14, fontWeight: '700', letterSpacing: 0.5 },
 });

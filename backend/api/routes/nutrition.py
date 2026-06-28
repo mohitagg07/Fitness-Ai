@@ -434,4 +434,76 @@ async def search_food(
             **_parse_fs_description(desc),
         })
 
+    # FIXED: FatSecret has poor Indian food coverage — supplement with local DB
+    if len(results) < 3:
+        indian = _search_indian_foods(q.strip(), max_results=clamp - len(results))
+        results = results + indian
+
     return {"results": results, "total": len(results)}
+
+# ── Indian food fallback database ─────────────────────────────────────────
+# FatSecret has very limited Indian food coverage. When a search query
+# matches known Indian dishes, return local nutrition data so users aren't
+# left with "No results".
+INDIAN_FOODS = [
+    {"food_id": "IND001", "name": "Rajma Chawal", "brand": "", "food_type": "Generic",
+     "serving_description": "Per 100g | Calories: 140 | Fat: 2.5g | Carbs: 22g | Protein: 7g",
+     "calories": 140, "protein_g": 7.0, "carbs_g": 22.0, "fat_g": 2.5},
+    {"food_id": "IND002", "name": "Dal Tadka", "brand": "", "food_type": "Generic",
+     "serving_description": "Per 100g | Calories: 90 | Fat: 3g | Carbs: 10g | Protein: 5g",
+     "calories": 90, "protein_g": 5.0, "carbs_g": 10.0, "fat_g": 3.0},
+    {"food_id": "IND003", "name": "Paneer Butter Masala", "brand": "", "food_type": "Generic",
+     "serving_description": "Per 100g | Calories: 185 | Fat: 12g | Carbs: 8g | Protein: 10g",
+     "calories": 185, "protein_g": 10.0, "carbs_g": 8.0, "fat_g": 12.0},
+    {"food_id": "IND004", "name": "Chicken Biryani", "brand": "", "food_type": "Generic",
+     "serving_description": "Per 100g | Calories: 166 | Fat: 6g | Carbs: 21g | Protein: 8g",
+     "calories": 166, "protein_g": 8.0, "carbs_g": 21.0, "fat_g": 6.0},
+    {"food_id": "IND005", "name": "Roti (Chapati)", "brand": "", "food_type": "Generic",
+     "serving_description": "Per 100g | Calories: 297 | Fat: 3.7g | Carbs: 57g | Protein: 9g",
+     "calories": 297, "protein_g": 9.0, "carbs_g": 57.0, "fat_g": 3.7},
+    {"food_id": "IND006", "name": "Idli", "brand": "", "food_type": "Generic",
+     "serving_description": "Per 100g | Calories: 88 | Fat: 0.4g | Carbs: 17g | Protein: 2g",
+     "calories": 88, "protein_g": 2.0, "carbs_g": 17.0, "fat_g": 0.4},
+    {"food_id": "IND007", "name": "Dosa", "brand": "", "food_type": "Generic",
+     "serving_description": "Per 100g | Calories: 168 | Fat: 5g | Carbs: 26g | Protein: 4g",
+     "calories": 168, "protein_g": 4.0, "carbs_g": 26.0, "fat_g": 5.0},
+    {"food_id": "IND008", "name": "Chole Bhature", "brand": "", "food_type": "Generic",
+     "serving_description": "Per 100g | Calories: 210 | Fat: 9g | Carbs: 27g | Protein: 6g",
+     "calories": 210, "protein_g": 6.0, "carbs_g": 27.0, "fat_g": 9.0},
+    {"food_id": "IND009", "name": "Aloo Paratha", "brand": "", "food_type": "Generic",
+     "serving_description": "Per 100g | Calories: 213 | Fat: 8g | Carbs: 30g | Protein: 5g",
+     "calories": 213, "protein_g": 5.0, "carbs_g": 30.0, "fat_g": 8.0},
+    {"food_id": "IND010", "name": "Sambar", "brand": "", "food_type": "Generic",
+     "serving_description": "Per 100g | Calories: 57 | Fat: 1.5g | Carbs: 8g | Protein: 3g",
+     "calories": 57, "protein_g": 3.0, "carbs_g": 8.0, "fat_g": 1.5},
+    {"food_id": "IND011", "name": "Palak Paneer", "brand": "", "food_type": "Generic",
+     "serving_description": "Per 100g | Calories: 154 | Fat: 10g | Carbs: 6g | Protein: 9g",
+     "calories": 154, "protein_g": 9.0, "carbs_g": 6.0, "fat_g": 10.0},
+    {"food_id": "IND012", "name": "Khichdi", "brand": "", "food_type": "Generic",
+     "serving_description": "Per 100g | Calories: 125 | Fat: 2g | Carbs: 22g | Protein: 5g",
+     "calories": 125, "protein_g": 5.0, "carbs_g": 22.0, "fat_g": 2.0},
+    {"food_id": "IND013", "name": "Upma", "brand": "", "food_type": "Generic",
+     "serving_description": "Per 100g | Calories: 140 | Fat: 5g | Carbs: 20g | Protein: 4g",
+     "calories": 140, "protein_g": 4.0, "carbs_g": 20.0, "fat_g": 5.0},
+    {"food_id": "IND014", "name": "Poha", "brand": "", "food_type": "Generic",
+     "serving_description": "Per 100g | Calories: 150 | Fat: 4g | Carbs: 25g | Protein: 3g",
+     "calories": 150, "protein_g": 3.0, "carbs_g": 25.0, "fat_g": 4.0},
+    {"food_id": "IND015", "name": "Mutton Curry", "brand": "", "food_type": "Generic",
+     "serving_description": "Per 100g | Calories: 178 | Fat: 10g | Carbs: 3g | Protein: 19g",
+     "calories": 178, "protein_g": 19.0, "carbs_g": 3.0, "fat_g": 10.0},
+]
+
+
+def _search_indian_foods(query: str, max_results: int = 8) -> list:
+    """Fuzzy match against local Indian food database."""
+    q = query.lower().strip()
+    results = []
+    for food in INDIAN_FOODS:
+        name_lower = food["name"].lower()
+        # Match on any word in the query appearing in the food name
+        words = q.split()
+        if any(w in name_lower for w in words if len(w) > 2):
+            results.append(food)
+        if len(results) >= max_results:
+            break
+    return results
