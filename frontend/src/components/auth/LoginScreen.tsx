@@ -9,33 +9,31 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { authApi, profileApi } from '../../utils/api';
 import { actions } from '../../store';
-import { storage } from '../../utils/storage';
 import { COLORS } from '../../theme/colors';
 
+// Free-to-use Unsplash photo (Victor Freitas) — purely decorative hero backdrop,
+// dimmed by the gradient overlay so it never competes with the form.
 const HERO_IMAGE_URL =
   'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=1200&q=80&auto=format&fit=crop';
 
 export default function AuthScreen() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
+
+  // Login state
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+
+  // Register state
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
+
   const [loading, setLoading] = useState(false);
 
   const fade = useRef(new Animated.Value(0)).current;
   const rise = useRef(new Animated.Value(16)).current;
 
   useEffect(() => {
-    // DEV ONLY: clear stale tokens on mount so old cached sessions
-    // don't cause FK errors. Remove this block once auth is stable.
-    if (__DEV__) {
-      storage.deleteItem('neurofit_token');
-      storage.deleteItem('neurofit_user');
-      storage.deleteItem('neurofit_onboarded');
-    }
-
     Animated.parallel([
       Animated.timing(fade, { toValue: 1, duration: 420, useNativeDriver: true }),
       Animated.spring(rise, { toValue: 0, friction: 8, tension: 60, useNativeDriver: true }),
@@ -56,13 +54,15 @@ export default function AuthScreen() {
         const profileRes = await profileApi.getMe();
         const d = profileRes.data;
         actions.setProfile(d.profile || {}, d.injuries || [], d.personal_records || []);
-        // If user never completed onboarding, send them there
-        if (!d.profile?.onboarding_complete) {
-          router.replace('/onboarding');
-          return;
-        }
       } catch (profileErr) {
-        if (__DEV__) console.warn('[Login] Profile fetch failed:', profileErr);
+        // Login itself succeeded — don't block entry to the app over a
+        // profile fetch failure. But silently eating this previously meant
+        // a user could be looking at "Athlete" / empty cards everywhere
+        // with no idea why. Log it so it's visible during development;
+        // the Dashboard's own error state covers the in-app signal.
+        if (__DEV__) {
+          console.warn('[Login] Profile fetch failed after login:', profileErr);
+        }
       }
       router.replace('/(tabs)');
     } catch (err: any) {
@@ -81,6 +81,7 @@ export default function AuthScreen() {
       Alert.alert('Weak password', 'Password must be at least 8 characters.');
       return;
     }
+
     setLoading(true);
     try {
       const res = await authApi.register({
@@ -93,14 +94,7 @@ export default function AuthScreen() {
         { id: user_id, email: regEmail.trim(), full_name: regName.trim() },
         access_token
       );
-      try {
-        const profileRes = await profileApi.getMe();
-        const d = profileRes.data;
-        actions.setProfile(d.profile || {}, d.injuries || [], d.personal_records || []);
-      } catch {
-        // Non-fatal — onboarding will fill it in
-      }
-      router.replace('/onboarding');
+      router.replace('/(tabs)');
     } catch (err: any) {
       Alert.alert(
         'Registration Failed',
@@ -134,101 +128,101 @@ export default function AuthScreen() {
           {/* Toggle */}
           <View style={styles.toggle}>
             <TouchableOpacity
-              style={[styles.toggleBtn, mode === 'login' && styles.toggleBtnActive]}
-              onPress={() => setMode('login')}
-            >
-              <Text style={[styles.toggleText, mode === 'login' && styles.toggleTextActive]}>
-                LOG IN
-              </Text>
-            </TouchableOpacity>
+            style={[styles.toggleBtn, mode === 'login' && styles.toggleBtnActive]}
+            onPress={() => setMode('login')}
+          >
+            <Text style={[styles.toggleText, mode === 'login' && styles.toggleTextActive]}>
+              LOG IN
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toggleBtn, mode === 'register' && styles.toggleBtnActive]}
+            onPress={() => setMode('register')}
+          >
+            <Text style={[styles.toggleText, mode === 'register' && styles.toggleTextActive]}>
+              SIGN UP
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Login Form */}
+        {mode === 'login' && (
+          <View style={styles.form}>
+            <Text style={styles.label}>EMAIL</Text>
+            <TextInput
+              style={styles.input}
+              value={loginEmail}
+              onChangeText={setLoginEmail}
+              placeholder="you@email.com"
+              placeholderTextColor="#555"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <Text style={styles.label}>PASSWORD</Text>
+            <TextInput
+              style={styles.input}
+              value={loginPassword}
+              onChangeText={setLoginPassword}
+              placeholder="••••••••"
+              placeholderTextColor="#555"
+              secureTextEntry
+            />
             <TouchableOpacity
-              style={[styles.toggleBtn, mode === 'register' && styles.toggleBtnActive]}
-              onPress={() => setMode('register')}
+              style={[styles.btn, loading && styles.btnDisabled]}
+              onPress={handleLogin}
+              disabled={loading}
             >
-              <Text style={[styles.toggleText, mode === 'register' && styles.toggleTextActive]}>
-                SIGN UP
-              </Text>
+              {loading
+                ? <ActivityIndicator color="#000" />
+                : <Text style={styles.btnText}>LOG IN</Text>}
             </TouchableOpacity>
           </View>
+        )}
 
-          {/* Login Form */}
-          {mode === 'login' && (
-            <View style={styles.form}>
-              <Text style={styles.label}>EMAIL</Text>
-              <TextInput
-                style={styles.input}
-                value={loginEmail}
-                onChangeText={setLoginEmail}
-                placeholder="you@email.com"
-                placeholderTextColor="#555"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <Text style={styles.label}>PASSWORD</Text>
-              <TextInput
-                style={styles.input}
-                value={loginPassword}
-                onChangeText={setLoginPassword}
-                placeholder="••••••••"
-                placeholderTextColor="#555"
-                secureTextEntry
-              />
-              <TouchableOpacity
-                style={[styles.btn, loading && styles.btnDisabled]}
-                onPress={handleLogin}
-                disabled={loading}
-              >
-                {loading
-                  ? <ActivityIndicator color="#000" />
-                  : <Text style={styles.btnText}>LOG IN</Text>}
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Register Form */}
-          {mode === 'register' && (
-            <View style={styles.form}>
-              <Text style={styles.label}>FULL NAME</Text>
-              <TextInput
-                style={styles.input}
-                value={regName}
-                onChangeText={setRegName}
-                placeholder="John Smith"
-                placeholderTextColor="#555"
-                autoCorrect={false}
-              />
-              <Text style={styles.label}>EMAIL</Text>
-              <TextInput
-                style={styles.input}
-                value={regEmail}
-                onChangeText={setRegEmail}
-                placeholder="you@email.com"
-                placeholderTextColor="#555"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <Text style={styles.label}>PASSWORD</Text>
-              <TextInput
-                style={styles.input}
-                value={regPassword}
-                onChangeText={setRegPassword}
-                placeholder="Min. 8 characters"
-                placeholderTextColor="#555"
-                secureTextEntry
-              />
-              <TouchableOpacity
-                style={[styles.btn, loading && styles.btnDisabled]}
-                onPress={handleRegister}
-                disabled={loading}
-              >
-                {loading
-                  ? <ActivityIndicator color="#000" />
-                  : <Text style={styles.btnText}>CREATE ACCOUNT</Text>}
-              </TouchableOpacity>
-            </View>
-          )}
+        {/* Register Form */}
+        {mode === 'register' && (
+          <View style={styles.form}>
+            <Text style={styles.label}>FULL NAME</Text>
+            <TextInput
+              style={styles.input}
+              value={regName}
+              onChangeText={setRegName}
+              placeholder="John Smith"
+              placeholderTextColor="#555"
+              autoCorrect={false}
+            />
+            <Text style={styles.label}>EMAIL</Text>
+            <TextInput
+              style={styles.input}
+              value={regEmail}
+              onChangeText={setRegEmail}
+              placeholder="you@email.com"
+              placeholderTextColor="#555"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <Text style={styles.label}>PASSWORD</Text>
+            <TextInput
+              style={styles.input}
+              value={regPassword}
+              onChangeText={setRegPassword}
+              placeholder="Min. 8 characters"
+              placeholderTextColor="#555"
+              secureTextEntry
+            />
+            <TouchableOpacity
+              style={[styles.btn, loading && styles.btnDisabled]}
+              onPress={handleRegister}
+              disabled={loading}
+            >
+              {loading
+                ? <ActivityIndicator color="#000" />
+                : <Text style={styles.btnText}>CREATE ACCOUNT</Text>}
+            </TouchableOpacity>
+          </View>
+        )}
 
         </Animated.View>
       </ScrollView>

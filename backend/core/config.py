@@ -8,10 +8,7 @@ class Settings(BaseSettings):
     # LLM
     openai_api_key: str = ""
     gemini_api_key: str = ""
-    groq_api_key: str = Field(
-        default="",
-        validation_alias=AliasChoices("GROQ_API_KEY", "GROQ_KEY"),
-    )
+    groq_api_key: str = ""
     groq_model: str = "llama-3.3-70b-versatile"
     llm_provider: str = "groq"  # openai | gemini | groq
 
@@ -44,16 +41,7 @@ class Settings(BaseSettings):
     # pointing at deleted accounts.
 
     # CORS
-    # Dev tooling (Expo Metro, `npx serve`) frequently falls back to a
-    # random port when its default is already occupied — this happened
-    # repeatedly in practice (port 3000 occupied -> served on 51559,
-    # 57262, etc), and a hardcoded port list silently 400s every preflight
-    # from those fallback ports with no visible error on the frontend
-    # (CORS failures never reach your app code, they're blocked by the
-    # browser before your fetch/axios call ever fires).
-    # allow_origin_regex in main.py (see comment there) handles the
-    # "any localhost port" case; this list covers the common explicit ones.
-    allowed_origins: str = "http://localhost:3000,http://localhost:8081,http://localhost:5173,http://localhost:19006"
+    allowed_origins: str = "http://localhost:3000,http://localhost:8081,http://localhost:5173"
 
     # Logging
     log_level: str = "INFO"

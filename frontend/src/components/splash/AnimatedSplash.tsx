@@ -43,24 +43,16 @@ export default function AnimatedSplash({ onFinished }: AnimatedSplashProps) {
     textOpacity.value = withDelay(450, withTiming(1, { duration: 400 }));
     textTranslateY.value = withDelay(450, withTiming(0, { duration: 400, easing: Easing.out(Easing.quad) }));
 
-    // Hold on screen, then fade out.
+    // Hold on screen, then fade out and hand control back to the navigator.
     screenOpacity.value = withDelay(
       2200,
-      withTiming(0, { duration: 380 })
+      withSequence(
+        withTiming(1, { duration: 0 }), // anchor point so the delay above is honored precisely
+        withTiming(0, { duration: 380 }, (finished) => {
+          if (finished) runOnJS(onFinished)();
+        })
+      )
     );
-
-    // IMPORTANT: navigation no longer waits on reanimated's runOnJS
-    // completion callback. On web, withSequence/withTiming "finished"
-    // callbacks can silently fail to fire (a known reanimated-on-web gap),
-    // which stranded users on this splash screen forever with zero error
-    // in the console — exactly the "still only loading" symptom. A plain
-    // JS timer matching the same total duration (2200ms hold + 380ms fade)
-    // can't have that failure mode, and the visible animation is identical.
-    const timer = setTimeout(() => {
-      onFinished();
-    }, 2200 + 380);
-
-    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

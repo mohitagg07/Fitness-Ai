@@ -1,297 +1,439 @@
-"""
-backend/schemas/models.py
-
-KEY FIX (was causing workout tables to never render on frontend):
-  StructuredDecision now includes:
-    • mission      Optional[dict]  — { goal, recovery, workout_type }
-    • workout      Optional[List[dict]] — exercises array
-    • decisions    Optional[List[dict]] — AI decisions array
-    • nutrition    Optional[dict]  — { calories, protein, carbs, fat, water_l, diet_note }
-
-  Previously these fields were absent, so Pydantic silently stripped them
-  when serializing ChatResponse → the frontend received structured_decision
-  without the workout/decisions/nutrition keys → tables never rendered.
-"""
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Any
 from datetime import date, datetime
 from enum import Enum
 
 
-# ─── Enums ────────────────────────────────────────────────────────────────────
+# ─── Enums ───────────────────────────────────────────────────────────────────
 
 class Goal(str, Enum):
-    cut      = "cut"
-    bulk     = "bulk"
+    cut = "cut"
+    bulk = "bulk"
     maintain = "maintain"
-    recomp   = "recomp"
+    recomp = "recomp"
 
 
 class ExperienceLevel(str, Enum):
-    beginner     = "beginner"
+    beginner = "beginner"
     intermediate = "intermediate"
-    advanced     = "advanced"
-    elite        = "elite"
+    advanced = "advanced"
+    elite = "elite"
 
 
 class Gender(str, Enum):
-    male   = "male"
+    male = "male"
     female = "female"
-    other  = "other"
+    other = "other"
 
 
 class MessageRole(str, Enum):
-    user      = "user"
+    user = "user"
     assistant = "assistant"
 
 
-# ─── Auth ──────────────────────────────────────────────────────────────────────
+class TrainingPhase(str, Enum):
+    strength = "strength"
+    hypertrophy = "hypertrophy"
+    cut = "cut"
+    bulk = "bulk"
+    recomp = "recomp"
+    maintain = "maintain"
+    deload = "deload"
+
+
+class WorkoutType(str, Enum):
+    push = "push"
+    pull = "pull"
+    legs = "legs"
+    upper = "upper"
+    lower = "lower"
+    full_body = "full_body"
+    cardio = "cardio"
+    rest = "rest"
+
+
+class ActivityLevel(str, Enum):
+    sedentary = "sedentary"
+    light = "light"
+    moderate = "moderate"
+    very_active = "very_active"
+    extra_active = "extra_active"
+
+
+class CoachStyle(str, Enum):
+    friendly = "friendly"
+    strict = "strict"
+    military = "military"
+
+
+class WorkoutLocation(str, Enum):
+    home = "home"
+    gym = "gym"
+    hybrid = "hybrid"
+
+
+# ─── Auth ────────────────────────────────────────────────────────────────────
 
 class RegisterRequest(BaseModel):
-    email:     str = Field(..., min_length=3, max_length=255)
-    password:  str = Field(..., min_length=8, max_length=128)
-    full_name: str = Field(..., min_length=1, max_length=100)
+    email: str
+    password: str = Field(min_length=8)
+    full_name: str = Field(min_length=1, max_length=100)
 
-    @field_validator("email")
+    @field_validator("password")
     @classmethod
-    def email_lower(cls, v: str) -> str:
-        return v.strip().lower()
+    def password_strength(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        return v
 
 
 class LoginRequest(BaseModel):
-    email:    str = Field(..., min_length=3)
-    password: str = Field(..., min_length=1)
-
-    @field_validator("email")
-    @classmethod
-    def email_lower(cls, v: str) -> str:
-        return v.strip().lower()
+    email: str
+    password: str
 
 
 class TokenResponse(BaseModel):
     access_token: str
-    token_type:   str = "bearer"
-    user:         dict
+    token_type: str = "bearer"
+    user_id: str
 
 
-# ─── Profile ──────────────────────────────────────────────────────────────────
+# ─── Onboarding ──────────────────────────────────────────────────────────────
 
-class OnboardingRequest(BaseModel):
-    full_name:           str
-    age:                 int  = Field(..., ge=13, le=100)
-    gender:              Gender
-    weight_kg:           float = Field(..., gt=0, lt=500)
-    height_cm:           float = Field(..., gt=0, lt=300)
-    goal:                Goal
-    experience_level:    ExperienceLevel
-    equipment:           List[str] = Field(default_factory=list)
-    workout_days_per_week: int = Field(4, ge=1, le=7)
-    food_preference:     Optional[str] = None
-    coach_style:         Optional[str] = None
+class OnboardingCreate(BaseModel):
+    full_name: str = Field(min_length=1, max_length=100)
+    age: int = Field(ge=13, le=80)
+    gender: Gender
+    height_cm: float = Field(gt=100, lt=250)
+    weight_kg: float = Field(gt=30, lt=300)
+    target_weight_kg: Optional[float] = Field(None, gt=30, lt=300)
+    body_fat_pct: Optional[float] = Field(None, ge=0, le=60)
+    goal: Goal
+    experience_level: ExperienceLevel
+    activity_level: ActivityLevel = ActivityLevel.moderate
+    sleep_hours: Optional[float] = Field(None, ge=0, le=24)
+    occupation: Optional[str] = Field(None, max_length=100)
+    daily_steps: Optional[int] = Field(None, ge=0)
+    injuries: List[dict] = Field(default_factory=list)
+    food_preference: Optional[str] = None             # "veg" | "non-veg" | "vegan" | "eggetarian"
+    allergies: List[str] = Field(default_factory=list)
+    food_restrictions: List[str] = Field(default_factory=list)
+    gym_or_home: WorkoutLocation = WorkoutLocation.gym
+    workout_days_per_week: int = Field(ge=1, le=7, default=4)
+    equipment: List[str] = Field(default_factory=list)
+    wake_time: Optional[str] = None
+    sleep_time: Optional[str] = None
+    workout_time_preference: Optional[str] = None
+    coach_style: CoachStyle = CoachStyle.friendly
+
+
+# ─── User Profile ─────────────────────────────────────────────────────────────
+
+class ProfileCreate(BaseModel):
+    full_name: str = Field(min_length=1, max_length=100)
+    age: int = Field(ge=13, le=80)
+    gender: Gender
+    height_cm: float = Field(gt=100, lt=250)
+    weight_kg: float = Field(gt=30, lt=300)
+    target_weight_kg: Optional[float] = Field(None, gt=30, lt=300)
+    body_fat_pct: Optional[float] = Field(None, ge=0, le=60)
+    goal: Goal
+    experience_level: ExperienceLevel
+    activity_level: ActivityLevel = ActivityLevel.moderate
+    sleep_hours: Optional[float] = Field(None, ge=0, le=24)
+    occupation: Optional[str] = Field(None, max_length=100)
+    daily_steps: Optional[int] = Field(None, ge=0)
+    food_preference: Optional[str] = None              # "veg" | "non-veg" | "vegan" | "eggetarian"
+    allergies: List[str] = Field(default_factory=list)
+    food_restrictions: List[str] = Field(default_factory=list)
+    gym_or_home: WorkoutLocation = WorkoutLocation.gym
+    workout_days_per_week: int = Field(ge=1, le=7, default=4)
+    equipment: List[str] = Field(default_factory=list)
+    wake_time: Optional[str] = None                     # "HH:MM"
+    sleep_time: Optional[str] = None                     # "HH:MM"
+    workout_time_preference: Optional[str] = None         # "morning" | "afternoon" | "evening"
+    coach_style: CoachStyle = CoachStyle.friendly
 
 
 class ProfileUpdate(BaseModel):
-    full_name:             Optional[str]   = None
-    age:                   Optional[int]   = Field(None, ge=13, le=100)
-    gender:                Optional[Gender] = None
-    weight_kg:             Optional[float] = Field(None, gt=0, lt=500)
-    height_cm:             Optional[float] = Field(None, gt=0, lt=300)
-    goal:                  Optional[Goal]  = None
-    experience_level:      Optional[ExperienceLevel] = None
-    equipment:             Optional[List[str]] = None
-    workout_days_per_week: Optional[int]   = Field(None, ge=1, le=7)
-    food_preference:       Optional[str]   = None
-    coach_style:           Optional[str]   = None
+    """Partial profile update — all fields optional."""
+    full_name: Optional[str] = Field(None, min_length=1, max_length=100)
+    age: Optional[int] = Field(None, ge=13, le=80)
+    gender: Optional[Gender] = None
+    height_cm: Optional[float] = Field(None, gt=100, lt=250)
+    weight_kg: Optional[float] = Field(None, gt=30, lt=300)
+    target_weight_kg: Optional[float] = Field(None, gt=30, lt=300)
+    body_fat_pct: Optional[float] = Field(None, ge=0, le=60)
+    goal: Optional[Goal] = None
+    experience_level: Optional[ExperienceLevel] = None
+    activity_level: Optional[ActivityLevel] = None
+    sleep_hours: Optional[float] = Field(None, ge=0, le=24)
+    occupation: Optional[str] = Field(None, max_length=100)
+    daily_steps: Optional[int] = Field(None, ge=0)
+    equipment: Optional[List[str]] = None
+    food_preference: Optional[str] = None
+    allergies: Optional[List[str]] = None
+    food_restrictions: Optional[List[str]] = None
+    gym_or_home: Optional[WorkoutLocation] = None
+    workout_days_per_week: Optional[int] = Field(None, ge=1, le=7)
+    wake_time: Optional[str] = None
+    sleep_time: Optional[str] = None
+    workout_time_preference: Optional[str] = None
+    coach_style: Optional[CoachStyle] = None
 
+
+# ─── Injury Profile ───────────────────────────────────────────────────────────
 
 class InjuryCreate(BaseModel):
-    body_part:   str = Field(..., min_length=1, max_length=50)
-    issue_type:  str = Field(..., min_length=1, max_length=50)
-    severity:    str = Field("moderate", max_length=20)
-    notes:       Optional[str] = Field(None, max_length=300)
-    is_active:   bool = True
+    body_part: str = Field(description="e.g. left_shoulder, lower_back, left_knee")
+    issue_type: str = Field(description="e.g. clicking, impingement, pain, restriction")
+    severity: int = Field(ge=1, le=10)
+    notes: Optional[str] = Field(None, max_length=500)
+    doctor_restriction: bool = False
 
+
+# ─── Personal Records ────────────────────────────────────────────────────────
 
 class PRCreate(BaseModel):
-    exercise_name: str   = Field(..., min_length=1, max_length=100)
-    weight_kg:     float = Field(..., gt=0, le=1000)
-    reps:          int   = Field(1, ge=1, le=100)
-    notes:         Optional[str] = Field(None, max_length=200)
+    exercise_name: str = Field(min_length=1, max_length=100)
+    weight_kg: float = Field(gt=0, lt=1000)
+    reps: int = Field(ge=1, le=20, default=1)
+    achieved_at: Optional[date] = None
 
 
-# ─── Exercise Log ──────────────────────────────────────────────────────────────
+# ─── Exercise Log ────────────────────────────────────────────────────────────
 
 class SetLog(BaseModel):
-    exercise_name:        str   = Field(min_length=1)
-    set_number:           int   = Field(ge=1)
-    weight_kg:            float = Field(gt=0)
-    reps:                 int   = Field(ge=1)
-    rpe:                  Optional[float] = Field(None, ge=1, le=10)
-    equipment_modifiers:  List[str] = Field(default_factory=list)
-    notes:                Optional[str] = Field(None, max_length=300)
+    exercise_name: str = Field(min_length=1)
+    set_number: int = Field(ge=1)
+    weight_kg: float = Field(gt=0)
+    reps: int = Field(ge=1)
+    rpe: Optional[float] = Field(None, ge=1, le=10)
+    equipment_modifiers: List[str] = Field(default_factory=list)
+    notes: Optional[str] = Field(None, max_length=300)
 
 
-# ─── Workout Session ──────────────────────────────────────────────────────────
+# ─── Workout Session ─────────────────────────────────────────────────────────
 
 class SessionCreate(BaseModel):
-    plan_id:             Optional[str]   = None
-    session_date:        Optional[date]  = None
-    day_label:           Optional[str]   = Field(None, max_length=50)
-    workout_type:        Optional[str]   = None
-    muscle_groups:       List[str]       = Field(default_factory=list)
-    cns_fatigue_before:  Optional[int]   = Field(None, ge=1, le=10)
-    notes:               Optional[str]   = Field(None, max_length=500)
+    plan_id: Optional[str] = None
+    session_date: Optional[date] = None
+    day_label: Optional[str] = Field(None, max_length=50)
+    workout_type: Optional[WorkoutType] = None
+    muscle_groups: List[str] = Field(default_factory=list)
+    cns_fatigue_before: Optional[int] = Field(None, ge=1, le=10)
+    notes: Optional[str] = Field(None, max_length=500)
 
 
-# ─── Nutrition ────────────────────────────────────────────────────────────────
-
-class NutritionTargets(BaseModel):
-    calories:        int
-    protein_g:       int
-    carbs_g:         int
-    fat_g:           int
-    water_ml:        int
-    tdee:            int
-    is_training_day: bool
-    goal:            str
+class SessionComplete(BaseModel):
+    cns_fatigue_after: Optional[int] = Field(None, ge=1, le=10)
+    total_volume_kg: Optional[float] = None
+    duration_minutes: Optional[int] = None
+    calories_burned: Optional[int] = None
+    mood: Optional[str] = None  # "great" | "good" | "okay" | "bad"
 
 
-# ─── AI Chat ──────────────────────────────────────────────────────────────────
+# ─── AI Chat ─────────────────────────────────────────────────────────────────
 
 class ChatMessage(BaseModel):
-    content:    str = Field(min_length=1, max_length=2000)
+    content: str = Field(min_length=1, max_length=2000)
     session_id: Optional[str] = None
 
 
 class StructuredDecision(BaseModel):
     """
-    Structured coach decision returned by build_workout_node.
-
-    FIXED: Added mission (dict), workout (list), decisions (list), nutrition (dict).
-    These were previously absent — Pydantic stripped them on serialization,
-    causing the workout / decisions / nutrition tables to never appear on the
-    frontend even though the LLM was generating them correctly.
+    Structured coach decision — the ONLY thing build_workout_node produces
+    for a coaching turn. There is no separate free-text reply to distil;
+    this IS the reply. All fields optional so partial decisions are valid
+    (e.g. plain chat has no sets/loads to report).
     """
-    mode:          Optional[str]  = None   # "session_plan"|"live_set"|"chat"|"emergency"
-    analysis:      Optional[str]  = None
-    ai_decision:   Optional[str]  = None
-    next_action:   Optional[str]  = None
-    coaching_cue:  Optional[str]  = None
-    coach_insight: Optional[str]  = None
-    reason:        Optional[str]  = None   # backward-compat alias for ai_decision
-    intensity:     Optional[str]  = None   # "High"|"Moderate"|"Low"|"Rest"
-    recovery:      Optional[int]  = None   # 0-100
-    workout_type:  Optional[str]  = None   # "Push"|"Pull"|"Legs"|"Rest"
-
-    # ── NEW FIELDS (were being stripped by Pydantic before this fix) ──────────
-    mission:       Optional[dict] = None
-    # e.g. { "goal": "Muscle Gain", "recovery": 87, "workout_type": "Push Day" }
-
-    workout: Optional[List[dict]] = None
-    # e.g. [{ "exercise": "Bench Press", "sets": 4, "reps": 6,
-    #          "weight": "80 kg", "rpe": 8, "rest": "180 sec" }]
-
-    decisions: Optional[List[dict]] = None
-    # e.g. [{ "decision": "Increase bench by 2.5 kg", "reason": "..." }]
-
-    nutrition: Optional[dict] = None
-    # e.g. { "calories": 2850, "protein": 180, "carbs": 320, "fat": 75,
-    #         "water_l": 3.5, "diet_note": "..." }
-
-    # Legacy scalar fields kept for backward-compat (pre-session_plan shape)
-    calories:  Optional[int] = None
-    protein:   Optional[int] = None
-
-    class Config:
-        # Allow extra fields from LLM output — don't strip unknown keys
-        extra = "allow"
+    mode: Optional[str] = None             # "live_set" | "session_plan" | "chat" | "emergency"
+    analysis: Optional[str] = None         # 1 short line: what just happened
+    mission: Optional[str] = None          # e.g. "Push Day"
+    workout_type: Optional[str] = None     # e.g. "Push", "Pull", "Legs", "Rest"
+    recovery: Optional[int] = None         # 0–100
+    calories: Optional[int] = None
+    protein: Optional[int] = None
+    ai_decision: Optional[str] = None      # the call itself, e.g. "Reduce next set to 145kg x 2"
+    next_action: Optional[str] = None      # concrete next step, e.g. "145kg × 2"
+    coaching_cue: Optional[str] = None     # ONE short technical/motivating cue
+    reason: Optional[str] = None           # kept for backward-compat
+    intensity: Optional[str] = None        # "High" | "Moderate" | "Low" | "Rest"
+    coach_insight: Optional[str] = None    # 1-sentence summary shown below cards
 
 
 class ChatResponse(BaseModel):
-    reply:                str
-    guardrails_triggered: List[str]      = Field(default_factory=list)
-    emergency:            bool           = False
-    cns_fatigue_score:    Optional[int]  = None
-    workout_blocks:       Optional[dict] = None
-    new_prs:              List[dict]     = Field(default_factory=list)
-    motivation_message:   Optional[str]  = None
-    structured_decision:  Optional[StructuredDecision] = None
+    reply: str
+    guardrails_triggered: List[str] = Field(default_factory=list)
+    emergency: bool = False
+    cns_fatigue_score: Optional[int] = None
+    workout_blocks: Optional[dict] = None
+    new_prs: List[dict] = Field(default_factory=list)
+    motivation_message: Optional[str] = None
+    structured_decision: Optional[StructuredDecision] = None
 
 
 class ConversationMessage(BaseModel):
-    role:       MessageRole
-    content:    str
+    role: MessageRole
+    content: str
     created_at: datetime
 
 
-# ─── Parsed Performance Log (LangGraph output) ────────────────────────────────
+# ─── Parsed Performance Log (LangGraph output) ───────────────────────────────
 
 class PerformanceLog(BaseModel):
-    exercise_name:        str
-    weight_kg:            float
-    reps_completed:       int
-    equipment_modifiers:  Optional[List[str]] = Field(default_factory=list)
-    user_reported_rpe:    Optional[float]     = Field(None, ge=1, le=10)
-    notes:                Optional[str]       = None
+    exercise_name: str
+    weight_kg: float
+    reps_completed: int
+    equipment_modifiers: Optional[List[str]] = Field(default_factory=list)
+    user_reported_rpe: Optional[float] = Field(None, ge=1, le=10)
+    notes: Optional[str] = None
 
 
-# ─── Progress Metrics ─────────────────────────────────────────────────────────
+# ─── Progress Metrics ────────────────────────────────────────────────────────
 
 class MetricsCreate(BaseModel):
-    recorded_date: Optional[date]  = None
-    weight_kg:     Optional[float] = Field(None, gt=0, lt=500)
-    body_fat_pct:  Optional[float] = Field(None, ge=0, le=60)
-    waist_cm:      Optional[float] = Field(None, gt=0)
-    chest_cm:      Optional[float] = Field(None, gt=0)
-    arms_cm:       Optional[float] = Field(None, gt=0)
-    thighs_cm:     Optional[float] = Field(None, gt=0)
-    notes:         Optional[str]   = Field(None, max_length=500)
+    recorded_date: Optional[date] = None
+    weight_kg: Optional[float] = Field(None, gt=0, lt=500)
+    body_fat_pct: Optional[float] = Field(None, ge=0, le=60)
+    waist_cm: Optional[float] = Field(None, gt=0)
+    chest_cm: Optional[float] = Field(None, gt=0)
+    arms_cm: Optional[float] = Field(None, gt=0)
+    thighs_cm: Optional[float] = Field(None, gt=0)
+    notes: Optional[str] = Field(None, max_length=500)
 
 
-# ─── Agent State ──────────────────────────────────────────────────────────────
+# ─── Nutrition ───────────────────────────────────────────────────────────────
+
+class NutritionCreate(BaseModel):
+    log_date: Optional[date] = None
+    meal_name: Optional[str] = Field(None, max_length=100)
+    calories: Optional[int] = Field(None, ge=0, le=10000)
+    protein_g: Optional[float] = Field(None, ge=0)
+    carbs_g: Optional[float] = Field(None, ge=0)
+    fat_g: Optional[float] = Field(None, ge=0)
+    water_ml: Optional[int] = Field(None, ge=0)
+    notes: Optional[str] = Field(None, max_length=300)
+
+
+class NutritionTargets(BaseModel):
+    calories: int
+    protein_g: int
+    carbs_g: int
+    fat_g: int
+    water_ml: int
+    tdee: int
+    is_training_day: bool
+    goal: str
+
+
+# ─── Agent State ─────────────────────────────────────────────────────────────
 
 class AgentState(BaseModel):
-    user_id:                  str
-    cns_fatigue_score:        int       = Field(0, ge=0, le=10)
-    accumulated_spinal_load:  int       = 0
-    last_session_date:        Optional[date] = None
-    workout_streak:           int       = 0
-    total_workouts:           int       = 0
-    weekly_session_count:     int       = 0
-    consecutive_high_rpe_days: int      = 0
+    user_id: str
+    cns_fatigue_score: int = Field(0, ge=0, le=10)
+    accumulated_spinal_load: int = 0
+    last_session_date: Optional[date] = None
+    active_muscle_groups: List[str] = Field(default_factory=list)
+    last_logged_rpe: float = 5.0
+    current_phase: str = "maintain"
+    consecutive_high_rpe_days: int = 0
+    weekly_session_count: int = 0
+    workout_streak: int = 0
+    protein_streak: int = 0
+    total_workouts: int = 0
 
 
-# ─── Dashboard ────────────────────────────────────────────────────────────────
+# ─── Today's Mission (Agentic Dashboard) ─────────────────────────────────────
 
 class TankStatus(BaseModel):
-    current:     int
-    target:      int
-    pct:         int
-    status:      str   # "on_track" | "behind" | "complete"
-    label:       str
+    label: str
+    consumed: float
+    target: float
+    pct: int
+    color: str   # hex, used by the frontend gauge
 
 
 class MissionTask(BaseModel):
-    task:    str
-    done:    bool  = False
-    agent:   str   # which agent generated this
-    priority: int  = 1
+    icon: str
+    text: str
+    agent: str   # which agent generated this — "nutrition" | "workout" | "recovery" | "planner"
+    priority: int = 1   # lower = more urgent
 
 
 class DashboardResponse(BaseModel):
-    user_name:              str
-    greeting:               str
-    today_workout_type:     str
-    today_workout_time:     Optional[str] = None
-    today_workout_duration_min: int       = 0
-    calories_tank:          TankStatus
-    protein_tank:           TankStatus
-    water_tank:             TankStatus
-    next_tasks:             List[MissionTask] = Field(default_factory=list)
-    last_session_summary:   Optional[str] = None
-    next_target:            Optional[str] = None
-    workout_streak:         int           = 0
-    protein_streak:         int           = 0
-    motivation_message:     str           = ""
-    cns_fatigue_score:      int           = 0
-    sleep_goal:             Optional[str] = None
+    user_name: str
+    greeting: str
+    today_workout_type: str
+    today_workout_time: Optional[str] = None
+    today_workout_duration_min: int = 0
+    calories_tank: TankStatus
+    protein_tank: TankStatus
+    water_tank: TankStatus
+    next_tasks: List[MissionTask] = Field(default_factory=list)
+    last_session_summary: Optional[str] = None
+    next_target: Optional[str] = None
+    workout_streak: int = 0
+    protein_streak: int = 0
+    motivation_message: str = ""
+    cns_fatigue_score: int = 0
+    sleep_goal: Optional[str] = None
+    mission_text: str = ""
+
+
+# ─── Agent decision payloads ─────────────────────────────────────────────────
+
+class NutritionDecision(BaseModel):
+    message: str
+    suggested_meal: Optional[str] = None
+    calories_remaining: int
+    protein_remaining_g: float
+
+
+class WorkoutDecision(BaseModel):
+    message: str
+    rescheduled: bool = False
+    recommended_type: Optional[str] = None
+
+
+class ProgressDecision(BaseModel):
+    message: str
+    stalled: bool = False
+    suggested_calorie_adjustment: int = 0
+    trend: str = "stable"          # "gaining" | "losing" | "stalled" | "stable"
+
+    @property
+    def calorie_adjustment(self) -> int:
+        """Back-compat alias — some callers may expect the old field name."""
+        return self.suggested_calorie_adjustment
+
+
+class RecoveryDecision(BaseModel):
+    message: str
+    recovery_score: int = Field(ge=0, le=10)
+    action: str = "proceed"        # "proceed" | "replace_with_light" | "rest"
+
+    @property
+    def recommend_deload(self) -> bool:
+        return self.action == "rest"
+
+
+# ─── Streak / Achievements ───────────────────────────────────────────────────
+
+class Achievement(BaseModel):
+    id: str
+    title: str
+    description: str
+    icon: str
+    unlocked_at: Optional[datetime] = None
+    unlocked: bool = False
+
+
+# ─── Form Check ──────────────────────────────────────────────────────────────
+
+class FormCheckResponse(BaseModel):
+    exercise: str
+    feedback: str
+    issues_detected: List[str]
+    corrections: List[str]
+    safety_level: str   # "safe" | "caution" | "stop"

@@ -39,15 +39,6 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.origins_list,
-    # Matches http(s)://localhost:<any port> and http(s)://127.0.0.1:<any port>.
-    # Dev tools (Expo Metro, `npx serve`) silently fall back to a random
-    # port whenever their default is occupied — this was the actual root
-    # cause of a string of "OPTIONS .../register 400" errors that gave no
-    # visible signal on the frontend (the browser blocks the request
-    # before it ever reaches application code). This regex makes that
-    # entire failure mode impossible in dev, regardless of which port
-    # tooling happens to land on. Remove/tighten before production.
-    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

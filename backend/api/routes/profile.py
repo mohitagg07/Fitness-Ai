@@ -9,7 +9,7 @@ from core.security import get_current_user
 from db.supabase_client import get_supabase
 from typing import List
 
-# NO prefix here — main.py sets prefix="/api/profile"
+# ✅ NO prefix here — main.py sets prefix="/api/profile"
 router = APIRouter(tags=["Profile"])
 
 
@@ -19,28 +19,11 @@ async def get_me(current_user: dict = Depends(get_current_user)):
     user_id = current_user["user_id"]
 
     profile_res = sb.table("profiles").select("*").eq("id", user_id).execute()
-    profile = profile_res.data[0] if profile_res.data else None
-
-    # Auto-create a minimal profiles row if missing. This happens when
-    # /auth/register's silent profile insert failed (FK timing, transient
-    # Supabase error, etc.). Without this row every subsequent DB write
-    # that FK-references profiles.id will fail with a constraint error.
-    if profile is None:
-        try:
-            insert_res = sb.table("profiles").insert(
-                {"id": user_id, "onboarding_complete": False}
-            ).execute()
-            profile = insert_res.data[0] if insert_res.data else {"id": user_id, "onboarding_complete": False}
-        except Exception:
-            # Row may have been created by a concurrent request — fetch again.
-            retry = sb.table("profiles").select("*").eq("id", user_id).execute()
-            profile = retry.data[0] if retry.data else {"id": user_id, "onboarding_complete": False}
-
     injuries_res = sb.table("injury_profiles").select("*").eq("user_id", user_id).execute()
     prs_res = sb.table("personal_records").select("*").eq("user_id", user_id).execute()
 
     return {
-        "profile": profile,
+        "profile": profile_res.data[0] if profile_res.data else {},
         "injuries": injuries_res.data or [],
         "personal_records": prs_res.data or [],
     }
@@ -90,20 +73,20 @@ async def add_injury(
     data = payload.model_dump()
     data["user_id"] = current_user["user_id"]
     res = sb.table("injury_profiles").insert(data).execute()
-    return res.data[0] if res.data else {}
+    return res.data[0]
 
 
-@router.delete("/injuries/{injury_id}", status_code=204)
+@router.delete("/injuries/{injury_id}")
 async def delete_injury(
     injury_id: str,
     current_user: dict = Depends(get_current_user)
 ):
     sb = get_supabase()
     sb.table("injury_profiles").delete().eq("id", injury_id).eq("user_id", current_user["user_id"]).execute()
-    return None
+    return {"deleted": injury_id}
 
 
-@router.post("/prs", status_code=201)
+@router.post("/prs")
 async def upsert_pr(
     payload: PRCreate,
     current_user: dict = Depends(get_current_user)
@@ -111,12 +94,22 @@ async def upsert_pr(
     sb = get_supabase()
     data = payload.model_dump()
     data["user_id"] = current_user["user_id"]
-    res = sb.table("personal_records").upsert(data, on_conflict="user_id,exercise_name,reps").execute()
+    if data.get("achieved_at"):
+        data["achieved_at"] = str(data["achieved_at"])
+    res = sb.table("personal_records").upsert(
+        data, on_conflict="user_id,exercise_name,reps"
+    ).execute()
     return res.data[0] if res.data else {}
 
 
 @router.get("/prs")
 async def get_prs(current_user: dict = Depends(get_current_user)):
     sb = get_supabase()
-    res = sb.table("personal_records").select("*").eq("user_id", current_user["user_id"]).execute()
-    return res.data or []
+    res = (
+        sb.table("personal_records")
+        .select("*")
+        .eq("user_id", current_user["user_id"])
+        .order("achieved_at", desc=True)
+        .execute()
+    )
+    return res.data
