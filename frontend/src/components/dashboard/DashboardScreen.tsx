@@ -176,7 +176,7 @@ export default function DashboardScreen() {
           max={10}
           color={recoveryZoneColor(recoveryScore)}
           label="RECOVERY"
-          sublabel={summary?.recovery.action.replace(/_/g, ' ').toUpperCase() || '—'}
+          sublabel={summary?.recovery?.action?.replace(/_/g, ' ').toUpperCase() || '—'}
         />
         <ScoreRing
           size={150}
@@ -191,7 +191,7 @@ export default function DashboardScreen() {
         />
       </View>
 
-      {summary?.recovery.message && (
+      {summary?.recovery?.message && (
         <Text style={styles.ringCaption}>{summary.recovery.message}</Text>
       )}
 
@@ -247,15 +247,15 @@ export default function DashboardScreen() {
           <View style={styles.workoutRow}>
             <Ionicons name="barbell-outline" size={20} color={COLORS.strain} />
             <Text style={styles.workoutType}>
-              {summary.workout_today.type ? summary.workout_today.type.toUpperCase() : 'NOT PLANNED YET'}
+              {summary.workout_today?.type ? summary.workout_today.type.toUpperCase() : 'NOT PLANNED YET'}
             </Text>
-            {summary.workout_today.rescheduled && (
+            {summary.workout_today?.rescheduled && (
               <View style={styles.rescheduledBadge}>
                 <Text style={styles.rescheduledText}>RESCHEDULED</Text>
               </View>
             )}
           </View>
-          <Text style={styles.cardMessage}>{summary.workout_today.message}</Text>
+          <Text style={styles.cardMessage}>{summary.workout_today?.message}</Text>
         </View>
       )}
 
@@ -287,7 +287,7 @@ export default function DashboardScreen() {
         <QuickBtn label="Ask Coach" icon="chatbubble-outline" onPress={() => router.push('/(tabs)/coach')} accent={COLORS.recoveryHigh} />
         <QuickBtn label="Gym Mode" icon="barbell-outline" onPress={() => router.push('/(tabs)/workout')} accent={COLORS.strain} />
         <QuickBtn label="Progress" icon="stats-chart-outline" onPress={() => router.push('/(tabs)/progress')} accent={COLORS.recoveryMed} />
-        <QuickBtn label="My PRs" icon="trophy-outline" onPress={() => router.push('/(tabs)/profile')} accent={COLORS.sleep} />
+        <QuickBtn label="My PRs" icon="trophy-outline" onPress={() => router.push('/(tabs)/prs')} accent={COLORS.sleep} />
       </View>
 
       <View style={{ height: 24 }} />
