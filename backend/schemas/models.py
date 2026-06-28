@@ -242,24 +242,30 @@ class ChatMessage(BaseModel):
 
 class StructuredDecision(BaseModel):
     """
-    Structured coach decision — the ONLY thing build_workout_node produces
-    for a coaching turn. There is no separate free-text reply to distil;
-    this IS the reply. All fields optional so partial decisions are valid
-    (e.g. plain chat has no sets/loads to report).
+    Structured coach decision returned by the LangGraph agent.
+    response_type drives which card the frontend renders.
+    All fields optional so partial decisions valid for chat/plain turns.
     """
-    mode: Optional[str] = None             # "live_set" | "session_plan" | "chat" | "emergency"
-    analysis: Optional[str] = None         # 1 short line: what just happened
-    mission: Optional[str] = None          # e.g. "Push Day"
-    workout_type: Optional[str] = None     # e.g. "Push", "Pull", "Legs", "Rest"
-    recovery: Optional[int] = None         # 0–100
+    # v2 fields (new card system)
+    response_type: Optional[str] = None    # workout_plan|live_set|nutrition_tip|recovery_advice|chat|emergency
+    coach_message: Optional[str] = None    # user-facing message — never internal reasoning
+    exercises: Optional[List[Any]] = None  # [{name, sets, reps, weight, rest, focus}]
+    summary: Optional[Any] = None          # {intensity, estimated_time, reason}
+    tips: Optional[List[str]] = None
+    next_action: Optional[str] = None
+    coach_insight: Optional[str] = None
+    recovery: Optional[int] = None         # 0-100
+    intensity: Optional[str] = None        # High|Moderate|Low|Rest
+    # v1 backward-compat aliases
+    mode: Optional[str] = None
+    analysis: Optional[str] = None
+    mission: Optional[str] = None
+    workout_type: Optional[str] = None
     calories: Optional[int] = None
     protein: Optional[int] = None
-    ai_decision: Optional[str] = None      # the call itself, e.g. "Reduce next set to 145kg x 2"
-    next_action: Optional[str] = None      # concrete next step, e.g. "145kg × 2"
-    coaching_cue: Optional[str] = None     # ONE short technical/motivating cue
-    reason: Optional[str] = None           # kept for backward-compat
-    intensity: Optional[str] = None        # "High" | "Moderate" | "Low" | "Rest"
-    coach_insight: Optional[str] = None    # 1-sentence summary shown below cards
+    ai_decision: Optional[str] = None
+    coaching_cue: Optional[str] = None
+    reason: Optional[str] = None
 
 
 class ChatResponse(BaseModel):

@@ -13,6 +13,7 @@ let _state = {
     role: 'user' | 'assistant';
     content: string;
     timestamp: Date;
+    structured_decision?: any;  // NEW: carry structured card data alongside message
   }>,
 };
 
@@ -55,9 +56,12 @@ export const actions = {
     });
   },
   setCnsFatigue(score: number) { setState({ cnsFatigue: score }); },
-  addChatMessage(role: 'user' | 'assistant', content: string) {
+  addChatMessage(role: 'user' | 'assistant', content: string, structured_decision?: any) {
     setState({
-      chatHistory: [..._state.chatHistory, { role, content, timestamp: new Date() }],
+      chatHistory: [..._state.chatHistory, {
+        role, content, timestamp: new Date(),
+        structured_decision: structured_decision || null,
+      }],
     });
   },
   clearChat() { setState({ chatHistory: [] }); },

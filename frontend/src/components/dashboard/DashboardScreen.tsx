@@ -247,7 +247,7 @@ export default function DashboardScreen() {
           <View style={styles.workoutRow}>
             <Ionicons name="barbell-outline" size={20} color={COLORS.strain} />
             <Text style={styles.workoutType}>
-              {summary.workout_today?.type ? summary.workout_today.type.toUpperCase() : 'NOT PLANNED YET'}
+              {summary.workout_today?.type ? summary.workout_today.type.toUpperCase() : 'NO PLAN YET'}
             </Text>
             {summary.workout_today?.rescheduled && (
               <View style={styles.rescheduledBadge}>
@@ -255,7 +255,20 @@ export default function DashboardScreen() {
               </View>
             )}
           </View>
-          <Text style={styles.cardMessage}>{summary.workout_today?.message}</Text>
+          {summary.workout_today?.type ? (
+            <Text style={styles.cardMessage}>{summary.workout_today?.message}</Text>
+          ) : (
+            <>
+              <Text style={styles.cardMessage}>No active plan yet. Open Coach to generate one based on your recovery.</Text>
+              <TouchableOpacity
+                style={styles.generatePlanBtn}
+                onPress={() => router.push('/(tabs)/coach')}
+              >
+                <Ionicons name="flash" size={14} color="#000" />
+                <Text style={styles.generatePlanBtnText}>Generate Workout</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       )}
 
@@ -465,6 +478,13 @@ const styles = StyleSheet.create({
   workoutType: { color: '#FFF', fontSize: 16, fontWeight: '700', flex: 1 },
   rescheduledBadge: { backgroundColor: '#1A1606', borderRadius: 6, paddingVertical: 3, paddingHorizontal: 8 },
   rescheduledText: { color: COLORS.recoveryMed, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
+  generatePlanBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: COLORS.primaryGreen, borderRadius: 10,
+    paddingVertical: 10, paddingHorizontal: 14,
+    alignSelf: 'flex-start', marginTop: 10,
+  },
+  generatePlanBtnText: { color: '#000', fontSize: 13, fontWeight: '700' },
 
   streakRow: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 12, gap: 10 },
   streakCard: {

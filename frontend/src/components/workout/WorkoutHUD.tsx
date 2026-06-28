@@ -1,5 +1,8 @@
-// NeuroFit AI — Workout HUD Screen
-// FIXED: exercise name input, multi-exercise support, set saving
+// NeuroFit AI — Workout HUD v2
+// FIX: Set numbers now auto-increment per exercise (not always "Set 1")
+// FIX: Logs grouped by exercise, showing all sets for each
+// FIX: Exercise name persists across sets of the same exercise
+// IMPROVED: Cleaner log display with set count, exercise grouping
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -21,6 +24,11 @@ interface ExerciseCard {
   completed_sets: number;
 }
 
+// Per-exercise set counter tracked in component state
+interface ExerciseSetCount {
+  [exerciseName: string]: number;
+}
+
 const DEFAULT_REST = 90;
 
 export default function WorkoutHUD() {
@@ -29,12 +37,13 @@ export default function WorkoutHUD() {
   const [activeIdx, setActiveIdx] = useState(0);
   const [restTimer, setRestTimer] = useState(0);
   const [timerRunning, setTimerRunning] = useState(false);
-  const [rpe, setRpe] = useState(7);
+  const [rpe, setRpe] = useState(8);
   const [weight, setWeight] = useState('');
   const [reps, setReps] = useState('');
-  // FIX: exercise name field for manual entry
   const [exerciseName, setExerciseName] = useState('');
   const [sessionStarted, setSessionStarted] = useState(false);
+  // Track how many sets logged per exercise name
+  const [setCountByExercise, setSetCountByExercise] = useState<ExerciseSetCount>({});
 
   useEffect(() => {
     if (!timerRunning || restTimer <= 0) {
@@ -56,6 +65,7 @@ export default function WorkoutHUD() {
       });
       setActiveSession({ id: res.data.id, day_label: 'Gym Mode', logs: [] });
       setSessionStarted(true);
+      setSetCountByExercise({});
     } catch {
       Alert.alert('Error', 'Could not start session. Is the backend running?');
     }
@@ -87,16 +97,19 @@ export default function WorkoutHUD() {
     }
 
     const ex = exercises[activeIdx];
-    // FIX: use exercise name from field if no AI plan loaded
     const resolvedName = ex?.name || exerciseName.trim();
     if (!resolvedName) {
       Alert.alert('Missing exercise', 'Enter the exercise name before logging.');
       return;
     }
 
+    // Auto-increment set number per exercise
+    const prevCount = setCountByExercise[resolvedName] || 0;
+    const thisSetNumber = prevCount + 1;
+
     const logData = {
       exercise_name: resolvedName,
-      set_number: (ex?.completed_sets ?? 0) + 1,
+      set_number: thisSetNumber,
       weight_kg: parseFloat(weight),
       reps: parseInt(reps),
       rpe,
@@ -106,6 +119,12 @@ export default function WorkoutHUD() {
       await workoutApi.logSet(activeSession.id, logData);
       addLogToSession(logData);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      // Update set counter for this exercise
+      setSetCountByExercise(prev => ({
+        ...prev,
+        [resolvedName]: thisSetNumber,
+      }));
 
       if (ex) {
         const updated = [...exercises];
@@ -119,8 +138,7 @@ export default function WorkoutHUD() {
       setRestTimer(isHeavy ? 180 : DEFAULT_REST);
       setTimerRunning(true);
 
-      // FIX: only clear weight/reps, keep exercise name so user can log
-      // multiple sets of the same exercise without re-typing
+      // Keep exercise name, clear weight & reps for next set
       setWeight('');
       setReps('');
     } catch {
@@ -128,18 +146,15 @@ export default function WorkoutHUD() {
     }
   };
 
-  // FIX: helper to move to next exercise (or allow typing a new name)
   const nextExercise = () => {
     if (activeIdx < exercises.length - 1) {
       setActiveIdx(activeIdx + 1);
       setWeight('');
       setReps('');
     } else {
-      // No more AI exercises: clear name field so user can type a new one
       setExerciseName('');
       setWeight('');
       setReps('');
-      Alert.alert('Add another exercise', 'Type the next exercise name in the field above kg/reps.');
     }
   };
 
@@ -147,7 +162,7 @@ export default function WorkoutHUD() {
     if (!activeSession) return;
     Alert.alert(
       'Finish Workout?',
-      'Rate your overall CNS fatigue (1 = fresh, 10 = destroyed)',
+      'Rate your overall CNS fatigue after this session (1 = fresh, 10 = destroyed)',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -160,7 +175,8 @@ export default function WorkoutHUD() {
               setSessionStarted(false);
               setExercises([]);
               setExerciseName('');
-              Alert.alert('Session Complete', 'Great work. Session saved.');
+              setSetCountByExercise({});
+              Alert.alert('Session Complete ✓', 'Great work. Session saved.');
             } catch {
               Alert.alert('Error', 'Could not complete session.');
             }
@@ -170,7 +186,20 @@ export default function WorkoutHUD() {
     );
   };
 
+  // Group logs by exercise for display
+  const groupedLogs = () => {
+    const logs = activeSession?.logs || [];
+    const groups: { [name: string]: typeof logs } = {};
+    [...logs].reverse().forEach(log => {
+      if (!groups[log.exercise_name]) groups[log.exercise_name] = [];
+      groups[log.exercise_name].push(log);
+    });
+    return Object.entries(groups);
+  };
+
   const ex = exercises[activeIdx];
+  const resolvedName = ex?.name || exerciseName.trim();
+  const currentSetNum = (setCountByExercise[resolvedName] || 0) + 1;
 
   if (!sessionStarted) {
     return (
@@ -182,15 +211,14 @@ export default function WorkoutHUD() {
           <Text style={styles.gymTitle}>GYM MODE</Text>
           <Text style={styles.gymSubtitle}>Your AI spotter is ready</Text>
           <Text style={styles.gymDesc}>
-            Start a session, then ask your coach for today's workout plan.
-            Log each set with weight, reps, and RPE.
+            Start a session, then log each set with weight, reps, and RPE. Ask your coach for today's plan anytime.
           </Text>
           <TouchableOpacity style={styles.startBtn} onPress={startSession}>
             <Text style={styles.startBtnText}>START SESSION</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.coachBtn} onPress={askCoachForWorkout}>
             <Ionicons name="flash" size={16} color={COLORS.primaryGreen} />
-            <Text style={styles.coachBtnText}>Ask Coach First</Text>
+            <Text style={styles.coachBtnText}>Ask Coach for Today's Plan</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -229,8 +257,14 @@ export default function WorkoutHUD() {
           </>
         ) : (
           <View style={styles.manualEntry}>
-            <Text style={styles.manualTitle}>Log a Set</Text>
-            {/* FIX: exercise name input field */}
+            {/* Show set number if we already have sets for this exercise */}
+            {resolvedName ? (
+              <Text style={styles.setCountManual}>
+                {exerciseName} — SET {currentSetNum}
+              </Text>
+            ) : (
+              <Text style={styles.manualTitle}>Log a Set</Text>
+            )}
             <TextInput
               style={styles.exerciseNameInput}
               placeholder="Exercise name (e.g. Bench Press)"
@@ -281,7 +315,6 @@ export default function WorkoutHUD() {
           <Text style={styles.logBtnText}>LOG SET + START REST</Text>
         </TouchableOpacity>
 
-        {/* FIX: Next Exercise button */}
         {(ex || exerciseName.trim()) && (
           <TouchableOpacity style={styles.nextExBtn} onPress={nextExercise}>
             <Text style={styles.nextExText}>Next Exercise →</Text>
@@ -291,15 +324,23 @@ export default function WorkoutHUD() {
 
       <ScrollView style={styles.logsScroll} showsVerticalScrollIndicator={false}>
         <Text style={styles.logsLabel}>SETS LOGGED THIS SESSION</Text>
-        {(activeSession?.logs || []).length === 0 ? (
+        {groupedLogs().length === 0 ? (
           <Text style={styles.noLogs}>No sets logged yet</Text>
         ) : (
-          [...(activeSession?.logs || [])].reverse().map((log, i) => (
-            <View key={i} style={styles.logRow2}>
-              <Text style={styles.logExercise}>{log.exercise_name}</Text>
-              <Text style={styles.logDetails}>
-                Set {log.set_number} · {log.weight_kg}kg × {log.reps} · RPE {log.rpe}
-              </Text>
+          groupedLogs().map(([name, logs], gi) => (
+            <View key={gi} style={styles.exerciseGroup}>
+              <Text style={styles.groupExerciseName}>{name}</Text>
+              {logs.map((log, i) => (
+                <View key={i} style={styles.setRow}>
+                  <Text style={styles.setLabel}>Set {log.set_number}</Text>
+                  <Text style={styles.setDetails}>
+                    {log.weight_kg}kg × {log.reps} reps
+                  </Text>
+                  <View style={[styles.rpeBadge, log.rpe >= 9 && styles.rpeBadgeHigh]}>
+                    <Text style={styles.rpeBadgeText}>RPE {log.rpe}</Text>
+                  </View>
+                </View>
+              ))}
             </View>
           ))
         )}
@@ -360,13 +401,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#1C1C1C', borderRadius: 16, margin: 16, padding: 16,
     borderWidth: 1, borderColor: '#2A2A2A',
   },
-  setCount: { color: '#888', fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 4 },
+  setCount: { color: COLORS.primaryGreen, fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 4 },
+  setCountManual: { color: COLORS.primaryGreen, fontSize: 13, fontWeight: '700', marginBottom: 8 },
   exerciseName: { color: '#FFF', fontSize: 22, fontWeight: '700', marginBottom: 4 },
   exerciseTarget: { color: '#888', fontSize: 14, marginBottom: 8 },
   cue: { color: '#666', fontSize: 12, fontStyle: 'italic', marginBottom: 12 },
   manualEntry: { marginBottom: 8 },
   manualTitle: { color: '#FFF', fontSize: 17, fontWeight: '700', marginBottom: 8 },
-  // FIX: new exercise name input style
   exerciseNameInput: {
     backgroundColor: '#2A2A2A', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12,
     color: '#FFF', fontSize: 15, marginBottom: 4, borderWidth: 1, borderColor: '#3A3A3A',
@@ -392,19 +433,40 @@ const styles = StyleSheet.create({
     justifyContent: 'center', gap: 8,
   },
   logBtnText: { color: '#000', fontSize: 13, fontWeight: '800', letterSpacing: 0.5 },
-  // FIX: Next exercise button
   nextExBtn: {
     marginTop: 10, alignItems: 'center', paddingVertical: 8,
   },
   nextExText: { color: '#4A9EFF', fontSize: 13, fontWeight: '600' },
   logsScroll: { flex: 1, paddingHorizontal: 16 },
-  logsLabel: { color: '#555', fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 8, marginTop: 4 },
-  noLogs: { color: '#444', fontSize: 13 },
-  logRow2: {
-    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#1C1C1C',
+  logsLabel: {
+    color: '#555', fontSize: 10, fontWeight: '700', letterSpacing: 1.5,
+    marginBottom: 10, marginTop: 4,
   },
-  logExercise: { color: '#DDD', fontSize: 14, fontWeight: '600' },
-  logDetails: { color: '#666', fontSize: 12, marginTop: 2 },
+  noLogs: { color: '#444', fontSize: 13 },
+  // Grouped log display
+  exerciseGroup: {
+    marginBottom: 16, backgroundColor: '#1A1A1A', borderRadius: 12,
+    overflow: 'hidden', borderWidth: 1, borderColor: '#222',
+  },
+  groupExerciseName: {
+    color: '#DDD', fontSize: 14, fontWeight: '700',
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: '#222',
+  },
+  setRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderBottomWidth: 1, borderBottomColor: '#1E1E1E',
+    gap: 10,
+  },
+  setLabel: { color: '#555', fontSize: 12, fontWeight: '600', width: 40 },
+  setDetails: { color: '#CCC', fontSize: 13, flex: 1 },
+  rpeBadge: {
+    backgroundColor: '#2A2A2A', borderRadius: 6,
+    paddingHorizontal: 8, paddingVertical: 3,
+  },
+  rpeBadgeHigh: { backgroundColor: '#3A1500' },
+  rpeBadgeText: { color: '#888', fontSize: 11, fontWeight: '600' },
   finishBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 8, margin: 16, backgroundColor: '#0E1F12', borderRadius: 14,

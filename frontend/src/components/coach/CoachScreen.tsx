@@ -1,5 +1,6 @@
-// NeuroFit AI — AI Coach Screen
-// FIXED: structured card rendering for workout tables and AI decisions
+// NeuroFit AI — AI Coach Screen v2
+// Rich card rendering: workout cards, nutrition cards, recovery cards, progress cards.
+// No more raw text bubbles for structured responses.
 
 import React, { useState, useRef, useEffect } from 'react';
 import {
@@ -13,128 +14,209 @@ import { useStore } from '../../store';
 import { COLORS } from '../../theme/colors';
 
 const SUGGESTIONS = [
-  "Give me today's chest workout",
-  "I deadlifted 150kg x 3 with straps, RPE 9",
-  "Only 30 minutes today, what can I do?",
-  "My shoulder is clicking today",
-  "How's my CNS fatigue looking?",
-  "I missed yesterday's session",
+  "What's my workout today?",
+  "I just did Bench Press 80kg × 5 @ RPE 8",
+  "How's my recovery looking?",
+  "I only have 30 minutes today",
+  "My shoulder is sore",
+  "What should I eat to hit protein?",
 ];
 
-// Detects if the reply contains a markdown table and renders it as a card
-function parseWorkoutTable(text: string): { rows: string[][]; remainder: string } | null {
-  const lines = text.split('\n');
-  const tableLines: string[] = [];
-  const beforeLines: string[] = [];
-  const afterLines: string[] = [];
-  let inTable = false;
-  let pastTable = false;
+// ─── Workout Plan Card ────────────────────────────────────────────────────────
+function WorkoutPlanCard({ decision }: { decision: any }) {
+  const exercises = decision.exercises || [];
+  const summary = decision.summary || {};
+  const tips = decision.tips || [];
 
-  for (const line of lines) {
-    if (!pastTable && line.trim().startsWith('|')) {
-      inTable = true;
-      tableLines.push(line);
-    } else if (inTable) {
-      pastTable = true;
-      afterLines.push(line);
-    } else {
-      beforeLines.push(line);
-    }
-  }
-
-  if (tableLines.length < 2) return null;
-
-  const rows = tableLines
-    .filter((l) => !l.match(/^\s*\|[-:\s|]+\|\s*$/)) // skip separator rows
-    .map((l) =>
-      l
-        .split('|')
-        .slice(1, -1)
-        .map((c) => c.trim())
-    );
-
-  return {
-    rows,
-    remainder: [...beforeLines, ...afterLines].join('\n').trim(),
+  const intensityColor = (intensity: string) => {
+    if (!intensity) return '#888';
+    if (intensity === 'High') return COLORS.recoveryLow;
+    if (intensity === 'Moderate') return COLORS.recoveryMed;
+    if (intensity === 'Low' || intensity === 'Recovery') return COLORS.recoveryHigh;
+    return '#888';
   };
-}
 
-// Detects key:value metric lines like "Recovery ✅ Excellent"
-function parseMetricLines(text: string): { metrics: [string, string][]; remainder: string } | null {
-  const lines = text.split('\n');
-  const metricLines: [string, string][] = [];
-  const others: string[] = [];
-  for (const line of lines) {
-    const m = line.match(/^([^:•\-]+?)\s{2,}(.+)$/);
-    if (m && m[1].trim().length < 30) {
-      metricLines.push([m[1].trim(), m[2].trim()]);
-    } else {
-      others.push(line);
-    }
-  }
-  if (metricLines.length < 2) return null;
-  return { metrics: metricLines, remainder: others.join('\n').trim() };
-}
-
-function WorkoutTableCard({ rows }: { rows: string[][] }) {
-  const [header, ...body] = rows;
   return (
-    <View style={tableStyles.card}>
-      <View style={tableStyles.headerRow}>
-        {header.map((h, i) => (
-          <Text key={i} style={tableStyles.headerCell}>{h}</Text>
-        ))}
+    <View style={cardStyles.workoutCard}>
+      {/* Header */}
+      <View style={cardStyles.cardHeader}>
+        <View style={cardStyles.headerLeft}>
+          <Ionicons name="barbell-outline" size={14} color={COLORS.primaryGreen} />
+          <Text style={cardStyles.cardTitle}>TODAY'S WORKOUT</Text>
+        </View>
+        <View style={[cardStyles.intensityBadge, { borderColor: intensityColor(summary.intensity) }]}>
+          <Text style={[cardStyles.intensityText, { color: intensityColor(summary.intensity) }]}>
+            {summary.intensity?.toUpperCase() || 'PLANNED'}
+          </Text>
+        </View>
       </View>
-      {body.map((row, ri) => (
-        <View key={ri} style={[tableStyles.row, ri % 2 === 0 && tableStyles.rowAlt]}>
-          {row.map((cell, ci) => (
-            <Text key={ci} style={tableStyles.cell}>{cell}</Text>
+
+      {/* Exercise table */}
+      <View style={cardStyles.tableHeader}>
+        <Text style={[cardStyles.tableHead, { flex: 2 }]}>EXERCISE</Text>
+        <Text style={cardStyles.tableHead}>SETS</Text>
+        <Text style={cardStyles.tableHead}>REPS</Text>
+        <Text style={cardStyles.tableHead}>WEIGHT</Text>
+      </View>
+      {exercises.map((ex: any, i: number) => (
+        <View key={i} style={[cardStyles.tableRow, i % 2 === 0 && cardStyles.tableRowAlt]}>
+          <View style={{ flex: 2 }}>
+            <Text style={cardStyles.exName}>{ex.name}</Text>
+            {ex.focus ? <Text style={cardStyles.exFocus}>{ex.focus}</Text> : null}
+          </View>
+          <Text style={cardStyles.tableCell}>{ex.sets}</Text>
+          <Text style={cardStyles.tableCell}>{ex.reps}</Text>
+          <Text style={cardStyles.tableCell}>{ex.weight}</Text>
+        </View>
+      ))}
+
+      {/* Summary row */}
+      {(summary.estimated_time || summary.reason) && (
+        <View style={cardStyles.summaryRow}>
+          {summary.estimated_time && (
+            <View style={cardStyles.summaryChip}>
+              <Ionicons name="time-outline" size={12} color="#888" />
+              <Text style={cardStyles.summaryChipText}>{summary.estimated_time}</Text>
+            </View>
+          )}
+          {summary.reason && (
+            <Text style={cardStyles.summaryReason}>{summary.reason}</Text>
+          )}
+        </View>
+      )}
+
+      {/* Tips */}
+      {tips.length > 0 && (
+        <View style={cardStyles.tipsContainer}>
+          {tips.map((tip: string, i: number) => (
+            <View key={i} style={cardStyles.tipRow}>
+              <View style={cardStyles.tipDot} />
+              <Text style={cardStyles.tipText}>{tip}</Text>
+            </View>
           ))}
         </View>
-      ))}
+      )}
     </View>
   );
 }
 
-function MetricCard({ metrics }: { metrics: [string, string][] }) {
+// ─── Recovery Card ────────────────────────────────────────────────────────────
+function RecoveryCard({ decision }: { decision: any }) {
+  const recovery = decision.recovery ?? 0;
+  const tips = decision.tips || [];
+  const recoveryColor = recovery >= 67 ? COLORS.recoveryHigh : recovery >= 34 ? COLORS.recoveryMed : COLORS.recoveryLow;
+
   return (
-    <View style={tableStyles.metricCard}>
-      {metrics.map(([label, value], i) => (
-        <View key={i} style={tableStyles.metricRow}>
-          <Text style={tableStyles.metricLabel}>{label}</Text>
-          <Text style={tableStyles.metricValue}>{value}</Text>
+    <View style={cardStyles.recoveryCard}>
+      <View style={cardStyles.cardHeader}>
+        <Ionicons name="pulse-outline" size={14} color={COLORS.strain} />
+        <Text style={cardStyles.cardTitle}>RECOVERY STATUS</Text>
+      </View>
+      <View style={cardStyles.recoveryRow}>
+        <View style={cardStyles.recoveryMetric}>
+          <Text style={[cardStyles.recoveryScore, { color: recoveryColor }]}>{recovery}%</Text>
+          <Text style={cardStyles.recoveryLabel}>RECOVERY</Text>
+        </View>
+        <View style={cardStyles.recoveryDivider} />
+        <View style={{ flex: 1 }}>
+          {tips.map((tip: string, i: number) => (
+            <View key={i} style={cardStyles.tipRow}>
+              <View style={cardStyles.tipDot} />
+              <Text style={cardStyles.tipText}>{tip}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ─── Nutrition Card ───────────────────────────────────────────────────────────
+function NutritionCard({ decision }: { decision: any }) {
+  const tips = decision.tips || [];
+  return (
+    <View style={cardStyles.nutritionCard}>
+      <View style={cardStyles.cardHeader}>
+        <Ionicons name="nutrition-outline" size={14} color={COLORS.calories} />
+        <Text style={cardStyles.cardTitle}>NUTRITION ADVICE</Text>
+      </View>
+      {tips.map((tip: string, i: number) => (
+        <View key={i} style={cardStyles.tipRow}>
+          <View style={[cardStyles.tipDot, { backgroundColor: COLORS.calories }]} />
+          <Text style={cardStyles.tipText}>{tip}</Text>
         </View>
       ))}
     </View>
   );
 }
 
-function CoachMessage({ content }: { content: string }) {
-  const tableResult = parseWorkoutTable(content);
-  if (tableResult) {
-    return (
-      <>
-        {tableResult.remainder ? (
-          <Text style={styles.messageText}>{tableResult.remainder}</Text>
-        ) : null}
-        <WorkoutTableCard rows={tableResult.rows} />
-      </>
-    );
-  }
+// ─── Live Set Card ────────────────────────────────────────────────────────────
+function LiveSetCard({ decision }: { decision: any }) {
+  const tips = decision.tips || [];
+  return (
+    <View style={cardStyles.liveSetCard}>
+      <View style={cardStyles.cardHeader}>
+        <Ionicons name="flash" size={14} color={COLORS.primaryGreen} />
+        <Text style={cardStyles.cardTitle}>SET ANALYSIS</Text>
+      </View>
+      {decision.next_action && (
+        <Text style={cardStyles.nextAction}>{decision.next_action}</Text>
+      )}
+      {tips.map((tip: string, i: number) => (
+        <View key={i} style={cardStyles.tipRow}>
+          <View style={cardStyles.tipDot} />
+          <Text style={cardStyles.tipText}>{tip}</Text>
+        </View>
+      ))}
+      {decision.coach_insight && (
+        <Text style={cardStyles.coachInsight}>"{decision.coach_insight}"</Text>
+      )}
+    </View>
+  );
+}
 
-  const metricResult = parseMetricLines(content);
-  if (metricResult) {
-    return (
-      <>
-        {metricResult.remainder ? (
-          <Text style={styles.messageText}>{metricResult.remainder}</Text>
-        ) : null}
-        <MetricCard metrics={metricResult.metrics} />
-      </>
-    );
-  }
+// ─── Message renderer ─────────────────────────────────────────────────────────
+function CoachMessage({ item }: { item: any }) {
+  const sd = item.structured_decision;
 
-  return <Text style={styles.messageText}>{content}</Text>;
+  // coach_message is always shown as the main bubble text
+  const coachText = sd?.coach_message || item.content || '';
+
+  const renderCard = () => {
+    if (!sd) return null;
+    switch (sd.response_type) {
+      case 'workout_plan':
+        return sd.exercises?.length > 0 ? <WorkoutPlanCard decision={sd} /> : null;
+      case 'live_set':
+        return <LiveSetCard decision={sd} />;
+      case 'recovery_advice':
+        return <RecoveryCard decision={sd} />;
+      case 'nutrition_tip':
+        return <NutritionCard decision={sd} />;
+      default:
+        // chat / progress_update — just text + tips
+        if ((sd.tips || []).length > 0) {
+          return (
+            <View style={cardStyles.tipsContainer}>
+              {(sd.tips || []).map((tip: string, i: number) => (
+                <View key={i} style={cardStyles.tipRow}>
+                  <View style={cardStyles.tipDot} />
+                  <Text style={cardStyles.tipText}>{tip}</Text>
+                </View>
+              ))}
+            </View>
+          );
+        }
+        return null;
+    }
+  };
+
+  return (
+    <>
+      {coachText ? <Text style={styles.messageText}>{coachText}</Text> : null}
+      {renderCard()}
+    </>
+  );
 }
 
 export default function CoachScreen() {
@@ -155,7 +237,8 @@ export default function CoachScreen() {
       const res = await coachApi.chat(message, activeSession?.id);
       const data = res.data;
 
-      addChatMessage('assistant', data.reply);
+      // Store structured_decision alongside the message so CoachMessage can render it
+      addChatMessage('assistant', data.reply, data.structured_decision);
 
       if (data.cns_fatigue_score !== null && data.cns_fatigue_score !== undefined) {
         setCnsFatigue(data.cns_fatigue_score);
@@ -163,14 +246,14 @@ export default function CoachScreen() {
 
       if (data.emergency) {
         Alert.alert(
-          'Workout Terminated',
-          'Injury signal detected. Follow the R.I.C.E protocol in the message below.',
+          '⚠️ Training Stopped',
+          'Injury signal detected. See the message below.',
           [{ text: 'Understood', style: 'default' }]
         );
       }
 
       if (data.new_prs && data.new_prs.length > 0) {
-        Alert.alert('New PR!', data.new_prs.map((p: any) => p.message).join('\n'));
+        Alert.alert('🏆 New PR!', data.new_prs.map((p: any) => p.message).join('\n'));
       }
     } catch (err: any) {
       const { message: errMsg } = describeApiError(err);
@@ -195,7 +278,7 @@ export default function CoachScreen() {
         </View>
       )}
       {item.role === 'assistant' ? (
-        <CoachMessage content={item.content} />
+        <CoachMessage item={item} />
       ) : (
         <Text style={[styles.messageText, styles.userText]}>{item.content}</Text>
       )}
@@ -223,7 +306,7 @@ export default function CoachScreen() {
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>What's the move today?</Text>
           <Text style={styles.emptySubtitle}>
-            Tell me what you lifted, what you're feeling, or what you need.
+            Tell me what you lifted, how you're feeling, or what you need.
           </Text>
           <View style={styles.suggestions}>
             {SUGGESTIONS.map((s, i) => (
@@ -248,7 +331,7 @@ export default function CoachScreen() {
       {loading && (
         <View style={styles.loadingRow}>
           <ActivityIndicator color={COLORS.primaryGreen} size="small" />
-          <Text style={styles.loadingText}>Coach thinking...</Text>
+          <Text style={styles.loadingText}>Coach is thinking...</Text>
         </View>
       )}
 
@@ -274,33 +357,70 @@ export default function CoachScreen() {
   );
 }
 
-const tableStyles = StyleSheet.create({
-  card: {
-    backgroundColor: '#1A1A1A', borderRadius: 12, overflow: 'hidden',
-    marginTop: 8, borderWidth: 1, borderColor: '#2A2A2A',
+const cardStyles = StyleSheet.create({
+  workoutCard: {
+    backgroundColor: '#111', borderRadius: 14, overflow: 'hidden',
+    marginTop: 10, borderWidth: 1, borderColor: '#222',
   },
-  headerRow: {
-    flexDirection: 'row', backgroundColor: '#0C1F17',
-    paddingVertical: 8, paddingHorizontal: 10,
+  recoveryCard: {
+    backgroundColor: '#0A1520', borderRadius: 14, overflow: 'hidden',
+    marginTop: 10, borderWidth: 1, borderColor: '#1A2A3A',
   },
-  headerCell: {
-    flex: 1, color: COLORS.primaryGreen, fontSize: 11,
+  nutritionCard: {
+    backgroundColor: '#1A0F00', borderRadius: 14, overflow: 'hidden',
+    marginTop: 10, borderWidth: 1, borderColor: '#2A1800',
+  },
+  liveSetCard: {
+    backgroundColor: '#0C1F17', borderRadius: 14, overflow: 'hidden',
+    marginTop: 10, borderWidth: 1, borderColor: '#163A22',
+  },
+  cardHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 12, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: '#1E1E1E',
+  },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
+  cardTitle: {
+    color: '#888', fontSize: 10, fontWeight: '700', letterSpacing: 1.5,
+  },
+  intensityBadge: {
+    borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2,
+  },
+  intensityText: { fontSize: 9, fontWeight: '700', letterSpacing: 1 },
+  tableHeader: {
+    flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 6,
+    backgroundColor: '#0A0A0A',
+  },
+  tableHead: {
+    flex: 1, color: COLORS.primaryGreen, fontSize: 9,
     fontWeight: '700', letterSpacing: 0.5,
   },
-  row: { flexDirection: 'row', paddingVertical: 7, paddingHorizontal: 10 },
-  rowAlt: { backgroundColor: '#161616' },
-  cell: { flex: 1, color: '#C8D2D4', fontSize: 12 },
-  metricCard: {
-    backgroundColor: '#1A1A1A', borderRadius: 12, overflow: 'hidden',
-    marginTop: 8, borderWidth: 1, borderColor: '#2A2A2A',
+  tableRow: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 10, alignItems: 'flex-start' },
+  tableRowAlt: { backgroundColor: '#0D0D0D' },
+  exName: { color: '#E8E8E8', fontSize: 13, fontWeight: '600' },
+  exFocus: { color: '#555', fontSize: 11, marginTop: 2, fontStyle: 'italic' },
+  tableCell: { flex: 1, color: '#AAA', fontSize: 13, fontWeight: '500' },
+  summaryRow: {
+    flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8,
+    paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#1A1A1A',
   },
-  metricRow: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    paddingVertical: 8, paddingHorizontal: 12,
-    borderBottomWidth: 1, borderBottomColor: '#222',
+  summaryChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#1A1A1A', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4,
   },
-  metricLabel: { color: '#888', fontSize: 12 },
-  metricValue: { color: '#EEE', fontSize: 12, fontWeight: '600' },
+  summaryChipText: { color: '#888', fontSize: 11 },
+  summaryReason: { color: '#666', fontSize: 12, flex: 1 },
+  tipsContainer: { paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
+  tipRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 4 },
+  tipDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: COLORS.primaryGreen, marginTop: 5 },
+  tipText: { color: '#AAA', fontSize: 12, flex: 1, lineHeight: 17 },
+  recoveryRow: { flexDirection: 'row', padding: 12, alignItems: 'center', gap: 12 },
+  recoveryMetric: { alignItems: 'center' },
+  recoveryScore: { fontSize: 32, fontWeight: '800' },
+  recoveryLabel: { color: '#555', fontSize: 9, fontWeight: '700', letterSpacing: 1, marginTop: 2 },
+  recoveryDivider: { width: 1, height: 40, backgroundColor: '#1E1E1E' },
+  nextAction: { color: COLORS.primaryGreen, fontSize: 18, fontWeight: '700', margin: 12 },
+  coachInsight: { color: '#555', fontSize: 12, fontStyle: 'italic', margin: 12, marginTop: 4 },
 });
 
 const styles = StyleSheet.create({
