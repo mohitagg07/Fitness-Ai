@@ -13,6 +13,7 @@ import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   RefreshControl, ActivityIndicator,
 } from 'react-native';
+import Logo from '../shared/Logo';
 import Svg, { Circle } from 'react-native-svg';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -154,15 +155,18 @@ export default function DashboardScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        <View>
+        <View style={styles.headerTop}>
+          <Logo size="sm" />
+          {profile?.goal && (
+            <View style={styles.phaseBadge}>
+              <Text style={styles.phaseText}>{profile.goal.toUpperCase()}</Text>
+            </View>
+          )}
+        </View>
+        <View style={styles.headerGreeting}>
           <Text style={styles.greeting}>{greeting}</Text>
           <Text style={styles.name}>{summary?.greeting || firstName}</Text>
         </View>
-        {profile?.goal && (
-          <View style={styles.phaseBadge}>
-            <Text style={styles.phaseText}>{profile.goal.toUpperCase()}</Text>
-          </View>
-        )}
       </View>
 
       {/* ── Primary score rings row: Recovery + CNS Load — the Whoop-style
@@ -195,7 +199,42 @@ export default function DashboardScreen() {
         <Text style={styles.ringCaption}>{summary.recovery.message}</Text>
       )}
 
-      {/* Daily Mission / Next Action */}
+      {/* ── WORKOUT TODAY — first card after rings so the user immediately
+          knows what to do. This is the most actionable info. ────────── */}
+      {summary && (
+        <View style={styles.workoutTodayCard}>
+          <View style={styles.workoutTodayHeader}>
+            <View style={styles.workoutTodayLabelRow}>
+              <Ionicons name="barbell-outline" size={13} color={COLORS.strain} />
+              <Text style={styles.workoutTodayLabel}>WORKOUT TODAY</Text>
+            </View>
+            {summary.workout_today?.rescheduled && (
+              <View style={styles.rescheduledBadge}>
+                <Text style={styles.rescheduledText}>RESCHEDULED</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.workoutTodayType}>
+            {summary.workout_today?.type ? summary.workout_today.type.toUpperCase() : 'NO PLAN YET'}
+          </Text>
+          {summary.workout_today?.type ? (
+            <Text style={styles.workoutTodayMsg}>{summary.workout_today?.message}</Text>
+          ) : (
+            <>
+              <Text style={styles.workoutTodayMsg}>No plan yet. Ask Coach to generate one based on your recovery.</Text>
+              <TouchableOpacity
+                style={styles.generatePlanBtn}
+                onPress={() => router.push('/(tabs)/coach')}
+              >
+                <Ionicons name="flash" size={14} color="#000" />
+                <Text style={styles.generatePlanBtnText}>Generate Workout</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      )}
+
+      {/* Daily Mission */}
       <View style={styles.feedCard}>
         <View style={styles.feedLabelRow}>
           <Ionicons name="flash" size={12} color={COLORS.recoveryHigh} />
@@ -210,10 +249,7 @@ export default function DashboardScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* ── Secondary ring row: Calories / Protein / Water — smaller rings,
-          same visual grammar as the primary pair but used for daily
-          nutrition targets the way Whoop uses smaller rings for sub-metrics
-          (e.g. Sleep stages) beneath the main Recovery ring. ──────────── */}
+      {/* ── Nutrition rings ──────────────────────────────────────────────── */}
       {summary && (
         <View style={styles.miniRingsRow}>
           <MiniRing
@@ -240,38 +276,6 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* Workout Recommendation */}
-      {summary && (
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>WORKOUT TODAY</Text>
-          <View style={styles.workoutRow}>
-            <Ionicons name="barbell-outline" size={20} color={COLORS.strain} />
-            <Text style={styles.workoutType}>
-              {summary.workout_today?.type ? summary.workout_today.type.toUpperCase() : 'NO PLAN YET'}
-            </Text>
-            {summary.workout_today?.rescheduled && (
-              <View style={styles.rescheduledBadge}>
-                <Text style={styles.rescheduledText}>RESCHEDULED</Text>
-              </View>
-            )}
-          </View>
-          {summary.workout_today?.type ? (
-            <Text style={styles.cardMessage}>{summary.workout_today?.message}</Text>
-          ) : (
-            <>
-              <Text style={styles.cardMessage}>No active plan yet. Open Coach to generate one based on your recovery.</Text>
-              <TouchableOpacity
-                style={styles.generatePlanBtn}
-                onPress={() => router.push('/(tabs)/coach')}
-              >
-                <Ionicons name="flash" size={14} color="#000" />
-                <Text style={styles.generatePlanBtnText}>Generate Workout</Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
-      )}
-
       {/* Streaks */}
       {summary && (summary.workout_streak > 0 || summary.protein_streak > 0) && (
         <View style={styles.streakRow}>
@@ -288,10 +292,20 @@ export default function DashboardScreen() {
         </View>
       )}
 
+
+
+      {/* AI Insights card */}
       {summary?.motivation_message && (
-        <View style={styles.motivationCard}>
-          <Ionicons name="sparkles-outline" size={16} color={COLORS.recoveryHigh} />
-          <Text style={styles.motivationText}>{summary.motivation_message}</Text>
+        <View style={styles.aiInsightsCard}>
+          <View style={styles.aiInsightsHeader}>
+            <Ionicons name="sparkles" size={13} color={COLORS.strainGlow} />
+            <Text style={styles.aiInsightsLabel}>AI INSIGHTS</Text>
+          </View>
+          <Text style={styles.aiInsightsText}>{summary.motivation_message}</Text>
+          <TouchableOpacity style={styles.feedBtn} onPress={() => router.push('/(tabs)/coach')}>
+            <Text style={styles.feedBtnText}>Ask Coach</Text>
+            <Ionicons name="arrow-forward" size={14} color={COLORS.recoveryHigh} />
+          </TouchableOpacity>
         </View>
       )}
 
@@ -417,8 +431,13 @@ const styles = StyleSheet.create({
   },
   staleBannerText: { color: COLORS.recoveryMed, fontSize: 11, flex: 1 },
   header: {
-    padding: 24, paddingTop: 60,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
+    padding: 24, paddingTop: 60, gap: 12,
+  },
+  headerTop: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+  },
+  headerGreeting: {
+    gap: 2,
   },
   greeting: { color: '#5C6B6E', fontSize: 14 },
   name: { color: '#FFF', fontSize: 24, fontWeight: '800' },
@@ -454,6 +473,27 @@ const styles = StyleSheet.create({
   feedLabelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 },
   feedLabel: { color: COLORS.recoveryHigh, fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
   feedText: { color: '#C8D2D4', fontSize: 14, lineHeight: 20, marginBottom: 12 },
+  // Workout Today card (moved to top — Priority 2)
+  workoutTodayCard: {
+    marginHorizontal: 16, marginBottom: 14,
+    backgroundColor: COLORS.card, borderRadius: 18,
+    padding: 18, borderWidth: 1, borderColor: COLORS.strain + '40',
+  },
+  workoutTodayHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginBottom: 8,
+  },
+  workoutTodayLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  workoutTodayLabel: {
+    color: COLORS.strain, fontSize: 10, fontWeight: '800', letterSpacing: 1.5,
+  },
+  workoutTodayType: {
+    color: COLORS.text, fontSize: 24, fontWeight: '800', letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  workoutTodayMsg: {
+    color: COLORS.textSecondary, fontSize: 13, lineHeight: 19,
+  },
   feedBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' },
   feedBtnText: { color: COLORS.recoveryHigh, fontSize: 13, fontWeight: '600' },
 
@@ -502,6 +542,14 @@ const styles = StyleSheet.create({
   },
   motivationText: { color: '#C8D2D4', fontSize: 13, lineHeight: 19, flex: 1 },
 
+  aiInsightsCard: {
+    marginHorizontal: 16, marginBottom: 14,
+    backgroundColor: '#0A0F0A', borderRadius: 18,
+    padding: 18, borderWidth: 1, borderColor: COLORS.strainGlow + '30',
+  },
+  aiInsightsHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
+  aiInsightsLabel: { color: COLORS.strainGlow, fontSize: 10, fontWeight: '800', letterSpacing: 1.5 },
+  aiInsightsText: { color: COLORS.textSecondary, fontSize: 14, lineHeight: 21, marginBottom: 12 },
   sectionLabel: {
     color: '#5C6B6E', fontSize: 11, fontWeight: '700', letterSpacing: 1.5,
     marginHorizontal: 16, marginBottom: 8, marginTop: 8,

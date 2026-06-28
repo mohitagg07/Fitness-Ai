@@ -10,6 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { profileApi } from '../../utils/api';
 import { COLORS } from '../../theme/colors';
+import Logo from '../shared/Logo';
 
 interface PR {
   id: string;
@@ -132,12 +133,15 @@ export default function PRScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <Logo size="sm" />
+          <View style={styles.trophyBig}>
+            <Ionicons name="trophy" size={22} color="#FFD700" />
+          </View>
+        </View>
         <View>
           <Text style={styles.title}>PERSONAL RECORDS</Text>
           <Text style={styles.subtitle}>{prs.length} exercise{prs.length !== 1 ? 's' : ''} tracked</Text>
-        </View>
-        <View style={styles.trophyBig}>
-          <Ionicons name="trophy" size={28} color="#FFD700" />
         </View>
       </View>
 
@@ -198,8 +202,10 @@ const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
   loadingText: { color: '#555', fontSize: 13, marginTop: 12 },
   header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
-    paddingHorizontal: 20, paddingTop: 56, paddingBottom: 16,
+    paddingHorizontal: 20, paddingTop: 56, paddingBottom: 16, gap: 10,
+  },
+  headerTop: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
   title: { color: '#FFF', fontSize: 22, fontWeight: '800', letterSpacing: 1.5 },
   subtitle: { color: '#555', fontSize: 13, marginTop: 4 },

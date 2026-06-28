@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { progressApi, describeApiError } from '../../utils/api';
 import { COLORS } from '../../theme/colors';
 import NutritionSearchModal from './NutritionSearchModal';
+import Logo from '../shared/Logo';
 
 export default function ProgressScreen() {
   const [metrics, setMetrics] = useState<any[]>([]);
@@ -80,15 +81,15 @@ export default function ProgressScreen() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <View style={styles.headerRow}>
-          <View style={styles.headerIcon}>
-            <Ionicons name="stats-chart" size={18} color={COLORS.primaryGreen} />
-          </View>
-          <Text style={styles.title}>Progress</Text>
+        <View style={styles.headerTop}>
+          <Logo size="sm" />
+          {latestWeight && (
+            <View style={styles.weightChip}>
+              <Text style={styles.weightChipText}>{latestWeight} KG</Text>
+            </View>
+          )}
         </View>
-        {latestWeight && (
-          <Text style={styles.subtitle}>Current: {latestWeight} kg</Text>
-        )}
+        <Text style={styles.screenTitle}>Progress</Text>
       </View>
 
       {errorMsg && (
@@ -245,13 +246,17 @@ export default function ProgressScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   center: { flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' },
-  header: { padding: 24, paddingTop: 60 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  headerIcon: {
-    width: 34, height: 34, borderRadius: 10,
-    backgroundColor: COLORS.cardElevated, alignItems: 'center', justifyContent: 'center',
+  header: { padding: 24, paddingTop: 60, gap: 10 },
+  headerTop: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
-  title: { color: COLORS.text, fontSize: 28, fontWeight: '800' },
+  weightChip: {
+    backgroundColor: COLORS.cardElevated, borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  weightChipText: { color: COLORS.recoveryHigh, fontSize: 11, fontWeight: '700', letterSpacing: 1 },
+  screenTitle: { color: COLORS.text, fontSize: 28, fontWeight: '800' },
   subtitle: { color: COLORS.textSecondary, fontSize: 14, marginTop: 4 },
   errorBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,

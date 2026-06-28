@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { profileApi } from '../../utils/api';
 import { useStore } from '../../store';
 import { COLORS } from '../../theme/colors';
+import Logo from '../shared/Logo';
 
 export default function ProfileScreen() {
   const { user, profile, injuries, prs, setProfile, logout } = useStore();
@@ -55,6 +56,9 @@ export default function ProfileScreen() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
+        <View style={styles.logoBar}>
+          <Logo size="sm" />
+        </View>
         <LinearGradient colors={[COLORS.primaryGreen, '#1E3A5F']} style={styles.avatar}>
           <Text style={styles.avatarText}>
             {(user?.full_name || profile?.full_name || 'A').charAt(0).toUpperCase()}
@@ -158,7 +162,8 @@ function Stat({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#121212' },
   center: { flex: 1, backgroundColor: '#121212', justifyContent: 'center', alignItems: 'center' },
-  header: { alignItems: 'center', paddingTop: 60, paddingBottom: 24, paddingHorizontal: 20 },
+  header: { alignItems: 'center', paddingTop: 56, paddingBottom: 24, paddingHorizontal: 20 },
+  logoBar: { alignSelf: 'stretch', marginBottom: 20 },
   avatar: {
     width: 80, height: 80, borderRadius: 40,
     backgroundColor: '#1E3A5F', alignItems: 'center', justifyContent: 'center',

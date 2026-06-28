@@ -1,6 +1,13 @@
-// NeuroFit AI — AI Coach Screen v2
-// Rich card rendering: workout cards, nutrition cards, recovery cards, progress cards.
-// No more raw text bubbles for structured responses.
+// NeuroFit AI — AI Coach Screen v3
+// Full 7-card response system:
+//   workout_plan  → WorkoutCard   (exercise table + rest + intensity)
+//   live_set      → LiveSetCard   (set analysis + next action + insight)
+//   nutrition_tip → NutritionCard (macro targets + advice)
+//   recovery_advice→ RecoveryCard (score ring + tips)
+//   progress_update→ ProgressCard (PR highlights + trend)
+//   weekly_summary→ WeeklyCard   (7-day overview)
+//   chat          → ChatBubble   (plain text + optional tips)
+// The LLM returns structured JSON; the frontend picks the card.
 
 import React, { useState, useRef, useEffect } from 'react';
 import {
@@ -11,217 +18,395 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { coachApi, describeApiError } from '../../utils/api';
 import { useStore } from '../../store';
-import { COLORS } from '../../theme/colors';
+import { COLORS, recoveryColor } from '../../theme/colors';
 import Logo from '../shared/Logo';
 
+// ─── Suggestion chips shown on empty state ────────────────────────────────────
 const SUGGESTIONS = [
-  "What's my workout today?",
-  "I just did Bench Press 80kg × 5 @ RPE 8",
-  "How's my recovery looking?",
-  "I only have 30 minutes today",
-  "My shoulder is sore",
-  "What should I eat to hit protein?",
+  { icon: 'barbell-outline',    text: "What's my workout today?" },
+  { icon: 'flash-outline',      text: "I just did Bench Press 80kg × 5 @ RPE 8" },
+  { icon: 'pulse-outline',      text: "How's my recovery looking?" },
+  { icon: 'time-outline',       text: "I only have 30 minutes today" },
+  { icon: 'medical-outline',    text: "My shoulder is sore" },
+  { icon: 'nutrition-outline',  text: "What should I eat to hit protein?" },
 ];
 
-// ─── Workout Plan Card ────────────────────────────────────────────────────────
-function WorkoutPlanCard({ decision }: { decision: any }) {
-  const exercises = decision.exercises || [];
-  const summary = decision.summary || {};
-  const tips = decision.tips || [];
+// ─── Shared primitives ────────────────────────────────────────────────────────
+function CardShell({
+  color,
+  icon,
+  label,
+  accent,
+  children,
+}: {
+  color: string;
+  icon: string;
+  label: string;
+  accent: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={[C.shell, { borderColor: accent + '40', backgroundColor: color }]}>
+      <View style={[C.shellHeader, { borderBottomColor: accent + '25' }]}>
+        <Ionicons name={icon as any} size={13} color={accent} />
+        <Text style={[C.shellLabel, { color: accent }]}>{label}</Text>
+      </View>
+      {children}
+    </View>
+  );
+}
 
-  const intensityColor = (intensity: string) => {
-    if (!intensity) return '#888';
-    if (intensity === 'High') return COLORS.recoveryLow;
-    if (intensity === 'Moderate') return COLORS.recoveryMed;
-    if (intensity === 'Low' || intensity === 'Recovery') return COLORS.recoveryHigh;
-    return '#888';
+function TipRow({ text, accent = COLORS.recoveryHigh }: { text: string; accent?: string }) {
+  return (
+    <View style={C.tipRow}>
+      <View style={[C.tipDot, { backgroundColor: accent }]} />
+      <Text style={C.tipText}>{text}</Text>
+    </View>
+  );
+}
+
+// ─── 1. Workout Plan Card ─────────────────────────────────────────────────────
+function WorkoutCard({ sd }: { sd: any }) {
+  const exercises = sd.exercises || [];
+  const summary   = sd.summary   || {};
+  const tips      = sd.tips      || [];
+
+  const intColor = (i: string) => {
+    if (!i) return COLORS.textMuted;
+    if (i === 'High')     return COLORS.recoveryLow;
+    if (i === 'Moderate') return COLORS.recoveryMed;
+    return COLORS.recoveryHigh;
   };
+  const ic = intColor(summary.intensity);
 
   return (
-    <View style={cardStyles.workoutCard}>
-      {/* Header */}
-      <View style={cardStyles.cardHeader}>
-        <View style={cardStyles.headerLeft}>
-          <Ionicons name="barbell-outline" size={14} color={COLORS.primaryGreen} />
-          <Text style={cardStyles.cardTitle}>TODAY'S WORKOUT</Text>
-        </View>
-        <View style={[cardStyles.intensityBadge, { borderColor: intensityColor(summary.intensity) }]}>
-          <Text style={[cardStyles.intensityText, { color: intensityColor(summary.intensity) }]}>
+    <CardShell color="#0B120A" icon="barbell-outline" label="TODAY'S WORKOUT" accent={COLORS.recoveryHigh}>
+      {/* Intensity + meta row */}
+      <View style={C.wMeta}>
+        <View style={[C.intensityPill, { borderColor: ic }]}>
+          <Text style={[C.intensityText, { color: ic }]}>
             {summary.intensity?.toUpperCase() || 'PLANNED'}
           </Text>
         </View>
-      </View>
-
-      {/* Exercise table */}
-      <View style={cardStyles.tableHeader}>
-        <Text style={[cardStyles.tableHead, { flex: 2 }]}>EXERCISE</Text>
-        <Text style={cardStyles.tableHead}>SETS</Text>
-        <Text style={cardStyles.tableHead}>REPS</Text>
-        <Text style={cardStyles.tableHead}>WEIGHT</Text>
-      </View>
-      {exercises.map((ex: any, i: number) => (
-        <View key={i} style={[cardStyles.tableRow, i % 2 === 0 && cardStyles.tableRowAlt]}>
-          <View style={{ flex: 2 }}>
-            <Text style={cardStyles.exName}>{ex.name}</Text>
-            {ex.focus ? <Text style={cardStyles.exFocus}>{ex.focus}</Text> : null}
+        {summary.estimated_time && (
+          <View style={C.metaChip}>
+            <Ionicons name="time-outline" size={11} color={COLORS.textMuted} />
+            <Text style={C.metaChipText}>{summary.estimated_time}</Text>
           </View>
-          <Text style={cardStyles.tableCell}>{ex.sets}</Text>
-          <Text style={cardStyles.tableCell}>{ex.reps}</Text>
-          <Text style={cardStyles.tableCell}>{ex.weight}</Text>
-        </View>
-      ))}
+        )}
+        {sd.recovery != null && (
+          <View style={C.metaChip}>
+            <Ionicons name="pulse-outline" size={11} color={recoveryColor(sd.recovery)} />
+            <Text style={[C.metaChipText, { color: recoveryColor(sd.recovery) }]}>
+              {sd.recovery}%
+            </Text>
+          </View>
+        )}
+      </View>
 
-      {/* Summary row */}
-      {(summary.estimated_time || summary.reason) && (
-        <View style={cardStyles.summaryRow}>
-          {summary.estimated_time && (
-            <View style={cardStyles.summaryChip}>
-              <Ionicons name="time-outline" size={12} color="#888" />
-              <Text style={cardStyles.summaryChipText}>{summary.estimated_time}</Text>
-            </View>
-          )}
-          {summary.reason && (
-            <Text style={cardStyles.summaryReason}>{summary.reason}</Text>
-          )}
+      {/* Table */}
+      <View style={C.tableWrap}>
+        <View style={C.tableHead}>
+          <Text style={[C.th, { flex: 2.2 }]}>EXERCISE</Text>
+          <Text style={C.th}>SETS</Text>
+          <Text style={C.th}>REPS</Text>
+          <Text style={C.th}>LOAD</Text>
+          <Text style={C.th}>REST</Text>
         </View>
-      )}
+        {exercises.map((ex: any, i: number) => (
+          <View key={i} style={[C.tableRow, i % 2 === 1 && C.tableRowAlt]}>
+            <View style={{ flex: 2.2 }}>
+              <Text style={C.exName}>{ex.name}</Text>
+              {ex.focus ? <Text style={C.exFocus}>{ex.focus}</Text> : null}
+            </View>
+            <Text style={C.td}>{ex.sets}</Text>
+            <Text style={C.td}>{ex.reps}</Text>
+            <Text style={C.td}>{ex.weight || '—'}</Text>
+            <Text style={C.td}>{ex.rest   || '—'}</Text>
+          </View>
+        ))}
+      </View>
+
+      {/* Reason */}
+      {summary.reason ? (
+        <View style={C.reasonRow}>
+          <Text style={C.reasonText}>{summary.reason}</Text>
+        </View>
+      ) : null}
 
       {/* Tips */}
       {tips.length > 0 && (
-        <View style={cardStyles.tipsContainer}>
-          {tips.map((tip: string, i: number) => (
-            <View key={i} style={cardStyles.tipRow}>
-              <View style={cardStyles.tipDot} />
-              <Text style={cardStyles.tipText}>{tip}</Text>
+        <View style={C.tipsBlock}>
+          {tips.map((t: string, i: number) => <TipRow key={i} text={t} />)}
+        </View>
+      )}
+    </CardShell>
+  );
+}
+
+// ─── 2. Live Set Card ─────────────────────────────────────────────────────────
+function LiveSetCard({ sd }: { sd: any }) {
+  const tips = sd.tips || [];
+  return (
+    <CardShell color="#08140F" icon="flash" label="SET ANALYSIS" accent={COLORS.strainGlow}>
+      {sd.next_action && (
+        <View style={C.nextActionBlock}>
+          <Text style={C.nextActionLabel}>NEXT ACTION</Text>
+          <Text style={C.nextActionText}>{sd.next_action}</Text>
+        </View>
+      )}
+      {tips.length > 0 && (
+        <View style={C.tipsBlock}>
+          {tips.map((t: string, i: number) => <TipRow key={i} text={t} accent={COLORS.strainGlow} />)}
+        </View>
+      )}
+      {sd.coach_insight && (
+        <View style={C.insightBlock}>
+          <Text style={C.insightText}>"{sd.coach_insight}"</Text>
+        </View>
+      )}
+    </CardShell>
+  );
+}
+
+// ─── 3. Recovery Card ─────────────────────────────────────────────────────────
+function RecoveryCard({ sd }: { sd: any }) {
+  const score = sd.recovery ?? 0;
+  const rc    = recoveryColor(score);
+  const tips  = sd.tips || [];
+  const label = score >= 67 ? 'HIGH' : score >= 34 ? 'MEDIUM' : 'LOW';
+
+  return (
+    <CardShell color="#050F1A" icon="pulse-outline" label="RECOVERY STATUS" accent={COLORS.strain}>
+      <View style={C.recoveryBody}>
+        {/* Score block */}
+        <View style={C.recoveryScoreBlock}>
+          <Text style={[C.recoveryScoreNum, { color: rc }]}>{score}</Text>
+          <Text style={C.recoveryScoreUnit}>%</Text>
+          <View style={[C.recoveryZonePill, { backgroundColor: rc + '22', borderColor: rc + '66' }]}>
+            <Text style={[C.recoveryZoneText, { color: rc }]}>{label}</Text>
+          </View>
+        </View>
+        {/* Divider */}
+        <View style={C.recoveryDivider} />
+        {/* Tips */}
+        <View style={C.recoveryTips}>
+          {tips.length > 0
+            ? tips.map((t: string, i: number) => <TipRow key={i} text={t} accent={COLORS.strain} />)
+            : <Text style={C.emptyTip}>No specific recommendations today.</Text>
+          }
+        </View>
+      </View>
+    </CardShell>
+  );
+}
+
+// ─── 4. Nutrition Card ────────────────────────────────────────────────────────
+function NutritionCard({ sd }: { sd: any }) {
+  const tips = sd.tips || [];
+  // Optionally the backend may include macro targets
+  const macros = sd.macros || null;
+
+  return (
+    <CardShell color="#120A00" icon="nutrition-outline" label="NUTRITION ADVICE" accent={COLORS.calories}>
+      {macros && (
+        <View style={C.macroRow}>
+          {macros.protein != null && (
+            <View style={C.macroChip}>
+              <Text style={[C.macroVal, { color: COLORS.protein }]}>{macros.protein}g</Text>
+              <Text style={C.macroLabel}>PROTEIN</Text>
+            </View>
+          )}
+          {macros.carbs != null && (
+            <View style={C.macroChip}>
+              <Text style={[C.macroVal, { color: COLORS.carbs }]}>{macros.carbs}g</Text>
+              <Text style={C.macroLabel}>CARBS</Text>
+            </View>
+          )}
+          {macros.fat != null && (
+            <View style={C.macroChip}>
+              <Text style={[C.macroVal, { color: COLORS.fat }]}>{macros.fat}g</Text>
+              <Text style={C.macroLabel}>FAT</Text>
+            </View>
+          )}
+          {macros.calories != null && (
+            <View style={C.macroChip}>
+              <Text style={[C.macroVal, { color: COLORS.calories }]}>{macros.calories}</Text>
+              <Text style={C.macroLabel}>KCAL</Text>
+            </View>
+          )}
+        </View>
+      )}
+      {tips.length > 0 && (
+        <View style={C.tipsBlock}>
+          {tips.map((t: string, i: number) => <TipRow key={i} text={t} accent={COLORS.calories} />)}
+        </View>
+      )}
+    </CardShell>
+  );
+}
+
+// ─── 5. Progress / PR Card ────────────────────────────────────────────────────
+function ProgressCard({ sd }: { sd: any }) {
+  const tips = sd.tips || [];
+  const prs  = sd.new_prs || sd.prs || [];
+
+  return (
+    <CardShell color="#0A0A16" icon="trophy-outline" label="PROGRESS UPDATE" accent={COLORS.recoveryBlue}>
+      {prs.length > 0 && (
+        <View style={C.prBlock}>
+          <Text style={C.prBlockLabel}>NEW PRs</Text>
+          {prs.map((pr: any, i: number) => (
+            <View key={i} style={C.prRow}>
+              <Ionicons name="trophy" size={14} color="#FFD700" />
+              <Text style={C.prText}>
+                {pr.exercise_name || pr.exercise}: {pr.weight_kg || pr.weight} kg × {pr.reps} reps
+              </Text>
             </View>
           ))}
         </View>
       )}
-    </View>
+      {sd.trend && (
+        <View style={C.trendRow}>
+          <Ionicons
+            name={sd.trend === 'up' ? 'trending-up' : sd.trend === 'down' ? 'trending-down' : 'remove'}
+            size={18}
+            color={sd.trend === 'up' ? COLORS.recoveryHigh : sd.trend === 'down' ? COLORS.recoveryLow : COLORS.textMuted}
+          />
+          <Text style={C.trendText}>{sd.trend_label || sd.trend}</Text>
+        </View>
+      )}
+      {tips.length > 0 && (
+        <View style={C.tipsBlock}>
+          {tips.map((t: string, i: number) => <TipRow key={i} text={t} accent={COLORS.recoveryBlue} />)}
+        </View>
+      )}
+    </CardShell>
   );
 }
 
-// ─── Recovery Card ────────────────────────────────────────────────────────────
-function RecoveryCard({ decision }: { decision: any }) {
-  const recovery = decision.recovery ?? 0;
-  const tips = decision.tips || [];
-  const recoveryColor = recovery >= 67 ? COLORS.recoveryHigh : recovery >= 34 ? COLORS.recoveryMed : COLORS.recoveryLow;
+// ─── 6. Weekly Summary Card ───────────────────────────────────────────────────
+function WeeklyCard({ sd }: { sd: any }) {
+  const days  = sd.days  || [];
+  const stats = sd.stats || {};
+  const tips  = sd.tips  || [];
 
   return (
-    <View style={cardStyles.recoveryCard}>
-      <View style={cardStyles.cardHeader}>
-        <Ionicons name="pulse-outline" size={14} color={COLORS.strain} />
-        <Text style={cardStyles.cardTitle}>RECOVERY STATUS</Text>
-      </View>
-      <View style={cardStyles.recoveryRow}>
-        <View style={cardStyles.recoveryMetric}>
-          <Text style={[cardStyles.recoveryScore, { color: recoveryColor }]}>{recovery}%</Text>
-          <Text style={cardStyles.recoveryLabel}>RECOVERY</Text>
+    <CardShell color="#0A0A0A" icon="calendar-outline" label="WEEKLY SUMMARY" accent={COLORS.strain}>
+      {/* Stat pills */}
+      {Object.keys(stats).length > 0 && (
+        <View style={C.weeklyStats}>
+          {stats.sessions != null && (
+            <View style={C.weeklyStatChip}>
+              <Text style={C.weeklyStatVal}>{stats.sessions}</Text>
+              <Text style={C.weeklyStatLabel}>SESSIONS</Text>
+            </View>
+          )}
+          {stats.total_volume_kg != null && (
+            <View style={C.weeklyStatChip}>
+              <Text style={C.weeklyStatVal}>{Math.round(stats.total_volume_kg / 1000)}t</Text>
+              <Text style={C.weeklyStatLabel}>VOLUME</Text>
+            </View>
+          )}
+          {stats.avg_recovery != null && (
+            <View style={C.weeklyStatChip}>
+              <Text style={[C.weeklyStatVal, { color: recoveryColor(stats.avg_recovery) }]}>
+                {stats.avg_recovery}%
+              </Text>
+              <Text style={C.weeklyStatLabel}>AVG REC</Text>
+            </View>
+          )}
+          {stats.protein_days != null && (
+            <View style={C.weeklyStatChip}>
+              <Text style={C.weeklyStatVal}>{stats.protein_days}/7</Text>
+              <Text style={C.weeklyStatLabel}>PROTEIN</Text>
+            </View>
+          )}
         </View>
-        <View style={cardStyles.recoveryDivider} />
-        <View style={{ flex: 1 }}>
-          {tips.map((tip: string, i: number) => (
-            <View key={i} style={cardStyles.tipRow}>
-              <View style={cardStyles.tipDot} />
-              <Text style={cardStyles.tipText}>{tip}</Text>
+      )}
+      {/* Day-by-day mini view */}
+      {days.length > 0 && (
+        <View style={C.weekDays}>
+          {days.map((d: any, i: number) => (
+            <View key={i} style={C.weekDay}>
+              <Text style={C.weekDayLabel}>{d.label || d.day}</Text>
+              <View style={[
+                C.weekDayDot,
+                { backgroundColor: d.trained ? COLORS.recoveryHigh : d.rest ? COLORS.textDim : COLORS.recoveryLow }
+              ]} />
             </View>
           ))}
         </View>
-      </View>
-    </View>
-  );
-}
-
-// ─── Nutrition Card ───────────────────────────────────────────────────────────
-function NutritionCard({ decision }: { decision: any }) {
-  const tips = decision.tips || [];
-  return (
-    <View style={cardStyles.nutritionCard}>
-      <View style={cardStyles.cardHeader}>
-        <Ionicons name="nutrition-outline" size={14} color={COLORS.calories} />
-        <Text style={cardStyles.cardTitle}>NUTRITION ADVICE</Text>
-      </View>
-      {tips.map((tip: string, i: number) => (
-        <View key={i} style={cardStyles.tipRow}>
-          <View style={[cardStyles.tipDot, { backgroundColor: COLORS.calories }]} />
-          <Text style={cardStyles.tipText}>{tip}</Text>
-        </View>
-      ))}
-    </View>
-  );
-}
-
-// ─── Live Set Card ────────────────────────────────────────────────────────────
-function LiveSetCard({ decision }: { decision: any }) {
-  const tips = decision.tips || [];
-  return (
-    <View style={cardStyles.liveSetCard}>
-      <View style={cardStyles.cardHeader}>
-        <Ionicons name="flash" size={14} color={COLORS.primaryGreen} />
-        <Text style={cardStyles.cardTitle}>SET ANALYSIS</Text>
-      </View>
-      {decision.next_action && (
-        <Text style={cardStyles.nextAction}>{decision.next_action}</Text>
       )}
-      {tips.map((tip: string, i: number) => (
-        <View key={i} style={cardStyles.tipRow}>
-          <View style={cardStyles.tipDot} />
-          <Text style={cardStyles.tipText}>{tip}</Text>
+      {tips.length > 0 && (
+        <View style={C.tipsBlock}>
+          {tips.map((t: string, i: number) => <TipRow key={i} text={t} accent={COLORS.strain} />)}
         </View>
-      ))}
-      {decision.coach_insight && (
-        <Text style={cardStyles.coachInsight}>"{decision.coach_insight}"</Text>
       )}
+    </CardShell>
+  );
+}
+
+// ─── 7. Chat bubble tips (fallback) ──────────────────────────────────────────
+function ChatTipsCard({ tips }: { tips: string[] }) {
+  if (!tips.length) return null;
+  return (
+    <View style={C.chatTipsCard}>
+      {tips.map((t, i) => <TipRow key={i} text={t} />)}
     </View>
   );
 }
 
-// ─── Message renderer ─────────────────────────────────────────────────────────
+// ─── Message renderer — picks the right card ──────────────────────────────────
 function CoachMessage({ item }: { item: any }) {
-  const sd = item.structured_decision;
-
-  // coach_message is always shown as the main bubble text
+  const sd        = item.structured_decision;
   const coachText = sd?.coach_message || item.content || '';
 
   const renderCard = () => {
     if (!sd) return null;
     switch (sd.response_type) {
-      case 'workout_plan':
-        return sd.exercises?.length > 0 ? <WorkoutPlanCard decision={sd} /> : null;
-      case 'live_set':
-        return <LiveSetCard decision={sd} />;
-      case 'recovery_advice':
-        return <RecoveryCard decision={sd} />;
-      case 'nutrition_tip':
-        return <NutritionCard decision={sd} />;
+      case 'workout_plan':    return (sd.exercises?.length > 0) ? <WorkoutCard   sd={sd} /> : null;
+      case 'live_set':        return <LiveSetCard   sd={sd} />;
+      case 'recovery_advice': return <RecoveryCard  sd={sd} />;
+      case 'nutrition_tip':   return <NutritionCard sd={sd} />;
+      case 'progress_update': return <ProgressCard  sd={sd} />;
+      case 'weekly_summary':  return <WeeklyCard    sd={sd} />;
       default:
-        // chat / progress_update — just text + tips
-        if ((sd.tips || []).length > 0) {
-          return (
-            <View style={cardStyles.tipsContainer}>
-              {(sd.tips || []).map((tip: string, i: number) => (
-                <View key={i} style={cardStyles.tipRow}>
-                  <View style={cardStyles.tipDot} />
-                  <Text style={cardStyles.tipText}>{tip}</Text>
-                </View>
-              ))}
-            </View>
-          );
-        }
-        return null;
+        return (sd.tips?.length > 0) ? <ChatTipsCard tips={sd.tips} /> : null;
     }
   };
 
   return (
     <>
-      {coachText ? <Text style={styles.messageText}>{coachText}</Text> : null}
+      {coachText ? <Text style={S.messageText}>{coachText}</Text> : null}
       {renderCard()}
     </>
   );
 }
 
+// ─── Loading animation dots ───────────────────────────────────────────────────
+function ThinkingDots() {
+  const [dot, setDot] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setDot(d => (d + 1) % 4), 420);
+    return () => clearInterval(t);
+  }, []);
+  const dots = '.'.repeat(dot) + '\u00A0'.repeat(3 - dot);
+  return (
+    <View style={S.thinkingRow}>
+      <View style={S.thinkingAvatar}>
+        <Ionicons name="flash" size={12} color={COLORS.recoveryHigh} />
+      </View>
+      <View style={S.thinkingBubble}>
+        <Text style={S.thinkingText}>Coach is thinking{dots}</Text>
+      </View>
+    </View>
+  );
+}
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function CoachScreen() {
-  const [input, setInput] = useState('');
+  const [input, setInput]   = useState('');
   const [loading, setLoading] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const { chatHistory, addChatMessage, setCnsFatigue, activeSession } = useStore();
@@ -235,25 +420,19 @@ export default function CoachScreen() {
     setLoading(true);
 
     try {
-      const res = await coachApi.chat(message, activeSession?.id);
+      const res  = await coachApi.chat(message, activeSession?.id);
       const data = res.data;
 
-      // Store structured_decision alongside the message so CoachMessage can render it
       addChatMessage('assistant', data.reply, data.structured_decision);
 
-      if (data.cns_fatigue_score !== null && data.cns_fatigue_score !== undefined) {
-        setCnsFatigue(data.cns_fatigue_score);
-      }
+      if (data.cns_fatigue_score != null) setCnsFatigue(data.cns_fatigue_score);
 
       if (data.emergency) {
-        Alert.alert(
-          '⚠️ Training Stopped',
-          'Injury signal detected. See the message below.',
-          [{ text: 'Understood', style: 'default' }]
-        );
+        Alert.alert('⚠️ Training Stopped', 'Injury signal detected. See the message below.', [
+          { text: 'Understood', style: 'default' },
+        ]);
       }
-
-      if (data.new_prs && data.new_prs.length > 0) {
+      if (data.new_prs?.length > 0) {
         Alert.alert('🏆 New PR!', data.new_prs.map((p: any) => p.message).join('\n'));
       }
     } catch (err: any) {
@@ -271,200 +450,254 @@ export default function CoachScreen() {
   }, [chatHistory.length]);
 
   const renderMessage = ({ item }: { item: any }) => (
-    <View style={[styles.bubble, item.role === 'user' ? styles.userBubble : styles.aiBubble]}>
+    <View style={[S.bubble, item.role === 'user' ? S.userBubble : S.aiBubble]}>
       {item.role === 'assistant' && (
-        <View style={styles.roleLabelRow}>
-          <Ionicons name="flash" size={10} color={COLORS.primaryGreen} />
-          <Text style={styles.roleLabel}>NEUROFIT COACH</Text>
+        <View style={S.roleLabelRow}>
+          <Ionicons name="flash" size={10} color={COLORS.recoveryHigh} />
+          <Text style={S.roleLabel}>NEUROFIT COACH</Text>
         </View>
       )}
-      {item.role === 'assistant' ? (
-        <CoachMessage item={item} />
-      ) : (
-        <Text style={[styles.messageText, styles.userText]}>{item.content}</Text>
-      )}
+      {item.role === 'assistant'
+        ? <CoachMessage item={item} />
+        : <Text style={[S.messageText, S.userText]}>{item.content}</Text>
+      }
     </View>
   );
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={S.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={90}
     >
       {/* Header */}
-      <View style={styles.header}>
+      <View style={S.header}>
         <Logo size="sm" />
-        <Text style={styles.headerSub}>AI Coach</Text>
+        <Text style={S.headerSub}>AI Coach</Text>
       </View>
 
+      {/* Empty state */}
       {chatHistory.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>What's the move today?</Text>
-          <Text style={styles.emptySubtitle}>
-            Tell me what you lifted, how you're feeling, or what you need.
-          </Text>
-          <View style={styles.suggestions}>
+        <ScrollView style={S.emptyScroll} contentContainerStyle={S.emptyContent}>
+          <View style={S.emptyHero}>
+            <View style={S.emptyIcon}>
+              <Ionicons name="flash" size={28} color={COLORS.recoveryHigh} />
+            </View>
+            <Text style={S.emptyTitle}>What's the move today?</Text>
+            <Text style={S.emptySubtitle}>
+              Log a set, ask for a plan, or just tell me how you're feeling.
+            </Text>
+          </View>
+          <View style={S.suggestions}>
             {SUGGESTIONS.map((s, i) => (
-              <TouchableOpacity key={i} style={styles.suggestion} onPress={() => sendMessage(s)}>
-                <Text style={styles.suggestionText}>{s}</Text>
-                <Ionicons name="arrow-forward-outline" size={14} color="#555" />
+              <TouchableOpacity key={i} style={S.suggestion} onPress={() => sendMessage(s.text)}>
+                <View style={S.suggestionIcon}>
+                  <Ionicons name={s.icon as any} size={15} color={COLORS.recoveryHigh} />
+                </View>
+                <Text style={S.suggestionText}>{s.text}</Text>
+                <Ionicons name="arrow-forward-outline" size={14} color={COLORS.textDim} />
               </TouchableOpacity>
             ))}
           </View>
-        </View>
+        </ScrollView>
       ) : (
         <FlatList
           ref={flatListRef}
           data={chatHistory}
           keyExtractor={(_: unknown, i: number) => String(i)}
           renderItem={renderMessage}
-          contentContainerStyle={styles.messageList}
+          contentContainerStyle={S.messageList}
           showsVerticalScrollIndicator={false}
         />
       )}
 
-      {loading && (
-        <View style={styles.loadingRow}>
-          <ActivityIndicator color={COLORS.primaryGreen} size="small" />
-          <Text style={styles.loadingText}>Coach is thinking...</Text>
-        </View>
-      )}
+      {/* Thinking indicator */}
+      {loading && <ThinkingDots />}
 
-      <View style={styles.inputRow}>
+      {/* Input row */}
+      <View style={S.inputRow}>
         <TextInput
-          style={styles.input}
+          style={S.input}
           value={input}
           onChangeText={setInput}
-          placeholder="Tell me what you lifted, or ask anything..."
-          placeholderTextColor="#555"
+          placeholder="Log a set, ask anything..."
+          placeholderTextColor={COLORS.textDim}
           multiline
           maxLength={2000}
+          onSubmitEditing={() => sendMessage()}
+          blurOnSubmit={false}
         />
         <TouchableOpacity
-          style={[styles.sendBtn, (!input.trim() || loading) && styles.sendBtnDisabled]}
+          style={[S.sendBtn, (!input.trim() || loading) && S.sendBtnOff]}
           onPress={() => sendMessage()}
           disabled={!input.trim() || loading}
         >
-          <Ionicons name="arrow-up" size={18} color={input.trim() && !loading ? COLORS.background : COLORS.textMuted} />
+          <Ionicons
+            name="arrow-up"
+            size={18}
+            color={input.trim() && !loading ? COLORS.background : COLORS.textDim}
+          />
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
-const cardStyles = StyleSheet.create({
-  workoutCard: {
-    backgroundColor: '#111', borderRadius: 14, overflow: 'hidden',
-    marginTop: 10, borderWidth: 1, borderColor: '#222',
-  },
-  recoveryCard: {
-    backgroundColor: '#0A1520', borderRadius: 14, overflow: 'hidden',
-    marginTop: 10, borderWidth: 1, borderColor: '#1A2A3A',
-  },
-  nutritionCard: {
-    backgroundColor: '#1A0F00', borderRadius: 14, overflow: 'hidden',
-    marginTop: 10, borderWidth: 1, borderColor: '#2A1800',
-  },
-  liveSetCard: {
-    backgroundColor: '#0C1F17', borderRadius: 14, overflow: 'hidden',
-    marginTop: 10, borderWidth: 1, borderColor: '#163A22',
-  },
-  cardHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 12, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: '#1E1E1E',
-  },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
-  cardTitle: {
-    color: '#888', fontSize: 10, fontWeight: '700', letterSpacing: 1.5,
-  },
-  intensityBadge: {
-    borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2,
-  },
-  intensityText: { fontSize: 9, fontWeight: '700', letterSpacing: 1 },
-  tableHeader: {
-    flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 6,
-    backgroundColor: '#0A0A0A',
-  },
-  tableHead: {
-    flex: 1, color: COLORS.primaryGreen, fontSize: 9,
-    fontWeight: '700', letterSpacing: 0.5,
-  },
-  tableRow: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 10, alignItems: 'flex-start' },
-  tableRowAlt: { backgroundColor: '#0D0D0D' },
-  exName: { color: '#E8E8E8', fontSize: 13, fontWeight: '600' },
-  exFocus: { color: '#555', fontSize: 11, marginTop: 2, fontStyle: 'italic' },
-  tableCell: { flex: 1, color: '#AAA', fontSize: 13, fontWeight: '500' },
-  summaryRow: {
-    flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8,
-    paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#1A1A1A',
-  },
-  summaryChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: '#1A1A1A', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4,
-  },
-  summaryChipText: { color: '#888', fontSize: 11 },
-  summaryReason: { color: '#666', fontSize: 12, flex: 1 },
-  tipsContainer: { paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
-  tipRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 4 },
-  tipDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: COLORS.primaryGreen, marginTop: 5 },
-  tipText: { color: '#AAA', fontSize: 12, flex: 1, lineHeight: 17 },
-  recoveryRow: { flexDirection: 'row', padding: 12, alignItems: 'center', gap: 12 },
-  recoveryMetric: { alignItems: 'center' },
-  recoveryScore: { fontSize: 32, fontWeight: '800' },
-  recoveryLabel: { color: '#555', fontSize: 9, fontWeight: '700', letterSpacing: 1, marginTop: 2 },
-  recoveryDivider: { width: 1, height: 40, backgroundColor: '#1E1E1E' },
-  nextAction: { color: COLORS.primaryGreen, fontSize: 18, fontWeight: '700', margin: 12 },
-  coachInsight: { color: '#555', fontSize: 12, fontStyle: 'italic', margin: 12, marginTop: 4 },
+// ─── Card styles (C) ──────────────────────────────────────────────────────────
+const C = StyleSheet.create({
+  // Shell
+  shell:       { borderRadius: 16, overflow: 'hidden', marginTop: 12, borderWidth: 1 },
+  shellHeader: { flexDirection: 'row', alignItems: 'center', gap: 7,
+                 paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1 },
+  shellLabel:  { fontSize: 10, fontWeight: '700', letterSpacing: 1.6 },
+
+  // Tips
+  tipsBlock: { paddingHorizontal: 14, paddingVertical: 10, gap: 6 },
+  tipRow:    { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  tipDot:    { width: 5, height: 5, borderRadius: 3, marginTop: 6 },
+  tipText:   { color: COLORS.textSecondary, fontSize: 12, flex: 1, lineHeight: 18 },
+  emptyTip:  { color: COLORS.textMuted, fontSize: 12 },
+
+  // Workout card
+  wMeta:         { flexDirection: 'row', alignItems: 'center', gap: 8,
+                   paddingHorizontal: 14, paddingVertical: 10 },
+  intensityPill: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  intensityText: { fontSize: 9, fontWeight: '800', letterSpacing: 1.2 },
+  metaChip:      { flexDirection: 'row', alignItems: 'center', gap: 4,
+                   backgroundColor: COLORS.cardElevated, borderRadius: 8,
+                   paddingHorizontal: 8, paddingVertical: 3 },
+  metaChipText:  { color: COLORS.textMuted, fontSize: 11, fontWeight: '600' },
+
+  tableWrap:  { borderTopWidth: 1, borderTopColor: '#1A1A1A' },
+  tableHead:  { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 6,
+                backgroundColor: '#050505' },
+  th:         { flex: 1, color: COLORS.recoveryHigh, fontSize: 9, fontWeight: '700', letterSpacing: 0.6 },
+  tableRow:   { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 11, alignItems: 'flex-start' },
+  tableRowAlt:{ backgroundColor: '#0A0A0A' },
+  exName:     { color: '#E8E8E8', fontSize: 13, fontWeight: '600' },
+  exFocus:    { color: COLORS.textMuted, fontSize: 11, marginTop: 2, fontStyle: 'italic' },
+  td:         { flex: 1, color: '#AAAAAA', fontSize: 12, fontWeight: '500' },
+
+  reasonRow:  { paddingHorizontal: 14, paddingVertical: 10,
+                borderTopWidth: 1, borderTopColor: '#1A1A1A' },
+  reasonText: { color: COLORS.textMuted, fontSize: 12, lineHeight: 18 },
+
+  // Live set card
+  nextActionBlock: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8 },
+  nextActionLabel: { color: COLORS.strainGlow, fontSize: 9, fontWeight: '800',
+                     letterSpacing: 1.5, marginBottom: 4 },
+  nextActionText:  { color: '#E8E8E8', fontSize: 20, fontWeight: '800', lineHeight: 26 },
+  insightBlock:    { paddingHorizontal: 14, paddingVertical: 10,
+                     borderTopWidth: 1, borderTopColor: '#111' },
+  insightText:     { color: COLORS.textMuted, fontSize: 12, fontStyle: 'italic' },
+
+  // Recovery card
+  recoveryBody:       { flexDirection: 'row', padding: 14, alignItems: 'center', gap: 14 },
+  recoveryScoreBlock: { alignItems: 'center', minWidth: 72 },
+  recoveryScoreNum:   { fontSize: 42, fontWeight: '800', lineHeight: 48 },
+  recoveryScoreUnit:  { color: COLORS.textMuted, fontSize: 14, fontWeight: '600', marginTop: -6 },
+  recoveryZonePill:   { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8,
+                        paddingVertical: 3, marginTop: 6 },
+  recoveryZoneText:   { fontSize: 9, fontWeight: '800', letterSpacing: 1.2 },
+  recoveryDivider:    { width: 1, height: 52, backgroundColor: '#1E1E1E' },
+  recoveryTips:       { flex: 1, gap: 6 },
+
+  // Nutrition card
+  macroRow:    { flexDirection: 'row', padding: 14, gap: 8, flexWrap: 'wrap' },
+  macroChip:   { flex: 1, minWidth: 60, backgroundColor: COLORS.cardElevated,
+                 borderRadius: 10, padding: 10, alignItems: 'center',
+                 borderWidth: 1, borderColor: COLORS.border },
+  macroVal:    { fontSize: 18, fontWeight: '800', color: COLORS.text },
+  macroLabel:  { color: COLORS.textMuted, fontSize: 9, fontWeight: '700',
+                 letterSpacing: 1, marginTop: 2 },
+
+  // Progress card
+  prBlock:      { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8 },
+  prBlockLabel: { color: '#FFD700', fontSize: 9, fontWeight: '800', letterSpacing: 1.5, marginBottom: 8 },
+  prRow:        { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  prText:       { color: '#E8E8E8', fontSize: 13, fontWeight: '600' },
+  trendRow:     { flexDirection: 'row', alignItems: 'center', gap: 8,
+                  paddingHorizontal: 14, paddingVertical: 10,
+                  borderTopWidth: 1, borderTopColor: '#1A1A1A' },
+  trendText:    { color: COLORS.textSecondary, fontSize: 13, fontWeight: '600' },
+
+  // Weekly card
+  weeklyStats:     { flexDirection: 'row', padding: 14, gap: 8 },
+  weeklyStatChip:  { flex: 1, backgroundColor: COLORS.cardElevated, borderRadius: 10,
+                     padding: 10, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
+  weeklyStatVal:   { fontSize: 20, fontWeight: '800', color: COLORS.text },
+  weeklyStatLabel: { color: COLORS.textMuted, fontSize: 8, fontWeight: '700',
+                     letterSpacing: 1, marginTop: 2 },
+  weekDays:        { flexDirection: 'row', paddingHorizontal: 14, paddingBottom: 14, gap: 6 },
+  weekDay:         { flex: 1, alignItems: 'center', gap: 5 },
+  weekDayLabel:    { color: COLORS.textMuted, fontSize: 9, fontWeight: '600' },
+  weekDayDot:      { width: 8, height: 8, borderRadius: 4 },
+
+  // Chat tips
+  chatTipsCard: { backgroundColor: COLORS.card, borderRadius: 12, marginTop: 8,
+                  paddingHorizontal: 12, paddingVertical: 8,
+                  borderWidth: 1, borderColor: COLORS.border },
 });
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212' },
+// ─── Screen styles (S) ────────────────────────────────────────────────────────
+const S = StyleSheet.create({
+  container: { flex: 1, backgroundColor: COLORS.background },
+
   header: {
-    paddingHorizontal: 20, paddingTop: 60, paddingBottom: 12,
-    borderBottomWidth: 1, borderBottomColor: '#2A2A2A',
-    gap: 4,
+    paddingHorizontal: 20, paddingTop: 60, paddingBottom: 14,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 4,
   },
-  headerSub: { color: '#888', fontSize: 13, fontWeight: '600' },
-  messageList: { padding: 16, paddingBottom: 8 },
-  bubble: { marginBottom: 12, borderRadius: 16, padding: 14, maxWidth: '90%' },
-  userBubble: { backgroundColor: '#1E3A5F', alignSelf: 'flex-end' },
-  aiBubble: {
-    backgroundColor: '#1E1E1E', alignSelf: 'flex-start',
-    borderWidth: 1, borderColor: '#2A2A2A', maxWidth: '96%',
-  },
-  roleLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 6 },
-  roleLabel: { color: COLORS.primaryGreen, fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
+  headerSub: { color: COLORS.textMuted, fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
+
+  emptyScroll:   { flex: 1 },
+  emptyContent:  { padding: 24, paddingTop: 32 },
+  emptyHero:     { alignItems: 'center', marginBottom: 32 },
+  emptyIcon:     { width: 56, height: 56, borderRadius: 18,
+                   backgroundColor: COLORS.recoveryHigh + '18',
+                   alignItems: 'center', justifyContent: 'center',
+                   borderWidth: 1, borderColor: COLORS.recoveryHigh + '40',
+                   marginBottom: 16 },
+  emptyTitle:    { color: COLORS.text, fontSize: 22, fontWeight: '800', marginBottom: 8 },
+  emptySubtitle: { color: COLORS.textMuted, fontSize: 14, textAlign: 'center', lineHeight: 20 },
+
+  suggestions:    { gap: 8 },
+  suggestion:     { backgroundColor: COLORS.card, borderRadius: 14, padding: 14,
+                    borderWidth: 1, borderColor: COLORS.border,
+                    flexDirection: 'row', alignItems: 'center', gap: 12 },
+  suggestionIcon: { width: 32, height: 32, borderRadius: 10,
+                    backgroundColor: COLORS.recoveryHigh + '18',
+                    alignItems: 'center', justifyContent: 'center' },
+  suggestionText: { color: COLORS.textSecondary, fontSize: 13, flex: 1 },
+
+  messageList: { padding: 16, paddingBottom: 12 },
+  bubble:      { marginBottom: 12, borderRadius: 18, padding: 14, maxWidth: '92%' },
+  userBubble:  { backgroundColor: COLORS.userBubble, alignSelf: 'flex-end',
+                 borderWidth: 1, borderColor: COLORS.strain + '40' },
+  aiBubble:    { backgroundColor: COLORS.card, alignSelf: 'flex-start',
+                 borderWidth: 1, borderColor: COLORS.border, maxWidth: '97%' },
+  roleLabelRow:{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 },
+  roleLabel:   { color: COLORS.recoveryHigh, fontSize: 9, fontWeight: '800', letterSpacing: 1.5 },
   messageText: { color: '#E8E8E8', fontSize: 15, lineHeight: 22 },
-  userText: { color: '#FFF' },
-  emptyState: { flex: 1, padding: 24, justifyContent: 'center' },
-  emptyTitle: { color: '#FFF', fontSize: 22, fontWeight: '700', marginBottom: 8 },
-  emptySubtitle: { color: '#888', fontSize: 14, marginBottom: 28, lineHeight: 20 },
-  suggestions: { gap: 8 },
-  suggestion: {
-    backgroundColor: '#1E1E1E', borderRadius: 12,
-    padding: 14, borderWidth: 1, borderColor: '#2A2A2A',
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-  },
-  suggestionText: { color: '#C0C0C0', fontSize: 13, flex: 1 },
-  loadingRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 20, paddingVertical: 8, gap: 10,
-  },
-  loadingText: { color: '#555', fontSize: 13 },
-  inputRow: {
-    flexDirection: 'row', alignItems: 'flex-end', gap: 10,
-    padding: 12, borderTopWidth: 1, borderTopColor: '#2A2A2A',
-  },
-  input: {
-    flex: 1, backgroundColor: '#2A2A2A', borderRadius: 22,
-    paddingHorizontal: 16, paddingVertical: 10, color: '#FFF',
-    fontSize: 15, maxHeight: 100,
-  },
-  sendBtn: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: COLORS.primaryGreen, alignItems: 'center', justifyContent: 'center',
-  },
-  sendBtnDisabled: { backgroundColor: '#2A2A2A' },
+  userText:    { color: COLORS.text },
+
+  thinkingRow:    { flexDirection: 'row', alignItems: 'center', gap: 10,
+                    paddingHorizontal: 20, paddingVertical: 10 },
+  thinkingAvatar: { width: 28, height: 28, borderRadius: 9,
+                    backgroundColor: COLORS.recoveryHigh + '18',
+                    alignItems: 'center', justifyContent: 'center',
+                    borderWidth: 1, borderColor: COLORS.recoveryHigh + '30' },
+  thinkingBubble: { backgroundColor: COLORS.card, borderRadius: 12, paddingHorizontal: 14,
+                    paddingVertical: 8, borderWidth: 1, borderColor: COLORS.border },
+  thinkingText:   { color: COLORS.textMuted, fontSize: 13 },
+
+  inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10,
+              padding: 12, paddingBottom: 16, borderTopWidth: 1, borderTopColor: COLORS.border },
+  input:    { flex: 1, backgroundColor: COLORS.cardElevated, borderRadius: 22,
+              paddingHorizontal: 16, paddingVertical: 11, color: COLORS.text,
+              fontSize: 15, maxHeight: 100, borderWidth: 1, borderColor: COLORS.borderLight },
+  sendBtn:  { width: 42, height: 42, borderRadius: 21,
+              backgroundColor: COLORS.recoveryHigh, alignItems: 'center', justifyContent: 'center',
+              shadowColor: COLORS.recoveryHigh, shadowOpacity: 0.4,
+              shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
+  sendBtnOff: { backgroundColor: COLORS.cardElevated, shadowOpacity: 0, elevation: 0 },
 });
