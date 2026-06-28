@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { Tabs, router } from 'expo-router';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { storage } from '../../src/utils/storage';
-import { COLORS } from '../../src/theme/colors';
+import { storage } from '../src/utils/storage';
+import { COLORS } from '../src/theme/colors';
 
 type TabDef = {
   name: string;

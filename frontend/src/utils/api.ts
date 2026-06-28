@@ -170,6 +170,34 @@ export const progressApi = {
     api.get(`/nutrition/history?limit=${limit}`),
 };
 
+// Was entirely missing — the backend has had a working FatSecret-backed
+// /api/nutrition/search, /quick-log, and /today since this file was last
+// touched, but nothing in the frontend could ever call them. Any nutrition
+// search UI built against `progressApi`/`nutritionApi` calls that didn't
+// exist would throw a plain JS TypeError ("X is not a function") at the
+// moment the search input changed — in dev that crashes straight to the
+// red error screen, which matches "the app crashes while searching."
+export const nutritionApi = {
+  // q must be >=2 chars — the backend 400s otherwise. Debounce the caller
+  // side; this function itself does no debouncing.
+  searchFood: (q: string, maxResults = 8) =>
+    api.get('/nutrition/search', { params: { q, max_results: maxResults } }),
+
+  // One-tap log: backend fetches the exact macros for `food_id` itself and
+  // scales them to `grams`, so the frontend never has to carry/compute
+  // macro numbers for a search result.
+  quickLog: (food_id: string, grams: number, meal_name?: string) =>
+    api.post('/nutrition/quick-log', null, {
+      params: { food_id, grams, meal_name },
+    }),
+
+  // Single-call "today" dashboard: consumed + targets + remaining + % for
+  // every macro, plus today's logged meals — avoids re-deriving any of
+  // this client-side from /targets + /history separately.
+  getToday: (is_training_day = true) =>
+    api.get('/nutrition/today', { params: { is_training_day } }),
+};
+
 // Was previously missing entirely — DashboardScreen had no way to call
 // GET /api/dashboard/summary, the one endpoint that actually assembles
 // mission text, recovery score, AI recommendations, and remaining (not
