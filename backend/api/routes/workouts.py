@@ -16,7 +16,7 @@ FIXES:
      user's streak was permanently 0.
 """
 import asyncio
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from schemas.models import SetLog
 from core.security import get_current_user
@@ -96,9 +96,50 @@ async def complete_session(
     sb = get_supabase()
     user_id = current_user["user_id"]
 
+    # ── Compute real session stats from actual logged sets ──────────────
+    # workout_sessions.total_volume_kg/duration_minutes/calories_burned
+    # have existed in the schema since the original migration but were
+    # never populated — PATCH /complete only ever wrote `completed` and
+    # `cns_fatigue_after`. The "Session Complete" summary card needs real
+    # numbers here, not invented ones, so this computes them from the
+    # exercise_logs that were actually inserted during the session.
+    logs_res = (
+        sb.table("exercise_logs")
+        .select("exercise_name, weight_kg, reps, rpe, created_at")
+        .eq("session_id", session_id)
+        .eq("user_id", user_id)
+        .order("created_at", desc=False)
+        .execute()
+    )
+    logs = logs_res.data or []
+
+    total_volume_kg = round(sum((l.get("weight_kg") or 0) * (l.get("reps") or 0) for l in logs), 1)
+
+    duration_minutes = None
+    if len(logs) >= 2:
+        try:
+            first_ts = datetime.fromisoformat(logs[0]["created_at"].replace("Z", "+00:00"))
+            last_ts = datetime.fromisoformat(logs[-1]["created_at"].replace("Z", "+00:00"))
+            duration_minutes = max(1, round((last_ts - first_ts).total_seconds() / 60))
+        except Exception:
+            duration_minutes = None
+
+    # Rough calorie estimate: ~0.1 kcal per kg of volume moved is a crude
+    # but directionally-honest approximation for resistance training (not
+    # a substitute for a real MET-based calculation, which would need
+    # bodyweight + exercise-specific MET values this schema doesn't track
+    # yet). Flagged clearly as an estimate wherever it's shown.
+    calories_burned = round(total_volume_kg * 0.1) if total_volume_kg else None
+
     update_data = {"completed": True}
     if cns_fatigue_after is not None:
         update_data["cns_fatigue_after"] = cns_fatigue_after
+    if total_volume_kg:
+        update_data["total_volume_kg"] = total_volume_kg
+    if duration_minutes:
+        update_data["duration_minutes"] = duration_minutes
+    if calories_burned:
+        update_data["calories_burned"] = calories_burned
 
     res = (
         sb.table("workout_sessions")
@@ -108,6 +149,73 @@ async def complete_session(
         .execute()
     )
     session = res.data[0] if res.data else {}
+
+    # ── Detect new PRs set during this specific session ──────────────────
+    # Compares each exercise's heaviest set THIS session against the
+    # personal_records table (the same table /profile/prs reads/writes),
+    # so "Top PR: Bench +2.5kg" on the summary card reflects a real,
+    # persisted comparison rather than a guess.
+    new_prs: list[dict] = []
+    if logs:
+        best_this_session: dict[str, dict] = {}
+        for l in logs:
+            name = l.get("exercise_name")
+            w = l.get("weight_kg") or 0
+            if not name:
+                continue
+            if name not in best_this_session or w > best_this_session[name]["weight_kg"]:
+                best_this_session[name] = {"weight_kg": w, "reps": l.get("reps")}
+
+        try:
+            pr_res = (
+                sb.table("personal_records")
+                .select("exercise_name, weight_kg")
+                .eq("user_id", user_id)
+                .execute()
+            )
+            existing_prs = {r["exercise_name"]: r["weight_kg"] for r in (pr_res.data or [])}
+        except Exception:
+            existing_prs = {}
+
+        for name, best in best_this_session.items():
+            old_pr = existing_prs.get(name)
+            if old_pr is None or best["weight_kg"] > old_pr:
+                delta = round(best["weight_kg"] - old_pr, 1) if old_pr is not None else None
+                new_prs.append({
+                    "exercise_name": name,
+                    "weight_kg": best["weight_kg"],
+                    "previous_pr_kg": old_pr,
+                    "delta_kg": delta,
+                })
+                try:
+                    sb.table("personal_records").upsert({
+                        "user_id": user_id,
+                        "exercise_name": name,
+                        "weight_kg": best["weight_kg"],
+                        "reps": best.get("reps"),
+                    }, on_conflict="user_id,exercise_name").execute()
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).warning(f"PR upsert failed for {name}: {e}")
+
+    # ── Pull a fresh recovery prediction so the summary card can show
+    # "Recovery Prediction: Medium" without the frontend making a second
+    # round-trip to a different endpoint right after this one returns. ──
+    recovery_prediction = None
+    try:
+        from agents.recovery_agent import run_recovery_agent
+        profile, _ = await asyncio.to_thread(get_full_user_context, user_id)
+        recovery_decision = await asyncio.to_thread(
+            run_recovery_agent,
+            user_id,
+            sleep_hours=profile.get("sleep_hours"),
+            planned_workout_type=None,
+        )
+        score = recovery_decision.recovery_score
+        recovery_prediction = "High" if score >= 70 else "Medium" if score >= 40 else "Low"
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Recovery prediction failed: {e}")
 
     # FIX: Update agent_state counters that were defined but never incremented.
     # streak, total_workouts, last_session_date, weekly_session_count,
@@ -121,7 +229,46 @@ async def complete_session(
         )
         # Don't fail the request — session is already marked complete.
 
-    return session
+    # ── Log this completion to the AI timeline so GET /timeline can show
+    # it without re-deriving it from workout_sessions rows later. ────────
+    try:
+        await asyncio.to_thread(
+            _log_timeline_event,
+            user_id,
+            "workout_completed",
+            f"Workout completed — {total_volume_kg or 0}kg total volume"
+            + (f", {len(new_prs)} new PR{'s' if len(new_prs) != 1 else ''}" if new_prs else ""),
+        )
+    except Exception:
+        pass
+
+    return {
+        **session,
+        "summary": {
+            "total_volume_kg": total_volume_kg,
+            "duration_minutes": duration_minutes,
+            "calories_burned": calories_burned,
+            "calories_is_estimate": True,
+            "new_prs": new_prs,
+            "recovery_prediction": recovery_prediction,
+            "sets_logged": len(logs),
+        },
+    }
+
+
+def _log_timeline_event(user_id: str, event_type: str, message: str) -> None:
+    """
+    Append-only write to ai_timeline_events. Best-effort: every call site
+    wraps this in its own try/except so a timeline write failure never
+    blocks the actual user-facing action (session completion, workout
+    generation, etc.) that triggered it.
+    """
+    sb = get_supabase()
+    sb.table("ai_timeline_events").insert({
+        "user_id": user_id,
+        "event_type": event_type,
+        "message": message,
+    }).execute()
 
 
 def _update_agent_state_on_completion(user_id: str, cns_fatigue_after: Optional[int]):

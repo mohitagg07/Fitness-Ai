@@ -1,4 +1,3 @@
-
 -- ============================================================
 -- RepMind Database Schema v2
 -- Run in Supabase SQL editor (Project Settings → SQL Editor)
@@ -173,6 +172,23 @@ CREATE TABLE IF NOT EXISTS public.agent_states (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- AI Timeline — a compact, append-only log of decisions the AI made on
+-- the user's behalf ("Workout generated", "Protein target updated",
+-- "Recovery improved"), surfaced as a feed on the Dashboard so the user
+-- can see the AI is actively doing things, not just chatting when asked.
+-- Deliberately NOT derived by re-querying workout_sessions/nutrition_logs
+-- at read time — agents write directly here as they make each decision,
+-- so the timeline reflects what the AI actually decided and when, even
+-- for decisions that don't have their own dedicated table row (e.g. a
+-- workout reschedule, a recovery-driven rest-day call).
+CREATE TABLE IF NOT EXISTS public.ai_timeline_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    event_type TEXT NOT NULL,   -- workout_generated|workout_completed|nutrition_updated|recovery_changed|report_ready|...
+    message TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ─── Row Level Security ───────────────────────────────────────────────────
 ALTER TABLE public.profiles          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.injury_profiles   ENABLE ROW LEVEL SECURITY;
@@ -185,6 +201,7 @@ ALTER TABLE public.progress_photos   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.nutrition_logs    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_conversations  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.agent_states      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_timeline_events ENABLE ROW LEVEL SECURITY;
 
 -- ─── RLS Policies ────────────────────────────────────────────────────────
 CREATE POLICY "Users own their profile"    ON public.profiles          FOR ALL USING (auth.uid() = id);
@@ -198,12 +215,13 @@ CREATE POLICY "Users own their photos"     ON public.progress_photos   FOR ALL U
 CREATE POLICY "Users own their nutrition"  ON public.nutrition_logs    FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "Users own their AI history" ON public.ai_conversations  FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "Users own their state"      ON public.agent_states      FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Users own their timeline"   ON public.ai_timeline_events FOR ALL USING (auth.uid() = user_id);
 
 -- ─── Indexes ─────────────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_workout_sessions_user_date ON public.workout_sessions(user_id, session_date DESC);
 CREATE INDEX IF NOT EXISTS idx_exercise_logs_user ON public.exercise_logs(user_id, logged_at DESC);
 CREATE INDEX IF NOT EXISTS idx_exercise_logs_session ON public.exercise_logs(session_id);
 CREATE INDEX IF NOT EXISTS idx_ai_conversations_user ON public.ai_conversations(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_timeline_user ON public.ai_timeline_events(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_progress_metrics_user_date ON public.progress_metrics(user_id, recorded_date DESC);
 CREATE INDEX IF NOT EXISTS idx_nutrition_logs_user_date ON public.nutrition_logs(user_id, log_date DESC);
-
