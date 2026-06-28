@@ -6,6 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { progressApi, describeApiError } from '../../utils/api';
 import { COLORS } from '../../theme/colors';
+import NutritionSearchModal from './NutritionSearchModal';
 
 export default function ProgressScreen() {
   const [metrics, setMetrics] = useState<any[]>([]);
@@ -14,6 +15,7 @@ export default function ProgressScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [weightInput, setWeightInput] = useState('');
   const [activeTab, setActiveTab] = useState<'body' | 'nutrition'>('body');
+  const [logFoodVisible, setLogFoodVisible] = useState(false);
 
   useEffect(() => { loadData(); }, []);
 
@@ -89,6 +91,13 @@ export default function ProgressScreen() {
         )}
       </View>
 
+      {errorMsg && (
+        <View style={styles.errorBanner}>
+          <Ionicons name="alert-circle-outline" size={16} color={COLORS.recoveryLow} />
+          <Text style={styles.errorBannerText}>{errorMsg}</Text>
+        </View>
+      )}
+
       {/* Stat summary — hero card (current weight + trend) beside two
           stacked smaller cards (nutrition logs this week, avg calories).
           Layout pattern adapted from a reference fitness app; values are
@@ -103,7 +112,7 @@ export default function ProgressScreen() {
               {weightDelta !== null && (
                 <Text style={[
                   styles.heroStatDelta,
-                  { color: weightDelta <= 0 ? COLORS.recoveryHigh : '#FF9D5C' },
+                  { color: weightDelta <= 0 ? COLORS.recoveryHigh : COLORS.calories },
                 ]}>
                   {weightDelta > 0 ? '+' : ''}{weightDelta} kg over period
                 </Text>
@@ -121,7 +130,7 @@ export default function ProgressScreen() {
             <Text style={styles.smallStatLabel}>meals logged</Text>
           </View>
           <View style={styles.smallStatCard}>
-            <Ionicons name="flame-outline" size={16} color="#FF9D5C" />
+            <Ionicons name="flame-outline" size={16} color={COLORS.calories} />
             <Text style={styles.smallStatValue}>{avgCalories ?? '—'}</Text>
             <Text style={styles.smallStatLabel}>avg kcal/day</Text>
           </View>
@@ -137,7 +146,7 @@ export default function ProgressScreen() {
             value={weightInput}
             onChangeText={setWeightInput}
             placeholder="kg"
-            placeholderTextColor="#555"
+            placeholderTextColor={COLORS.textMuted}
             keyboardType="decimal-pad"
           />
           <TouchableOpacity style={styles.logBtn} onPress={logWeight}>
@@ -190,72 +199,99 @@ export default function ProgressScreen() {
       )}
 
       {activeTab === 'nutrition' && (
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>RECENT NUTRITION LOGS</Text>
-          {nutrition.length === 0 ? (
-            <Text style={styles.empty}>No nutrition logs yet.</Text>
-          ) : (
-            nutrition.map((n, i) => (
-              <View key={i} style={styles.metricRow}>
-                <View>
-                  <Text style={styles.metricDate}>{n.log_date}</Text>
-                  <Text style={styles.metricSub}>P: {n.protein_g}g · C: {n.carbs_g}g · F: {n.fat_g}g</Text>
+        <>
+          {/* Primary entry point into the FatSecret-backed search + quick-log
+              flow. Lives above the manual history list so the fast path
+              (search → tap → grams → log) is what people reach for first;
+              the list below remains the fallback/record of what's logged. */}
+          <TouchableOpacity
+            style={styles.logFoodBtn}
+            onPress={() => setLogFoodVisible(true)}
+          >
+            <Ionicons name="search" size={16} color="#000" />
+            <Text style={styles.logFoodBtnText}>LOG FOOD</Text>
+          </TouchableOpacity>
+
+          <View style={styles.card}>
+            <Text style={styles.cardLabel}>RECENT NUTRITION LOGS</Text>
+            {nutrition.length === 0 ? (
+              <Text style={styles.empty}>No nutrition logs yet. Tap "Log Food" above to search and add one.</Text>
+            ) : (
+              nutrition.map((n, i) => (
+                <View key={i} style={styles.metricRow}>
+                  <View>
+                    <Text style={styles.metricDate}>{n.log_date}</Text>
+                    <Text style={styles.metricSub}>P: {n.protein_g}g · C: {n.carbs_g}g · F: {n.fat_g}g</Text>
+                  </View>
+                  <Text style={styles.metricValue}>{n.calories} kcal</Text>
                 </View>
-                <Text style={styles.metricValue}>{n.calories} kcal</Text>
-              </View>
-            ))
-          )}
-        </View>
+              ))
+            )}
+          </View>
+        </>
       )}
 
       <View style={{ height: 24 }} />
+
+      <NutritionSearchModal
+        visible={logFoodVisible}
+        onClose={() => setLogFoodVisible(false)}
+        onLogged={loadData}
+      />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212' },
-  center: { flex: 1, backgroundColor: '#121212', justifyContent: 'center', alignItems: 'center' },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  center: { flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' },
   header: { padding: 24, paddingTop: 60 },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerIcon: {
     width: 34, height: 34, borderRadius: 10,
-    backgroundColor: '#1A2535', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.cardElevated, alignItems: 'center', justifyContent: 'center',
   },
-  title: { color: '#FFF', fontSize: 28, fontWeight: '800' },
-  subtitle: { color: '#888', fontSize: 14, marginTop: 4 },
+  title: { color: COLORS.text, fontSize: 28, fontWeight: '800' },
+  subtitle: { color: COLORS.textSecondary, fontSize: 14, marginTop: 4 },
+  errorBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: COLORS.recoveryLow + '1A', borderRadius: 12,
+    marginHorizontal: 16, marginBottom: 16, padding: 12,
+    borderWidth: 1, borderColor: COLORS.recoveryLow + '40',
+  },
+  errorBannerText: { color: COLORS.recoveryLow, fontSize: 12, flex: 1 },
   statsRow: {
     flexDirection: 'row', gap: 10,
     marginHorizontal: 16, marginBottom: 16,
   },
   heroStatCard: {
-    flex: 1.1, backgroundColor: '#1E1E1E', borderRadius: 16,
-    padding: 16, borderWidth: 1, borderColor: '#2A2A2A',
+    flex: 1.1, backgroundColor: COLORS.cardElevated, borderRadius: 16,
+    padding: 16, borderWidth: 1, borderColor: COLORS.borderLight,
     justifyContent: 'center', minHeight: 130,
   },
-  heroStatValue: { color: '#FFF', fontSize: 34, fontWeight: '800', marginTop: 8 },
-  heroStatUnit: { color: '#888', fontSize: 13, fontWeight: '600', marginTop: 2 },
+  heroStatValue: { color: COLORS.text, fontSize: 34, fontWeight: '800', marginTop: 8 },
+  heroStatUnit: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '600', marginTop: 2 },
   heroStatDelta: { fontSize: 12, fontWeight: '700', marginTop: 8 },
-  heroStatEmpty: { color: '#555', fontSize: 13, marginTop: 10, lineHeight: 18 },
+  heroStatEmpty: { color: COLORS.textMuted, fontSize: 13, marginTop: 10, lineHeight: 18 },
   stackedStats: { flex: 1, gap: 10 },
   smallStatCard: {
-    flex: 1, backgroundColor: '#1E1E1E', borderRadius: 16,
-    padding: 14, borderWidth: 1, borderColor: '#2A2A2A',
+    flex: 1, backgroundColor: COLORS.cardElevated, borderRadius: 16,
+    padding: 14, borderWidth: 1, borderColor: COLORS.borderLight,
     justifyContent: 'center',
   },
-  smallStatValue: { color: '#FFF', fontSize: 20, fontWeight: '800', marginTop: 6 },
-  smallStatLabel: { color: '#888', fontSize: 11, fontWeight: '600', marginTop: 2 },
+  smallStatValue: { color: COLORS.text, fontSize: 20, fontWeight: '800', marginTop: 6 },
+  smallStatLabel: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '600', marginTop: 2 },
   card: {
-    backgroundColor: '#1E1E1E', borderRadius: 16,
+    backgroundColor: COLORS.cardElevated, borderRadius: 16,
     padding: 16, marginHorizontal: 16, marginBottom: 12,
-    borderWidth: 1, borderColor: '#2A2A2A',
+    borderWidth: 1, borderColor: COLORS.borderLight,
   },
-  cardLabel: { color: '#555', fontSize: 11, fontWeight: '700', letterSpacing: 1.5, marginBottom: 12 },
+  cardLabel: { color: COLORS.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1.5, marginBottom: 12 },
   row: { flexDirection: 'row', gap: 10 },
   input: {
-    flex: 1, backgroundColor: '#252525',
+    flex: 1, backgroundColor: COLORS.inputBg,
     borderRadius: 12, padding: 14,
-    color: '#FFF', fontSize: 16,
+    color: COLORS.text, fontSize: 16,
   },
   logBtn: {
     backgroundColor: COLORS.primaryGreen, borderRadius: 12,
@@ -269,20 +305,26 @@ const styles = StyleSheet.create({
   },
   tab: {
     flex: 1, paddingVertical: 10, borderRadius: 10,
-    backgroundColor: '#1A1A1A', alignItems: 'center',
-    borderWidth: 1, borderColor: '#2A2A2A',
+    backgroundColor: COLORS.cardElevated, alignItems: 'center',
+    borderWidth: 1, borderColor: COLORS.borderLight,
     flexDirection: 'row', justifyContent: 'center', gap: 6,
   },
-  tabActive: { backgroundColor: '#1E3A5F', borderColor: '#2A4A7F' },
-  tabText: { color: '#555', fontSize: 12, fontWeight: '700', letterSpacing: 1 },
+  tabActive: { backgroundColor: COLORS.primaryBlue + '26', borderColor: COLORS.primaryBlue + '55' },
+  tabText: { color: COLORS.textMuted, fontSize: 12, fontWeight: '700', letterSpacing: 1 },
   tabTextActive: { color: COLORS.primaryGreen },
-  empty: { color: '#555', fontSize: 13, textAlign: 'center', paddingVertical: 20 },
+  logFoodBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: COLORS.primaryGreen, borderRadius: 14,
+    marginHorizontal: 16, marginBottom: 12, paddingVertical: 14,
+  },
+  logFoodBtnText: { color: '#000', fontWeight: '800', fontSize: 13, letterSpacing: 1 },
+  empty: { color: COLORS.textMuted, fontSize: 13, textAlign: 'center', paddingVertical: 20, lineHeight: 18 },
   metricRow: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: '#2A2A2A',
+    borderBottomWidth: 1, borderBottomColor: COLORS.borderLight,
   },
-  metricDate: { color: '#888', fontSize: 13 },
-  metricSub: { color: '#555', fontSize: 11, marginTop: 2 },
+  metricDate: { color: COLORS.textSecondary, fontSize: 13 },
+  metricSub: { color: COLORS.textMuted, fontSize: 11, marginTop: 2 },
   metricValue: { color: COLORS.primaryGreen, fontSize: 15, fontWeight: '700' },
 });
