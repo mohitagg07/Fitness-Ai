@@ -155,3 +155,21 @@ async def get_dashboard_summary(
         "motivation_message": motivation_message,
         "sleep_goal": profile.get("sleep_time"),
     }
+
+
+@router.get("/decision")
+async def get_decision_center(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    AI Decision Center — "Today's Decision" card. See
+    agents/decision_engine.py for the full design rationale: every signal
+    and the confidence score are derived from real agent outputs that
+    already drive the rest of the dashboard, never an LLM-guessed number.
+    """
+    from agents.decision_engine import build_decision_center
+
+    user_id = current_user["user_id"]
+    profile, _ = await asyncio.to_thread(get_full_user_context, user_id)
+    decision = await asyncio.to_thread(build_decision_center, user_id, profile)
+    return decision.model_dump()

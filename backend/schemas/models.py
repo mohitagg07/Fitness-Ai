@@ -424,6 +424,32 @@ class RecoveryDecision(BaseModel):
         return self.action == "rest"
 
 
+# ─── AI Decision Center ───────────────────────────────────────────────────────
+# Backs the "Today's Decision" card. Deliberately NOT an LLM-generated
+# confidence number — every value here is derived from the same
+# deterministic agent outputs (recovery_agent, progress_agent, nutrition
+# targets, workout streak) that already drive the rest of the dashboard.
+# An LLM is only ever used for the free-text `reasoning` sentence, which
+# is generated FROM these already-computed facts, not the other way
+# around — so the displayed evidence can never disagree with the
+# explanation, and confidence can never be a number nobody can trace.
+
+class EvidenceSignal(BaseModel):
+    label: str            # "Recovery", "Sleep", "Protein", "Bench Trend", "Shoulder Pain"
+    value: str             # human-readable current value: "84%", "7h42m", "162g", "+5kg", "None"
+    favorable: bool        # True = this signal supports today's decision, False = against it
+    weight: float = 1.0    # relative weight this signal had in the confidence calc, for transparency
+
+
+class DecisionCenter(BaseModel):
+    decision: str                      # "Heavy Push Day", "Rest Day", "Deload Week"
+    confidence_pct: int = Field(ge=0, le=100)
+    signals: List[EvidenceSignal]      # the real numbers confidence was computed from
+    reasoning: str                     # short LLM sentence explaining the decision, grounded in `signals`
+    expected_outcome: Optional[str] = None
+    alternative: Optional[str] = None  # what to do instead if a named signal worsens
+
+
 # ─── Streak / Achievements ───────────────────────────────────────────────────
 
 class Achievement(BaseModel):
