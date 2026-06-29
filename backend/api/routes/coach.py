@@ -229,3 +229,115 @@ async def get_coach_memory(
         ],
         "freeform_memories": freeform_memories,
     }
+
+@router.get("/coach-timeline")
+async def get_coach_timeline(
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Coach Timeline — assembles a chronological feed from:
+      - personal_records (PRs achieved)
+      - workout_sessions (milestones: streak starts, completions)
+      - ai_timeline_events (AI decisions, rewrite triggers)
+      - program_versions (program changes)
+
+    Everything comes from tables that already exist and are already
+    written to — this is assembly, not invention.
+    Returned newest-first; the frontend reverses it for the timeline UI.
+    """
+    user_id = current_user["user_id"]
+    sb = get_supabase()
+    events = []
+
+    # 1. PRs
+    try:
+        pr_res = (
+            sb.table("personal_records")
+            .select("exercise_name, weight_kg, reps, achieved_at")
+            .eq("user_id", user_id)
+            .order("achieved_at", desc=True)
+            .limit(30)
+            .execute()
+        )
+        for r in (pr_res.data or []):
+            events.append({
+                "type": "pr",
+                "icon": "trophy",
+                "color": "#FFD700",
+                "title": f"PR — {r['exercise_name']}",
+                "detail": f"{r['weight_kg']}kg × {r['reps']} reps",
+                "date": r.get("achieved_at", ""),
+            })
+    except Exception:
+        pass
+
+    # 2. AI timeline events (decisions, rewrite triggers)
+    try:
+        tl_res = (
+            sb.table("ai_timeline_events")
+            .select("event_type, message, created_at")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .limit(30)
+            .execute()
+        )
+        icon_map = {
+            "workout_generated": ("barbell", "#FF9500"),
+            "workout_completed": ("checkmark-circle", "#16EC06"),
+            "recovery_changed": ("heart", "#FF2D55"),
+            "nutrition_updated": ("nutrition", "#34C759"),
+            "report_ready": ("document-text", "#5AC8FA"),
+            "program_rewrite": ("git-branch", "#BF5AF2"),
+        }
+        for r in (tl_res.data or []):
+            icon, color = icon_map.get(r.get("event_type", ""), ("flash", "#AEAEB2"))
+            events.append({
+                "type": r.get("event_type", "event"),
+                "icon": icon,
+                "color": color,
+                "title": r.get("message", "AI Event"),
+                "detail": None,
+                "date": r.get("created_at", "")[:10],
+            })
+    except Exception:
+        pass
+
+    # 3. Program versions
+    try:
+        pv_res = (
+            sb.table("program_versions")
+            .select("version_number, trigger, explanation, created_at")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .limit(10)
+            .execute()
+        )
+        for r in (pv_res.data or []):
+            events.append({
+                "type": "program_rewrite",
+                "icon": "git-branch",
+                "color": "#BF5AF2",
+                "title": f"Program v{r['version_number']} — {r.get('trigger', 'rewrite').replace('_', ' ').title()}",
+                "detail": r.get("explanation", "")[:100] + "…" if r.get("explanation") else None,
+                "date": r.get("created_at", "")[:10],
+            })
+    except Exception:
+        pass
+
+    # Sort all events newest-first by date string (ISO format sorts correctly)
+    events.sort(key=lambda e: e.get("date", ""), reverse=True)
+
+    return {"timeline": events[:50]}
+
+
+def _log_timeline_event(user_id: str, event_type: str, message: str):
+    """Helper used by other routes/agents to append to ai_timeline_events."""
+    try:
+        sb = get_supabase()
+        sb.table("ai_timeline_events").insert({
+            "user_id": user_id,
+            "event_type": event_type,
+            "message": message,
+        }).execute()
+    except Exception as e:
+        logger.error(f"Timeline event log failed for {user_id}: {e}")

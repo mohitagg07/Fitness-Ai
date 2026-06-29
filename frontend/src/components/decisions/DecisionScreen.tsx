@@ -1,450 +1,377 @@
-// VYRN — Decision Center
-// Priority 3: Every AI call logged with evidence trail, confidence, reasoning,
-// and hindsight outcome tracking. Shows AI accuracy % as a killer credibility hook.
+// VYRN — Decision History (real data, not mock)
+//
+// Previously this screen showed hardcoded mock data while decision_engine.py
+// ran on every dashboard load but never persisted. Now:
+//   - GET /api/decisions/  feeds this screen with real historical decisions
+//   - GET /api/decisions/accuracy  drives the AI Accuracy % badge
+//   - POST /api/decisions/{id}/outcome  lets user mark outcomes
+//   - Each card has an expandable "Why?" panel surfacing reasoning_steps
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  Animated,
+  ActivityIndicator, RefreshControl, LayoutAnimation,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../theme/colors';
-import { FONTS } from '../../theme/typography';
+import api, { describeApiError } from '../../utils/api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-interface Decision {
-  id: number;
-  date: string;
-  decision: string;
-  confidence: number;
-  evidence: string[];
-  outcome: 'correct' | 'incorrect' | 'pending';
-  outcomeNote: string | null;
-  reasoning: string;
-  type: 'workout' | 'recovery' | 'nutrition';
+interface Signal {
+  label: string;
+  value: string;
+  favorable: boolean;
 }
 
-// ── Mock data — in production, fetched from GET /api/decisions ────────────────
-const DECISIONS: Decision[] = [
-  {
-    id: 1,
-    date: 'Today  7:43 AM',
-    decision: 'Heavy Push Day',
-    confidence: 87,
-    evidence: [
-      'Recovery: 8.2/10  (HIGH)',
-      'CNS Load: 3.1/10  (FRESH)',
-      'Chest last trained 72h ago',
-      'Protein: 198g yesterday',
-    ],
-    outcome: 'pending',
-    outcomeNote: null,
-    reasoning:
-      'All readiness markers are optimal. Volume tolerance high. Last push session was 4 days ago — sufficient supercompensation window.',
-    type: 'workout',
-  },
-  {
-    id: 2,
-    date: 'Yesterday  8:01 AM',
-    decision: 'Deload — Active Recovery Only',
-    confidence: 91,
-    evidence: [
-      'Recovery: 4.1/10  (MED)',
-      'CNS Load: 8.3/10  (HIGH)',
-      'HRV -22% vs 7-day avg',
-      '3 consecutive hard sessions',
-    ],
-    outcome: 'correct',
-    outcomeNote: 'Next-day recovery jumped to 8.2. Good call.',
-    reasoning:
-      'CNS load critically elevated. Consecutive hard sessions without rest impairs neural drive. A forced deload preserves adaptation.',
-    type: 'recovery',
-  },
-  {
-    id: 3,
-    date: 'Jun 26  9:15 AM',
-    decision: '+200 kcal Calorie Surplus',
-    confidence: 78,
-    evidence: [
-      'Weight stalled 12 days',
-      'Training volume increased 15%',
-      'Protein consistent at 200g+',
-    ],
-    outcome: 'incorrect',
-    outcomeNote:
-      'Weight moved, but body fat also increased. Should have been a smaller surplus.',
-    reasoning:
-      'Extended weight plateau with increased volume suggests hypocaloric state. Moderate surplus recommended to fuel adaptation.',
-    type: 'nutrition',
-  },
-  {
-    id: 4,
-    date: 'Jun 24  7:58 AM',
-    decision: 'Lower Body Focus Day',
-    confidence: 82,
-    evidence: [
-      'Recovery: 7.8/10',
-      'Upper push trained yesterday',
-      'Leg volume deficit this week',
-    ],
-    outcome: 'correct',
-    outcomeNote: 'Squat +5 kg. New rep PR.',
-    reasoning:
-      'Upper body trained yesterday — recovery incomplete. Leg volume lagging this week. Redirecting to lower body is optimal.',
-    type: 'workout',
-  },
-  {
-    id: 5,
-    date: 'Jun 22  6:50 AM',
-    decision: 'Increase Sleep Target to 8.5h',
-    confidence: 94,
-    evidence: [
-      'Avg sleep 6.8h past 2 weeks',
-      'HRV trend declining -18%',
-      'Self-reported fatigue: HIGH',
-    ],
-    outcome: 'correct',
-    outcomeNote: 'HRV recovered +14ms in 5 days after protocol change.',
-    reasoning:
-      'Sleep is the highest-ROI recovery lever. HRV data confirms chronic under-recovery. Simple duration increase should resolve most deficit.',
-    type: 'recovery',
-  },
-];
+interface Decision {
+  id: string;
+  decision_date: string;
+  decision: string;
+  confidence_pct: number;
+  reasoning: string;
+  expected_outcome?: string | null;
+  alternative?: string | null;
+  signals: Signal[];
+  outcome: 'correct' | 'incorrect' | 'partial' | 'pending';
+  outcome_note?: string | null;
+}
 
-// ── Stats derived from decisions ──────────────────────────────────────────────
-const resolved = DECISIONS.filter((d) => d.outcome !== 'pending');
-const correct = resolved.filter((d) => d.outcome === 'correct').length;
-const accuracy = resolved.length ? Math.round((correct / resolved.length) * 100) : 0;
-const avgConf = Math.round(
-  DECISIONS.reduce((a, d) => a + d.confidence, 0) / DECISIONS.length,
-);
+interface Accuracy {
+  accuracy_pct: number | null;
+  total_resolved: number;
+  correct: number;
+}
+
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function typeColor(type: Decision['type']): string {
-  if (type === 'workout')  return COLORS.strain;
-  if (type === 'recovery') return COLORS.strainGlow;
-  return COLORS.recoveryMed;
-}
-function typeLabel(type: Decision['type']): string {
-  if (type === 'workout')  return 'WORKOUT';
-  if (type === 'recovery') return 'RECOVERY';
-  return 'NUTRITION';
+function outcomeColor(outcome: Decision['outcome']) {
+  if (outcome === 'correct') return COLORS.recoveryHigh;
+  if (outcome === 'incorrect') return COLORS.recoveryLow;
+  if (outcome === 'partial') return COLORS.recoveryMed;
+  return '#5C6B6E';
 }
 
-// ── Decision Card ─────────────────────────────────────────────────────────────
-function DecisionCard({ decision, idx }: { decision: Decision; idx: number }) {
-  const [expanded, setExpanded] = useState(false);
+function outcomeLabel(outcome: Decision['outcome']) {
+  if (outcome === 'correct') return 'CORRECT';
+  if (outcome === 'incorrect') return 'INCORRECT';
+  if (outcome === 'partial') return 'PARTIAL';
+  return 'PENDING';
+}
 
-  const outcomeColor =
-    decision.outcome === 'correct'
-      ? COLORS.recoveryHigh
-      : decision.outcome === 'incorrect'
-      ? COLORS.recoveryLow
-      : COLORS.textMuted;
+function confidenceColor(pct: number) {
+  if (pct >= 80) return COLORS.recoveryHigh;
+  if (pct >= 60) return COLORS.recoveryMed;
+  return COLORS.recoveryLow;
+}
 
-  const tc = typeColor(decision.type);
+function formatDate(iso: string) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const today = new Date();
+  const diffDays = Math.floor((today.getTime() - d.getTime()) / 86400000);
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// ── Main screen ───────────────────────────────────────────────────────────────
+export default function DecisionScreen() {
+  const [decisions, setDecisions] = useState<Decision[]>([]);
+  const [accuracy, setAccuracy] = useState<Accuracy | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
+    setErrorMsg(null);
+    try {
+      const [decRes, accRes] = await Promise.all([
+        api.get('/decisions/'),
+        api.get('/decisions/accuracy'),
+      ]);
+      setDecisions(decRes.data.decisions || []);
+      setAccuracy(accRes.data);
+    } catch (err: any) {
+      const { message } = describeApiError(err);
+      setErrorMsg(message);
+    }
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      // Save today's decision (idempotent — safe to call on every visit)
+      try { await api.post('/decisions/save'); } catch {}
+      await loadData();
+      setLoading(false);
+    })();
+  }, [loadData]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
+
+  const toggleExpand = (id: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedId(prev => prev === id ? null : id);
+  };
+
+  const markOutcome = async (id: string, outcome: string) => {
+    try {
+      await api.post(`/decisions/${id}/outcome`, { outcome });
+      setDecisions(prev =>
+        prev.map(d => d.id === id ? { ...d, outcome: outcome as Decision['outcome'] } : d)
+      );
+      // Refresh accuracy badge
+      const accRes = await api.get('/decisions/accuracy');
+      setAccuracy(accRes.data);
+    } catch {}
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator color={COLORS.recoveryHigh} size="large" />
+        <Text style={styles.loadingLabel}>Loading decision history…</Text>
+      </View>
+    );
+  }
 
   return (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => setExpanded(!expanded)}
-      activeOpacity={0.85}
+    <ScrollView
+      style={styles.container}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.recoveryHigh} />}
     >
-      {/* Row 1 — type chip + date */}
-      <View style={styles.cardRow}>
-        <View style={[styles.chip, { backgroundColor: `${tc}18`, borderColor: `${tc}30` }]}>
-          <Text style={[styles.chipText, { color: tc }]}>{typeLabel(decision.type)}</Text>
-        </View>
-        <Text style={styles.dateText}>{decision.date}</Text>
-        <View style={{ flex: 1 }} />
-        {/* Outcome badge */}
-        {decision.outcome !== 'pending' ? (
-          <View
-            style={[
-              styles.chip,
-              {
-                backgroundColor:
-                  decision.outcome === 'correct' ? '#16EC0618' : '#FF002618',
-                borderColor:
-                  decision.outcome === 'correct' ? '#16EC0630' : '#FF002630',
-              },
-            ]}
-          >
-            <Text
-              style={[
-                styles.chipText,
-                { color: outcomeColor },
-              ]}
-            >
-              {decision.outcome === 'correct' ? '✓  Correct' : '✗  Wrong'}
-            </Text>
-          </View>
-        ) : (
-          <View style={[styles.chip, { backgroundColor: '#1F1F1F', borderColor: '#2A2A2A' }]}>
-            <Text style={[styles.chipText, { color: COLORS.textMuted }]}>⏳  Pending</Text>
-          </View>
-        )}
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>DECISION HISTORY</Text>
+        <Text style={styles.headerSub}>Every AI recommendation, tracked with evidence</Text>
       </View>
 
-      {/* Decision headline */}
-      <Text style={styles.decisionTitle}>{decision.decision}</Text>
-
-      {/* Confidence bar */}
-      <View style={styles.confRow}>
-        <View style={styles.confTrack}>
-          <View style={[styles.confFill, { width: `${decision.confidence}%` }]} />
+      {/* AI Accuracy Badge */}
+      {accuracy && accuracy.accuracy_pct !== null && (
+        <View style={styles.accuracyCard}>
+          <View style={styles.accuracyLeft}>
+            <Ionicons name="shield-checkmark" size={28} color={COLORS.recoveryHigh} />
+            <View style={{ marginLeft: 12 }}>
+              <Text style={styles.accuracyPct}>{accuracy.accuracy_pct}%</Text>
+              <Text style={styles.accuracyLabel}>AI ACCURACY</Text>
+            </View>
+          </View>
+          <Text style={styles.accuracySub}>{accuracy.correct} of {accuracy.total_resolved} resolved</Text>
         </View>
-        <Text style={styles.confLabel}>{decision.confidence}% confidence</Text>
-        <Text style={styles.chevron}>{expanded ? '▲' : '▼'}</Text>
+      )}
+
+      {errorMsg && (
+        <View style={styles.errorBanner}>
+          <Ionicons name="warning-outline" size={14} color={COLORS.recoveryMed} />
+          <Text style={styles.errorText}>{errorMsg}</Text>
+        </View>
+      )}
+
+      {decisions.length === 0 && !loading && (
+        <View style={styles.emptyState}>
+          <Ionicons name="analytics-outline" size={48} color="#2A2A2A" />
+          <Text style={styles.emptyTitle}>No decisions yet</Text>
+          <Text style={styles.emptyBody}>Open the Dashboard to generate your first AI decision. It'll appear here with full reasoning.</Text>
+        </View>
+      )}
+
+      {/* Decision cards */}
+      {decisions.map((d) => (
+        <DecisionCard
+          key={d.id}
+          decision={d}
+          expanded={expandedId === d.id}
+          onToggle={() => toggleExpand(d.id)}
+          onMarkOutcome={(outcome) => markOutcome(d.id, outcome)}
+        />
+      ))}
+
+      <View style={{ height: 32 }} />
+    </ScrollView>
+  );
+}
+
+// ── Decision card ─────────────────────────────────────────────────────────────
+function DecisionCard({
+  decision, expanded, onToggle, onMarkOutcome,
+}: {
+  decision: Decision;
+  expanded: boolean;
+  onToggle: () => void;
+  onMarkOutcome: (o: string) => void;
+}) {
+  const cc = confidenceColor(decision.confidence_pct);
+  const oc = outcomeColor(decision.outcome);
+
+  return (
+    <View style={styles.card}>
+      {/* Top row */}
+      <View style={styles.cardTop}>
+        <View style={styles.cardTopLeft}>
+          <Text style={styles.cardDate}>{formatDate(decision.decision_date)}</Text>
+          <Text style={styles.cardDecision}>{decision.decision}</Text>
+        </View>
+        <View style={styles.confidenceBadge}>
+          <Text style={[styles.confidencePct, { color: cc }]}>{decision.confidence_pct}%</Text>
+          <Text style={styles.confidenceLabel}>CONF.</Text>
+        </View>
       </View>
 
-      {/* Expanded detail */}
-      {expanded && (
-        <View style={styles.expandedContainer}>
-          <View style={styles.separator} />
+      {/* Outcome badge */}
+      <View style={[styles.outcomeBadge, { borderColor: oc + '60' }]}>
+        <View style={[styles.outcomeDot, { backgroundColor: oc }]} />
+        <Text style={[styles.outcomeText, { color: oc }]}>{outcomeLabel(decision.outcome)}</Text>
+      </View>
 
-          {/* Evidence */}
-          <Text style={[styles.sectionLabel, { color: COLORS.strain }]}>EVIDENCE</Text>
-          {decision.evidence.map((e, i) => (
-            <View key={i} style={styles.evidenceRow}>
-              <View style={styles.evidenceDot} />
-              <Text style={styles.evidenceText}>{e}</Text>
+      {/* Signal pills */}
+      {decision.signals && decision.signals.length > 0 && (
+        <View style={styles.signalsRow}>
+          {decision.signals.map((s, i) => (
+            <View key={i} style={[styles.signalPill, { borderColor: s.favorable ? COLORS.recoveryHigh + '60' : COLORS.recoveryLow + '60' }]}>
+              <Ionicons
+                name={s.favorable ? 'checkmark-circle' : 'close-circle'}
+                size={10}
+                color={s.favorable ? COLORS.recoveryHigh : COLORS.recoveryLow}
+              />
+              <Text style={styles.signalLabel}>{s.label}</Text>
+              <Text style={[styles.signalValue, { color: s.favorable ? COLORS.recoveryHigh : '#C8D2D4' }]}>{s.value}</Text>
             </View>
           ))}
+        </View>
+      )}
 
-          {/* Reasoning */}
-          <Text style={[styles.sectionLabel, { color: COLORS.strainGlow, marginTop: 12 }]}>
-            AI REASONING
-          </Text>
-          <Text style={styles.reasoningText}>{decision.reasoning}</Text>
+      {/* "Why?" expandable panel */}
+      <TouchableOpacity style={styles.whyBtn} onPress={onToggle} activeOpacity={0.7}>
+        <Ionicons name="help-circle-outline" size={14} color={COLORS.strainGlow} />
+        <Text style={styles.whyBtnText}>Why?</Text>
+        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={12} color={COLORS.strainGlow} />
+      </TouchableOpacity>
 
-          {/* Outcome note */}
-          {decision.outcomeNote && (
-            <View
-              style={[
-                styles.outcomeBox,
-                {
-                  backgroundColor:
-                    decision.outcome === 'correct' ? '#16EC0610' : '#FF002610',
-                  borderColor:
-                    decision.outcome === 'correct' ? '#16EC0630' : '#FF002630',
-                },
-              ]}
-            >
-              <Text style={[styles.sectionLabel, { color: outcomeColor }]}>OUTCOME</Text>
-              <Text style={styles.outcomeText}>{decision.outcomeNote}</Text>
+      {expanded && (
+        <View style={styles.whyPanel}>
+          {decision.reasoning ? (
+            <Text style={styles.whyReasoning}>{decision.reasoning}</Text>
+          ) : null}
+          {decision.expected_outcome ? (
+            <View style={styles.whyRow}>
+              <Text style={styles.whyRowLabel}>EXPECTED OUTCOME</Text>
+              <Text style={styles.whyRowText}>{decision.expected_outcome}</Text>
+            </View>
+          ) : null}
+          {decision.alternative ? (
+            <View style={styles.whyRow}>
+              <Text style={styles.whyRowLabel}>IF THINGS GO WRONG</Text>
+              <Text style={styles.whyRowText}>{decision.alternative}</Text>
+            </View>
+          ) : null}
+
+          {/* Outcome marking — only show if pending */}
+          {decision.outcome === 'pending' && (
+            <View style={styles.markOutcomeRow}>
+              <Text style={styles.markOutcomeLabel}>Was this right?</Text>
+              <TouchableOpacity
+                style={[styles.markBtn, { borderColor: COLORS.recoveryHigh }]}
+                onPress={() => onMarkOutcome('correct')}
+              >
+                <Text style={[styles.markBtnText, { color: COLORS.recoveryHigh }]}>✓ Yes</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.markBtn, { borderColor: COLORS.recoveryLow }]}
+                onPress={() => onMarkOutcome('incorrect')}
+              >
+                <Text style={[styles.markBtnText, { color: COLORS.recoveryLow }]}>✗ No</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.markBtn, { borderColor: COLORS.recoveryMed }]}
+                onPress={() => onMarkOutcome('partial')}
+              >
+                <Text style={[styles.markBtnText, { color: COLORS.recoveryMed }]}>~ Partial</Text>
+              </TouchableOpacity>
             </View>
           )}
         </View>
       )}
-    </TouchableOpacity>
-  );
-}
-
-// ── Main Screen ───────────────────────────────────────────────────────────────
-export default function DecisionScreen() {
-  return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      {/* Header */}
-      <Text style={styles.title}>Decision Center</Text>
-      <Text style={styles.subtitle}>Every AI call — transparent & trackable</Text>
-
-      {/* Stats row */}
-      <View style={styles.statsRow}>
-        <View style={styles.statCard}>
-          <Text style={[styles.statValue, { color: COLORS.recoveryHigh }]}>{accuracy}%</Text>
-          <Text style={styles.statLabel}>ACCURACY</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{DECISIONS.length}</Text>
-          <Text style={styles.statLabel}>DECISIONS</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={[styles.statValue, { color: COLORS.strain }]}>{avgConf}%</Text>
-          <Text style={styles.statLabel}>AVG CONF.</Text>
-        </View>
-      </View>
-
-      {/* Cards */}
-      {DECISIONS.map((d, i) => (
-        <DecisionCard key={d.id} decision={d} idx={i} />
-      ))}
-    </ScrollView>
+    </View>
   );
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: COLORS.background,
+  container: { flex: 1, backgroundColor: '#000' },
+  center: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
+  loadingLabel: { color: '#5C6B6E', fontSize: 13, marginTop: 14 },
+  header: { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 16 },
+  headerTitle: { color: '#FFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.5 },
+  headerSub: { color: '#5C6B6E', fontSize: 13, marginTop: 4 },
+  accuracyCard: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: '#0C1714', borderRadius: 16, marginHorizontal: 16,
+    marginBottom: 12, padding: 16, borderWidth: 1, borderColor: COLORS.recoveryHigh + '30',
   },
-  content: {
-    padding: 16,
-    paddingBottom: 40,
+  accuracyLeft: { flexDirection: 'row', alignItems: 'center' },
+  accuracyPct: { color: COLORS.recoveryHigh, fontSize: 28, fontWeight: '800' },
+  accuracyLabel: { color: '#5C6B6E', fontSize: 10, fontWeight: '700', letterSpacing: 1 },
+  accuracySub: { color: '#5C6B6E', fontSize: 12 },
+  errorBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#1A1606', paddingVertical: 8, paddingHorizontal: 16, marginBottom: 8,
   },
-  title: {
-    fontFamily: FONTS.bold,
-    fontSize: 22,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontFamily: FONTS.regular,
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    marginBottom: 16,
-  },
-
-  // Stats
-  statsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: COLORS.cardElevated,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
-    padding: 12,
-    alignItems: 'center',
-  },
-  statValue: {
-    fontFamily: FONTS.numericBold,
-    fontSize: 22,
-    fontWeight: '800',
-    color: COLORS.text,
-  },
-  statLabel: {
-    fontFamily: FONTS.bold,
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    color: COLORS.textMuted,
-    marginTop: 4,
-    textTransform: 'uppercase',
-  },
-
-  // Card
+  errorText: { color: COLORS.recoveryMed, fontSize: 11, flex: 1 },
+  emptyState: { alignItems: 'center', padding: 40, gap: 12 },
+  emptyTitle: { color: '#5C6B6E', fontSize: 16, fontWeight: '700' },
+  emptyBody: { color: '#3F4A4C', fontSize: 13, textAlign: 'center', lineHeight: 19 },
   card: {
-    backgroundColor: COLORS.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 14,
-    marginBottom: 10,
+    backgroundColor: '#0E0E0E', borderRadius: 18, marginHorizontal: 16, marginBottom: 12,
+    padding: 18, borderWidth: 1, borderColor: '#1C1C1C',
   },
-  cardRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-    flexWrap: 'wrap',
+  cardTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+  cardTopLeft: { flex: 1 },
+  cardDate: { color: '#5C6B6E', fontSize: 11, fontWeight: '600', letterSpacing: 0.5, marginBottom: 4 },
+  cardDecision: { color: '#FFF', fontSize: 20, fontWeight: '800' },
+  confidenceBadge: { alignItems: 'center', justifyContent: 'center' },
+  confidencePct: { fontSize: 22, fontWeight: '800' },
+  confidenceLabel: { color: '#5C6B6E', fontSize: 8, fontWeight: '700', letterSpacing: 0.5 },
+  outcomeBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderWidth: 1, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10,
+    alignSelf: 'flex-start', marginBottom: 12,
   },
-  chip: {
-    borderRadius: 4,
-    borderWidth: 1,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
+  outcomeDot: { width: 6, height: 6, borderRadius: 3 },
+  outcomeText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  signalsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
+  signalPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderWidth: 1, borderRadius: 8, paddingVertical: 3, paddingHorizontal: 8,
+    backgroundColor: '#121212',
   },
-  chipText: {
-    fontFamily: FONTS.bold,
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
+  signalLabel: { color: '#7A8A8E', fontSize: 10, fontWeight: '600' },
+  signalValue: { fontSize: 10, fontWeight: '700' },
+  whyBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start',
+    paddingVertical: 4,
   },
-  dateText: {
-    fontFamily: FONTS.regular,
-    fontSize: 10,
-    color: COLORS.textMuted,
-  },
-  decisionTitle: {
-    fontFamily: FONTS.semibold,
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: 10,
-  },
-  confRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  whyBtnText: { color: COLORS.strainGlow, fontSize: 12, fontWeight: '700' },
+  whyPanel: {
+    marginTop: 12, backgroundColor: '#0A0A0A', borderRadius: 12,
+    padding: 14, borderWidth: 1, borderColor: '#1C1C1C',
     gap: 10,
   },
-  confTrack: {
-    flex: 1,
-    height: 3,
-    backgroundColor: '#1F1F1F',
-    borderRadius: 2,
-    overflow: 'hidden',
+  whyReasoning: { color: '#C8D2D4', fontSize: 13, lineHeight: 20 },
+  whyRow: { gap: 3 },
+  whyRowLabel: { color: '#5C6B6E', fontSize: 9, fontWeight: '700', letterSpacing: 1 },
+  whyRowText: { color: '#C8D2D4', fontSize: 12, lineHeight: 18 },
+  markOutcomeRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4,
   },
-  confFill: {
-    height: '100%',
-    backgroundColor: COLORS.strainGlow,
-    borderRadius: 2,
+  markOutcomeLabel: { color: '#5C6B6E', fontSize: 11, flex: 1 },
+  markBtn: {
+    borderWidth: 1, borderRadius: 8, paddingVertical: 5, paddingHorizontal: 12,
   },
-  confLabel: {
-    fontFamily: FONTS.numericMedium,
-    fontSize: 11,
-    color: COLORS.strainGlow,
-  },
-  chevron: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-  },
-
-  // Expanded
-  expandedContainer: {
-    marginTop: 14,
-  },
-  separator: {
-    height: 1,
-    backgroundColor: COLORS.border,
-    marginBottom: 12,
-  },
-  sectionLabel: {
-    fontFamily: FONTS.bold,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
-    marginBottom: 8,
-  },
-  evidenceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 5,
-  },
-  evidenceDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: COLORS.strain,
-  },
-  evidenceText: {
-    fontFamily: FONTS.regular,
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    flex: 1,
-  },
-  reasoningText: {
-    fontFamily: FONTS.regular,
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    lineHeight: 19,
-  },
-  outcomeBox: {
-    borderRadius: 8,
-    borderWidth: 1,
-    padding: 10,
-    marginTop: 10,
-  },
-  outcomeText: {
-    fontFamily: FONTS.regular,
-    fontSize: 12,
-    color: COLORS.textSecondary,
-  },
+  markBtnText: { fontSize: 11, fontWeight: '700' },
 });

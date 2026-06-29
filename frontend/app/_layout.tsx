@@ -12,16 +12,22 @@ type TabDef = {
   activeIcon: React.ComponentProps<typeof Ionicons>['name'];
 };
 
+// ── 5-tab nav — Decisions, Simulate, Form AI moved to Dashboard cards ──
+// Eight tabs was too many; 4-5 is the mobile-nav sweet spot. The removed
+// tabs are still real screens — they're now reachable via the Quick Start
+// grid and new dashboard feature cards on the Home tab instead of a
+// permanent bottom slot. This frees up visible space and makes the nav
+// instantly scannable.
 const TABS: TabDef[] = [
-  { name: 'index',     title: 'HOME',      icon: 'home-outline',          activeIcon: 'home'          },
-  { name: 'coach',     title: 'COACH',     icon: 'flash-outline',         activeIcon: 'flash'         },
-  { name: 'workout',   title: 'WORKOUT',   icon: 'barbell-outline',       activeIcon: 'barbell'       },
-  { name: 'progress',  title: 'ANALYTICS', icon: 'stats-chart-outline',   activeIcon: 'stats-chart'   },
-  { name: 'decisions', title: 'DECISIONS', icon: 'analytics-outline',     activeIcon: 'analytics'     },
-  { name: 'simulate',  title: 'SIMULATE',  icon: 'flask-outline',         activeIcon: 'flask'         },
-  { name: 'formanalysis', title: 'FORM AI',icon: 'body-outline',          activeIcon: 'body'          },
-  { name: 'profile',   title: 'PROFILE',   icon: 'person-outline',        activeIcon: 'person'        },
+  { name: 'index',    title: 'HOME',      icon: 'home-outline',        activeIcon: 'home'        },
+  { name: 'coach',   title: 'COACH',     icon: 'flash-outline',       activeIcon: 'flash'       },
+  { name: 'workout', title: 'WORKOUT',   icon: 'barbell-outline',     activeIcon: 'barbell'     },
+  { name: 'progress', title: 'ANALYTICS', icon: 'stats-chart-outline', activeIcon: 'stats-chart' },
+  { name: 'profile', title: 'PROFILE',   icon: 'person-outline',      activeIcon: 'person'      },
 ];
+
+// Hidden tabs — still routable via router.push(), just not in the bar
+const HIDDEN_TABS = ['decisions', 'simulate', 'formanalysis', 'prs'];
 
 export default function TabsLayout() {
   const [authChecked, setAuthChecked] = useState(false);
@@ -62,7 +68,7 @@ export default function TabsLayout() {
         tabBarActiveTintColor: COLORS.tabActive,
         tabBarInactiveTintColor: COLORS.tabInactive,
         tabBarLabelStyle: {
-          fontSize: 8,
+          fontSize: 9,
           fontWeight: '700',
           letterSpacing: 0.6,
           marginTop: 2,
@@ -80,12 +86,20 @@ export default function TabsLayout() {
               <View style={focused ? styles.activeWrap : styles.iconWrap}>
                 <Ionicons
                   name={focused ? t.activeIcon : t.icon}
-                  size={20}
+                  size={22}
                   color={color}
                 />
               </View>
             ),
           }}
+        />
+      ))}
+      {/* Hidden tabs — routable but not visible in the bottom bar */}
+      {HIDDEN_TABS.map((name) => (
+        <Tabs.Screen
+          key={name}
+          name={name}
+          options={{ href: null }}
         />
       ))}
     </Tabs>

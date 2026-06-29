@@ -15,6 +15,9 @@ from api.routes.nutrition import router as nutrition_router
 from api.routes.dashboard import router as dashboard_router
 from api.routes.memory import router as memory_router
 from api.routes.review import router as review_router
+from api.routes.decisions import router as decisions_router
+from api.routes.program import router as program_router
+from api.routes.mission import router as mission_router
 from core.config import get_settings
 from db.chroma_client import seed_guardrails
 
@@ -34,7 +37,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="VYRN Adaptive Performance System",
     description="Your Adaptive Performance System — remembers your journey, guides every rep, celebrates every PR.",
-    version="2.0.0",
+    version="2.1.0",
     lifespan=lifespan,
 )
 
@@ -54,15 +57,18 @@ app.include_router(progress_router,  prefix="/api/progress",  tags=["Progress"])
 app.include_router(coach_router,     prefix="/api/coach",     tags=["AI Coach"])
 app.include_router(nutrition_router, prefix="/api/nutrition", tags=["Nutrition"])
 app.include_router(dashboard_router, prefix="/api/dashboard", tags=["Dashboard"])
-app.include_router(memory_router,   prefix="/api/memory",    tags=["Memory"])
-app.include_router(review_router,   prefix="/api/review",    tags=["Review"])
+app.include_router(memory_router,    prefix="/api/memory",    tags=["Memory"])
+app.include_router(review_router,    prefix="/api/review",    tags=["Review"])
+app.include_router(decisions_router, prefix="/api/decisions", tags=["Decision History"])
+app.include_router(program_router,   prefix="/api/program",   tags=["Program Evolution"])
+app.include_router(mission_router,   prefix="/api/mission",   tags=["Mission"])
 
 
 @app.get("/")
 def root():
     return {
         "app": "VYRN Adaptive Performance System",
-        "version": "2.0.0",
+        "version": "2.1.0",
         "status": "running",
         "docs": "/docs",
     }

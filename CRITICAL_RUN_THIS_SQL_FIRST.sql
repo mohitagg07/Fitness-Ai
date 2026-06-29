@@ -225,3 +225,48 @@ CREATE INDEX IF NOT EXISTS idx_ai_conversations_user ON public.ai_conversations(
 CREATE INDEX IF NOT EXISTS idx_ai_timeline_user ON public.ai_timeline_events(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_progress_metrics_user_date ON public.progress_metrics(user_id, recorded_date DESC);
 CREATE INDEX IF NOT EXISTS idx_nutrition_logs_user_date ON public.nutrition_logs(user_id, log_date DESC);
+-- ============================================================
+-- Schema additions v2.1 — run after the v2 tables above
+-- ============================================================
+
+-- Decision History — persists every decision_engine.py output so
+-- DecisionScreen shows real data instead of hardcoded mock data.
+CREATE TABLE IF NOT EXISTS public.ai_decisions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    decision_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    decision TEXT NOT NULL,           -- "Heavy Push Day", "Rest Day", etc.
+    confidence_pct INT,               -- 0-100 deterministic score
+    reasoning TEXT,                   -- deterministic explanation string
+    expected_outcome TEXT,
+    alternative TEXT,
+    signals JSONB,                    -- array of {label, value, favorable}
+    outcome TEXT DEFAULT 'pending' CHECK (outcome IN ('pending','correct','incorrect','partial')),
+    outcome_note TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (user_id, decision_date)   -- one decision per user per day
+);
+
+-- Program Versions — every time program_rewriter.py rewrites the program,
+-- a row is added here. Feeds the Program Evolution UI (version chip row + diff).
+CREATE TABLE IF NOT EXISTS public.program_versions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    plan_id UUID REFERENCES public.workout_plans(id),
+    version_number INT NOT NULL,      -- 1, 2, 3...
+    trigger TEXT NOT NULL,            -- "plateau on bench press", "recovery_decline", etc.
+    changes JSONB,                    -- array of change objects
+    explanation TEXT,                 -- human-readable "why it changed"
+    created_at DATE DEFAULT CURRENT_DATE
+);
+
+-- RLS
+ALTER TABLE public.ai_decisions    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.program_versions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users own their decisions"        ON public.ai_decisions     FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Users own their program versions" ON public.program_versions FOR ALL USING (auth.uid() = user_id);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_ai_decisions_user_date    ON public.ai_decisions(user_id, decision_date DESC);
+CREATE INDEX IF NOT EXISTS idx_program_versions_user     ON public.program_versions(user_id, version_number DESC);

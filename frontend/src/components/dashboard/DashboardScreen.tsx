@@ -22,6 +22,8 @@ import { useStore } from '../../store';
 import { COLORS, recoveryColor as whoopRecoveryColor } from '../../theme/colors';
 import ProactiveBriefCard from './ProactiveBriefCard';
 import PatternInsightsCard from './PatternInsightsCard';
+import CoachTimelineCard from './CoachTimelineCard';
+import ProgramEvolutionCard from './ProgramEvolutionCard';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -349,14 +351,38 @@ export default function DashboardScreen() {
         </View>
       )}
 
+      {/* ── Phase 2: Coach Timeline ─────────────────────────────────── */}
+      <CoachTimelineCard />
+
+      {/* ── Phase 2: Program Evolution ───────────────────────────────── */}
+      <ProgramEvolutionCard />
+
+      {/* Quick Access — 3 primary actions; secondary features in AI Tools */}
       <Text style={styles.sectionLabel}>QUICK START</Text>
       <View style={styles.quickGrid}>
-        <QuickBtn label="Ask Coach"  icon="chatbubble-outline"  onPress={() => router.push('/(tabs)/coach')}       accent={COLORS.recoveryHigh} />
-        <QuickBtn label="Gym Mode"   icon="barbell-outline"      onPress={() => router.push('/(tabs)/workout')}     accent={COLORS.strain}       />
-        <QuickBtn label="Decisions"  icon="analytics-outline"    onPress={() => router.push('/(tabs)/decisions')}   accent={COLORS.strainGlow}   />
-        <QuickBtn label="What If?"   icon="flask-outline"        onPress={() => router.push('/(tabs)/simulate')}    accent={COLORS.recoveryMed}  />
-        <QuickBtn label="Analytics"  icon="stats-chart-outline"  onPress={() => router.push('/(tabs)/progress')}    accent={COLORS.sleep}        />
-        <QuickBtn label="Form AI"    icon="body-outline"         onPress={() => router.push('/(tabs)/formanalysis')} accent={COLORS.recoveryLow} />
+        <QuickBtn label="Ask Coach"  icon="chatbubble-outline"  onPress={() => router.push('/(tabs)/coach')}    accent={COLORS.recoveryHigh} />
+        <QuickBtn label="Gym Mode"   icon="barbell-outline"     onPress={() => router.push('/(tabs)/workout')}  accent={COLORS.strain}       />
+        <QuickBtn label="Analytics"  icon="stats-chart-outline" onPress={() => router.push('/(tabs)/progress')} accent={COLORS.sleep}        />
+      </View>
+
+      {/* Secondary feature cards — Decisions/Simulate/Form AI moved off bottom nav */}
+      <Text style={styles.sectionLabel}>AI TOOLS</Text>
+      <View style={styles.aiToolsGrid}>
+        <TouchableOpacity style={[styles.aiToolBtn, { borderColor: COLORS.strainGlow + '40' }]} onPress={() => router.push('/(tabs)/decisions')}>
+          <Ionicons name="analytics-outline" size={22} color={COLORS.strainGlow} />
+          <Text style={styles.aiToolLabel}>Decisions</Text>
+          <Text style={styles.aiToolSub}>AI history & accuracy</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.aiToolBtn, { borderColor: COLORS.recoveryMed + '40' }]} onPress={() => router.push('/(tabs)/simulate')}>
+          <Ionicons name="flask-outline" size={22} color={COLORS.recoveryMed} />
+          <Text style={styles.aiToolLabel}>What If?</Text>
+          <Text style={styles.aiToolSub}>Training simulations</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.aiToolBtn, { borderColor: COLORS.recoveryLow + '40' }]} onPress={() => router.push('/(tabs)/formanalysis')}>
+          <Ionicons name="body-outline" size={22} color={COLORS.recoveryLow} />
+          <Text style={styles.aiToolLabel}>Form AI</Text>
+          <Text style={styles.aiToolSub}>Camera form analysis</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={{ height: 24 }} />
@@ -610,6 +636,13 @@ const styles = StyleSheet.create({
     marginHorizontal: 16, marginBottom: 8, marginTop: 8,
   },
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: 16, gap: 8, marginBottom: 12 },
+  aiToolsGrid: { flexDirection: 'row', marginHorizontal: 16, gap: 8, marginBottom: 16 },
+  aiToolBtn: {
+    flex: 1, backgroundColor: '#0E0E0E', borderRadius: 14, padding: 14,
+    borderWidth: 1, alignItems: 'center', gap: 4,
+  },
+  aiToolLabel: { color: '#E0E0E0', fontSize: 12, fontWeight: '700' },
+  aiToolSub: { color: '#5C6B6E', fontSize: 9, textAlign: 'center', lineHeight: 13 },
   quickBtn: {
     width: '47%', backgroundColor: '#0E0E0E', borderRadius: 14, padding: 16,
     borderWidth: 1, alignItems: 'center', gap: 6,
