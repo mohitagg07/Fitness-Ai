@@ -380,14 +380,9 @@ Hard limits:
     # Plain text fallback for history / clients not yet on card UI
     state["reply"] = decision.get("coach_message") or decision.get("coach_insight") or ""
 
+    # Auto-extract memories from this message using LLM
     try:
-        msg_lower = state["user_message"].lower()
-        durable_signals = [
-            "i like", "i love", "i hate", "i prefer",
-            "my knee", "my shoulder", "my back",
-        ]
-        if any(sig in msg_lower for sig in durable_signals):
-            remember(state["user_id"], state["user_message"], category="general")
+        _auto_extract_memories(state["user_id"], state["user_message"])
     except Exception:
         pass
 
@@ -451,3 +446,48 @@ async def run_coach(
         "parsed_logs": result["parsed_logs"],
         "structured_decision": result.get("structured_decision"),
     }
+
+
+# ─── Auto Memory Extraction Helper ───────────────────────────────────────────
+_MEMORY_CATEGORY_SIGNALS = {
+    "schedule": ["morning", "evening", "afternoon", "always train", "prefer to train", "work out at", "train at"],
+    "food_preference": ["i like", "i love", "i hate", "i prefer", "i avoid", "i eat", "paneer", "oats", "vegan", "vegetarian"],
+    "injury": ["my knee", "my shoulder", "my back", "my wrist", "pain in", "sore", "injured", "discomfort"],
+    "equipment": ["home gym", "no equipment", "smith machine", "only dumbbells", "no barbell"],
+    "goal_progress": ["trying to", "my goal is", "aiming for", "working towards"],
+    "coaching_style": ["too hard", "motivate me", "be strict", "be gentle", "push me harder"],
+}
+
+
+def _auto_extract_memories(user_id: str, message: str) -> None:
+    """Auto-detect and store durable personal facts from conversation."""
+    msg_lower = message.lower()
+    detected_category = None
+    for category, signals in _MEMORY_CATEGORY_SIGNALS.items():
+        if any(sig in msg_lower for sig in signals):
+            detected_category = category
+            break
+
+    if detected_category:
+        remember(user_id, message[:500], category=detected_category)
+        return
+
+    # LLM-based detection for longer messages
+    if len(message.split()) > 8:
+        llm = get_llm()
+        extract_prompt = (
+            'Does this fitness app message contain a durable personal fact worth storing for coaching?\n'
+            'Examples worth storing: preferences, habits, injuries, schedule, equipment constraints.\n'
+            'Examples NOT worth storing: questions, one-off requests, workout logs.\n\n'
+            f'Message: "{message[:300]}"\n\n'
+            'Reply ONLY with JSON: {"store": true/false, "category": "food_preference|injury|schedule|equipment|goal_progress|general", "fact": "compact fact"}\n'
+            'If store is false, set fact to empty string.'
+        )
+        try:
+            resp = llm.invoke([HumanMessage(content=extract_prompt)])
+            raw = resp.content.strip().replace("```json", "").replace("```", "").strip()
+            extracted = json.loads(raw)
+            if extracted.get("store") and extracted.get("fact"):
+                remember(user_id, extracted["fact"][:300], category=extracted.get("category", "general"))
+        except Exception:
+            pass

@@ -43,6 +43,8 @@ from agents.workout_agent import run_workout_agent
 from agents.progress_agent import run_progress_agent
 from agents.recovery_agent import run_recovery_agent
 from agents.motivation_agent import get_daily_motivation
+from agents.pattern_engine import run_pattern_engine
+from agents.coach_brain import generate_proactive_brief
 import logging
 
 logger = logging.getLogger(__name__)
@@ -190,8 +192,30 @@ async def get_today_mission(
         planned_workout_type=workout_decision.recommended_type,
     )
 
-    # ── Motivation ────────────────────────────────────────────────────────────
-    motivation = await asyncio.to_thread(get_daily_motivation, user_id, coach_style)
+    # ── Pattern Detection Engine + Proactive AI Brain ────────────────────────
+    (
+        patterns,
+        motivation,
+        proactive_brief,
+    ) = await asyncio.gather(
+        asyncio.to_thread(
+            run_pattern_engine,
+            user_id,
+            targets.get("protein_g", 160.0),
+        ),
+        asyncio.to_thread(get_daily_motivation, user_id, coach_style),
+        asyncio.to_thread(
+            generate_proactive_brief,
+            user_id=user_id,
+            profile=profile,
+            workout_decision=workout_decision,
+            recovery_decision=recovery_decision,
+            nutrition_decision=nutrition_decision,
+            progress_decision=progress_decision,
+            consumed=consumed,
+            targets=targets,
+        ),
+    )
 
     # ── Compute remaining macros ──────────────────────────────────────────────
     calories_remaining = max(0, targets["calories"] - int(consumed["calories"]))
@@ -264,6 +288,22 @@ async def get_today_mission(
         "protein_streak": agent_state.get("protein_streak", 0),
         "workout_streak": agent_state.get("workout_streak", 0),
         "cns_fatigue":    cns_fatigue,
+
+        # ── Pattern Detection Engine — proactive insights ─────────────────────
+        "pattern_insights": [
+            {
+                "category": p.category,
+                "severity": p.severity,
+                "title": p.title,
+                "detail": p.detail,
+                "recommendation": p.recommendation,
+                "confidence": p.confidence,
+            }
+            for p in (patterns or [])[:4]
+        ],
+
+        # ── Proactive AI Brain — coach thinks before user asks ────────────────
+        "proactive_brief": proactive_brief,
 
         # ── Metadata ──────────────────────────────────────────────────────────
         "generated_at": datetime.utcnow().isoformat(),
