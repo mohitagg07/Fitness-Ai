@@ -6,8 +6,12 @@ CHANGE: Injects prior_messages from conversation history into run_coach()
 so the LLM has genuine session continuity without the user re-explaining context.
 """
 import asyncio
+import logging
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from schemas.models import ChatMessage, ChatResponse
+
+logger = logging.getLogger(__name__)
 from core.security import get_current_user
 from db.supabase_client import (
     get_supabase,
@@ -59,7 +63,11 @@ async def chat(
             prior_messages=prior_messages,
         )
     except Exception as e:
-        raise HTTPException(500, f"AI Coach error: {str(e)}")
+        logger.exception(f"run_coach failed for user {user_id}: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "VYRN couldn't process that right now. Please try again."},
+        )
 
     try:
         await asyncio.to_thread(save_conversation_message, user_id, payload.session_id, "user", payload.content)
@@ -86,16 +94,20 @@ async def get_history(
     limit: int = 20,
     current_user: dict = Depends(get_current_user)
 ):
-    sb = get_supabase()
-    res = (
-        sb.table("ai_conversations")
-        .select("*")
-        .eq("user_id", current_user["user_id"])
-        .order("created_at", desc=True)
-        .limit(limit)
-        .execute()
-    )
-    return list(reversed(res.data))
+    try:
+        sb = get_supabase()
+        res = (
+            sb.table("ai_conversations")
+            .select("*")
+            .eq("user_id", current_user["user_id"])
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return list(reversed(res.data or []))
+    except Exception as e:
+        logger.exception(f"get_history failed: {e}")
+        return JSONResponse(status_code=500, content={"detail": "Could not load chat history."})
 
 
 @router.post("/regenerate-workout", response_model=ChatResponse)
@@ -131,7 +143,11 @@ async def regenerate_workout(
             prior_messages=prior_messages,
         )
     except Exception as e:
-        raise HTTPException(500, f"AI Coach error: {str(e)}")
+        logger.exception(f"regenerate_workout run_coach failed for {user_id}: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Couldn't regenerate workout right now. Please try again."},
+        )
 
     try:
         await asyncio.to_thread(save_conversation_message, user_id, None, "user", regenerate_prompt)
