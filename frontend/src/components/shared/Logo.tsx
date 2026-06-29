@@ -30,10 +30,10 @@ const SIZE_MAP: Record<LogoSize, {
   ai: number;
   gap: number;
 }> = {
-  sm: { badge: 28, wordmark: 15, ai: 8,  gap: 8  },
-  md: { badge: 40, wordmark: 20, ai: 10, gap: 10 },
-  lg: { badge: 56, wordmark: 28, ai: 13, gap: 12 },
-  xl: { badge: 84, wordmark: 38, ai: 16, gap: 16 },
+  sm: { badge: 30, wordmark: 15, ai: 12, gap: 6  },
+  md: { badge: 43, wordmark: 20, ai: 16, gap: 8  },
+  lg: { badge: 60, wordmark: 28, ai: 22, gap: 10 },
+  xl: { badge: 90, wordmark: 38, ai: 30, gap: 14 },
 };
 
 export default function Logo({
@@ -131,7 +131,7 @@ function GradientFit({ fontSize }: { fontSize: number }) {
         textAnchor="middle"
         fontSize={fontSize}
         fontWeight="800"
-        letterSpacing={1}
+        letterSpacing={0.5}
         fill="url(#fitGrad)"
         fontFamily={FONTS.logo as string}
       >
@@ -152,15 +152,15 @@ const styles = StyleSheet.create({
     color:       COLORS.text,
     fontFamily:  FONTS.logo as string,
     fontWeight:  '800',
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
   ai: {
     color:       COLORS.strain,
     fontFamily:  FONTS.logo as string,
-    fontWeight:  '700',
-    letterSpacing: 2,
-    marginLeft:  4,
-    alignSelf:   'flex-end',
-    paddingBottom: 2,
+    fontWeight:  '800',
+    letterSpacing: 1,
+    marginLeft:  2,
+    alignSelf:   'center',
+    paddingBottom: 1,
   },
 });

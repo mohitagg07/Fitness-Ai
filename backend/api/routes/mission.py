@@ -253,59 +253,92 @@ async def get_today_mission(
     )
     alerts = _build_alerts(recovery_decision, progress_decision, protein_remaining, targets)
 
+    calories_pct = round(100 * (1 - calories_remaining / max(1, targets["calories"])))
+    protein_pct  = round(100 * (1 - protein_remaining  / max(1, targets["protein_g"])))
+    water_pct    = round(100 * (1 - water_remaining    / max(1, targets["water_ml"])))
+
     return {
-        # ── Core decision card (structured, matches your spec exactly) ────────
-        "mission":          mission_label,
-        "recovery":         recovery_pct,
-        "protein_target":   targets["protein_g"],
-        "calories_target":  targets["calories"],
-        "ai_decision":      ai_decision,
-        "next_action":      next_action,
-        "coach_insight":    motivation,
-        "intensity":        intensity,
-        "workout_type":     workout_decision.recommended_type,
+        # ── Core mission card ─────────────────────────────────────────────────
+        "mission":       mission_label,
+        "ai_decision":   ai_decision,
+        "next_action":   next_action,
+        "coach_insight": motivation,
+        "intensity":     intensity,
+        "workout_type":  workout_decision.recommended_type,
+        "alerts":        alerts,
+        "greeting":      f"Ready to train, {full_name}?",
+        "generated_at":  datetime.utcnow().isoformat(),
+        "user_id":       user_id,
+
+        # ── Dashboard-compatible fields (DashboardSummary type expects these) ─
+        # DashboardScreen tries mission/today first; it must return the same
+        # field names that dashboard/summary returns, or recovery rings / macros
+        # show 0 / undefined silently.
+        "mission_text":        next_action,
+        "next_task":           next_action,
+        "calories_remaining":  calories_remaining,
+        "protein_remaining_g": round(protein_remaining, 1),
+        "water_remaining_ml":  water_remaining,
+        "calories_target":     targets["calories"],
+        "protein_target_g":    targets["protein_g"],
+        "water_target_ml":     targets["water_ml"],
+        "calories_pct":        calories_pct,
+        "protein_pct":         protein_pct,
+        "water_pct":           water_pct,
+        "workout_today": {
+            "type":        workout_decision.recommended_type,
+            "rescheduled": workout_decision.rescheduled,
+            "message":     workout_decision.message,
+        },
+        # Nested recovery object — DashboardScreen reads .score / .action / .message
+        "recovery": {
+            "score":   recovery_decision.recovery_score,  # 0-10
+            "action":  recovery_decision.action,
+            "message": recovery_decision.message,
+        },
+        "progress": {
+            "stalled":            progress_decision.stalled,
+            "calorie_adjustment": progress_decision.suggested_calorie_adjustment,
+            "message":            progress_decision.message,
+        },
+        "cns_fatigue":     cns_fatigue,
+        "workout_streak":  agent_state.get("workout_streak", 0),
+        "protein_streak":  agent_state.get("protein_streak", 0),
+        "motivation_message": motivation,
+        "sleep_goal":      profile.get("sleep_time"),
+
+        # ── Legacy flat fields (keep for any code that still reads them) ──────
+        "recovery_pct":         recovery_pct,
+        "protein_target":       targets["protein_g"],
+        "workout_rescheduled":  workout_decision.rescheduled,
+        "workout_message":      workout_decision.message,
+        "recovery_score":       recovery_decision.recovery_score,
+        "recovery_action":      recovery_decision.action,
+        "progress_stalled":     progress_decision.stalled,
 
         # ── Nutrition status block ────────────────────────────────────────────
         "nutrition_status": {
             "calories_remaining":  calories_remaining,
-            "protein_remaining_g": protein_remaining,
+            "protein_remaining_g": round(protein_remaining, 1),
             "water_remaining_ml":  water_remaining,
-            "calories_pct": round(100 * (1 - calories_remaining / max(1, targets["calories"]))),
-            "protein_pct":  round(100 * (1 - protein_remaining / max(1, targets["protein_g"]))),
-            "water_pct":    round(100 * (1 - water_remaining / max(1, targets["water_ml"]))),
+            "calories_pct":        calories_pct,
+            "protein_pct":         protein_pct,
+            "water_pct":           water_pct,
         },
 
-        # ── Proactive alerts ──────────────────────────────────────────────────
-        "alerts": alerts,
-
-        # ── Context for richer UI rendering ──────────────────────────────────
-        "greeting":       f"Ready to train, {full_name}?",
-        "workout_rescheduled": workout_decision.rescheduled,
-        "workout_message": workout_decision.message,
-        "recovery_score": recovery_decision.recovery_score,
-        "recovery_action": recovery_decision.action,
-        "progress_stalled": progress_decision.stalled,
-        "protein_streak": agent_state.get("protein_streak", 0),
-        "workout_streak": agent_state.get("workout_streak", 0),
-        "cns_fatigue":    cns_fatigue,
-
-        # ── Pattern Detection Engine — proactive insights ─────────────────────
+        # ── Pattern Detection Engine ──────────────────────────────────────────
         "pattern_insights": [
             {
-                "category": p.category,
-                "severity": p.severity,
-                "title": p.title,
-                "detail": p.detail,
+                "category":       p.category,
+                "severity":       p.severity,
+                "title":          p.title,
+                "detail":         p.detail,
                 "recommendation": p.recommendation,
-                "confidence": p.confidence,
+                "confidence":     p.confidence,
             }
             for p in (patterns or [])[:4]
         ],
 
-        # ── Proactive AI Brain — coach thinks before user asks ────────────────
+        # ── Proactive AI Brain ────────────────────────────────────────────────
         "proactive_brief": proactive_brief,
-
-        # ── Metadata ──────────────────────────────────────────────────────────
-        "generated_at": datetime.utcnow().isoformat(),
-        "user_id": user_id,
     }

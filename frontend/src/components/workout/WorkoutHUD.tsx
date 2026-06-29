@@ -207,7 +207,7 @@ export default function WorkoutHUD() {
   const startSession = async () => {
     if (activeSession) return;
     try {
-      const res = await workoutApi.createSession({ title: 'Training Session' });
+      const res = await workoutApi.createSession({ day_label: 'Training Session' });
       setActiveSession({ ...res.data, logs: [], startedAt: Date.now() });
     } catch {
       Alert.alert('Error', 'Could not start session.');

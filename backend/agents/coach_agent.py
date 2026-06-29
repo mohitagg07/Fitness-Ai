@@ -259,7 +259,7 @@ CRITICAL RULES — READ FIRST:
 6. When planning a workout, provide specific exercises, not vague advice.
 
 ATHLETE PROFILE (from onboarding — you already know this):
-- Name: {profile.get('full_name', 'Athlete').split()[0]}
+- Name: {(profile.get('full_name') or 'Athlete').split()[0]}
 - Goal: {profile.get('goal', 'general fitness')}
 - Experience: {profile.get('experience_level', 'intermediate')}
 - Weight: {profile.get('weight_kg', '?')} kg

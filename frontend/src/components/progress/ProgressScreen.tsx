@@ -332,6 +332,7 @@ export default function ProgressScreen() {
   const [refreshing, setRefreshing]   = useState(false);
   const [errorMsg, setErrorMsg]       = useState<string | null>(null);
   const [weightInput, setWeightInput] = useState('');
+  const [recoveryInput, setRecoveryInput] = useState('');
   const [activeTab, setActiveTab]     = useState<Tab>('body');
   const [logFoodVisible, setLogFoodVisible] = useState(false);
 
@@ -366,6 +367,21 @@ export default function ProgressScreen() {
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
+  };
+
+  const logRecovery = async () => {
+    const score = parseInt(recoveryInput, 10);
+    if (isNaN(score) || score < 0 || score > 100) {
+      Alert.alert('Invalid score', 'Enter a number between 0 and 100.');
+      return;
+    }
+    try {
+      await progressApi.logMetrics({ recovery_score: score });
+      setRecoveryInput('');
+      await loadData();
+    } catch {
+      Alert.alert('Error', 'Could not save recovery score.');
+    }
   };
 
   const logWeight = async () => {
@@ -540,6 +556,30 @@ export default function ProgressScreen() {
             <>
               <RecoveryTrend metrics={metrics} />
 
+              {/* Log recovery score */}
+              <View style={styles.logWeightCard}>
+                <Text style={styles.sectionLabel}>LOG RECOVERY SCORE</Text>
+                <Text style={{ color: '#555', fontSize: 11, marginBottom: 10 }}>
+                  How recovered do you feel today? (0 = destroyed, 100 = perfect)
+                </Text>
+                <View style={styles.weightRow}>
+                  <TextInput
+                    style={styles.weightInput}
+                    placeholder="e.g. 75"
+                    placeholderTextColor="#444"
+                    value={recoveryInput}
+                    onChangeText={setRecoveryInput}
+                    keyboardType="numeric"
+                    returnKeyType="done"
+                    onSubmitEditing={logRecovery}
+                  />
+                  <Text style={styles.weightUnit}>/ 100</Text>
+                  <TouchableOpacity style={styles.weightLogBtn} onPress={logRecovery}>
+                    <Text style={styles.weightLogBtnText}>LOG</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
               {/* Recent recovery scores */}
               <View style={styles.recoveryCards}>
                 <Text style={styles.sectionLabel}>RECENT SCORES</Text>
@@ -563,7 +603,7 @@ export default function ProgressScreen() {
                 })}
                 {metrics.filter(m => m.recovery_score != null).length === 0 && (
                   <Text style={styles.emptyNote}>
-                    No recovery data yet. Log recovery scores from the Profile screen.
+                    No recovery data yet. Log your first score above.
                   </Text>
                 )}
               </View>
