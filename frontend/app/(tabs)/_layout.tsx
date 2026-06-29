@@ -22,7 +22,7 @@ const TABS: TabDef[] = [
   { name: 'index',    title: 'HOME',      icon: 'home-outline',        activeIcon: 'home'        },
   { name: 'coach',   title: 'COACH',     icon: 'flash-outline',       activeIcon: 'flash'       },
   { name: 'workout', title: 'WORKOUT',   icon: 'barbell-outline',     activeIcon: 'barbell'     },
-  { name: 'progress', title: 'ANALYTICS', icon: 'stats-chart-outline', activeIcon: 'stats-chart' },
+  { name: 'progress', title: 'PROGRESS', icon: 'stats-chart-outline', activeIcon: 'stats-chart' },
   { name: 'profile', title: 'PROFILE',   icon: 'person-outline',      activeIcon: 'person'      },
 ];
 

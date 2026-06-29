@@ -22,9 +22,10 @@ import WeightChart from './WeightChart';
 import StrengthProgressionChart from './StrengthProgressionChart';
 import Logo from '../shared/Logo';
 import WeeklyReviewScreen from './WeeklyReviewScreen';
+import AnalyticsScreen from './AnalyticsScreen';
 import { SkeletonCard } from '../shared/LoadingOverlay';
 
-type Tab = 'body' | 'strength' | 'nutrition' | 'recovery' | 'review';
+type Tab = 'body' | 'strength' | 'nutrition' | 'recovery' | 'review' | 'analytics';
 
 // ─── Protein Adherence 7-day bar ──────────────────────────────────────────────
 function ProteinAdherenceBar({ history }: { history: any[] }) {
@@ -405,6 +406,7 @@ export default function ProgressScreen() {
     { key: 'nutrition', label: 'Nutrition', icon: 'nutrition-outline' },
     { key: 'recovery',  label: 'Recovery',  icon: 'pulse-outline' },
     { key: 'review',    label: 'Review',    icon: 'document-text-outline' },
+    { key: 'analytics', label: 'Analytics', icon: 'stats-chart-outline' },
   ];
 
   const targetCal = todayData?.targets?.calories || 2000;
@@ -617,13 +619,25 @@ export default function ProgressScreen() {
             </View>
           )}
 
-          {activeTab !== 'review' && <View style={{ height: 40 }} />}
+          {/* Analytics Tab */}
+          {activeTab === 'analytics' && (
+            <View style={{ flex: 1 }}>
+              <AnalyticsScreen embedded />
+            </View>
+          )}
+
+          {(activeTab !== 'review' && activeTab !== 'analytics') && <View style={{ height: 40 }} />}
         </ScrollView>
       )}
 
       {/* When review tab active, don't use the outer ScrollView */}
       {activeTab === 'review' && !loading && (
         <WeeklyReviewScreen />
+      )}
+
+      {/* When analytics tab active, don't use the outer ScrollView */}
+      {activeTab === 'analytics' && !loading && (
+        <AnalyticsScreen />
       )}
     </View>
   );

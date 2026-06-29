@@ -404,10 +404,42 @@ function ThinkingDots() {
   );
 }
 
+// ─── Offline/fallback responses when backend is unreachable ──────────────────
+const OFFLINE_RESPONSES: Record<string, string> = {
+  default:
+    "I'm having trouble reaching the server right now. " +
+    "Make sure the backend is running and EXPO_PUBLIC_API_URL is set to your machine's LAN IP. " +
+    "In the meantime, here's what I'd suggest: log your sets, check your recovery score on the dashboard, and keep your protein intake on track.",
+  workout:
+    "I can't pull your live plan right now (server offline), but here's a general template: " +
+    "Warm-up 5 min → Main lifts 3–4 sets × 5 reps → Accessories 3 × 8–12 → Cool-down. " +
+    "Use RPE 7–8 for main lifts. Log your sets when you're back online.",
+  recovery:
+    "Server is offline, so I can't check your real-time recovery data. " +
+    "Rule of thumb: if you slept <7 hrs or feel sore/sluggish, drop intensity 20% today. " +
+    "Prioritise sleep, hydration, and 0.8–1g protein per lb bodyweight.",
+  nutrition:
+    "Can't reach the server, but here's the universal formula: " +
+    "protein = 0.8–1g per lb bodyweight, calories = TDEE ± 200 depending on your goal, " +
+    "carbs = fill remaining calories after protein & fat. Log meals when reconnected.",
+};
+
+function getOfflineFallback(message: string): string {
+  const m = message.toLowerCase();
+  if (m.includes('workout') || m.includes('exercise') || m.includes('gym') || m.includes('train'))
+    return OFFLINE_RESPONSES.workout;
+  if (m.includes('recovery') || m.includes('tired') || m.includes('sore') || m.includes('sleep'))
+    return OFFLINE_RESPONSES.recovery;
+  if (m.includes('eat') || m.includes('protein') || m.includes('nutrition') || m.includes('calorie'))
+    return OFFLINE_RESPONSES.nutrition;
+  return OFFLINE_RESPONSES.default;
+}
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function CoachScreen() {
   const [input, setInput]   = useState('');
   const [loading, setLoading] = useState(false);
+  const [serverStatus, setServerStatus] = useState<'online' | 'offline' | 'unknown'>('unknown');
   const flatListRef = useRef<FlatList>(null);
   const { chatHistory, addChatMessage, setCnsFatigue, activeSession } = useStore();
 
@@ -423,6 +455,7 @@ export default function CoachScreen() {
       const res  = await coachApi.chat(message, activeSession?.id);
       const data = res.data;
 
+      setServerStatus('online');
       addChatMessage('assistant', data.reply, data.structured_decision);
 
       if (data.cns_fatigue_score != null) setCnsFatigue(data.cns_fatigue_score);
@@ -436,8 +469,15 @@ export default function CoachScreen() {
         Alert.alert('🏆 New PR!', data.new_prs.map((p: any) => p.message).join('\n'));
       }
     } catch (err: any) {
-      const { message: errMsg } = describeApiError(err);
-      addChatMessage('assistant', errMsg);
+      const { kind, message: errMsg } = describeApiError(err);
+      setServerStatus('offline');
+      // For network/server errors, give a helpful fallback instead of raw error
+      if (kind === 'network' || kind === 'server' || kind === 'timeout') {
+        const fallback = getOfflineFallback(message);
+        addChatMessage('assistant', fallback);
+      } else {
+        addChatMessage('assistant', errMsg);
+      }
     } finally {
       setLoading(false);
     }
@@ -475,6 +515,16 @@ export default function CoachScreen() {
         <Logo size="sm" />
         <Text style={S.headerSub}>AI Coach</Text>
       </View>
+
+      {/* Offline warning banner */}
+      {serverStatus === 'offline' && (
+        <View style={S.offlineBanner}>
+          <Ionicons name="cloud-offline-outline" size={13} color={COLORS.recoveryMed} />
+          <Text style={S.offlineBannerText}>
+            Server offline — responses are smart fallbacks. Check EXPO_PUBLIC_API_URL.
+          </Text>
+        </View>
+      )}
 
       {/* Empty state */}
       {chatHistory.length === 0 ? (
@@ -648,6 +698,12 @@ const S = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 4,
   },
   headerSub: { color: COLORS.textMuted, fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
+  offlineBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#1A1606', paddingVertical: 8, paddingHorizontal: 16,
+    borderBottomWidth: 1, borderBottomColor: '#3A2F00',
+  },
+  offlineBannerText: { color: COLORS.recoveryMed, fontSize: 11, flex: 1, lineHeight: 16 },
 
   emptyScroll:   { flex: 1 },
   emptyContent:  { padding: 24, paddingTop: 32 },

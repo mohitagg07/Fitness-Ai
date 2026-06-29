@@ -249,14 +249,14 @@ const CHART_TABS: { id: ChartTab; label: string }[] = [
   { id: 'prs',     label: 'PR Timeline' },
 ];
 
-export default function AnalyticsScreen() {
+export default function AnalyticsScreen({ embedded = false }: { embedded?: boolean }) {
   const [activeChart, setActiveChart] = useState<ChartTab>('heatmap');
   const lagging = MUSCLE_GROUPS.filter((_, i) => MUSCLE_DATA[i] < 60);
 
-  return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Analytics</Text>
-      <Text style={styles.subtitle}>Rich training data, visualized</Text>
+  const content = (
+    <View style={embedded ? { paddingBottom: 40 } : styles.content}>
+      {!embedded && <Text style={styles.title}>Analytics</Text>}
+      {!embedded && <Text style={styles.subtitle}>Rich training data, visualized</Text>}
 
       {/* Chart picker */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabRow}>
@@ -325,6 +325,13 @@ export default function AnalyticsScreen() {
           <PRTimeline />
         </View>
       )}
+    </View>
+  );
+
+  if (embedded) return content;
+  return (
+    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
+      {content}
     </ScrollView>
   );
 }
