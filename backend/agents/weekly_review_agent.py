@@ -1,5 +1,5 @@
 """
-Weekly AI Review Agent — NeuroFit AI
+Weekly AI Review Agent — VYRN
 
 Generates a full weekly coach review every Sunday (or on demand).
 The review includes:
@@ -150,7 +150,7 @@ def _generate_narrative(
     name = (profile.get("full_name") or "Athlete").split()[0]
     memories_text = "\n".join(f"- {m}" for m in memories) if memories else "No specific preferences on file."
 
-    prompt = f"""You are NeuroFit AI — a highly personalized fitness coach.
+    prompt = f"""You are VYRN — a highly personalized fitness coach.
 
 Generate a concise, personalized NEXT WEEK strategy for {name} based on this weekly review data.
 
@@ -173,7 +173,7 @@ Maximum 80 words."""
 
     try:
         response = llm.invoke([
-            SystemMessage(content="You are NeuroFit AI coach. Be specific, warm, data-driven. Max 80 words."),
+            SystemMessage(content="You are VYRN coach. Be specific, warm, data-driven. Max 80 words."),
             HumanMessage(content=prompt),
         ])
         return response.content.strip()

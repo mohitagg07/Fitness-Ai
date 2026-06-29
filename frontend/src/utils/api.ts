@@ -13,7 +13,7 @@ const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/api';
 // being discovered after debugging several screens.
 if (__DEV__ && !process.env.EXPO_PUBLIC_API_URL) {
   console.warn(
-    '[NeuroFit AI] EXPO_PUBLIC_API_URL is not set — falling back to ' +
+    '[VYRN] EXPO_PUBLIC_API_URL is not set — falling back to ' +
     `"${API_BASE}". This will NOT work on a physical device or the Android ` +
     'Emulator. Copy frontend/.env.example to frontend/.env and set your ' +
     'machine\'s LAN IP (or 10.0.2.2 for Android Emulator), then restart ' +
@@ -30,7 +30,7 @@ const api = axios.create({
 // Use storage wrapper instead of SecureStore directly.
 //
 // CRITICAL: this key must match exactly what store/index.ts's setAuth()
-// writes to ('neurofit_token'/'neurofit_user'), since that's the only
+// writes to ('vyrn_token'/'vyrn_user'), since that's the only
 // place a token is ever stored. This file previously read/deleted
 // 'fitai_token'/'fitai_user' — a key that nothing in the app ever wrote
 // to — meaning storage.getItem() below always returned null, the
@@ -39,10 +39,10 @@ const api = axios.create({
 // regardless of whether the user had just registered, just logged in, or
 // had been using the app for days. Login/onboarding still appeared to
 // "work" because the navigation guards in app/index.tsx and
-// app/(tabs)/_layout.tsx correctly checked 'neurofit_token' — only the
+// app/(tabs)/_layout.tsx correctly checked 'vyrn_token' — only the
 // actual API calls were broken.
 api.interceptors.request.use(async (config) => {
-  const token = await storage.getItem('neurofit_token');
+  const token = await storage.getItem('vyrn_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
@@ -71,8 +71,8 @@ api.interceptors.response.use(
         console.warn(`[Auth] Forced logout — server returned 401: ${reason}`);
       }
       isRedirectingToLogin = true;
-      await storage.deleteItem('neurofit_token');
-      await storage.deleteItem('neurofit_user');
+      await storage.deleteItem('vyrn_token');
+      await storage.deleteItem('vyrn_user');
       router.replace('/login');
       // Reset the guard on the next tick so a later, legitimate 401
       // (e.g. after a fresh login that itself expires) isn't ignored.

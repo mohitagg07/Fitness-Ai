@@ -1,4 +1,4 @@
-// NeuroFit AI — Workout HUD v3
+// VYRN — Workout HUD v3
 // NEW IN v3:
 //   • Previous set ghost — shows last logged set for same exercise under inputs
 //   • Volume accumulator — live total kg·reps shown in session header

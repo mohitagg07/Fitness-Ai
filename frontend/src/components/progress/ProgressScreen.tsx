@@ -1,4 +1,4 @@
-// NeuroFit AI — Progress Screen v2
+// VYRN — Progress Screen v2
 // NEW:
 //   • 4-tab layout: Body | Strength | Nutrition | Recovery
 //   • Muscle volume chart (horizontal bar, grouped by muscle)

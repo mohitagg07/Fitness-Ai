@@ -1,4 +1,4 @@
-// PatternInsightsCard — NeuroFit AI
+// PatternInsightsCard — VYRN
 //
 // Displays proactive pattern detection alerts on the dashboard.
 // Each insight has a severity (critical/warning/info) and a recommendation.

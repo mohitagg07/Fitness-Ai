@@ -1,65 +1,105 @@
-// Root layout — a Stack (not Tabs) so non-tab routes (login, register,
-// onboarding) render outside the tab bar. See SESSION_NOTES.md for the
-// history of this exact regression recurring.
-//
-// Also responsible for loading the real brand fonts (Inter, Space
-// Grotesk — see src/theme/typography.ts for why these specific fonts)
-// before anything renders, and for catching render-time crashes via
-// ErrorBoundary so one broken screen doesn't take down the whole app.
 import { useEffect, useState } from 'react';
-import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useFonts } from 'expo-font';
-import { COLORS } from '../src/theme/colors';
-import { FONT_ASSETS } from '../src/theme/typography';
-import { ErrorBoundary } from '../src/components/system/ErrorBoundary';
+import { Tabs, router } from 'expo-router';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { storage } from '../../src/utils/storage';
+import { COLORS } from '../../src/theme/colors';
 
-// Keep the native splash screen visible while fonts load, instead of
-// flashing default-font text for a frame and then re-rendering once
-// Inter/Space Grotesk are ready — that flash is the kind of thing that
-// makes an app feel unpolished even though it's only visible for ~100ms.
-SplashScreen.preventAutoHideAsync().catch(() => {
-  // No-op if this is called more than once (e.g. fast refresh in dev).
-});
+type TabDef = {
+  name: string;
+  title: string;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  activeIcon: React.ComponentProps<typeof Ionicons>['name'];
+};
 
-export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts(FONT_ASSETS);
-  const [ready, setReady] = useState(false);
+const TABS: TabDef[] = [
+  { name: 'index',    title: 'HOME',    icon: 'home-outline',         activeIcon: 'home'         },
+  { name: 'coach',   title: 'COACH',   icon: 'flash-outline',        activeIcon: 'flash'        },
+  { name: 'workout', title: 'WORKOUT', icon: 'barbell-outline',      activeIcon: 'barbell'      },
+  { name: 'progress',title: 'PROGRESS',icon: 'stats-chart-outline',  activeIcon: 'stats-chart'  },
+  { name: 'profile', title: 'PROFILE', icon: 'person-outline',       activeIcon: 'person'       },
+];
+
+export default function TabsLayout() {
+  const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
-    if (fontsLoaded || fontError) {
-      // fontError is logged but never blocks the app — a missing/failed
-      // font file should degrade to the platform default, not crash
-      // startup. This is exactly the kind of failure mode that bit this
-      // project before with expo-font version mismatches; we don't want
-      // a font problem to ever be a hard app-won't-open bug again.
-      if (fontError) {
-        console.warn('[RootLayout] Font load error (falling back to system font):', fontError);
+    (async () => {
+      const token = await storage.getItem('vyrn_token');
+      if (!token) {
+        router.replace('/login');
+        return;
       }
-      setReady(true);
-      SplashScreen.hideAsync().catch(() => {});
-    }
-  }, [fontsLoaded, fontError]);
+      setAuthChecked(true);
+    })();
+  }, []);
 
-  if (!ready) {
-    return null; // native splash screen stays visible during this
+  if (!authChecked) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator color={COLORS.primaryGreen} size="large" />
+      </View>
+    );
   }
 
   return (
-    <ErrorBoundary>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: COLORS.background },
-          animation: 'fade',
-        }}
-      >
-        <Stack.Screen name="index" />
-        <Stack.Screen name="login" />
-        <Stack.Screen name="register" />
-        <Stack.Screen name="onboarding" />
-        <Stack.Screen name="(tabs)" />
-      </Stack>
-    </ErrorBoundary>
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle: {
+          backgroundColor: COLORS.tabBg,
+          borderTopColor: COLORS.tabBorder,
+          borderTopWidth: 1,
+          paddingBottom: 10,
+          paddingTop: 8,
+          height: 66,
+          elevation: 0,
+          shadowOpacity: 0,
+        },
+        tabBarActiveTintColor: COLORS.tabActive,
+        tabBarInactiveTintColor: COLORS.tabInactive,
+        tabBarLabelStyle: {
+          fontSize: 9,
+          fontWeight: '700',
+          letterSpacing: 0.8,
+          marginTop: 2,
+        },
+        tabBarHideOnKeyboard: true,
+      }}
+    >
+      {TABS.map((t) => (
+        <Tabs.Screen
+          key={t.name}
+          name={t.name}
+          options={{
+            title: t.title,
+            tabBarIcon: ({ color, focused }) => (
+              <View style={focused ? styles.activeWrap : styles.iconWrap}>
+                <Ionicons
+                  name={focused ? t.activeIcon : t.icon}
+                  size={21}
+                  color={color}
+                />
+              </View>
+            ),
+          }}
+        />
+      ))}
+    </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  loading: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iconWrap: { padding: 4 },
+  activeWrap: {
+    padding: 6,
+    backgroundColor: COLORS.primaryGreen + '20',
+    borderRadius: 10,
+  },
+});

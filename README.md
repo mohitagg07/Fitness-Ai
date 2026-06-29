@@ -1,84 +1,221 @@
-# NeuroFit AI — Complete Developer Reference
+<div align="center">
 
-> **Autonomous AI fitness coach. Thinks before you ask. Remembers everything. Adapts every session.**
+```
+ V  Y  R  N
+   │  │
+   ▼  ▼
+Adaptive Performance System
+```
+
+# VYRN
+### An autonomous AI fitness coach that thinks before you ask, remembers your training, detects patterns, explains every recommendation, and continuously adapts your workouts.
+
+**Unlike traditional fitness apps, VYRN doesn't wait for prompts.**  
+**It proactively decides what you should do today.**
+
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
+[![React Native](https://img.shields.io/badge/React_Native-Expo-61DAFB?style=flat-square&logo=react)](https://expo.dev)
+[![LangGraph](https://img.shields.io/badge/LangGraph-Multi--Agent-8A2BE2?style=flat-square)](https://github.com/langchain-ai/langgraph)
+[![Groq](https://img.shields.io/badge/Groq-llama--3.3--70b-F55036?style=flat-square)](https://groq.com)
+[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?style=flat-square&logo=supabase)](https://supabase.com)
+
+</div>
+
+---
+
+## Why VYRN Exists
+
+Most AI fitness apps are chatbots. You ask — they answer. You forget to ask — nothing happens.
+
+VYRN is different. Every time you open the app, the AI has already observed your training, nutrition, recovery, injury history, memory, and patterns. It has already made a decision. You see the result — not a prompt box.
+
+> *"The user should open the app and know exactly what to do next — without having to think."*
+
+That's the only design principle this project was built around.
+
+---
+
+## How VYRN Compares
+
+| Feature | ChatGPT | Typical Fitness App | VYRN |
+|---|---|---|---|
+| Remembers your training across sessions | ❌ | ⚠️ Basic | ✅ ChromaDB long-term memory |
+| Proactive daily decisions (no prompt) | ❌ | ❌ | ✅ Mission pipeline on every open |
+| Pattern detection (plateaus, missed days) | ❌ | ⚠️ Simple streaks | ✅ Rule-based pattern engine |
+| Explains its reasoning with evidence | ❌ | ❌ | ✅ AI Decision Center |
+| AI confidence score backed by real data | ❌ | ❌ | ✅ Deterministic, not hallucinated |
+| Weekly AI strategy reviews | ❌ | ⚠️ Generic | ✅ LLM narrative + data |
+| Multi-agent AI pipeline | ❌ | ❌ | ✅ 8 specialized agents |
+| Safety guardrails (injury-aware) | ❌ | ❌ | ✅ ChromaDB biomechanical rules |
+| Adaptive workout splits | ⚠️ | ⚠️ | ✅ Recovery + CNS fatigue-driven |
+| Coach personality selection | ❌ | ❌ | ✅ Friendly / Strict / Military |
+
+---
+
+## AI Decision Center
+
+VYRN's signature feature. Every recommendation comes with a full evidence trail.
+
+```
+Today's Decision
+─────────────────────────────────────────
+Recovery Score      84%   ✓  favorable
+Sleep Duration      7h 42m ✓  favorable  
+Protein Adherence   162g   ✓  at target
+Bench Trend         +5 kg  ✓  last 21 days
+Shoulder Pain       None   ✓  cleared
+─────────────────────────────────────────
+Decision:     Heavy Push Day
+Confidence:   96%
+─────────────────────────────────────────
+Expected Outcome:
+  +2–3 kg on bench within 2 weeks
+  if adherence stays consistent.
+
+Alternative:
+  If shoulder discomfort returns,
+  switch to incline dumbbell press.
+─────────────────────────────────────────
+```
+
+**Confidence is never hallucinated.** Every percent point traces back to a real signal:
+- Each signal (`recovery`, `sleep`, `protein`, `bench trend`, `injury`) is a deterministic threshold check — no LLM opinion
+- `confidence_pct` = weighted average of favorable signals — pure arithmetic
+- The LLM is used only to phrase the `reasoning` sentence — given the already-computed verdict as fixed input
+
+If the LLM call fails, a deterministic template is used instead. The card never silently degrades to fabricated text.
+
+---
+
+## Coach Memory
+
+VYRN tracks what it learns about you across every session:
+
+```
+Coach Memory
+──────────────────────────────────
+✓  Loves Incline Bench
+✓  Trains at 6 PM
+✓  Left shoulder impingement
+✓  Vegetarian on Tuesdays  
+✓  Sleeps ~7 hours
+✓  Goal: Strength
+──────────────────────────────────
+Stored: 23 personal facts
+Last updated: today
+```
+
+Memory is extracted automatically after every coach chat — no tagging, no manual input. The next conversation picks up exactly where the last one left off, even weeks later.
+
+**Memory categories:** `food_preference` · `schedule_pattern` · `injury` · `training_preference` · `general`
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                     VYRN Mobile App                     │
+│              React Native + Expo Router                 │
+└────────────────────────┬────────────────────────────────┘
+                         │ REST
+┌────────────────────────▼────────────────────────────────┐
+│                  FastAPI Backend                         │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │              Mission Pipeline                     │   │
+│  │         (runs on every app open)                 │   │
+│  │                                                  │   │
+│  │  asyncio.gather():                               │   │
+│  │  ├── Recovery Agent    → 0-10 score              │   │
+│  │  ├── Workout Agent     → today's split           │   │
+│  │  ├── Nutrition Agent   → macro targets           │   │
+│  │  ├── Progress Agent    → plateau detection       │   │
+│  │  ├── Pattern Engine    → rule-based alerts       │   │
+│  │  ├── Motivation Agent  → daily coaching line     │   │
+│  │  └── Coach Brain       → proactive brief         │   │
+│  └──────────────────────────────────────────────────┘   │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │            Coach Chat Pipeline                   │   │
+│  │         (LangGraph, on every message)            │   │
+│  │                                                  │   │
+│  │  parse_input_node                                │   │
+│  │    → evaluate_fatigue_node                       │   │
+│  │      → retrieve_guardrails_node  (ChromaDB)      │   │
+│  │        → recall_memory_node      (ChromaDB)      │   │
+│  │          → build_workout_node    (Groq LLM)      │   │
+│  └──────────────────────────────────────────────────┘   │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │           AI Decision Center                     │   │
+│  │    (deterministic confidence engine)             │   │
+│  └──────────────────────────────────────────────────┘   │
+└───────────┬──────────────┬──────────────────────────────┘
+            │              │
+┌───────────▼──┐  ┌────────▼───────────────────────────────┐
+│  Supabase    │  │  ChromaDB (local vector store)          │
+│  PostgreSQL  │  │  ├── vyrn_guardrails  (safety rules)    │
+│  + Auth      │  │  └── vyrn_user_memory (per-user facts)  │
+│  + RLS       │  └────────────────────────────────────────┘
+└──────────────┘           │
+                  ┌────────▼───────┐
+                  │   Groq API     │
+                  │ llama-3.3-70b  │
+                  └────────────────┘
+```
 
 ---
 
 ## Table of Contents
 
-1. [What This Is](#1-what-this-is)
-2. [Tech Stack](#2-tech-stack)
-3. [Project Structure](#3-project-structure)
-4. [Architecture Overview](#4-architecture-overview)
-5. [Database Schema](#5-database-schema)
-6. [Backend — Setup & Running](#6-backend--setup--running)
-7. [Frontend — Setup & Running](#7-frontend--setup--running)
-8. [Environment Variables](#8-environment-variables)
-9. [API Reference](#9-api-reference)
-10. [Agent System](#10-agent-system)
-11. [AI Coach — How It Works](#11-ai-coach--how-it-works)
-12. [Design System](#12-design-system)
-13. [Screen Guide](#13-screen-guide)
-14. [Bug Fixes Applied](#14-bug-fixes-applied)
-15. [Known Limitations & Next Steps](#15-known-limitations--next-steps)
-16. [Deployment](#16-deployment)
-17. [Security](#17-security)
+1. [Tech Stack](#1-tech-stack)
+2. [Project Structure](#2-project-structure)
+3. [Data & Chat Flows](#3-data--chat-flows)
+4. [Database Schema](#4-database-schema)
+5. [Backend — Setup & Running](#5-backend--setup--running)
+6. [Frontend — Setup & Running](#6-frontend--setup--running)
+7. [Environment Variables](#7-environment-variables)
+8. [API Reference](#8-api-reference)
+9. [Agent System](#9-agent-system)
+10. [AI Coach — How It Works](#10-ai-coach--how-it-works)
+11. [Design System](#11-design-system)
+12. [Screen Guide](#12-screen-guide)
+13. [Engineering Improvements](#13-engineering-improvements)
+14. [Production Roadmap](#14-production-roadmap)
+15. [Deployment](#15-deployment)
+16. [Security](#16-security)
 
 ---
 
-## 1. What This Is
-
-NeuroFit AI is a full-stack mobile fitness coaching app. The core philosophy:
-
-> *"The user should open the app and know exactly what to do next without having to think."*
-
-It is **not a chatbot**. On every app open, the AI runs a full decision pipeline — reads your recovery, sleep, CNS fatigue, nutrition gaps, and missed sessions — then surfaces one card telling you exactly what to do today. You can also chat with it directly and it responds with structured cards (workout tables, nutrition panels, recovery rings), not plain text.
-
-**Data flow:**
-```
-App opens → Mission endpoint runs all agents concurrently
-         → Recovery agent + Workout agent + Nutrition agent + Progress agent + Pattern engine + Coach brain
-         → Single decision card rendered with no client logic
-```
-
-**Chat flow:**
-```
-User message → LangGraph pipeline
-             → Parse input → Evaluate CNS fatigue → Retrieve guardrails (ChromaDB)
-             → Recall long-term memory (ChromaDB) → Build structured JSON response
-             → Frontend renders response_type-specific card
-```
-
----
-
-## 2. Tech Stack
+## 1. Tech Stack
 
 | Layer | Technology | Purpose |
 |---|---|---|
 | **Mobile** | React Native + Expo Router | Cross-platform app with file-based routing |
-| **Backend** | FastAPI (async) | REST API, async agent orchestration |
+| **Backend** | FastAPI (async, `0.115.6`) | REST API, async agent orchestration |
 | **Database** | Supabase (PostgreSQL + Auth + RLS) | User data, workouts, nutrition logs |
 | **Vector DB** | ChromaDB | Biomechanical safety guardrails + long-term user memory |
 | **AI Agent** | LangGraph | State-machine orchestration of multi-step coach pipeline |
 | **LLM** | Groq (`llama-3.3-70b-versatile`) | Fast inference, structured JSON output |
-| **State** | Zustand (custom lightweight) | Global client state (token, session, chat history) |
+| **State** | Custom Zustand-like store | Global client state (token, session, chat history) |
 | **Auth** | JWT (HS256) + Supabase Auth | 30-day tokens, ORPHANED_SESSION detection |
-| **Embedding** | `LocalHashEmbeddingFunction` (custom) | 256-dim deterministic hash embeddings, no ONNX download |
+| **Embedding** | `LocalHashEmbeddingFunction` (custom) | 256-dim deterministic hash embeddings — no ONNX download |
 | **Deployment** | Render (backend) + EAS (mobile builds) | |
 
 ---
 
-## 3. Project Structure
+## 2. Project Structure
 
 ```
-Fitness-Ai-main/
+VYRN-main/
 │
 ├── CRITICAL_RUN_THIS_SQL_FIRST.sql   ← Run this in Supabase before anything else
 │
 ├── backend/
 │   ├── main.py                       FastAPI app, route mounting, lifespan (ChromaDB seed)
 │   ├── requirements.txt
-│   ├── Procfile                      For Railway/Render: `web: uvicorn main:app ...`
+│   ├── Procfile                      For Railway/Render: web: uvicorn main:app ...
 │   ├── railway.json
 │   │
 │   ├── core/
@@ -94,20 +231,21 @@ Fitness-Ai-main/
 │   ├── agents/
 │   │   ├── coach_agent.py            ★ Main LangGraph pipeline. 5 nodes → structured JSON response.
 │   │   ├── coach_brain.py            Proactive AI brief (runs on app open, not on user message)
+│   │   ├── decision_engine.py        ★ AI Decision Center — deterministic confidence engine
 │   │   ├── recovery_agent.py         Computes 0-10 recovery score from sleep + CNS fatigue
 │   │   ├── workout_agent.py          Decides today's workout type based on split + history
 │   │   ├── nutrition_agent.py        Mifflin-St Jeor macro calculator + meal suggestions
 │   │   ├── progress_agent.py         Detects stalled progress, suggests calorie adjustments
 │   │   ├── motivation_agent.py       Generates one daily coaching insight/quote
-│   │   ├── weekly_review_agent.py    7-day review generation (LLM-based)
-│   │   └── pattern_engine.py         Rule-based pattern detection (protein streaks, missed sessions, etc.)
+│   │   ├── weekly_review_agent.py    7-day review generation (LLM-based narrative)
+│   │   └── pattern_engine.py         Rule-based pattern detection (plateaus, protein, missed sessions)
 │   │
 │   ├── api/routes/
 │   │   ├── auth.py                   POST /register, POST /login
 │   │   ├── profile.py                GET/PUT /me, POST /onboard, injuries, PRs
 │   │   ├── workouts.py               Sessions CRUD, set logging, strength progression
-│   │   ├── coach.py                  POST /chat, GET /history, POST /regenerate-workout, GET /memory
-│   │   ├── mission.py                ★ GET /today — the main dashboard data endpoint
+│   │   ├── coach.py                  POST /chat, GET /history, GET /memory, GET /timeline
+│   │   ├── mission.py                ★ GET /today — main dashboard data endpoint
 │   │   ├── dashboard.py              GET /summary — fallback dashboard endpoint
 │   │   ├── nutrition.py              Targets, logging, FatSecret search, history
 │   │   ├── progress.py               Metrics logging + retrieval
@@ -133,7 +271,7 @@ Fitness-Ai-main/
     │       ├── index.tsx             Home/Dashboard tab
     │       ├── coach.tsx             AI Coach chat tab
     │       ├── workout.tsx           WorkoutHUD tab
-    │       ├── progress.tsx          Progress tab (Body/Strength/Nutrition/Recovery/Review)
+    │       ├── progress.tsx          Progress tab
     │       ├── profile.tsx           Profile tab
     │       └── prs.tsx               Personal Records screen
     │
@@ -143,81 +281,80 @@ Fitness-Ai-main/
         │   │   ├── LoginScreen.tsx
         │   │   └── RegisterScreen.tsx
         │   ├── coach/
-        │   │   └── CoachScreen.tsx   7 card types: WorkoutCard, LiveSetCard, NutritionCard, etc.
+        │   │   └── CoachScreen.tsx         6 structured card types + chat bubble
         │   ├── dashboard/
-        │   │   ├── DashboardScreen.tsx      Main home screen
-        │   │   ├── PatternInsightsCard.tsx  Pattern engine output card
-        │   │   └── ProactiveBriefCard.tsx   Coach brain proactive brief card
+        │   │   ├── DashboardScreen.tsx     Main home screen
+        │   │   ├── PatternInsightsCard.tsx Pattern engine output card
+        │   │   └── ProactiveBriefCard.tsx  Coach Brain proactive brief card
         │   ├── onboarding/
-        │   │   └── OnboardingScreen.tsx     5-slide onboarding flow
+        │   │   └── OnboardingScreen.tsx    5-slide onboarding (includes coach style selection)
         │   ├── profile/
         │   │   └── ProfileScreen.tsx
         │   ├── progress/
-        │   │   ├── ProgressScreen.tsx       4-tab: Body | Strength | Nutrition | Recovery
+        │   │   ├── ProgressScreen.tsx      5-tab: Body | Strength | Nutrition | Recovery | Review
         │   │   ├── StrengthProgressionChart.tsx
         │   │   ├── WeightChart.tsx
         │   │   ├── WeeklyReviewScreen.tsx
         │   │   ├── PRScreen.tsx
         │   │   └── NutritionSearchModal.tsx
         │   ├── shared/
-        │   │   ├── Logo.tsx          NEURO/FIT/AI brand mark with SVG gradient
-        │   │   ├── RecoveryRing.tsx   WHOOP-style animated circular progress ring
-        │   │   └── LoadingOverlay.tsx Skeleton cards
+        │   │   ├── Logo.tsx                VYRN brand mark — V/Y(gradient)/RN wordmark + SVG chevron badge
+        │   │   ├── RecoveryRing.tsx        Animated circular progress ring
+        │   │   └── LoadingOverlay.tsx      Skeleton cards
         │   ├── splash/
-        │   │   └── AnimatedSplash.tsx
+        │   │   └── AnimatedSplash.tsx      Scale + fade entrance sequence
         │   ├── system/
         │   │   └── ErrorBoundary.tsx
         │   └── workout/
-        │       ├── WorkoutHUD.tsx     Full workout tracking: sets, rest timer, RPE, PR detection
+        │       ├── WorkoutHUD.tsx          Full workout tracking: sets, rest timer, RPE, PR detection
         │       └── WorkoutSummaryCard.tsx
         │
         ├── store/
-        │   └── index.ts              Custom Zustand-like store: token, session, chatHistory, profile
+        │   └── index.ts                   Token, session, chatHistory, profile — Zustand-like
         │
         ├── theme/
-        │   ├── colors.ts             ★ Single source of truth for ALL colors
-        │   └── typography.ts         Font spec (Proxima Nova equivalent)
+        │   ├── colors.ts                  ★ Single source of truth for ALL colors
+        │   └── typography.ts              Font spec (Inter / Space Grotesk)
         │
         └── utils/
-            ├── api.ts                All API namespaces: authApi, profileApi, coachApi, workoutApi...
-            ├── config.ts             EXPO_PUBLIC_API_URL fallback with loud console warning
-            └── storage.ts            SecureStore wrapper (device) / localStorage (web)
+            ├── api.ts                     All API namespaces: authApi, profileApi, coachApi...
+            ├── config.ts                  EXPO_PUBLIC_API_URL with loud fallback warning
+            └── storage.ts                 SecureStore wrapper (device) / localStorage (web)
 ```
 
 ---
 
-## 4. Architecture Overview
+## 3. Data & Chat Flows
 
-### Request lifecycle on app open
+### Mission pipeline (on every app open)
 
 ```
 DashboardScreen mounts
   ↓
 missionApi.getToday()  →  GET /api/mission/today
   ↓
-mission.py runs asyncio.gather() on:
-  ├── run_nutrition_agent()    → macro targets, meal suggestion
-  ├── _today_consumed()        → today's logged calories/protein/water
-  ├── run_workout_agent()      → today's training split decision
-  └── run_progress_agent()     → plateau detection, calorie adjustment
+mission.py: asyncio.gather():
+  ├── run_nutrition_agent()       macro targets, meal suggestion
+  ├── _today_consumed()           today's logged calories / protein / water
+  ├── run_workout_agent()         today's training split decision
+  └── run_progress_agent()        plateau detection, calorie adjustment
   ↓
-run_recovery_agent()           → 0-10 recovery score (needs workout type)
+run_recovery_agent()              0-10 recovery score (needs workout type)
   ↓
-asyncio.gather() on:
-  ├── run_pattern_engine()     → rule-based pattern alerts
-  ├── get_daily_motivation()   → one coaching line
-  └── generate_proactive_brief()  → Coach Brain full reasoning chain
+asyncio.gather():
+  ├── run_pattern_engine()        rule-based pattern alerts
+  ├── get_daily_motivation()      one coaching line
+  └── generate_proactive_brief()  Coach Brain full reasoning chain
   ↓
-Returns single unified JSON card
-DashboardScreen renders with no client logic
+Single unified JSON card rendered — no client logic
 ```
 
-### Coach chat lifecycle
+### Coach chat pipeline (on every message)
 
 ```
 User types message → POST /api/coach/chat
   ↓
-coach.py loads profile + agent_state + last 10 conversation turns
+coach.py: loads profile + agent_state + last 10 conversation turns
   ↓
 run_coach() → LangGraph graph:
   parse_input_node
@@ -226,86 +363,87 @@ run_coach() → LangGraph graph:
         → recall_memory_node      (ChromaDB: user long-term preferences)
           → build_workout_node    (Groq LLM → structured JSON)
   ↓
-Returns structured_decision: { response_type, coach_message, exercises[], summary, tips, ... }
+Returns structured_decision:
+  { response_type, coach_message, exercises[], summary, tips, ... }
   ↓
-CoachScreen picks card component based on response_type
-  ├── "workout_plan"    → WorkoutCard (exercise table with sets/reps/weight/rest)
-  ├── "live_set"        → LiveSetCard (set analysis + next action)
+CoachScreen picks card based on response_type:
+  ├── "workout_plan"    → WorkoutCard
+  ├── "live_set"        → LiveSetCard
   ├── "nutrition_tip"   → NutritionCard
   ├── "recovery_advice" → RecoveryCard
   ├── "progress_update" → ProgressCard
-  └── "chat"            → ChatBubble (plain message)
+  └── "chat"            → ChatBubble
 ```
 
 ### ChromaDB — two collections
 
 | Collection | Purpose | Populated by |
 |---|---|---|
-| `repmind_guardrails` | Biomechanical safety rules (e.g. "barbell OHP contraindicated for shoulder impingement") | `seed_guardrails()` on app startup |
-| `neurofit_user_memory` | Per-user durable facts (schedule, food preferences, injuries mentioned in chat) | `_auto_extract_memories()` after every coach message |
+| `vyrn_guardrails` | Biomechanical safety rules (e.g. "barbell OHP contraindicated for shoulder impingement") | `seed_guardrails()` on startup |
+| `vyrn_user_memory` | Per-user durable facts (schedule, food preferences, injuries from chat) | `_auto_extract_memories()` after every coach message |
 
-Both use `LocalHashEmbeddingFunction` (256-dim deterministic hash, no ONNX/model download). Both self-heal dimension mismatches on first use.
+Both use `LocalHashEmbeddingFunction` (256-dim deterministic hash — no ONNX model download required). Both self-heal dimension mismatches on first use.
 
 ---
 
-## 5. Database Schema
+## 4. Database Schema
 
-Run `CRITICAL_RUN_THIS_SQL_FIRST.sql` in the Supabase SQL editor once. Tables created:
+Run `CRITICAL_RUN_THIS_SQL_FIRST.sql` in Supabase SQL editor once. Tables:
 
 | Table | Key columns | Notes |
 |---|---|---|
-| `profiles` | `id` (FK → auth.users), `full_name`, `goal`, `weight_kg`, `height_cm`, `equipment[]`, `onboarding_complete` | Auto-created on first login if missing (FK gap fix) |
-| `injury_profiles` | `user_id`, `body_part`, `issue_type`, `severity` | Many per user, fed to guardrails query |
+| `profiles` | `id` (FK → auth.users), `full_name`, `goal`, `weight_kg`, `height_cm`, `equipment[]`, `coach_style`, `onboarding_complete` | Auto-created on first login if missing |
+| `injury_profiles` | `user_id`, `body_part`, `issue_type`, `severity`, `doctor_restriction` | Many per user, fed to guardrails query |
 | `workout_plans` | `user_id`, `schedule` (JSONB), `is_active` | AI-generated training splits |
 | `workout_sessions` | `user_id`, `session_date`, `day_label`, `completed`, `total_volume_kg` | One per training day |
-| `exercise_logs` | `session_id`, `exercise_name`, `set_number` (auto-computed), `weight_kg`, `reps`, `rpe` | Many per session |
+| `exercise_logs` | `session_id`, `exercise_name`, `set_number` (auto), `weight_kg`, `reps`, `rpe` | Many per session |
 | `personal_records` | `user_id`, `exercise_name`, `weight_kg` | Upserted, one per exercise |
 | `progress_metrics` | `user_id`, `recorded_date`, `weight_kg`, `recovery_score`, `body_fat_pct` | Daily check-ins |
 | `nutrition_logs` | `user_id`, `log_date`, `food_name`, `calories`, `protein_g`, `water_ml` | Multiple per day |
 | `ai_conversations` | `user_id`, `session_id`, `role`, `content` | Full chat history |
 | `agent_states` | `user_id`, `cns_fatigue_score`, `workout_streak`, `protein_streak`, `total_workouts` | Single row per user, upserted |
-| `ai_timeline_events` | `user_id`, `event_type`, `message` | Append-only event feed |
+| `ai_timeline_events` | `user_id`, `event_type`, `message` | Append-only coach event feed |
 
-**Row Level Security** is enabled on all tables — users can only access their own rows.
+Row Level Security is enabled on all tables — `auth.uid() = user_id` on every policy.
 
 ---
 
-## 6. Backend — Setup & Running
+## 5. Backend — Setup & Running
 
 ### First time
 
 ```bash
 cd backend
 
-# Create .env (see Environment Variables section)
+# Create .env (see Section 7)
 cp .env.example .env
-# edit .env with your keys
+# Fill in GROQ_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY, SECRET_KEY
 
-# Install dependencies
+# Install dependencies (pin matters — unpinned FastAPI drops routes silently)
 pip install -r requirements.txt --break-system-packages
 
-# Run the Supabase SQL schema first (in Supabase dashboard → SQL editor)
+# Run the Supabase SQL schema (Supabase dashboard → SQL editor)
 # File: CRITICAL_RUN_THIS_SQL_FIRST.sql
 
 # Start dev server
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### Verify it's running
+### Verify
 
 ```
-http://localhost:8000/          → { "app": "RepMind AI Gym Spotter", "status": "running" }
-http://localhost:8000/health    → { "status": "ok" }
-http://localhost:8000/docs      → Swagger UI with all endpoints
+http://localhost:8000/        → { "app": "VYRN Adaptive Performance System", "status": "running" }
+http://localhost:8000/health  → { "status": "ok" }
+http://localhost:8000/docs    → Swagger UI with all endpoints
 ```
 
 ### ChromaDB
 
-ChromaDB data is stored locally in `./chroma_store/`. On first run, `seed_guardrails()` populates it with 12 biomechanical safety rules. If you wipe Render and redeploy, this directory is gone — guardrails will be reseeded automatically on next startup.
+Stored locally in `./chroma_store/`. On first run, `seed_guardrails()` populates 12 biomechanical safety rules. If the server is wiped (Render free tier), guardrails are automatically re-seeded on next startup. User memories are lost — see Section 14 for options.
 
 ---
 
-## 7. Frontend — Setup & Running
+## 6. Frontend — Setup & Running
 
 ### First time
 
@@ -314,8 +452,7 @@ cd frontend
 npm install
 
 # Create .env
-cp .env.example .env
-# Set EXPO_PUBLIC_API_URL to your backend URL
+echo "EXPO_PUBLIC_API_URL=http://localhost:8000/api" > .env
 ```
 
 ### Development
@@ -324,52 +461,49 @@ cp .env.example .env
 # Expo dev server (scan QR with Expo Go)
 npx expo start
 
-# For physical device or Android Emulator you MUST set EXPO_PUBLIC_API_URL
-# localhost does NOT work on physical devices — use your machine's LAN IP
-# e.g. EXPO_PUBLIC_API_URL=http://192.168.1.5:8000/api
+# Physical device or Android Emulator — localhost won't work
+# Use your machine's LAN IP:
+EXPO_PUBLIC_API_URL=http://192.168.1.5:8000/api npx expo start
 ```
 
 ### Build (EAS)
 
 ```bash
-# Install EAS CLI
 npm install -g eas-cli
-
-# Login
 eas login
 
-# Build for Android (APK for testing)
+# APK for testing
 eas build --platform android --profile preview
 
-# Build for production
+# Production
 eas build --platform android --profile production
 ```
 
 ---
 
-## 8. Environment Variables
+## 7. Environment Variables
 
 ### Backend (`backend/.env`)
 
 ```env
-# LLM — Groq is the only active provider
+# LLM
 GROQ_API_KEY=gsk_...
-GROQ_MODEL=llama-3.3-70b-versatile       # optional, this is the default
+GROQ_MODEL=llama-3.3-70b-versatile          # optional, this is the default
 
 # Supabase
 SUPABASE_URL=https://xxxx.supabase.co
-SUPABASE_SERVICE_KEY=eyJ...              # service role key (bypasses RLS — backend only)
+SUPABASE_SERVICE_KEY=eyJ...                 # service role key — backend only, bypasses RLS
 
 # JWT
-SECRET_KEY=                              # generate: python3 -c "import secrets; print(secrets.token_hex(32))"
-# Changing this key invalidates ALL existing user sessions (forced re-login)
+SECRET_KEY=                                 # python3 -c "import secrets; print(secrets.token_hex(32))"
+# Rotating this key invalidates ALL existing sessions
 
-# CORS — comma-separated list of allowed frontend origins
+# CORS
 ALLOWED_ORIGINS=http://localhost:8081,https://your-prod-frontend.com
 
-# ChromaDB — where guardrails + memory are persisted
-CHROMA_PERSIST_DIR=./chroma_store        # default
-CHROMA_COLLECTION_NAME=repmind_guardrails # default
+# ChromaDB
+CHROMA_PERSIST_DIR=./chroma_store
+CHROMA_COLLECTION_NAME=vyrn_guardrails
 ```
 
 ### Frontend (`frontend/.env`)
@@ -377,18 +511,18 @@ CHROMA_COLLECTION_NAME=repmind_guardrails # default
 ```env
 EXPO_PUBLIC_API_URL=https://your-backend.onrender.com/api
 
-# For local dev on physical device:
+# Local dev on physical device:
 # EXPO_PUBLIC_API_URL=http://192.168.1.XXX:8000/api
 
-# For Android Emulator:
+# Android Emulator:
 # EXPO_PUBLIC_API_URL=http://10.0.2.2:8000/api
 ```
 
-> **Warning:** If `EXPO_PUBLIC_API_URL` is not set, the app falls back to `http://localhost:8000/api` and logs a loud console warning. This works only in the iOS Simulator on the same machine as the backend. It will not work on any physical device.
+> **Warning:** If `EXPO_PUBLIC_API_URL` is not set, the app falls back to `http://localhost:8000/api` and logs a loud console warning. This only works in the iOS Simulator running on the same machine as the backend — not on any physical device.
 
 ---
 
-## 9. API Reference
+## 8. API Reference
 
 All routes require `Authorization: Bearer <token>` except `/api/auth/*`.
 
@@ -456,20 +590,20 @@ All routes require `Authorization: Bearer <token>` except `/api/auth/*`.
 
 | Method | Path | Returns |
 |---|---|---|
-| `GET` | `/today` | Full decision card (see below) |
+| `GET` | `/today` | Full decision card (primary dashboard source) |
 
-**`/api/mission/today` response** (the main dashboard data source):
+**`/api/mission/today` response:**
 ```json
 {
   "mission": "Push Day",
-  "greeting": "Ready to train, Mohit?",
+  "greeting": "Ready to train?",
   "intensity": "High",
   "ai_decision": "Push session as planned",
   "next_action": "Train before evening",
   "coach_insight": "You've hit protein 4 days straight.",
   "alerts": ["⚠️ Recovery low — modify or skip training"],
 
-  "recovery": { "score": 7, "action": "proceed", "message": "Recovery is 7/10..." },
+  "recovery": { "score": 7, "action": "proceed", "message": "..." },
   "workout_today": { "type": "push", "rescheduled": false, "message": "..." },
   "progress": { "stalled": false, "calorie_adjustment": 0, "message": "..." },
 
@@ -479,15 +613,12 @@ All routes require `Authorization: Bearer <token>` except `/api/auth/*`.
   "calories_target": 2800,
   "protein_target_g": 180,
   "water_target_ml": 3000,
-  "calories_pct": 57,
-  "protein_pct": 53,
 
-  "nutrition_status": { "calories_remaining", "protein_remaining_g", ... },
   "cns_fatigue": 3,
   "workout_streak": 4,
   "protein_streak": 4,
   "pattern_insights": [{ "category", "severity", "title", "detail", "recommendation" }],
-  "proactive_brief": { "coach_message", "todays_focus", "recommendation", "reasoning_steps", ... }
+  "proactive_brief": { "coach_message", "todays_focus", "recommendation", "reasoning_steps" }
 }
 ```
 
@@ -496,7 +627,7 @@ All routes require `Authorization: Bearer <token>` except `/api/auth/*`.
 | Method | Path | Body/Params | Returns |
 |---|---|---|---|
 | `POST` | `/metrics` | `{ weight_kg?, recovery_score?, body_fat_pct? }` | Created metric |
-| `GET` | `/metrics` | `?limit=30` | `[metric]` ordered newest-first |
+| `GET` | `/metrics` | `?limit=30` | `[metric]` newest-first |
 
 ### Nutrition — `/api/nutrition`
 
@@ -505,39 +636,39 @@ All routes require `Authorization: Bearer <token>` except `/api/auth/*`.
 | `GET` | `/targets` | `?is_training_day=true` | `{ calories, protein_g, carbs_g, fat_g, water_ml }` |
 | `GET` | `/today` | `?is_training_day=true` | Targets + today's consumed totals |
 | `POST` | `/log` | `{ food_name, calories, protein_g, water_ml?, log_date? }` | Created log |
-| `POST` | `/quick-log` | `?food_name=chicken&calories=220&protein_g=45` | Created log (query params) |
 | `GET` | `/history` | `?limit=30` | `[nutrition_log]` |
 | `GET` | `/search` | `?q=chicken+breast&max_results=5` | FatSecret search results |
 
 ---
 
-## 10. Agent System
+## 9. Agent System
 
 ### Agent responsibilities
 
-| Agent | File | Triggered by | Output |
-|---|---|---|---|
-| **CoachAgent** | `coach_agent.py` | Every `/coach/chat` request | `structured_decision` JSON |
-| **CoachBrain** | `coach_brain.py` | `/mission/today` | `ProactiveBrief` |
-| **RecoveryAgent** | `recovery_agent.py` | Mission + Dashboard | `RecoveryDecision(score, action, message)` |
-| **WorkoutAgent** | `workout_agent.py` | Mission + Dashboard | `WorkoutDecision(recommended_type, rescheduled, message)` |
-| **NutritionAgent** | `nutrition_agent.py` | Mission + Dashboard | `NutritionDecision(suggested_meal, message)` |
-| **ProgressAgent** | `progress_agent.py` | Mission + Dashboard | `ProgressDecision(stalled, suggested_calorie_adjustment, message)` |
-| **MotivationAgent** | `motivation_agent.py` | Mission | `str` (one coaching line) |
-| **WeeklyReviewAgent** | `weekly_review_agent.py` | `/api/review` | Full 7-day LLM-generated review |
-| **PatternEngine** | `pattern_engine.py` | Mission | `[PatternInsight]` — rule-based alerts |
+| Agent | Triggered by | Output |
+|---|---|---|
+| **CoachAgent** | Every `/coach/chat` request | `structured_decision` JSON |
+| **CoachBrain** | `/mission/today` | `ProactiveBrief` with reasoning steps |
+| **DecisionEngine** | `/mission/today` | `DecisionCenter` with confidence + evidence |
+| **RecoveryAgent** | Mission + Dashboard | `RecoveryDecision(score, action, message)` |
+| **WorkoutAgent** | Mission + Dashboard | `WorkoutDecision(recommended_type, rescheduled, message)` |
+| **NutritionAgent** | Mission + Dashboard | `NutritionDecision(suggested_meal, message)` |
+| **ProgressAgent** | Mission + Dashboard | `ProgressDecision(stalled, calorie_adjustment, message)` |
+| **MotivationAgent** | Mission | One coaching line (`str`) |
+| **WeeklyReviewAgent** | `/api/review` | Full 7-day LLM-generated review |
+| **PatternEngine** | Mission | `[PatternInsight]` — rule-based alerts |
 
-### CoachAgent LangGraph nodes
+### LangGraph nodes (CoachAgent)
 
 ```
-parse_input_node          → Extract exercise data from message (LLM JSON parse)
-evaluate_fatigue_node     → Update CNS fatigue score based on RPE + compound lifts
-retrieve_guardrails_node  → ChromaDB query for relevant safety rules + injury guardrails
-recall_memory_node        → ChromaDB query for user's stored preferences/habits
-build_workout_node        → Groq LLM call → structured JSON response
+parse_input_node          Extract exercise data from message (LLM JSON parse)
+evaluate_fatigue_node     Update CNS fatigue based on RPE + compound lift flags
+retrieve_guardrails_node  ChromaDB query: injury-relevant safety rules
+recall_memory_node        ChromaDB query: user's stored habits and preferences
+build_workout_node        Groq LLM call → structured JSON response
 ```
 
-### Recovery score calculation
+### Recovery score formula
 
 ```
 score = 10
@@ -554,98 +685,153 @@ action:
   score >  6 → "proceed"
 ```
 
-### CNS Fatigue tracking
+### CNS Fatigue accumulation
 
-Updated after every logged set by `evaluate_fatigue_node`:
-- RPE ≥ 9.5 + heavy compound (deadlift/squat/bench): `+3`
-- RPE ≥ 9.0: `+2`
-- RPE ≥ 8.0: `+1`
-- RPE < 8.0: `-1` (active recovery)
-- Max: 10, Min: 0
+Updated by `evaluate_fatigue_node` after every logged set:
 
-CNS fatigue is persisted in `agent_states` table via `upsert_agent_state()`.
+| Condition | Delta |
+|---|---|
+| RPE ≥ 9.5 + heavy compound (deadlift/squat/bench) | +3 |
+| RPE ≥ 9.0 | +2 |
+| RPE ≥ 8.0 | +1 |
+| RPE < 8.0 | -1 (recovery signal) |
+| Range | 0–10 |
+
+Persisted in `agent_states.cns_fatigue_score` via `upsert_agent_state()`.
+
+### Pattern engine — detection rules
+
+| Category | Trigger | Output |
+|---|---|---|
+| `plateau` | No strength increase on an exercise over 4 weeks | Alert + deload suggestion |
+| `missed_workout` | Missed session without rest-day explanation | Pattern alert |
+| `recovery_decline` | Recovery score trending down 3+ consecutive days | Warning + sleep tip |
+| `protein_deficit` | Protein below target 3+ days | Nutrition alert |
+| `pr_opportunity` | 8+ days since last attempt, recovery high, trend up | PR push recommendation |
 
 ---
 
-## 11. AI Coach — How It Works
+## 10. AI Coach — How It Works
 
 ### Prompt engineering
 
 The system prompt in `build_workout_node` injects:
-- Full athlete profile (goal, experience, weight, equipment, injuries)
-- Current CNS fatigue and computed recovery %
-- Weight caps = PR × 1.05 (anti-hallucination — LLM cannot prescribe weights above this)
-- Relevant safety guardrails from ChromaDB
-- Long-term memories recalled from ChromaDB
-- Prior conversation turns (last 10 messages) for continuity
+- Full athlete profile (goal, experience, weight, equipment, injuries, coach style)
+- Current CNS fatigue and computed recovery percentage
+- Weight caps = `PR × 1.05` — the LLM cannot prescribe weights above this (anti-hallucination guardrail)
+- Relevant safety rules retrieved from ChromaDB (injury-specific)
+- Long-term memory facts recalled from ChromaDB
+- Last 10 conversation turns for continuity
+
+### Coach personality system
+
+Selected during onboarding and stored in `profiles.coach_style`:
+
+| Style | Behavior |
+|---|---|
+| `friendly` | Supportive, explanatory, motivating |
+| `strict` | Direct, no excuses, performance-first |
+| `military` | Drill-sergeant tone, zero tolerance for skipped sessions |
+
+The personality injects a tone modifier into the system prompt — same intelligence underneath, different communication style.
 
 ### Response type routing
-
-The LLM always returns a JSON object with `response_type`. The frontend picks the card:
 
 | `response_type` | Triggered when | Card rendered |
 |---|---|---|
 | `workout_plan` | User asks for today's workout | Exercise table with sets/reps/weight/rest/focus |
 | `live_set` | User logs a completed set | Set analysis + next action + coaching cue |
-| `nutrition_tip` | User asks about food/protein/calories | Macro panel + advice |
+| `nutrition_tip` | User asks about food/protein/calories | Macro panel + meal suggestion |
 | `recovery_advice` | User asks about recovery/sleep/fatigue | Recovery ring + tips |
 | `progress_update` | User asks about PRs/progress | PR highlights + trend |
 | `chat` | General conversation | Plain message + optional tips |
-| `emergency` | Acute pain keywords detected | R.I.C.E. protocol — workout terminated |
+| `emergency` | Acute pain keywords detected | R.I.C.E. protocol — workout terminated immediately |
 
 ### Memory extraction
 
-After every chat message, `_auto_extract_memories()` runs:
-1. Fast path: keyword matching for schedule/food/injury/equipment signals
-2. LLM path: for messages >8 words, Groq decides if there's a durable fact to store
-3. Stored facts are recalled on next conversation via `recall_memory_node`
+After every coach message, `_auto_extract_memories()` runs:
+
+1. **Fast path:** keyword matching for schedule / food / injury / equipment signals
+2. **LLM path:** for messages over 8 words, Groq decides if there's a durable fact worth storing
+3. **Storage:** facts stored in `vyrn_user_memory` with category tags
+4. **Recall:** retrieved on next conversation via `recall_memory_node`
+
+### AI Decision Center — confidence calculation
+
+```python
+signals = [
+  { "label": "Recovery",         "favorable": recovery_pct >= 70 },
+  { "label": "Sleep",            "favorable": sleep_hours >= 7   },
+  { "label": "Protein",          "favorable": protein_adherence  },
+  { "label": "Strength Trend",   "favorable": bench_delta_kg > 0 },
+  { "label": "Injury Status",    "favorable": no_active_pain     },
+]
+
+# Weighted average — no LLM involved
+confidence_pct = sum(w * s["favorable"] for w, s in zip(weights, signals)) / sum(weights)
+
+# LLM writes one reasoning sentence using pre-computed signals as fixed input
+# If LLM fails, a deterministic template is used — card never silently degrades
+```
 
 ---
 
-## 12. Design System
+## 11. Design System
 
-### Colors (`frontend/src/theme/colors.ts`)
+### Brand
 
-All colors are centralized. Never hardcode hex values in components — import `COLORS`.
+**Logo:** Three-part wordmark — `V` (white) · `Y` (lime → blue gradient SVG) · `RN` (white). Badge: circle emblem with V-chevron mark, `#7CFF00 → #28B8FF` gradient.
+
+**Tagline:** ADAPTIVE PERFORMANCE SYSTEM
+
+**Brand colors:**
 
 | Token | Hex | Use |
 |---|---|---|
-| `background` | `#000000` | Main app canvas |
+| Lime green | `#7CFF00` | Logo Y gradient start, brand accent |
+| Electric blue | `#28B8FF` | Logo Y gradient end, brand accent |
+
+### App color palette (`frontend/src/theme/colors.ts`)
+
+Never hardcode hex values in components — always import `COLORS`.
+
+| Token | Hex | Use |
+|---|---|---|
+| `background` | `#000000` | Main canvas |
 | `card` | `#0D0D0D` | Card backgrounds |
 | `cardElevated` | `#161616` | Elevated cards |
-| `recoveryHigh` | `#16EC06` | Recovery 67-100%, primary green, success |
-| `recoveryMed` | `#FFDE00` | Recovery 34-66%, warning |
-| `recoveryLow` | `#FF0026` | Recovery 0-33%, danger |
-| `strain` | `#0093E7` | Strain/activity, primary blue, "AI" brand color |
-| `primaryGreen` | `#16EC06` | = `recoveryHigh` (alias for brand use) |
-| `primaryBlue` | `#0093E7` | = `strain` (alias for brand use) |
+| `recoveryHigh` | `#16EC06` | Recovery 67–100%, success |
+| `recoveryMed` | `#FFDE00` | Recovery 34–66%, warning |
+| `recoveryLow` | `#FF0026` | Recovery 0–33%, danger |
+| `strain` | `#0093E7` | Activity, exertion, primary blue |
+| `strainGlow` | `#00F19F` | CTAs, highlights |
+| `text` | `#FFFFFF` | Primary text |
+| `textSecondary` | `#9A9A9A` | Secondary text |
 
 Helper functions:
 ```ts
-recoveryColor(score: number)  // 0-100 → hex color
-recoveryLabel(score: number)  // 0-100 → "HIGH RECOVERY" | "MEDIUM RECOVERY" | "LOW RECOVERY"
+recoveryColor(score: number)  // 0–100 → hex color
+recoveryLabel(score: number)  // 0–100 → "HIGH RECOVERY" | "MEDIUM RECOVERY" | "LOW RECOVERY"
 alpha(hex, opacity)           // hex + opacity → 8-digit hex
 ```
 
-### Logo
-
-`Logo.tsx` — three-part wordmark: NEURO (white) + FIT (green→blue gradient SVG) + AI (blue).
+### Logo component
 
 ```tsx
-<Logo size="sm" />   // Tab bar / inline header
-<Logo size="md" />   // Screen headers (default)
-<Logo size="lg" />   // Login screen
-<Logo size="xl" />   // Splash screen
-<Logo showBadge={false} />     // Wordmark only
-<Logo showWordmark={false} />  // Badge icon only
-<Logo vertical />              // Stack badge above wordmark (login)
+<Logo size="sm" />              // Tab bar / inline header
+<Logo size="md" />              // Screen headers (default)
+<Logo size="lg" />              // Login screen
+<Logo size="xl" />              // Splash screen
+<Logo showBadge={false} />      // Wordmark only
+<Logo showWordmark={false} />   // Badge icon only
+<Logo vertical />               // Stack badge above wordmark (login)
 ```
 
-### RecoveryRing
+### RecoveryRing component
 
 ```tsx
 <RecoveryRing
-  value={75}           // 0-100
+  value={75}
   size={120}
   strokeWidth={10}
   label="RECOVERY"
@@ -656,147 +842,147 @@ alpha(hex, opacity)           // hex + opacity → 8-digit hex
 
 ---
 
-## 13. Screen Guide
+## 12. Screen Guide
 
 ### Dashboard (Home tab)
 
-- Calls `GET /api/mission/today` on mount, falls back to `GET /api/dashboard/summary`
-- Renders: Recovery ring, mission card, workout card, macro bars, pattern insights, proactive brief, timeline feed
-- Refresh: pull-to-refresh re-runs all agents
+Calls `GET /api/mission/today` on mount. Falls back to `GET /api/dashboard/summary`.
+
+Renders: Recovery ring · Mission card · Workout card · Macro bars (calories/protein/water) · Pattern insights · Proactive coach brief · Timeline feed
+
+Pull-to-refresh re-runs all agents.
 
 ### Coach tab
 
-- Full chat interface with `POST /api/coach/chat`
-- Response cards rendered based on `structured_decision.response_type`
-- Suggestion chips for first message
-- "Regenerate Workout" button → `POST /api/coach/regenerate-workout`
+Full chat interface with `POST /api/coach/chat`. Structured cards rendered based on `response_type`. Suggestion chips on first open. "Regenerate Workout" button for a fresh plan.
 
 ### Workout tab (WorkoutHUD)
 
-- Pre-session: START SESSION button + "Ask Coach for Today's Plan"
-- Active session: exercise tabs, set logger (weight/reps/RPE), rest timer, volume counter
-- "Ask Coach" during session: pulls workout plan from coach, auto-populates exercise list
-- Complete session: `PATCH /sessions/{id}/complete` — computes total volume, updates streaks/fatigue
+- **Pre-session:** START SESSION + "Ask Coach for Today's Plan"
+- **Active session:** Exercise tabs · Set logger (weight/reps/RPE) · Auto rest timer · Volume counter · Live PR detection
+- **Post-session:** `PATCH /sessions/{id}/complete` — computes total volume, updates streaks and CNS fatigue
 
 ### Progress tab
 
 Five sub-tabs:
-- **Body**: weight log input + WeightChart + body stats + streaks + PR table
-- **Strength**: StrengthProgressionChart (bar chart of weekly best weight per exercise)
-- **Nutrition**: log food button + today's macros + CaloriesChart + ProteinAdherenceBar
-- **Recovery**: log recovery score input (0-100) + RecoveryTrend sparkline + recent scores list
-- **Review**: AI-generated 7-day weekly review
+
+| Tab | Content |
+|---|---|
+| **Body** | Weight input + WeightChart sparkline + body stats + streak counters + PR table |
+| **Strength** | StrengthProgressionChart — weekly best weight per exercise (bar chart) |
+| **Nutrition** | Food log button + today's macros + CaloriesChart + ProteinAdherenceBar |
+| **Recovery** | Recovery score input (0–100) + RecoveryTrend sparkline + recent score list |
+| **Review** | AI-generated 7-day weekly review (LLM narrative with full data context) |
 
 ### Profile tab
 
-- View/edit profile data
-- Injury management (add/delete)
-- Logout
+View/edit profile data · Injury management (add/delete) · Coach style selection · Logout
 
 ---
 
-## 14. Bug Fixes Applied
+## 13. Engineering Improvements
 
-These are the exact changes in the fix files provided alongside this README.
+These are the concrete bugs found and fixed during the build process.
 
-### Fix 1 — `coach_agent.py`: `NoneType.split()` crash
+### Fix 1 — `coach_agent.py`: `NoneType.split()` crash on new users
 
-**File:** `backend/agents/coach_agent.py`, line 262
-
-**Problem:** `profile.get('full_name', 'Athlete')` returns `None` when the key `full_name` exists in the dict but its database value is `NULL`. Python's `.get(key, default)` only uses the default when the key is *absent* — not when the value is `None`. This caused every coach chat request to crash with `AttributeError: 'NoneType' object has no attribute 'split'` for any user whose `full_name` column was null (all new users who registered without completing onboarding).
+**Root cause:** `profile.get('full_name', 'Athlete')` returns `None` when the database column exists but is `NULL`. Python's `.get(key, default)` only uses the default when the key is absent — not when the value is `None`. Every new user who registered without completing onboarding had a null `full_name`, causing every coach chat to crash.
 
 ```python
-# BROKEN
+# Broken
 - Name: {profile.get('full_name', 'Athlete').split()[0]}
 
-# FIXED
+# Fixed
 - Name: {(profile.get('full_name') or 'Athlete').split()[0]}
 ```
 
-### Fix 2 — `mission.py`: Dashboard recovery ring always showed 0
+### Fix 2 — `mission.py`: Recovery ring permanently showed 0
 
-**File:** `backend/api/routes/mission.py`
+**Root cause:** `DashboardScreen` calls `GET /api/mission/today` and falls back to `GET /api/dashboard/summary` only if the request throws. But `mission/today` returned **200 OK** with a flat shape — while the screen read nested fields:
 
-**Problem:** `DashboardScreen` tries `GET /api/mission/today` first and only falls back to `GET /api/dashboard/summary` if the request throws. But `mission/today` returned **200 OK** with a completely different shape than what `DashboardSummary` expects:
-
-| `DashboardScreen` reads | `mission/today` was returning |
+| Screen reads | Mission was returning |
 |---|---|
-| `summary.recovery.score` | `recovery` (flat int 0-100, not a nested object) |
-| `summary.recovery.action` | `recovery_action` (flat) |
+| `summary.recovery.score` | `recovery` (flat int, not nested) |
 | `summary.calories_remaining` | `nutrition_status.calories_remaining` (nested) |
 | `summary.workout_today.type` | `workout_type` (flat) |
 
-So `summary?.recovery.score` was `undefined ?? 0 = 0`, the recovery ring permanently showed 0, and macros were always wrong. The fallback to `dashboard/summary` never fired because the request succeeded.
+Result: `summary?.recovery.score` was `undefined ?? 0 = 0` every time. The fallback never fired because the request succeeded with HTTP 200.
 
-**Fix:** `mission/today` now returns all dashboard-compatible nested fields alongside its own fields. Both endpoints satisfy `DashboardSummary`.
+**Fix:** `mission/today` now returns all dashboard-compatible nested fields alongside its own payload. Both endpoints satisfy `DashboardSummary`.
 
-### Fix 3 — `WorkoutHUD.tsx`: Wrong session field name
-
-**File:** `frontend/src/components/workout/WorkoutHUD.tsx`
-
-**Problem:** `createSession({ title: 'Training Session' })` — `SessionCreate` schema has `day_label`, not `title`. Pydantic ignores extra fields silently, so the session was created but with no label.
+### Fix 3 — `WorkoutHUD.tsx`: Wrong session field name (silent Pydantic drop)
 
 ```ts
-// BROKEN
+// Broken — Pydantic ignores unknown fields silently, session created with no label
 workoutApi.createSession({ title: 'Training Session' })
 
-// FIXED
+// Fixed — correct schema field name
 workoutApi.createSession({ day_label: 'Training Session' })
 ```
 
-### Fix 4 — `ProgressScreen.tsx`: Recovery tab had no data input
+### Fix 4 — `ProgressScreen.tsx`: Recovery tab had no input
 
-**File:** `frontend/src/components/progress/ProgressScreen.tsx`
+The Recovery tab displayed "Log recovery scores from the Profile screen" — but Profile had no such feature. Users could never populate recovery data.
 
-**Problem:** The Recovery tab empty state said "Log recovery scores from the Profile screen" — but the Profile screen has no such feature. Users had no way to populate recovery data, so the tab was always empty.
+**Fix:** Added a LOG RECOVERY SCORE input (0–100) directly on the Recovery tab, calling `progressApi.logMetrics({ recovery_score })`.
 
-**Fix:** Added a LOG RECOVERY SCORE input (numeric 0-100) with a LOG button directly on the Recovery tab, calling `progressApi.logMetrics({ recovery_score })`.
+### Fix 5 — `Logo.tsx`: Text too small, alignment broken
 
-### Fix 5 — `Logo.tsx`: AI text too small, alignment off
+`AI` fontSize was 8px at `sm` — invisible. `fontWeight: 700`, aligned to `flex-end`.
 
-**File:** `frontend/src/components/shared/Logo.tsx`
+**Fix:** Sizes corrected to `12/16/22/30` across all four sizes. `fontWeight: 800`. `alignSelf: center`. The full Logo component was subsequently rebuilt with the VYRN brand identity (V/Y/RN wordmark + SVG chevron badge).
 
-**Problem:** `AI` fontSize was `8` at `sm`, `10` at `md` — effectively invisible. `fontWeight: 700`, aligned to `flex-end` (rendering too low). Badge was slightly undersized.
+### Fix 6 — Auth token key mismatch (auth header never sent)
 
-**Fix:** `AI` fontSize now `12/16/22/30` across sizes, `fontWeight: 800`, `alignSelf: center`. Badge bumped ~6%. Letter spacing tightened to unify the three words into one brand mark.
+`api.ts` was reading `fitai_token`, while `store/index.ts` was writing to `neurofit_token` (now `vyrn_token`). The Authorization header was never populated — every authenticated request returned 401.
+
+**Fix:** Unified to a single key `vyrn_token` across `store/index.ts`, `api.ts`, and `app/(tabs)/_layout.tsx`.
+
+### Fix 7 — FastAPI version pin (routes silently dropped)
+
+Unpinned `fastapi` and `starlette` caused all registered routes to disappear after a dependency update.
+
+**Fix:** `requirements.txt` pinned to `fastapi==0.115.6` and `starlette==0.41.3`.
 
 ---
 
-## 15. Known Limitations & Next Steps
+## 14. Production Roadmap
 
-### Production gaps (not yet fixed)
-
-| Issue | Impact | Suggested fix |
+| Item | Impact | Suggested approach |
 |---|---|---|
-| No rate limiting on `/api/coach/chat` | User can spam Groq API, run up bills | `slowapi` per-user rate limiter, e.g. 20 requests/hour |
-| ChromaDB not persisting across Render deploys | Guardrails re-seeded on every deploy (fine), but user memories are wiped | Mount a Render disk, or migrate to Pinecone/Qdrant |
-| No JWT refresh token | After 30 days, user must log in again | Add refresh token endpoint + silent refresh in axios interceptor |
-| Dashboard makes multiple sequential LLM calls | Cold start ~5-8s | Already using `asyncio.gather()` for agents, but Coach Brain LLM call is still serial |
-| Onboarding has no recovery | If user closes mid-flow, they get stuck | Add `onboarding_step` tracking to allow resuming |
+| Rate limiting on `/api/coach/chat` | Prevents Groq API cost abuse | `slowapi` per-user limiter, 20 req/hour |
+| ChromaDB persistence across Render deploys | User memories survive redeployment | Mount a Render disk, or migrate to Pinecone/Qdrant |
+| JWT refresh token | Silent re-auth after 30-day expiry | Add `/api/auth/refresh` + axios interceptor |
+| Coach Brain LLM call (still serial) | Dashboard cold start ~5–8s | Move to `asyncio.gather()` alongside other agents |
+| Onboarding resume support | Users stuck if they close mid-flow | Add `onboarding_step` field, resume from last step |
+| Adaptive program rewriter | Weekly plan auto-restructure based on performance | New `program_rewriter_agent.py` running every Monday |
+| AI simulation ("What if?") | "What if I add 250 calories?" → predicted outcome | Extend DecisionCenter with scenario projection |
+| Decision history log | Every recommendation saved with evidence trail | Extend `ai_timeline_events` with `evidence` JSON column |
 
-### ChromaDB on Render
+### ChromaDB on Render (free tier)
 
-Render's free tier has no persistent disk — `chroma_store/` is wiped on every deploy. User memories are lost. Options:
+Render's free tier has no persistent disk — `chroma_store/` is wiped on every deploy. Guardrails are auto-reseeded (no problem). User memories are lost. Options:
 
-1. **Render disk** (paid): mount at `/chroma_store`, set `CHROMA_PERSIST_DIR=/chroma_store`
-2. **Pinecone**: replace `LocalHashEmbeddingFunction` with Pinecone SDK; update `chroma_client.py` and `memory_client.py`
-3. **Accept the loss**: guardrails are always re-seeded anyway; only user memory is lost
+1. **Render disk (paid):** mount at `/chroma_store`, set `CHROMA_PERSIST_DIR=/chroma_store`
+2. **Pinecone:** replace `LocalHashEmbeddingFunction` with Pinecone SDK; update `chroma_client.py` and `memory_client.py`
+3. **Accept loss during free tier:** guardrails always recover; only personal memory is lost
 
 ---
 
-## 16. Deployment
+## 15. Deployment
 
 ### Backend (Render)
 
-1. Connect your repo to Render as a **Web Service**
-2. Set Build Command: `pip install -r requirements.txt`
-3. Set Start Command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-4. Add all environment variables from the `.env` section above
+1. Connect repo as a **Web Service**
+2. Build command: `pip install -r requirements.txt`
+3. Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+4. Add all env vars from Section 7
 5. Set `ALLOWED_ORIGINS` to include your frontend's deployed URL
 
 ### Frontend (EAS)
 
-1. Set `EXPO_PUBLIC_API_URL` in your EAS build profile (`eas.json`):
+Set `EXPO_PUBLIC_API_URL` in `eas.json`:
+
 ```json
 {
   "build": {
@@ -808,21 +994,27 @@ Render's free tier has no persistent disk — `chroma_store/` is wiped on every 
   }
 }
 ```
-2. Run `eas build --platform android --profile production`
-3. Download APK or publish to Play Store via `eas submit`
+
+Then:
+```bash
+eas build --platform android --profile production
+eas submit --platform android   # optional: submit to Play Store
+```
 
 ---
 
-## 17. Security
+## 16. Security
 
-- Passwords hashed with `bcrypt` via `passlib`
-- JWTs signed with `HS256`, 30-day expiry
-- `SECRET_KEY` must be set in production — rotating it invalidates all sessions
-- `ORPHANED_SESSION` detection: valid JWT pointing at a deleted user → explicit 401 instead of 500 crash
-- `SUPABASE_SERVICE_KEY` is backend-only — bypasses RLS, never expose to frontend
-- CORS origin allowlist via `ALLOWED_ORIGINS` — update before shipping to production
-- Row Level Security enabled on all tables — `auth.uid() = user_id` policies
-- ChromaDB is local-only, no network exposure
+| Concern | Implementation |
+|---|---|
+| Passwords | bcrypt via `passlib` |
+| JWT | HS256, 30-day expiry, `SECRET_KEY` env var |
+| Orphaned session | Valid JWT pointing at deleted user → explicit 401, not 500 |
+| Service key | `SUPABASE_SERVICE_KEY` backend-only — never exposed to frontend |
+| CORS | `ALLOWED_ORIGINS` allowlist — update before shipping |
+| Row Level Security | Enabled on all tables — `auth.uid() = user_id` |
+| ChromaDB | Local-only, no network exposure |
+| Weight caps | LLM cannot prescribe weight above `PR × 1.05` |
 
 ---
 
@@ -830,42 +1022,51 @@ Render's free tier has no persistent disk — `chroma_store/` is wiped on every 
 
 ### Add a new screen
 
-1. Create `frontend/app/(tabs)/myscreen.tsx` — Expo Router auto-registers it as a tab route
+1. Create `frontend/app/(tabs)/myscreen.tsx` — Expo Router auto-registers it
 2. Add the tab to `_layout.tsx`
-3. Create `frontend/src/components/myscreen/MyScreen.tsx` with the actual UI
-4. Add any new backend endpoints to `backend/api/routes/` and register in `main.py`
+3. Create `frontend/src/components/myscreen/MyScreen.tsx` with UI
+4. Add backend endpoints to `backend/api/routes/` and register in `main.py`
 
 ### Add a new agent
 
 1. Create `backend/agents/my_agent.py` — return a dataclass result
-2. Import and call it in `mission.py` inside `asyncio.gather()` for parallel execution
+2. Import and call it in `mission.py` inside `asyncio.gather()`
 3. Add its output to the mission response JSON
 
 ### Add a new coach card type
 
-1. Add new `response_type` string to the LLM prompt in `build_workout_node`
-2. Add the new card component to `CoachScreen.tsx`
-3. Add the routing case in the message rendering switch
+1. Add `response_type` to the LLM prompt in `build_workout_node`
+2. Add card component to `CoachScreen.tsx`
+3. Add routing case in the message rendering switch
 
 ### Debug the coach pipeline
 
 ```bash
-# See all LangGraph node logs
+# Full LangGraph logs
 uvicorn main:app --reload --log-level debug
 
-# Test Groq connectivity directly
+# Test Groq directly
 python backend/test_groq.py
 
-# Check ChromaDB state
+# Inspect ChromaDB state
 python3 -c "
 import chromadb
 c = chromadb.PersistentClient('./chroma_store')
 print(c.list_collections())
-col = c.get_collection('repmind_guardrails')
-print(col.count(), 'guardrail docs')
+g = c.get_collection('vyrn_guardrails')
+m = c.get_collection('vyrn_user_memory')
+print(g.count(), 'guardrail docs')
+print(m.count(), 'memory facts')
 "
 ```
 
 ---
 
-*Last updated: June 2026 — post-audit revision*
+<div align="center">
+
+*VYRN — Adaptive Performance System*  
+*Built June 2026*
+
+**Train. Don't Think.**
+
+</div>

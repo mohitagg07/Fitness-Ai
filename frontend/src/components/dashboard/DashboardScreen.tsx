@@ -1,4 +1,4 @@
-// NeuroFit AI — Mission Control Dashboard
+// VYRN — Mission Control Dashboard
 //
 // Visual language rebuilt to match Whoop's actual UI grammar (verified
 // against real product screenshots, not a generic dark-fitness-app guess):

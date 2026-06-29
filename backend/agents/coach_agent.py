@@ -1,5 +1,5 @@
 """
-NeuroFit AI — LangGraph Coach Agent (v2)
+VYRN — LangGraph Coach Agent (v2)
 
 MAJOR CHANGES vs v1:
   - LLM returns structured JSON with response_type so the frontend can
@@ -248,7 +248,7 @@ def build_workout_node(state: WorkoutGraphState) -> WorkoutGraphState:
         if memories else "Nothing specific on file yet."
     )
 
-    system_prompt = f"""You are NeuroFit AI — a highly personalized gym coach. You know this athlete completely.
+    system_prompt = f"""You are VYRN — an adaptive performance AI coach. You observe, remember, and decide proactively. You know this athlete completely.
 
 CRITICAL RULES — READ FIRST:
 1. NEVER expose internal planning notes. Never say things like "Initial greeting", "User needs a session plan", "Provide current day". Speak directly to the athlete as their coach.

@@ -1,9 +1,9 @@
 {
   "expo": {
-    "name": "NeuroFit AI",
-    "slug": "neurofit-ai-mobile",
+    "name": "VYRN",
+    "slug": "vyrn-mobile",
     "version": "1.0.0",
-    "scheme": "neurofitai",
+    "scheme": "vyrn",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "icon": "./assets/icon.png",
@@ -17,14 +17,14 @@
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.neurofit.ai"
+      "bundleIdentifier": "com.vyrn.app"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#121212"
       },
-      "package": "com.neurofit.ai",
+      "package": "com.vyrn.app",
       "permissions": [
         "android.permission.RECORD_AUDIO"
       ]
@@ -39,7 +39,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "NeuroFit AI needs photo access for form check uploads."
+          "photosPermission": "VYRN needs photo access for form check uploads."
         }
       ],
       "expo-font"

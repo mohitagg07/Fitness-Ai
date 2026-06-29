@@ -1,9 +1,9 @@
-// NeuroFit AI — Logo component
+// VYRN — Logo component
 //
-// Brand system built from the poster's identity:
-//   - Green (#16EC06) → Blue (#0093E7) gradient (exact WHOOP accent colors)
-//   - Three-part NEURO / FIT / AI hierarchy: NEURO in white, FIT in gradient, AI in blue
-//   - Diagonal-cut badge mark: rounded square with one cut corner, dumbbell negative-space
+// Brand system matching the VYRN Adaptive Performance System identity:
+//   - Lime green (#7CFF00) → Electric blue (#28B8FF) gradient
+//   - Three-part V / Y / RN hierarchy: V in white, Y in gradient, RN in white
+//   - Chevron/lightning mark: stylized V-bolt SVG emblem
 //
 // Four sizes cover every use case:
 //   sm  → tab bar / inline header
@@ -18,7 +18,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Svg, { Defs, LinearGradient, Stop, Path, Text as SvgText } from 'react-native-svg';
+import Svg, { Defs, LinearGradient, Stop, Path, Circle, Text as SvgText } from 'react-native-svg';
 import { COLORS } from '../../theme/colors';
 import { FONTS } from '../../theme/typography';
 
@@ -27,13 +27,12 @@ type LogoSize = 'sm' | 'md' | 'lg' | 'xl';
 const SIZE_MAP: Record<LogoSize, {
   badge: number;
   wordmark: number;
-  ai: number;
   gap: number;
 }> = {
-  sm: { badge: 30, wordmark: 15, ai: 12, gap: 6  },
-  md: { badge: 43, wordmark: 20, ai: 16, gap: 8  },
-  lg: { badge: 60, wordmark: 28, ai: 22, gap: 10 },
-  xl: { badge: 90, wordmark: 38, ai: 30, gap: 14 },
+  sm: { badge: 30, wordmark: 16, gap: 6  },
+  md: { badge: 43, wordmark: 22, gap: 8  },
+  lg: { badge: 60, wordmark: 30, gap: 10 },
+  xl: { badge: 90, wordmark: 42, gap: 14 },
 };
 
 export default function Logo({
@@ -44,9 +43,7 @@ export default function Logo({
 }: {
   size?: LogoSize;
   showWordmark?: boolean;
-  /** Hide the badge — for screens that already have a hero visual */
   showBadge?: boolean;
-  /** Stack badge above wordmark (login / centered layouts) */
   vertical?: boolean;
 }) {
   const s = SIZE_MAP[size];
@@ -57,18 +54,21 @@ export default function Logo({
       {showWordmark && (
         <View style={vertical ? styles.wordmarkCenter : undefined}>
           <View style={styles.wordmarkRow}>
+            {/* V — white */}
             <Text
-              style={[styles.neuro, { fontSize: s.wordmark }]}
+              style={[styles.letterWhite, { fontSize: s.wordmark }]}
               allowFontScaling={false}
             >
-              NEURO
+              V
             </Text>
-            <GradientFit fontSize={s.wordmark} />
+            {/* Y — gradient green→blue */}
+            <GradientY fontSize={s.wordmark} />
+            {/* RN — white */}
             <Text
-              style={[styles.ai, { fontSize: s.ai }]}
+              style={[styles.letterWhite, { fontSize: s.wordmark }]}
               allowFontScaling={false}
             >
-              AI
+              RN
             </Text>
           </View>
         </View>
@@ -78,51 +78,62 @@ export default function Logo({
 }
 
 // ── Badge ─────────────────────────────────────────────────────────────────────
-// Rounded square with a diagonal-cut bottom-right corner (nods at barbell-plate
-// geometry without trying to render a literal barbell at icon size).
-// Dumbbell mark is negative-space strokes on the gradient fill.
+// Circular emblem with a stylized V-chevron (lightning bolt) mark.
+// Matches the visual weight of the VYRN PNG logo.
 function LogoBadge({ size }: { size: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 100 100">
       <Defs>
-        <LinearGradient id="badgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <Stop offset="0%"   stopColor={COLORS.recoveryHigh} />
-          <Stop offset="100%" stopColor={COLORS.strain} />
+        <LinearGradient id="vyrnBadgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <Stop offset="0%"   stopColor="#7CFF00" />
+          <Stop offset="100%" stopColor="#28B8FF" />
+        </LinearGradient>
+        <LinearGradient id="vyrnRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <Stop offset="0%"   stopColor="#7CFF00" stopOpacity="0.6" />
+          <Stop offset="100%" stopColor="#28B8FF" stopOpacity="0.6" />
         </LinearGradient>
       </Defs>
 
-      {/* Rounded square, bottom-right corner diagonally cut */}
-      <Path
-        d="M 18 4 H 82 A 14 14 0 0 1 96 18 V 62 L 62 96 H 18 A 14 14 0 0 1 4 82 V 18 A 14 14 0 0 1 18 4 Z"
-        fill="url(#badgeGrad)"
-      />
+      {/* Outer ring */}
+      <Circle cx="50" cy="50" r="46" fill="none" stroke="url(#vyrnRingGrad)" strokeWidth="2.5" />
 
-      {/* Negative-space dumbbell — horizontal bar + end caps + outer plates */}
+      {/* Inner dark circle */}
+      <Circle cx="50" cy="50" r="42" fill="#0A0A0A" />
+
+      {/* Chevron / V-bolt mark — left arm (green side) */}
       <Path
-        d="M 26 50 H 74 M 26 38 V 62 M 74 38 V 62 M 18 42 V 58 M 82 42 V 58"
-        stroke={COLORS.background}
-        strokeWidth={7}
-        strokeLinecap="round"
-        fill="none"
+        d="M 26 28 L 50 68 L 50 52 L 38 28 Z"
+        fill="#7CFF00"
+        opacity="0.95"
+      />
+      {/* Chevron / V-bolt mark — right arm (blue side) */}
+      <Path
+        d="M 74 28 L 50 68 L 50 52 L 62 28 Z"
+        fill="#28B8FF"
+        opacity="0.95"
+      />
+      {/* Center overlap blend */}
+      <Path
+        d="M 44 52 L 50 68 L 56 52 L 50 40 Z"
+        fill="url(#vyrnBadgeGrad)"
+        opacity="0.9"
       />
     </Svg>
   );
 }
 
-// ── Gradient "FIT" wordmark ───────────────────────────────────────────────────
-// React Native Text doesn't support gradient fills — SVG Text does natively,
-// and react-native-svg is already installed. Zero new dependencies.
-function GradientFit({ fontSize }: { fontSize: number }) {
-  // Generous width estimate so the last letter never clips inside the viewBox
-  const width  = 3 * fontSize * 0.72 + 16;
+// ── Gradient "Y" letter ───────────────────────────────────────────────────────
+// React Native Text doesn't support gradient fills — SVG Text does natively.
+function GradientY({ fontSize }: { fontSize: number }) {
+  const width  = fontSize * 0.72 + 12;
   const height = fontSize * 1.4;
 
   return (
     <Svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
       <Defs>
-        <LinearGradient id="fitGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-          <Stop offset="0%"   stopColor={COLORS.recoveryHigh} />
-          <Stop offset="100%" stopColor={COLORS.strain} />
+        <LinearGradient id="vyrnYGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <Stop offset="0%"   stopColor="#7CFF00" />
+          <Stop offset="100%" stopColor="#28B8FF" />
         </LinearGradient>
       </Defs>
       <SvgText
@@ -132,10 +143,10 @@ function GradientFit({ fontSize }: { fontSize: number }) {
         fontSize={fontSize}
         fontWeight="800"
         letterSpacing={0.5}
-        fill="url(#fitGrad)"
+        fill="url(#vyrnYGrad)"
         fontFamily={FONTS.logo as string}
       >
-        FIT
+        Y
       </SvgText>
     </Svg>
   );
@@ -143,24 +154,15 @@ function GradientFit({ fontSize }: { fontSize: number }) {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  row:           { flexDirection: 'row', alignItems: 'center' },
-  column:        { flexDirection: 'column', alignItems: 'center' },
-  wordmarkCenter:{ alignItems: 'center' },
-  wordmarkRow:   { flexDirection: 'row', alignItems: 'center' },
+  row:            { flexDirection: 'row', alignItems: 'center' },
+  column:         { flexDirection: 'column', alignItems: 'center' },
+  wordmarkCenter: { alignItems: 'center' },
+  wordmarkRow:    { flexDirection: 'row', alignItems: 'center' },
 
-  neuro: {
-    color:       COLORS.text,
-    fontFamily:  FONTS.logo as string,
-    fontWeight:  '800',
+  letterWhite: {
+    color:         COLORS.text,
+    fontFamily:    FONTS.logo as string,
+    fontWeight:    '800',
     letterSpacing: 0.5,
-  },
-  ai: {
-    color:       COLORS.strain,
-    fontFamily:  FONTS.logo as string,
-    fontWeight:  '800',
-    letterSpacing: 1,
-    marginLeft:  2,
-    alignSelf:   'center',
-    paddingBottom: 1,
   },
 });

@@ -1,4 +1,4 @@
-// NeuroFit AI — Personal Records Screen
+// VYRN — Personal Records Screen
 // Shows every exercise PR with the highest weight logged.
 // PRs are auto-saved from WorkoutHUD when a new max is hit.
 

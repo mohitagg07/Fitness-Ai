@@ -1,4 +1,4 @@
-// NeuroFit AI — AI Coach Screen v3
+// VYRN — AI Coach Screen v3
 // Full 7-card response system:
 //   workout_plan  → WorkoutCard   (exercise table + rest + intensity)
 //   live_set      → LiveSetCard   (set analysis + next action + insight)
@@ -454,7 +454,7 @@ export default function CoachScreen() {
       {item.role === 'assistant' && (
         <View style={S.roleLabelRow}>
           <Ionicons name="flash" size={10} color={COLORS.recoveryHigh} />
-          <Text style={S.roleLabel}>NEUROFIT COACH</Text>
+          <Text style={S.roleLabel}>VYRN COACH</Text>
         </View>
       )}
       {item.role === 'assistant'

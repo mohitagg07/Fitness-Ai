@@ -1,5 +1,5 @@
 """
-Pattern Detection Engine — NeuroFit AI
+Pattern Detection Engine — VYRN
 
 Runs nightly (or on-demand) to detect:
   - Strength plateaus (no new PR in N weeks for a given exercise)

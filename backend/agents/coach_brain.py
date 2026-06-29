@@ -1,5 +1,5 @@
 """
-Coach Brain — NeuroFit AI
+Coach Brain — VYRN
 
 The AI Decision Engine. Runs on app open, before the user types anything.
 
@@ -198,7 +198,7 @@ Protein remaining: {max(0, protein_remaining):.0f}g | Calories remaining: {max(0
 Progress stalled: {progress_decision.stalled}
 Memories: {memories_text}"""
 
-    prompt = f"""You are NeuroFit AI — the athlete's personal coach. You think about them before they even open the app.
+    prompt = f"""You are VYRN — the athlete's personal coach. You think about them before they even open the app.
 
 Based on this data, generate a PROACTIVE coach brief — what you've decided for them today.
 
@@ -224,7 +224,7 @@ Keep coach_message under 60 words. Make it feel like a real coach who has been t
             temperature=0.3,
         )
         response = llm.invoke([
-            SystemMessage(content="You are NeuroFit AI. Return only valid JSON, no markdown."),
+            SystemMessage(content="You are VYRN. Return only valid JSON, no markdown."),
             HumanMessage(content=prompt),
         ])
         raw = response.content.strip().replace("```json", "").replace("```", "").strip()

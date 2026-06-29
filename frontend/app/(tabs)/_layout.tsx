@@ -25,7 +25,7 @@ export default function TabsLayout() {
 
   useEffect(() => {
     (async () => {
-      const token = await storage.getItem('neurofit_token');
+      const token = await storage.getItem('vyrn_token');
       if (!token) {
         router.replace('/login');
         return;

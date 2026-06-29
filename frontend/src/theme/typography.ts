@@ -1,5 +1,5 @@
 /**
- * NeuroFit AI — Typography
+ * VYRN — Typography
  *
  * WHOOP's actual brand uses Proxima Nova (words) and DIN Pro (numbers) —
  * both are commercial, licensed fonts we can't legally bundle into this

@@ -1,5 +1,5 @@
 """
-Supabase client — database layer for RepMind.
+Supabase client — database layer for VYRN.
 All DB calls go through this module.
 """
 import logging
@@ -140,7 +140,7 @@ def upsert_personal_record(user_id: str, exercise_name: str, weight_kg: float, r
 
 SCHEMA_SQL = """
 -- ============================================================
--- RepMind Database Schema v2
+-- VYRN Database Schema v2
 -- Run in Supabase SQL editor (Project Settings → SQL Editor)
 -- ============================================================
 

@@ -122,7 +122,7 @@ export default function AuthScreen() {
           <View style={styles.logoWrap}>
             <Logo size="lg" vertical />
           </View>
-          <Text style={styles.subtitle}>Your AI Gym Spotter</Text>
+          <Text style={styles.subtitle}>Your Adaptive Performance System</Text>
 
           {/* Toggle */}
           <View style={styles.toggle}>

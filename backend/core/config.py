@@ -24,7 +24,7 @@ class Settings(BaseSettings):
 
     # ChromaDB
     chroma_persist_dir: str = "./chroma_store"
-    chroma_collection_name: str = "repmind_guardrails"
+    chroma_collection_name: str = "vyrn_guardrails"
 
     # App
     # Accept either SECRET_KEY (canonical) or JWT_SECRET (the name the

@@ -1,5 +1,5 @@
 /**
- * NeuroFit AI — Design System
+ * VYRN Adaptive Performance System — Design System
  * Modeled directly on WHOOP's official Brand & Design Guidelines:
  * https://developer.whoop.com/docs/developing/design-guidelines/
  *
@@ -9,7 +9,7 @@
  *
  * Color: pitch-black canvas, three-color Recovery vocabulary
  * (Green/Yellow/Red), Strain Blue, Sleep Blue — exactly as WHOOP
- * defines them, re-themed slightly for NeuroFit AI's own accent.
+ * defines them, re-themed slightly for VYRN's own accent.
  */
 
 export const COLORS = {
@@ -43,7 +43,7 @@ export const COLORS = {
   sleep:          '#7BA1BB',   // Sleep — muted blue-gray
   recoveryBlue:   '#67AEE6',   // Recovery data without valuation
 
-  // ── NeuroFit AI brand accent (used for AI/Coach-specific UI only) ──
+  // ── VYRN brand accent ──
   primaryGreen:   '#16EC06',   // = recoveryHigh, single source of truth
   primaryBlue:    '#0093E7',   // = strain
 

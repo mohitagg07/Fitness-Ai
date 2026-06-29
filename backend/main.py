@@ -1,5 +1,5 @@
 """
-RepMind — AI Gym Spotter
+VYRN — Adaptive Performance System
 FastAPI Backend — Main Entry Point
 """
 from fastapi import FastAPI
@@ -32,8 +32,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="RepMind AI Gym Spotter",
-    description="Your AI Gym Spotter — remembers your journey, guides every rep, celebrates every PR.",
+    title="VYRN Adaptive Performance System",
+    description="Your Adaptive Performance System — remembers your journey, guides every rep, celebrates every PR.",
     version="2.0.0",
     lifespan=lifespan,
 )
@@ -61,7 +61,7 @@ app.include_router(review_router,   prefix="/api/review",    tags=["Review"])
 @app.get("/")
 def root():
     return {
-        "app": "RepMind AI Gym Spotter",
+        "app": "VYRN Adaptive Performance System",
         "version": "2.0.0",
         "status": "running",
         "docs": "/docs",

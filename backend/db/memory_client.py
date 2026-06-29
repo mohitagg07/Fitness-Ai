@@ -11,7 +11,7 @@ responses feel like they come from someone who actually remembers the
 user, without needing a rigid schema for every possible preference.
 
 FIX (2026): This collection previously had no self-heal logic, unlike
-guardrails collection. If neurofit_user_memory was ever created with a
+guardrails collection. If vyrn_user_memory was ever created with a
 different embedding function (e.g. an older build that used chromadb's
 384-dim DefaultEmbeddingFunction) and the project later switched to the
 256-dim LocalHashEmbeddingFunction, every write would silently fail with
@@ -33,7 +33,7 @@ from db.local_embeddings import LocalHashEmbeddingFunction
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-MEMORY_COLLECTION_NAME = "neurofit_user_memory"
+MEMORY_COLLECTION_NAME = "vyrn_user_memory"
 
 
 def _is_stale_collection_error(e: Exception) -> bool:
@@ -63,8 +63,8 @@ def get_memory_chroma_client() -> chromadb.PersistentClient:
 
 
 def _rebuild_memory_collection(client: chromadb.PersistentClient, ef: LocalHashEmbeddingFunction):
-    """Delete and recreate just the neurofit_user_memory collection.
-    Scoped to this collection only — does NOT touch repmind_guardrails,
+    """Delete and recreate just the vyrn_user_memory collection.
+    Scoped to this collection only — does NOT touch vyrn_guardrails,
     so a memory-side dimension fix never re-triggers a guardrails reseed."""
     logger.warning(
         f"Rebuilding stale '{MEMORY_COLLECTION_NAME}' collection. Any facts "

@@ -1,0 +1,44 @@
+<svg width="420" height="120" viewBox="0 0 420 120" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="vyrnGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#7CFF00"/>
+      <stop offset="100%" stop-color="#28B8FF"/>
+    </linearGradient>
+    <linearGradient id="vyrnRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#7CFF00" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#28B8FF" stop-opacity="0.6"/>
+    </linearGradient>
+    <linearGradient id="yLetterGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#7CFF00"/>
+      <stop offset="100%" stop-color="#28B8FF"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Badge emblem — circle with V-chevron mark -->
+  <g transform="translate(8, 10)">
+    <!-- Outer ring -->
+    <circle cx="50" cy="50" r="46" fill="none" stroke="url(#vyrnRingGrad)" stroke-width="2.5"/>
+    <!-- Inner dark circle -->
+    <circle cx="50" cy="50" r="42" fill="#0A0A0A"/>
+    <!-- V-chevron left arm (green) -->
+    <path d="M 26 28 L 50 68 L 50 52 L 38 28 Z" fill="#7CFF00" opacity="0.95"/>
+    <!-- V-chevron right arm (blue) -->
+    <path d="M 74 28 L 50 68 L 50 52 L 62 28 Z" fill="#28B8FF" opacity="0.95"/>
+    <!-- Center blend -->
+    <path d="M 44 52 L 50 68 L 56 52 L 50 40 Z" fill="url(#vyrnGrad)" opacity="0.9"/>
+  </g>
+
+  <!-- Wordmark: V (white) + Y (gradient) + RN (white) -->
+  <text x="122" y="65" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="46" letter-spacing="1" fill="#FFFFFF">V</text>
+
+  <!-- Y with gradient (approximated via text with fill) -->
+  <text x="153" y="65" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="46" letter-spacing="1" fill="url(#yLetterGrad)">Y</text>
+
+  <text x="184" y="65" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="46" letter-spacing="1" fill="#FFFFFF">RN</text>
+
+  <!-- Underline accent -->
+  <line x1="122" y1="75" x2="248" y2="75" stroke="url(#vyrnGrad)" stroke-width="2" opacity="0.6"/>
+
+  <!-- Tagline -->
+  <text x="122" y="95" font-family="Arial, Helvetica, sans-serif" font-weight="400" font-size="11" letter-spacing="3.5" fill="#9AA5B1">ADAPTIVE PERFORMANCE SYSTEM</text>
+</svg>

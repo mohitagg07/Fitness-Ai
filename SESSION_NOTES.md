@@ -1,4 +1,4 @@
-# FitAI / NeuroFit AI — Backend Repair + Agent Wiring (this session)
+# FitAI / VYRN — Backend Repair + Agent Wiring (this session)
 
 ## Run this first
 **`CRITICAL_RUN_THIS_SQL_FIRST.sql`** in the Supabase SQL Editor. Nothing in
@@ -67,7 +67,7 @@ reads them.
   auto-writes new durable facts when the user says something like "I hate
   oats" or mentions a recurring injury, so the loop actually closes instead
   of being a write-only store nobody reads from.
-- **Brand assets** — `assets/branding/neurofit-ai-logo.svg` (+ rendered
+- **Brand assets** — `assets/branding/vyrn-logo.svg` (+ rendered
   `.png`), a recreation of the brain-circuit mark + wordmark from your
   reference image.
 
@@ -185,7 +185,7 @@ All of these are fixed again as of this round (gold colors swapped for
 `COLORS.primaryGreen`/`COLORS.primaryBlue`, `package-lock.json`
 regenerated, `icon.png`/`splash.png`/`adaptive-icon.png`/`favicon.png`/
 `hero-splash.png` rebuilt from the brand mark at correct sizes — this
-time using `assets/branding/neurofit-ai-icon-mark.svg`, which had
+time using `assets/branding/vyrn-icon-mark.svg`, which had
 already been added but never actually rendered into real PNGs or wired
 into `app.json`). But if something else is regenerating these files
 between sessions — another tool, a parallel Claude Code session, a

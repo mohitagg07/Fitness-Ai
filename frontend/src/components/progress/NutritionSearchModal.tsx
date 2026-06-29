@@ -1,4 +1,4 @@
-// NeuroFit AI — Nutrition Search & Quick-Log
+// VYRN — Nutrition Search & Quick-Log
 //
 // This screen previously didn't exist at all. The backend has had a
 // working FatSecret-backed /api/nutrition/search + /quick-log since an

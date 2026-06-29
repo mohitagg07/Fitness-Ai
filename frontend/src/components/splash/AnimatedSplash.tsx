@@ -83,7 +83,7 @@ export default function AnimatedSplash({ onFinished }: AnimatedSplashProps) {
 
       <Animated.View style={[styles.textBlock, textStyle]}>
         <Logo size="xl" showBadge={false} />
-        <Text style={styles.tagline}>AI GYM SPOTTER. NEVER LIFT ALONE.</Text>
+        <Text style={styles.tagline}>ADAPTIVE PERFORMANCE SYSTEM</Text>
       </Animated.View>
     </Animated.View>
   );

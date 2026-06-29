@@ -1,4 +1,4 @@
-// NeuroFit AI — Weekly Coach Review Screen
+// VYRN — Weekly Coach Review Screen
 //
 // Shows the AI-generated weekly review every Sunday (or on-demand):
 //   - Workout consistency ring

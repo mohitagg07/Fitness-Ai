@@ -1,0 +1,30 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="vyrnGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#7CFF00"/>
+      <stop offset="100%" stop-color="#28B8FF"/>
+    </linearGradient>
+    <linearGradient id="vyrnRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#7CFF00" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#28B8FF" stop-opacity="0.7"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" fill="#050505"/>
+
+  <!-- Outer glow ring -->
+  <circle cx="256" cy="256" r="238" fill="none" stroke="url(#vyrnRingGrad)" stroke-width="6"/>
+
+  <!-- Inner dark circle -->
+  <circle cx="256" cy="256" r="228" fill="#0A0A0A"/>
+
+  <!-- V-chevron — left arm (lime green) -->
+  <path d="M 130 140 L 256 350 L 256 268 L 195 140 Z" fill="#7CFF00" opacity="0.95"/>
+
+  <!-- V-chevron — right arm (electric blue) -->
+  <path d="M 382 140 L 256 350 L 256 268 L 318 140 Z" fill="#28B8FF" opacity="0.95"/>
+
+  <!-- Center blend overlap -->
+  <path d="M 226 268 L 256 350 L 286 268 L 256 204 Z" fill="url(#vyrnGrad)" opacity="0.92"/>
+</svg>

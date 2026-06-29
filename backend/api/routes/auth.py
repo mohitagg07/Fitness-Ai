@@ -1,6 +1,6 @@
 """
 backend/api/routes/auth.py
-NeuroFit AI — Authentication routes
+VYRN — Authentication routes
 
 Fix applied: sb.auth calls now run inside asyncio.wait_for() so a Supabase
 network hang surfaces as a clean 503 instead of a raw timeout traceback that

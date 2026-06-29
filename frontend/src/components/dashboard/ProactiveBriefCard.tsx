@@ -1,4 +1,4 @@
-// ProactiveBriefCard — NeuroFit AI
+// ProactiveBriefCard — VYRN
 //
 // Renders the AI's proactive decision on the dashboard.
 // The coach thought about this before the user typed anything.

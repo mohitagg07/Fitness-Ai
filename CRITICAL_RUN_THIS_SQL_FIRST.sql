@@ -1,5 +1,5 @@
 -- ============================================================
--- RepMind Database Schema v2
+-- VYRN Database Schema v2
 -- Run in Supabase SQL editor (Project Settings → SQL Editor)
 -- ============================================================
 
