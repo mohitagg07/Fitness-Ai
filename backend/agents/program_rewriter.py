@@ -29,7 +29,6 @@ from db.supabase_client import get_supabase
 from agents.pattern_engine import (
     detect_strength_plateaus,
     detect_recovery_decline,
-    detect_under_eating,
     run_pattern_engine,
 )
 
