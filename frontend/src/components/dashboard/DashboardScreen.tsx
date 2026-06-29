@@ -8,7 +8,7 @@
 // Data wiring is unchanged from the previous version — still calls the
 // real GET /api/dashboard/summary endpoint with proper loading/error states.
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   RefreshControl, ActivityIndicator,
@@ -351,10 +351,12 @@ export default function DashboardScreen() {
 
       <Text style={styles.sectionLabel}>QUICK START</Text>
       <View style={styles.quickGrid}>
-        <QuickBtn label="Ask Coach" icon="chatbubble-outline" onPress={() => router.push('/(tabs)/coach')} accent={COLORS.recoveryHigh} />
-        <QuickBtn label="Gym Mode" icon="barbell-outline" onPress={() => router.push('/(tabs)/workout')} accent={COLORS.strain} />
-        <QuickBtn label="Progress" icon="stats-chart-outline" onPress={() => router.push('/(tabs)/progress')} accent={COLORS.recoveryMed} />
-        <QuickBtn label="My PRs" icon="trophy-outline" onPress={() => router.push('/(tabs)/prs')} accent={COLORS.sleep} />
+        <QuickBtn label="Ask Coach"  icon="chatbubble-outline"  onPress={() => router.push('/(tabs)/coach')}       accent={COLORS.recoveryHigh} />
+        <QuickBtn label="Gym Mode"   icon="barbell-outline"      onPress={() => router.push('/(tabs)/workout')}     accent={COLORS.strain}       />
+        <QuickBtn label="Decisions"  icon="analytics-outline"    onPress={() => router.push('/(tabs)/decisions')}   accent={COLORS.strainGlow}   />
+        <QuickBtn label="What If?"   icon="flask-outline"        onPress={() => router.push('/(tabs)/simulate')}    accent={COLORS.recoveryMed}  />
+        <QuickBtn label="Analytics"  icon="stats-chart-outline"  onPress={() => router.push('/(tabs)/progress')}    accent={COLORS.sleep}        />
+        <QuickBtn label="Form AI"    icon="body-outline"         onPress={() => router.push('/(tabs)/formanalysis')} accent={COLORS.recoveryLow} />
       </View>
 
       <View style={{ height: 24 }} />
@@ -370,9 +372,24 @@ function ScoreRing({
   size: number; stroke: number; value: number; max: number;
   color: string; label: string; sublabel: string;
 }) {
+  // Animate ring fill on mount (count-up effect)
+  const [displayed, setDisplayed] = useState(0);
+  useEffect(() => {
+    let startTs: number | null = null;
+    const duration = 900;
+    const tick = (ts: number) => {
+      if (!startTs) startTs = ts;
+      const progress = Math.min((ts - startTs) / duration, 1);
+      const ease = 1 - Math.pow(1 - progress, 3);
+      setDisplayed(ease * value);
+      if (progress < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, [value]);
+
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
-  const pct = Math.max(0, Math.min(1, value / max));
+  const pct = Math.max(0, Math.min(1, displayed / max));
   const dashOffset = circumference * (1 - pct);
 
   return (
@@ -388,14 +405,12 @@ function ScoreRing({
           strokeDasharray={`${circumference} ${circumference}`}
           strokeDashoffset={dashOffset}
           strokeLinecap="round"
-          // Rotate so the ring starts at 12 o'clock, matching Whoop's
-          // convention, instead of SVG's default 3 o'clock start.
           rotation={-90}
           origin={`${size / 2}, ${size / 2}`}
         />
       </Svg>
       <View style={styles.ringCenter}>
-        <Text style={[styles.ringValue, { color }]}>{Math.round((value / max) * 100)}</Text>
+        <Text style={[styles.ringValue, { color }]}>{Math.round((displayed / max) * 100)}</Text>
         <Text style={styles.ringPercentSign}>%</Text>
       </View>
       <Text style={styles.ringLabel}>{label}</Text>

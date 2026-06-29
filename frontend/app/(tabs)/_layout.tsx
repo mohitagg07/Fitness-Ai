@@ -13,11 +13,14 @@ type TabDef = {
 };
 
 const TABS: TabDef[] = [
-  { name: 'index',    title: 'HOME',    icon: 'home-outline',         activeIcon: 'home'         },
-  { name: 'coach',   title: 'COACH',   icon: 'flash-outline',        activeIcon: 'flash'        },
-  { name: 'workout', title: 'WORKOUT', icon: 'barbell-outline',      activeIcon: 'barbell'      },
-  { name: 'progress',title: 'PROGRESS',icon: 'stats-chart-outline',  activeIcon: 'stats-chart'  },
-  { name: 'profile', title: 'PROFILE', icon: 'person-outline',       activeIcon: 'person'       },
+  { name: 'index',     title: 'HOME',      icon: 'home-outline',          activeIcon: 'home'          },
+  { name: 'coach',     title: 'COACH',     icon: 'flash-outline',         activeIcon: 'flash'         },
+  { name: 'workout',   title: 'WORKOUT',   icon: 'barbell-outline',       activeIcon: 'barbell'       },
+  { name: 'progress',  title: 'ANALYTICS', icon: 'stats-chart-outline',   activeIcon: 'stats-chart'   },
+  { name: 'decisions', title: 'DECISIONS', icon: 'analytics-outline',     activeIcon: 'analytics'     },
+  { name: 'simulate',  title: 'SIMULATE',  icon: 'flask-outline',         activeIcon: 'flask'         },
+  { name: 'formanalysis', title: 'FORM AI',icon: 'body-outline',          activeIcon: 'body'          },
+  { name: 'profile',   title: 'PROFILE',   icon: 'person-outline',        activeIcon: 'person'        },
 ];
 
 export default function TabsLayout() {
@@ -31,7 +34,7 @@ export default function TabsLayout() {
         return;
       }
       setAuthChecked(true);
-    })();
+    })()
   }, []);
 
   if (!authChecked) {
@@ -59,9 +62,9 @@ export default function TabsLayout() {
         tabBarActiveTintColor: COLORS.tabActive,
         tabBarInactiveTintColor: COLORS.tabInactive,
         tabBarLabelStyle: {
-          fontSize: 9,
+          fontSize: 8,
           fontWeight: '700',
-          letterSpacing: 0.8,
+          letterSpacing: 0.6,
           marginTop: 2,
         },
         tabBarHideOnKeyboard: true,
@@ -77,7 +80,7 @@ export default function TabsLayout() {
               <View style={focused ? styles.activeWrap : styles.iconWrap}>
                 <Ionicons
                   name={focused ? t.activeIcon : t.icon}
-                  size={21}
+                  size={20}
                   color={color}
                 />
               </View>
