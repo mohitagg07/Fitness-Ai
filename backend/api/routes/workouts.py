@@ -60,13 +60,34 @@ async def create_session(
     current_user: dict = Depends(get_current_user)
 ):
     sb = get_supabase()
-    data = payload.model_dump()
-    data["user_id"] = current_user["user_id"]
-    if data.get("session_date"):
+    user_id = current_user["user_id"]
+
+    # CRITICAL FIX: model_dump() returns None for optional fields that were
+    # not provided. Sending "session_date": None as JSON explicitly sets the
+    # column to NULL in Postgres — which violates the NOT NULL constraint even
+    # though DEFAULT CURRENT_DATE is defined. PostgreSQL only applies the
+    # DEFAULT when the column is *omitted* from the INSERT statement entirely,
+    # not when it is included with a null value. Strip every None-valued key
+    # so the DB default fires correctly.
+    data = {k: v for k, v in payload.model_dump().items() if v is not None}
+    data["user_id"] = user_id
+
+    # Ensure session_date is always present — fall back to today if caller
+    # didn't send it and the None-stripping above removed it.
+    if "session_date" not in data:
+        data["session_date"] = str(date.today())
+    elif not isinstance(data["session_date"], str):
         data["session_date"] = str(data["session_date"])
-    res = sb.table("workout_sessions").insert(data).execute()
+
+    try:
+        res = sb.table("workout_sessions").insert(data).execute()
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).error(f"create_session insert failed for {user_id}: {exc}")
+        raise HTTPException(500, f"Failed to create session: {exc}")
+
     if not res.data:
-        raise HTTPException(500, "Failed to create session")
+        raise HTTPException(500, "Failed to create session: no data returned")
     return res.data[0]
 
 

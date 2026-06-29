@@ -8,6 +8,7 @@ import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   ActivityIndicator, PanResponder, GestureResponderEvent,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../theme/colors';
 import { FONTS } from '../../theme/typography';
 
@@ -16,7 +17,7 @@ type ScenarioId = 'protein' | 'missWorkouts' | 'sleep' | 'calSurplus';
 
 interface Scenario {
   id: ScenarioId;
-  icon: string;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
   label: string;
 }
 
@@ -36,10 +37,10 @@ interface SimResult {
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 const SCENARIOS: Scenario[] = [
-  { id: 'protein',      icon: '🥩', label: 'Protein +30 g/day' },
-  { id: 'missWorkouts', icon: '⏭',  label: 'Miss 2 workouts/wk' },
-  { id: 'sleep',        icon: '😴', label: 'Sleep +1 hr/night' },
-  { id: 'calSurplus',   icon: '🍽', label: 'Calorie surplus +300' },
+  { id: 'protein',      icon: 'restaurant-outline', label: 'Protein +30 g/day' },
+  { id: 'missWorkouts', icon: 'play-skip-forward-outline', label: 'Miss 2 workouts/wk' },
+  { id: 'sleep',        icon: 'moon-outline',       label: 'Sleep +1 hr/night' },
+  { id: 'calSurplus',   icon: 'flame-outline',      label: 'Calorie surplus +300' },
 ];
 
 function runSimulation(id: ScenarioId, weeks: number): SimResult {
@@ -163,7 +164,12 @@ export default function SimulationScreen() {
             style={[styles.scenarioBtn, selected === s.id && styles.scenarioBtnActive]}
             onPress={() => setSelected(s.id)}
           >
-            <Text style={styles.scenarioIcon}>{s.icon}</Text>
+            <Ionicons
+              name={s.icon}
+              size={22}
+              color={selected === s.id ? COLORS.recoveryHigh : '#888'}
+              style={styles.scenarioIcon}
+            />
             <Text style={[styles.scenarioLabel, selected === s.id && { color: COLORS.recoveryHigh }]}>
               {s.label}
             </Text>
@@ -190,7 +196,8 @@ export default function SimulationScreen() {
         onPress={simulate}
         disabled={loading}
       >
-        <Text style={styles.runBtnText}>⚡  Run Simulation</Text>
+        <Ionicons name="flash" size={16} color="#0A0A0A" style={{ marginRight: 6 }} />
+        <Text style={styles.runBtnText}>Run Simulation</Text>
       </TouchableOpacity>
 
       {/* Loading */}
@@ -281,7 +288,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: COLORS.borderLight, padding: 12,
   },
   scenarioBtnActive: { borderColor: COLORS.recoveryHigh, backgroundColor: '#16EC0610' },
-  scenarioIcon:  { fontSize: 20, marginBottom: 6 },
+  scenarioIcon:  { marginBottom: 6 },
   scenarioLabel: { fontFamily: FONTS.medium, fontSize: 12, fontWeight: '500', color: COLORS.textSecondary },
 
   sliderCard: {
@@ -296,6 +303,7 @@ const styles = StyleSheet.create({
   runBtn: {
     backgroundColor: COLORS.recoveryHigh, borderRadius: 10,
     padding: 14, alignItems: 'center', marginBottom: 16,
+    flexDirection: 'row', justifyContent: 'center',
   },
   runBtnText: { fontFamily: FONTS.bold, fontSize: 13, fontWeight: '700', color: '#000', letterSpacing: 0.5 },
 

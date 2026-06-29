@@ -9,6 +9,7 @@ import {
   Animated,
 } from 'react-native';
 import Svg, { Circle, Line } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../theme/colors';
 import { FONTS } from '../../theme/typography';
 
@@ -180,7 +181,7 @@ export default function FormAnalysisScreen() {
           {/* Idle placeholder */}
           {phase === 'idle' && !analyzing && (
             <View style={styles.idlePlaceholder}>
-              <Text style={styles.idleIcon}>🏋️</Text>
+              <Ionicons name="body-outline" size={48} color="#444" style={{ marginBottom: 8 }} />
               <Text style={styles.idleText}>
                 Tap Analyze to simulate form detection
               </Text>
