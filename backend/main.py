@@ -21,6 +21,7 @@ from api.routes.mission import router as mission_router
 from api.routes.bodyweight import router as bodyweight_router
 from api.routes.notifications import router as notifications_router
 from api.routes.admin import router as admin_router
+from api.routes.strategy import router as strategy_router
 from core.config import get_settings
 from db.chroma_client import seed_guardrails
 
@@ -85,7 +86,8 @@ app.include_router(program_router,   prefix="/api/program",   tags=["Program Evo
 app.include_router(mission_router,   prefix="/api/mission",   tags=["Mission"])
 app.include_router(bodyweight_router,    prefix="/api/bodyweight",    tags=["Body Weight"])
 app.include_router(notifications_router, prefix="/api/notifications", tags=["Notifications"])
-app.include_router(admin_router,         prefix="/api/admin",         tags=["Admin"])
+app.include_router(admin_router,    prefix="/api/admin",    tags=["Admin"])
+app.include_router(strategy_router, prefix="/api/strategy", tags=["Training Strategy"])
 
 
 @app.get("/")

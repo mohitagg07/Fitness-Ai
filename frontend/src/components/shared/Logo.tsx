@@ -32,7 +32,7 @@ const SIZE_MAP: Record<LogoSize, {
   sm: { badge: 30, wordmark: 16, gap: 6  },
   md: { badge: 43, wordmark: 22, gap: 8  },
   lg: { badge: 60, wordmark: 30, gap: 10 },
-  xl: { badge: 90, wordmark: 42, gap: 14 },
+  xl: { badge: 180, wordmark: 42, gap: 20 },
 };
 
 export default function Logo({

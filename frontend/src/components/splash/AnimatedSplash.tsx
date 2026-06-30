@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { View, Image, Text, StyleSheet, Dimensions } from 'react-native';
+import { Text, StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -12,9 +12,6 @@ import Animated, {
 import { COLORS } from '../../theme/colors';
 import Logo from '../shared/Logo';
 
-const { width: SCREEN_W } = Dimensions.get('window');
-const HERO_SIZE = Math.min(SCREEN_W * 0.78, 360);
-
 interface AnimatedSplashProps {
   onFinished: () => void;
 }
@@ -22,8 +19,13 @@ interface AnimatedSplashProps {
 /**
  * Animated entrance sequence:
  *  1. Background fades in instantly (black -> avoids a white flash on slow devices)
- *  2. Hero image scales up from 0.85 -> 1 while fading in (700ms)
- *  3. Wordmark + tagline slide up and fade in, staggered after the image (400ms, +250ms delay)
+ *  2. VYRN badge (Logo's own SVG chevron mark) scales up from 0.85 -> 1 while
+ *     fading in (700ms). Previously this slot rendered a separate raster
+ *     "hero-splash.png" (a leftover neural-network/brain icon from the old
+ *     brand) instead of the real VYRN mark — removed so the badge shown here
+ *     is the exact same vector asset used everywhere else in the app, not a
+ *     second, disconnected graphic.
+ *  3. Wordmark + tagline slide up and fade in, staggered after the badge (400ms, +250ms delay)
  *  4. Brief hold, then the whole screen fades out and onFinished() fires
  *
  * Reanimated v4 note: direct shared-value assignment (`sv.value = x`) is
@@ -74,11 +76,7 @@ export default function AnimatedSplash({ onFinished }: AnimatedSplashProps) {
   return (
     <Animated.View style={[styles.container, screenStyle]}>
       <Animated.View style={heroStyle}>
-        <Image
-          source={require('../../../assets/hero-splash.png')}
-          style={styles.hero}
-          resizeMode="cover"
-        />
+        <Logo size="xl" showWordmark={false} />
       </Animated.View>
 
       <Animated.View style={[styles.textBlock, textStyle]}>
@@ -95,11 +93,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background, // #000000 — true black, per WHOOP
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  hero: {
-    width: HERO_SIZE,
-    height: HERO_SIZE,
-    borderRadius: 24,
   },
   textBlock: {
     marginTop: 28,
