@@ -1,2 +1,2 @@
-import AnalyticsScreen from '../../src/components/progress/AnalyticsScreen';
-export default AnalyticsScreen;
+import ProgressScreen from '../../src/components/progress/ProgressScreen';
+export default ProgressScreen;

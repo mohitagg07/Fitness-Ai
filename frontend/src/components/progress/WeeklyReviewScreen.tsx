@@ -105,7 +105,15 @@ export default function WeeklyReviewScreen() {
     setError(null);
     try {
       const res = await reviewApi.getWeekly(weeksAgo);
-      setReview(res.data);
+      // Backend can return { error, detail } with HTTP 200 when the AI agent
+      // fails. Detect this soft-error and surface it — if we setReview() with
+      // that object, every .map() / .length call below crashes at render time.
+      const d = res.data;
+      if (d?.error) {
+        setError(d.detail || d.error || 'Could not generate weekly review');
+      } else {
+        setReview(d);
+      }
     } catch (err: any) {
       const { message } = describeApiError(err);
       setError(message);
@@ -236,7 +244,7 @@ export default function WeeklyReviewScreen() {
       )}
 
       {/* Strength Gains */}
-      {review.strength_gains.length > 0 && (
+      {(review.strength_gains?.length ?? 0) > 0 && (
         <Section title="Strength Gains">
           {review.strength_gains.map((g, i) => (
             <View key={i} style={styles.gainRow}>
@@ -251,7 +259,7 @@ export default function WeeklyReviewScreen() {
       )}
 
       {/* Highlights */}
-      {review.highlights.length > 0 && (
+      {(review.highlights?.length ?? 0) > 0 && (
         <Section title="Highlights">
           {review.highlights.map((h, i) => (
             <BulletRow key={i} text={h} icon="checkmark-circle-outline" color={COLORS.recoveryHigh} />
@@ -260,7 +268,7 @@ export default function WeeklyReviewScreen() {
       )}
 
       {/* Needs Attention */}
-      {review.needs_attention.length > 0 && (
+      {(review.needs_attention?.length ?? 0) > 0 && (
         <Section title="Needs Attention">
           {review.needs_attention.map((n, i) => (
             <BulletRow key={i} text={n} icon="alert-circle-outline" color={COLORS.recoveryMed} />

@@ -1,4 +1,4 @@
-/ VYRN — Progress Screen v3
+// VYRN — Progress Screen v3
 // Tabs: Body | Strength | Nutrition | Recovery | Review | Motivation
 // All existing data wiring preserved. Adds:
 //   • Motivation tab: AI quote, streak achievements, PRs, milestone badges
@@ -20,9 +20,10 @@ import WeightChart from './WeightChart';
 import StrengthProgressionChart from './StrengthProgressionChart';
 import Logo from '../shared/Logo';
 import WeeklyReviewScreen from './WeeklyReviewScreen';
+import AnalyticsScreen from './AnalyticsScreen';
 import { SkeletonCard } from '../shared/LoadingOverlay';
 
-type Tab = 'body' | 'strength' | 'nutrition' | 'recovery' | 'review' | 'motivation';
+type Tab = 'body' | 'strength' | 'nutrition' | 'recovery' | 'review' | 'analytics';
 
 // ─── Motivation quotes pool ────────────────────────────────────────────────────
 const MOTIVATION_QUOTES = [
@@ -376,7 +377,7 @@ export default function ProgressScreen() {
     { key: 'nutrition',  label: 'Nutrition',  icon: 'nutrition-outline' },
     { key: 'recovery',   label: 'Recovery',   icon: 'pulse-outline' },
     { key: 'review',     label: 'Review',     icon: 'document-text-outline' },
-    { key: 'motivation', label: 'Motivation', icon: 'sparkles-outline' },
+    { key: 'analytics',  label: 'Analytics',  icon: 'analytics-outline' },
   ];
 
   const targetCal = todayData?.targets?.calories || 2000;
@@ -427,6 +428,13 @@ export default function ProgressScreen() {
       {/* Body content */}
       {activeTab === 'review' ? (
         <WeeklyReviewScreen />
+      ) : activeTab === 'analytics' ? (
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primaryGreen} />}
+        >
+          <AnalyticsScreen embedded={true} />
+        </ScrollView>
       ) : (
         <ScrollView
           contentContainerStyle={styles.scroll}
@@ -525,10 +533,7 @@ export default function ProgressScreen() {
             </>
           )}
 
-          {/* MOTIVATION */}
-          {activeTab === 'motivation' && (
-            <MotivationTab metrics={metrics} prs={prs} nutrition={nutrition} />
-          )}
+          {/* ANALYTICS — rendered above as embedded AnalyticsScreen */}
 
           <View style={{ height: 40 }} />
         </ScrollView>

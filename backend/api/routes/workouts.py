@@ -544,7 +544,19 @@ async def log_set(
     data["user_id"] = user_id
     data["set_number"] = set_number
 
-    res = sb.table("exercise_logs").insert(data).execute()
+    # ── Strip columns that aren't in the schema cache yet ──────────────────
+    # The Supabase exercise_logs table only has the base columns.
+    # Extended fields (is_dropset, is_warmup, superset_group, tempo, to_failure,
+    # set_notes, equipment_modifiers) will cause PGRST204 until the migration
+    # in MIGRATION_v2.sql is run. Strip them defensively so logging never
+    # fails on a base install, and only include them once the columns exist.
+    EXTENDED_COLUMNS = {
+        "is_dropset", "is_warmup", "superset_group",
+        "tempo", "to_failure", "set_notes", "equipment_modifiers",
+    }
+    safe_data = {k: v for k, v in data.items() if k not in EXTENDED_COLUMNS}
+
+    res = sb.table("exercise_logs").insert(safe_data).execute()
     if not res.data:
         raise HTTPException(500, "Failed to log set")
     return res.data[0]

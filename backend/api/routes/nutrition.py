@@ -403,8 +403,19 @@ _fs_token_cache: dict = {}
 
 
 async def _get_fatsecret_token() -> str:
-    client_id     = _os.getenv("FATSECRET_CLIENT_ID", "")
-    client_secret = _os.getenv("FATSECRET_CLIENT_SECRET", "")
+    # Prefer the pydantic Settings (reads .env via python-dotenv) over raw
+    # os.getenv — os.getenv returns empty when the .env file has not been
+    # sourced into the process environment, which is the common case for
+    # uvicorn run from a sub-shell or inside a venv on Windows.
+    try:
+        from core.config import get_settings as _get_settings
+        _s = _get_settings()
+        client_id     = _s.fatsecret_client_id or _os.getenv("FATSECRET_CLIENT_ID", "")
+        client_secret = _s.fatsecret_client_secret or _os.getenv("FATSECRET_CLIENT_SECRET", "")
+    except Exception:
+        client_id     = _os.getenv("FATSECRET_CLIENT_ID", "")
+        client_secret = _os.getenv("FATSECRET_CLIENT_SECRET", "")
+
     if not client_id or not client_secret:
         raise HTTPException(
             status_code=503,

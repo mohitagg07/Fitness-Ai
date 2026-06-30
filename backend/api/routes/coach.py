@@ -42,6 +42,43 @@ def _load_prior_messages(user_id: str, limit: int = 10) -> list:
         return []
 
 
+def _persist_coach_plan(user_id: str, blocks: dict) -> None:
+    """
+    Write a one-day workout_plans row so the dashboard shows the coach-
+    generated workout type instead of "NO PLAN TODAY".
+
+    The plan uses today's weekday key only — schedule = { "mon": type } etc.
+    is_active is set to True and any previous row is deactivated first so
+    the workout_agent always picks the most recent coach decision.
+    """
+    from datetime import date as _date
+    from db.supabase_client import get_supabase as _get_sb
+
+    DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    today_key = DAY_KEYS[_date.today().weekday()]
+
+    # Derive a human-readable workout type from the blocks payload.
+    # WorkoutCard has { type, intensity, duration_min, exercises: [...] }
+    workout_type: str = (
+        blocks.get("type")
+        or blocks.get("workout_type")
+        or "Training"
+    )
+
+    sb = _get_sb()
+    # Deactivate any existing active plan for this user
+    sb.table("workout_plans")       .update({"is_active": False})       .eq("user_id", user_id)       .eq("is_active", True)       .execute()
+
+    # Insert new active plan with today's session type
+    sb.table("workout_plans").insert({
+        "user_id": user_id,
+        "is_active": True,
+        "schedule": {today_key: workout_type},
+        "source": "coach",
+        "created_at": _date.today().isoformat(),
+    }).execute()
+
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat(
     payload: ChatMessage,
@@ -73,6 +110,16 @@ async def chat(
         await asyncio.to_thread(save_conversation_message, user_id, payload.session_id, "user", payload.content)
         await asyncio.to_thread(upsert_agent_state, user_id, result["updated_agent_state"])
         await asyncio.to_thread(save_conversation_message, user_id, payload.session_id, "assistant", result["reply"])
+
+        # ── Persist generated workout to workout_plans so the dashboard
+        # shows the type instead of "NO PLAN TODAY" ─────────────────────
+        # When the coach generates a WorkoutCard the reply contains a type
+        # (e.g. "Push", "Full Body"). Write that into workout_plans as the
+        # today-only active schedule so workout_agent picks it up on the
+        # next /mission/today or /dashboard/summary call.
+        blocks = result.get("workout_blocks")
+        if blocks:
+            await asyncio.to_thread(_persist_coach_plan, user_id, blocks)
     except Exception as e:
         import logging
         logging.getLogger(__name__).error(f"Failed to persist coach conversation for user {user_id}: {e}")
@@ -154,6 +201,9 @@ async def regenerate_workout(
         await asyncio.to_thread(upsert_agent_state, user_id, result["updated_agent_state"])
         await asyncio.to_thread(save_conversation_message, user_id, None, "assistant", result["reply"])
         await asyncio.to_thread(_log_timeline_event, user_id, "workout_generated", "Workout regenerated")
+        regen_blocks = result.get("workout_blocks")
+        if regen_blocks:
+            await asyncio.to_thread(_persist_coach_plan, user_id, regen_blocks)
     except Exception as e:
         import logging
         logging.getLogger(__name__).error(f"Failed to persist regenerated workout for {user_id}: {e}")

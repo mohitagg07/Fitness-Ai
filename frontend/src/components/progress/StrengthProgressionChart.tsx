@@ -38,7 +38,14 @@ export default function StrengthProgressionChart() {
     setLoading(true);
     try {
       const res = await workoutApi.getStrengthProgression(ex, 8);
-      setData(res.data || []);
+      // Backend returns { exercise, data: [...] } — res.data is the Axios
+      // response body (whole object). The actual array is at res.data.data.
+      // Calling .map() on the wrapper object crashes with "not a function".
+      const payload = res.data;
+      const points = Array.isArray(payload) ? payload
+        : Array.isArray(payload?.data) ? payload.data
+        : [];
+      setData(points);
     } catch {
       setData([]);
     } finally {

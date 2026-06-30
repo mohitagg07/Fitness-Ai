@@ -22,6 +22,10 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("SUPABASE_SERVICE_KEY", "SUPABASE_KEY"),
     )
 
+    # FatSecret (food search + macro lookup)
+    fatsecret_client_id: str = ""
+    fatsecret_client_secret: str = ""
+
     # ChromaDB
     chroma_persist_dir: str = "./chroma_store"
     chroma_collection_name: str = "vyrn_guardrails"
