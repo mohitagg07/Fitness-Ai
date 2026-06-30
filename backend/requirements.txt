@@ -36,3 +36,12 @@ chromadb
 
 # HTTP
 httpx
+
+# Background job scheduling (nightly automation: pattern detection,
+# weekly review caching, memory cleanup, morning brief prep)
+apscheduler>=3.10,<4
+
+# Testing
+pytest>=8.0
+pytest-asyncio>=0.24
+httpx[testing]

@@ -6,14 +6,24 @@ import logging
 from datetime import datetime, timezone
 from supabase import create_client, Client
 from core.config import get_settings
-from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
-@lru_cache()
 def get_supabase() -> Client:
+    """
+    Returns a fresh Supabase client on every call.
+
+    Previously used @lru_cache which returned the same httpx.Client instance
+    across all asyncio.to_thread() workers. httpx's HTTP/2 multiplexer tracks
+    stream state internally; when two threads share one client and send
+    requests concurrently the state machine sees SEND_HEADERS in state 5
+    (stream already open) and raises LocalProtocolError. The fix is simple:
+    create a new client per call. The Supabase SDK is lightweight to construct
+    and each client gets its own httpx connection pool, so threads never share
+    stream state.
+    """
     if not settings.supabase_url or not settings.supabase_service_key:
         raise RuntimeError(
             "SUPABASE_URL and SUPABASE_SERVICE_KEY must be set in .env"

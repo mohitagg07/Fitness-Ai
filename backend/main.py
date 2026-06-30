@@ -18,6 +18,9 @@ from api.routes.review import router as review_router
 from api.routes.decisions import router as decisions_router
 from api.routes.program import router as program_router
 from api.routes.mission import router as mission_router
+from api.routes.bodyweight import router as bodyweight_router
+from api.routes.notifications import router as notifications_router
+from api.routes.admin import router as admin_router
 from core.config import get_settings
 from db.chroma_client import seed_guardrails
 
@@ -31,7 +34,25 @@ async def lifespan(app: FastAPI):
         seed_guardrails()
     except Exception as e:
         print(f"ChromaDB seed warning: {e}")
+
+    # Start the background job scheduler (nightly pattern detection, weekly
+    # review generation, memory cleanup, morning brief prep). Safe no-op if
+    # APScheduler isn't installed or scheduling is disabled via env var —
+    # the app still serves requests normally either way.
+    scheduler = None
+    try:
+        from services.scheduler import start_scheduler
+        scheduler = start_scheduler()
+    except Exception as e:
+        print(f"Scheduler did not start: {e}")
+
     yield
+
+    if scheduler is not None:
+        try:
+            scheduler.shutdown(wait=False)
+        except Exception:
+            pass
 
 
 app = FastAPI(
@@ -62,6 +83,9 @@ app.include_router(review_router,    prefix="/api/review",    tags=["Review"])
 app.include_router(decisions_router, prefix="/api/decisions", tags=["Decision History"])
 app.include_router(program_router,   prefix="/api/program",   tags=["Program Evolution"])
 app.include_router(mission_router,   prefix="/api/mission",   tags=["Mission"])
+app.include_router(bodyweight_router,    prefix="/api/bodyweight",    tags=["Body Weight"])
+app.include_router(notifications_router, prefix="/api/notifications", tags=["Notifications"])
+app.include_router(admin_router,         prefix="/api/admin",         tags=["Admin"])
 
 
 @app.get("/")

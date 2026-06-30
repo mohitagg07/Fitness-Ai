@@ -41,8 +41,14 @@ class SessionCreate(BaseModel):
 
 class SetLogRequest(BaseModel):
     """
-    FIX: set_number removed as required field — auto-computed server-side.
-    Frontend only needs exercise_name + weight_kg + reps.
+    Extended for full Hevy/Strong-style logging:
+      - is_warmup / is_dropset / to_failure: checkboxes the UI can toggle per set
+      - superset_group: a shared string ID — sets sharing the same group are
+        rendered/grouped as a superset in the workout history view
+      - tempo: free-text like "3-1-1-0" (eccentric-pause-concentric-pause)
+      - set_notes: per-set personal note, separate from the session-level note
+    All new fields are optional so existing callers logging a plain set
+    keep working unchanged.
     """
     exercise_name: str = Field(min_length=1)
     weight_kg: float = Field(gt=0)
@@ -50,6 +56,18 @@ class SetLogRequest(BaseModel):
     rpe: Optional[float] = Field(None, ge=1, le=10)
     equipment_modifiers: list = Field(default_factory=list)
     notes: Optional[str] = Field(None, max_length=300)
+    is_warmup: bool = False
+    is_dropset: bool = False
+    superset_group: Optional[str] = Field(None, max_length=50)
+    tempo: Optional[str] = Field(None, max_length=20)
+    to_failure: bool = False
+    set_notes: Optional[str] = Field(None, max_length=300)
+
+
+class SessionCompleteRequest(BaseModel):
+    """Optional finish-summary payload — personal notes entered at the end of a session."""
+    cns_fatigue_after: Optional[int] = Field(None, ge=1, le=10)
+    session_notes: Optional[str] = Field(None, max_length=1000)
 
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
@@ -91,6 +109,118 @@ async def create_session(
     return res.data[0]
 
 
+@router.get("/history")
+async def get_workout_history(
+    limit: int = 20,
+    offset: int = 0,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Workout History list — completed sessions only, newest first, each with
+    a lightweight summary (exercise count, set count, total volume, PR
+    count) computed from the same exercise_logs rows the session-complete
+    summary already used, so the numbers shown here can never drift from
+    what was shown right after finishing that session.
+    """
+    sb = get_supabase()
+    user_id = current_user["user_id"]
+
+    sessions_res = (
+        sb.table("workout_sessions")
+        .select("id, session_date, day_label, workout_type, total_volume_kg, duration_minutes, calories_burned, session_notes, completed")
+        .eq("user_id", user_id)
+        .eq("completed", True)
+        .order("session_date", desc=True)
+        .range(offset, offset + limit - 1)
+        .execute()
+    )
+    sessions = sessions_res.data or []
+
+    if not sessions:
+        return {
+            "has_data": False,
+            "sessions": [],
+            "empty_state": "No completed workouts yet. Finish your first session to start building history.",
+        }
+
+    session_ids = [s["id"] for s in sessions]
+    logs_res = (
+        sb.table("exercise_logs")
+        .select("session_id, exercise_name, weight_kg, reps, is_warmup")
+        .in_("session_id", session_ids)
+        .execute()
+    )
+    logs = logs_res.data or []
+
+    logs_by_session: dict[str, list[dict]] = {}
+    for l in logs:
+        logs_by_session.setdefault(l["session_id"], []).append(l)
+
+    enriched = []
+    for s in sessions:
+        session_logs = logs_by_session.get(s["id"], [])
+        working = [l for l in session_logs if not l.get("is_warmup")]
+        exercise_names = sorted(set(l["exercise_name"] for l in session_logs if l.get("exercise_name")))
+        enriched.append({
+            **s,
+            "exercise_count": len(exercise_names),
+            "exercises": exercise_names,
+            "set_count": len(session_logs),
+            "working_set_count": len(working),
+        })
+
+    return {"has_data": True, "sessions": enriched, "count": len(enriched)}
+
+
+@router.get("/sessions/{session_id}/detail")
+async def get_session_detail(
+    session_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Full detail for one session — every set, grouped by exercise and by
+    superset_group, for a Workout History detail screen. Returns sets in
+    the order they were logged so warm-up sets correctly appear before
+    working sets for the same exercise.
+    """
+    sb = get_supabase()
+    user_id = current_user["user_id"]
+
+    session_res = (
+        sb.table("workout_sessions")
+        .select("*")
+        .eq("id", session_id)
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
+    )
+    if not session_res.data:
+        raise HTTPException(404, "Session not found")
+    session = session_res.data[0]
+
+    logs_res = (
+        sb.table("exercise_logs")
+        .select("*")
+        .eq("session_id", session_id)
+        .eq("user_id", user_id)
+        .order("created_at")
+        .execute()
+    )
+    logs = logs_res.data or []
+
+    # Group by exercise, preserving log order within each group
+    by_exercise: dict[str, list[dict]] = {}
+    for l in logs:
+        by_exercise.setdefault(l["exercise_name"], []).append(l)
+
+    exercises = [
+        {"exercise_name": name, "sets": sets}
+        for name, sets in by_exercise.items()
+    ]
+
+    return {"session": session, "exercises": exercises}
+
+
 @router.get("/sessions")
 async def list_sessions(
     limit: int = 10,
@@ -112,6 +242,7 @@ async def list_sessions(
 async def complete_session(
     session_id: str,
     cns_fatigue_after: Optional[int] = None,
+    session_notes: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
     sb = get_supabase()
@@ -126,7 +257,7 @@ async def complete_session(
     # exercise_logs that were actually inserted during the session.
     logs_res = (
         sb.table("exercise_logs")
-        .select("exercise_name, weight_kg, reps, rpe, created_at")
+        .select("exercise_name, weight_kg, reps, rpe, created_at, is_warmup")
         .eq("session_id", session_id)
         .eq("user_id", user_id)
         .order("created_at", desc=False)
@@ -134,7 +265,13 @@ async def complete_session(
     )
     logs = logs_res.data or []
 
-    total_volume_kg = round(sum((l.get("weight_kg") or 0) * (l.get("reps") or 0) for l in logs), 1)
+    # Warm-up sets are excluded from total volume and PR eligibility — they
+    # inflate "volume lifted" with non-working weight and would let a heavy
+    # warm-up single falsely register as a PR. They're still counted in
+    # sets_logged below so the session summary reflects the full session.
+    working_logs = [l for l in logs if not l.get("is_warmup")]
+
+    total_volume_kg = round(sum((l.get("weight_kg") or 0) * (l.get("reps") or 0) for l in working_logs), 1)
 
     duration_minutes = None
     if len(logs) >= 2:
@@ -155,6 +292,8 @@ async def complete_session(
     update_data = {"completed": True}
     if cns_fatigue_after is not None:
         update_data["cns_fatigue_after"] = cns_fatigue_after
+    if session_notes is not None:
+        update_data["session_notes"] = session_notes
     if total_volume_kg:
         update_data["total_volume_kg"] = total_volume_kg
     if duration_minutes:
@@ -177,9 +316,9 @@ async def complete_session(
     # so "Top PR: Bench +2.5kg" on the summary card reflects a real,
     # persisted comparison rather than a guess.
     new_prs: list[dict] = []
-    if logs:
+    if working_logs:
         best_this_session: dict[str, dict] = {}
-        for l in logs:
+        for l in working_logs:
             name = l.get("exercise_name")
             w = l.get("weight_kg") or 0
             if not name:

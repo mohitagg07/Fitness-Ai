@@ -226,10 +226,70 @@ export const memoryApi = {
 };
 
 // Weekly AI Review — GET /api/review/weekly
+// Monthly AI Review — GET /api/review/monthly (progress + strengths +
+// weaknesses + an actual rewritten program, per the roadmap)
 export const reviewApi = {
   getWeekly: (weeksAgo = 0) =>
     api.get('/review/weekly', { params: { weeks_ago: weeksAgo } }),
+  getMonthly: (monthsAgo = 0, triggerRewrite = true) =>
+    api.get('/review/monthly', { params: { months_ago: monthsAgo, trigger_rewrite: triggerRewrite } }),
 };
 
 // Pattern insights — already embedded in /api/mission/today as pattern_insights[]
 // Proactive brief — already embedded in /api/mission/today as proactive_brief{}
+
+// Decision History — GET /api/decisions (real persisted ai_decisions rows),
+// POST /api/decisions/save (idempotent per-day), accuracy stat, outcome marking.
+export const decisionsApi = {
+  list: (limit = 20) => api.get('/decisions/', { params: { limit } }),
+  saveToday: () => api.post('/decisions/save'),
+  setOutcome: (decisionId: string, outcome: 'correct' | 'incorrect' | 'partial', note?: string) =>
+    api.post(`/decisions/${decisionId}/outcome`, { outcome, outcome_note: note }),
+  getAccuracy: () => api.get('/decisions/accuracy'),
+};
+
+// Analytics — real chart data computed server-side from exercise_logs /
+// workout_sessions / personal_records. No client-side mock generation.
+export const analyticsApi = {
+  getHeatmap: (weeks = 8) => api.get('/progress/heatmap', { params: { weeks } }),
+  getMuscleBalance: (weeks = 4) => api.get('/progress/muscle-balance', { params: { weeks } }),
+  getPRTimeline: (limit = 20) => api.get('/progress/pr-timeline', { params: { limit } }),
+  getWeeklyStats: () => api.get('/progress/weekly-stats'),
+};
+
+// Body Weight — dedicated weight-only read/write over progress_metrics.
+export const bodyWeightApi = {
+  log: (weight_kg: number, recorded_date?: string, notes?: string) =>
+    api.post('/bodyweight/log', { weight_kg, recorded_date, notes }),
+  getHistory: (days = 90) => api.get('/bodyweight/history', { params: { days } }),
+  deleteEntry: (entryId: string) => api.delete(`/bodyweight/${entryId}`),
+};
+
+// Notifications — intelligent, data-grounded notification center.
+export const notificationsApi = {
+  list: (limit = 20) => api.get('/notifications/', { params: { limit } }),
+  generate: () => api.post('/notifications/generate'),
+  markRead: (id: string) => api.patch(`/notifications/${id}/read`),
+  markAllRead: () => api.post('/notifications/read-all'),
+};
+
+// Workout History — Hevy/Strong-style session history + full set detail.
+export const workoutHistoryApi = {
+  list: (limit = 20, offset = 0) =>
+    api.get('/workouts/history', { params: { limit, offset } }),
+  getDetail: (sessionId: string) =>
+    api.get(`/workouts/sessions/${sessionId}/detail`),
+};
+
+// Program Evolution — version history + on-demand adaptive rewrite.
+export const programApi = {
+  getVersions: (limit = 10) => api.get('/program/versions', { params: { limit } }),
+  getLatest: () => api.get('/program/latest'),
+  triggerRewrite: () => api.post('/program/rewrite'),
+};
+
+// Admin — manual trigger for the nightly background job suite (pattern
+// detection, memory cleanup, weekly review, morning brief, notifications).
+export const adminApi = {
+  runJobsNow: () => api.post('/admin/run-jobs-now'),
+};

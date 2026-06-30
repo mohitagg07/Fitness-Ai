@@ -51,6 +51,87 @@ class WorkoutGraphState(TypedDict):
     guardrails_triggered: List[str]
     structured_decision: Optional[dict]
 
+    # Live nutrition + body-weight context, fetched once per turn so the
+    # coach can reference today's actual intake and the real weight trend
+    # instead of only the static onboarding weight_kg field.
+    nutrition_today: Optional[dict]
+    weight_trend: Optional[dict]
+
+
+def _load_nutrition_today(user_id: str) -> dict:
+    """
+    Today's logged calories/protein/carbs/fat/water vs target, so the coach
+    can say "you're 40g short on protein" instead of generic advice. Mirrors
+    the same query api/routes/nutrition.py:get_today_nutrition uses, kept
+    intentionally separate (not imported) to avoid a route->agent import
+    cycle; both read the same nutrition_logs rows so they can never disagree.
+    """
+    from datetime import date as _date
+    from db.supabase_client import get_supabase
+    sb = get_supabase()
+    today = str(_date.today())
+    try:
+        res = (
+            sb.table("nutrition_logs")
+            .select("calories, protein_g, carbs_g, fat_g, water_ml")
+            .eq("user_id", user_id)
+            .eq("log_date", today)
+            .execute()
+        )
+        logs = res.data or []
+    except Exception:
+        logs = []
+    return {
+        "calories":  sum(l.get("calories")  or 0 for l in logs),
+        "protein_g": round(sum(l.get("protein_g") or 0 for l in logs), 1),
+        "carbs_g":   round(sum(l.get("carbs_g")   or 0 for l in logs), 1),
+        "fat_g":     round(sum(l.get("fat_g")     or 0 for l in logs), 1),
+        "water_ml":  sum(l.get("water_ml")  or 0 for l in logs),
+        "logged":    len(logs) > 0,
+    }
+
+
+def _load_weight_trend(user_id: str, lookback_days: int = 30) -> dict:
+    """
+    Real body-weight trend from progress_metrics — latest entry, the delta
+    vs the oldest entry in the lookback window, and the direction. Returns
+    has_data=False if the user has never logged a weigh-in, so the coach
+    can say "no weight logged yet" instead of fabricating a number.
+    """
+    from datetime import date as _date, timedelta as _timedelta
+    from db.supabase_client import get_supabase
+    sb = get_supabase()
+    cutoff = str(_date.today() - _timedelta(days=lookback_days))
+    try:
+        res = (
+            sb.table("progress_metrics")
+            .select("weight_kg, recorded_date")
+            .eq("user_id", user_id)
+            .not_.is_("weight_kg", "null")
+            .gte("recorded_date", cutoff)
+            .order("recorded_date")
+            .execute()
+        )
+        rows = [r for r in (res.data or []) if r.get("weight_kg")]
+    except Exception:
+        rows = []
+
+    if not rows:
+        return {"has_data": False}
+
+    latest = rows[-1]["weight_kg"]
+    earliest = rows[0]["weight_kg"]
+    delta = round(latest - earliest, 1)
+    return {
+        "has_data": True,
+        "latest_kg": latest,
+        "latest_date": rows[-1]["recorded_date"],
+        "delta_kg": delta,
+        "direction": "up" if delta > 0.1 else "down" if delta < -0.1 else "stable",
+        "entries_count": len(rows),
+        "window_days": lookback_days,
+    }
+
 
 def get_llm():
     return ChatGroq(
@@ -205,6 +286,33 @@ def recall_memory_node(state: WorkoutGraphState) -> WorkoutGraphState:
     return state
 
 
+# ─── Node 3b: Load Live Nutrition + Weight Context ───────────────────────────
+def load_nutrition_and_weight_node(state: WorkoutGraphState) -> WorkoutGraphState:
+    """
+    Fetches today's actual nutrition log and the user's real weight trend so
+    the coach prompt can ground statements like "you're short on protein" or
+    "you've lost 1.2kg this month" in real data rather than the static
+    onboarding profile. Skipped on the emergency path since that reply is a
+    fixed safety template and doesn't need this context.
+    """
+    if state.get("emergency"):
+        state["nutrition_today"] = None
+        state["weight_trend"] = None
+        return state
+    user_id = state["user_id"]
+    try:
+        state["nutrition_today"] = _load_nutrition_today(user_id)
+    except Exception as e:
+        logger.debug(f"load_nutrition_and_weight_node: nutrition fetch failed: {e}")
+        state["nutrition_today"] = None
+    try:
+        state["weight_trend"] = _load_weight_trend(user_id)
+    except Exception as e:
+        logger.debug(f"load_nutrition_and_weight_node: weight fetch failed: {e}")
+        state["weight_trend"] = None
+    return state
+
+
 # ─── Node 4: Build Workout ────────────────────────────────────────────────────
 def build_workout_node(state: WorkoutGraphState) -> WorkoutGraphState:
     if state.get("emergency"):
@@ -217,6 +325,7 @@ def build_workout_node(state: WorkoutGraphState) -> WorkoutGraphState:
             "• ELEVATION — raise above heart level\n\n"
             "See a physio before your next session. Your health > any PR."
         )
+
         state["workout_blocks"] = None
         state["structured_decision"] = {
             "response_type": "emergency",
@@ -248,6 +357,33 @@ def build_workout_node(state: WorkoutGraphState) -> WorkoutGraphState:
         if memories else "Nothing specific on file yet."
     )
 
+    # ── Live nutrition + body-weight context (NOT the static onboarding
+    # values above) — lets the coach say "you're 40g short on protein
+    # today" or "you're down 1.2kg this month" grounded in real logs.
+    nutrition_today = state.get("nutrition_today")
+    if nutrition_today and nutrition_today.get("logged"):
+        nutrition_text = (
+            f"Logged today: {round(nutrition_today['calories'])} kcal, "
+            f"{nutrition_today['protein_g']}g protein, "
+            f"{nutrition_today['carbs_g']}g carbs, {nutrition_today['fat_g']}g fat, "
+            f"{nutrition_today['water_ml']}ml water."
+        )
+    elif nutrition_today is not None:
+        nutrition_text = "No meals logged yet today."
+    else:
+        nutrition_text = "Nutrition data unavailable this turn."
+
+    weight_trend = state.get("weight_trend")
+    if weight_trend and weight_trend.get("has_data"):
+        direction_word = {"up": "up", "down": "down", "stable": "stable"}[weight_trend["direction"]]
+        weight_text = (
+            f"Latest logged weight: {weight_trend['latest_kg']}kg on {weight_trend['latest_date']}. "
+            f"Trend over last {weight_trend['window_days']} days: {direction_word} "
+            f"{abs(weight_trend['delta_kg'])}kg ({weight_trend['entries_count']} weigh-ins logged)."
+        )
+    else:
+        weight_text = "No body-weight log entries yet — encourage a weigh-in if relevant, never invent a number."
+
     system_prompt = f"""You are VYRN — an adaptive performance AI coach. You observe, remember, and decide proactively. You know this athlete completely.
 
 CRITICAL RULES — READ FIRST:
@@ -257,15 +393,22 @@ CRITICAL RULES — READ FIRST:
 4. Speak in first-person coach voice: "Your recovery is low today" not "Recovery: low".
 5. Be proactive — surface insights without being asked. If protein is low, mention it. If fatigue is high, say so.
 6. When planning a workout, provide specific exercises, not vague advice.
+7. NEVER invent a calorie/protein/water number or a body-weight figure. Use ONLY the TODAY'S NUTRITION and BODY WEIGHT sections below — if they say no data, say so honestly instead of guessing.
 
 ATHLETE PROFILE (from onboarding — you already know this):
 - Name: {(profile.get('full_name') or 'Athlete').split()[0]}
 - Goal: {profile.get('goal', 'general fitness')}
 - Experience: {profile.get('experience_level', 'intermediate')}
-- Weight: {profile.get('weight_kg', '?')} kg
+- Onboarding weight: {profile.get('weight_kg', '?')} kg (may be stale — prefer BODY WEIGHT section below for current trend)
 - Phase: {profile.get('current_phase', 'general')}
 - Equipment: {', '.join(profile.get('equipment') or ['full gym'])}
 - Injuries: {json.dumps(profile.get('injuries') or [])}
+
+TODAY'S NUTRITION (real logged data — ground any food/protein/calorie statement in this):
+{nutrition_text}
+
+BODY WEIGHT (real logged data — ground any weight-trend statement in this):
+{weight_text}
 
 CURRENT STATUS:
 - CNS Fatigue: {fatigue}/10 (Recovery ≈ {recovery_pct}%)
@@ -398,12 +541,14 @@ def build_coach_graph():
     graph.add_node("evaluate_fatigue", evaluate_fatigue_node)
     graph.add_node("retrieve_guardrails", retrieve_guardrails_node)
     graph.add_node("recall_memory", recall_memory_node)
+    graph.add_node("load_nutrition_and_weight", load_nutrition_and_weight_node)
     graph.add_node("build_workout", build_workout_node)
     graph.set_entry_point("parse_input")
     graph.add_edge("parse_input", "evaluate_fatigue")
     graph.add_edge("evaluate_fatigue", "retrieve_guardrails")
     graph.add_edge("retrieve_guardrails", "recall_memory")
-    graph.add_edge("recall_memory", "build_workout")
+    graph.add_edge("recall_memory", "load_nutrition_and_weight")
+    graph.add_edge("load_nutrition_and_weight", "build_workout")
     graph.add_edge("build_workout", END)
     return graph.compile()
 
@@ -433,6 +578,8 @@ async def run_coach(
         "cns_fatigue_score": agent_state.get("cns_fatigue_score", 0),
         "guardrails_triggered": [],
         "structured_decision": None,
+        "nutrition_today": None,
+        "weight_trend": None,
     }
 
     result = await coach_graph.ainvoke(initial_state)
