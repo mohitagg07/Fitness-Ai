@@ -16,6 +16,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { workoutApi, coachApi } from '../../utils/api';
+import { confirmAsync } from '../../utils/confirm';
 import { useStore } from '../../store';
 import { COLORS, alpha } from '../../theme/colors';
 import { FONTS, EYEBROW, BODY } from '../../theme/typography';
@@ -156,6 +157,8 @@ export default function WorkoutHUD() {
   const [, forceTick]                   = useState(0);
   const [isLogging, setIsLogging]       = useState(false);
   const [isFinishing, setIsFinishing]   = useState(false);
+  const [streakVisible, setStreakVisible] = useState(false);
+  const [streakData, setStreakData]     = useState<{ workout: number; protein: number } | null>(null);
 
   // Tick for elapsed time
   useEffect(() => {

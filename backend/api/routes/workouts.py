@@ -389,14 +389,23 @@ async def complete_session(
     # FIX: Update agent_state counters that were defined but never incremented.
     # streak, total_workouts, last_session_date, weekly_session_count,
     # and consecutive_high_rpe_days were always 0 for every user.
+    workout_streak = None
     try:
-        await asyncio.to_thread(_update_agent_state_on_completion, user_id, cns_fatigue_after)
+        workout_streak = await asyncio.to_thread(_update_agent_state_on_completion, user_id, cns_fatigue_after)
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(
             f"Could not update agent_state after session complete for {user_id}: {e}"
         )
         # Don't fail the request — session is already marked complete.
+
+    protein_streak = None
+    try:
+        agent_state_res = sb.table("agent_states").select("protein_streak").eq("user_id", user_id).execute()
+        if agent_state_res.data:
+            protein_streak = agent_state_res.data[0].get("protein_streak")
+    except Exception:
+        pass
 
     # ── Log this completion to the AI timeline so GET /timeline can show
     # it without re-deriving it from workout_sessions rows later. ────────
@@ -430,19 +439,51 @@ async def complete_session(
     elif recovery_prediction == "Low":
         coach_message += " Prioritize sleep tonight — recovery's tight."
 
+    # Best set of the session (heaviest working weight, ties broken by reps) —
+    # the frontend's WorkoutSummaryCard shows this as a fallback detail.
+    best_set = None
+    if working_logs:
+        best_log = max(working_logs, key=lambda l: ((l.get("weight_kg") or 0), (l.get("reps") or 0)))
+        best_set = {
+            "exercise": best_log.get("exercise_name"),
+            "weight_kg": best_log.get("weight_kg"),
+            "reps": best_log.get("reps"),
+            "rpe": best_log.get("rpe"),
+        }
+
+    exercise_names = list(dict.fromkeys(l.get("exercise_name") for l in logs if l.get("exercise_name")))
+
+    # FIX: the summary card reads these fields flat off the response body
+    # (data.total_volume_kg, data.exercise_count, etc — see
+    # WorkoutSummaryCard.tsx's SummaryData interface), but this endpoint
+    # was nesting everything under a "summary" key that nothing on the
+    # frontend ever unwrapped. Every number on the "Workout Complete" card
+    # (duration, exercises, volume, PRs) was silently undefined/NaN as a
+    # result. Returned flat now, with the old nested "summary" duplicate
+    # kept alongside for any other caller that may depend on it.
+    summary_flat = {
+        "id": session.get("id"),
+        "total_volume_kg": total_volume_kg,
+        "session_minutes": duration_minutes,
+        "duration_minutes": duration_minutes,
+        "calories_burned": calories_burned,
+        "calories_is_estimate": True,
+        "sets_logged": len(logs),
+        "exercises": exercise_names,
+        "exercise_count": len(exercise_names),
+        "best_set": best_set,
+        "new_prs": new_prs,
+        "recovery_prediction": recovery_prediction,
+        "recovery_pct": recovery_pct,
+        "coach_message": coach_message,
+        "workout_streak": workout_streak,
+        "protein_streak": protein_streak,
+    }
+
     return {
         **session,
-        "summary": {
-            "total_volume_kg": total_volume_kg,
-            "duration_minutes": duration_minutes,
-            "calories_burned": calories_burned,
-            "calories_is_estimate": True,
-            "new_prs": new_prs,
-            "recovery_prediction": recovery_prediction,
-            "recovery_pct": recovery_pct,
-            "coach_message": coach_message,
-            "sets_logged": len(logs),
-        },
+        **summary_flat,
+        "summary": summary_flat,
     }
 
 
@@ -548,6 +589,7 @@ def _update_agent_state_on_completion(user_id: str, cns_fatigue_after: Optional[
         updated_state["cns_fatigue_score"] = cns_fatigue_after
 
     upsert_agent_state(user_id, updated_state)
+    return streak
 
 
 @router.post("/sessions/{session_id}/logs", status_code=201)
