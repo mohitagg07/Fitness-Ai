@@ -703,7 +703,7 @@ const S = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
 
   header: {
-    paddingHorizontal: 20, paddingTop: 60, paddingBottom: 14,
+    paddingHorizontal: 20, paddingTop: 56, paddingBottom: 12,
     borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 4,
   },
   headerTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

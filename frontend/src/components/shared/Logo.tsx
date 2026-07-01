@@ -24,15 +24,19 @@ import { FONTS } from '../../theme/typography';
 
 type LogoSize = 'sm' | 'md' | 'lg' | 'xl';
 
+// Sizes bumped up from the original pass (badge was reading as an
+// afterthought next to the wordmark) and gaps tightened so the badge
+// and wordmark read as one lockup instead of two separate elements —
+// the difference between a "logo" and "an icon next to some text".
 const SIZE_MAP: Record<LogoSize, {
   badge: number;
   wordmark: number;
   gap: number;
 }> = {
-  sm: { badge: 30, wordmark: 16, gap: 6  },
-  md: { badge: 43, wordmark: 22, gap: 8  },
-  lg: { badge: 60, wordmark: 30, gap: 10 },
-  xl: { badge: 180, wordmark: 42, gap: 20 },
+  sm: { badge: 34, wordmark: 18, gap: 5  },
+  md: { badge: 50, wordmark: 24, gap: 6  },
+  lg: { badge: 68, wordmark: 32, gap: 8  },
+  xl: { badge: 188, wordmark: 44, gap: 16 },
 };
 
 export default function Logo({
@@ -142,7 +146,7 @@ function GradientY({ fontSize }: { fontSize: number }) {
         textAnchor="middle"
         fontSize={fontSize}
         fontWeight="800"
-        letterSpacing={0.5}
+        letterSpacing={-0.3}
         fill="url(#vyrnYGrad)"
         fontFamily={FONTS.logo as string}
       >
@@ -163,6 +167,8 @@ const styles = StyleSheet.create({
     color:         COLORS.text,
     fontFamily:    FONTS.logo as string,
     fontWeight:    '800',
-    letterSpacing: 0.5,
+    // Tight (not spaced) lettering — spaced-out caps was reading as a
+    // placeholder wordmark rather than a considered brand mark.
+    letterSpacing: -0.3,
   },
 });

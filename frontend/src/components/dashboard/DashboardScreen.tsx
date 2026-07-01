@@ -236,8 +236,8 @@ export default function DashboardScreen() {
           home screen. ──────────────────────────────────────────────── */}
       <View style={styles.ringsRow}>
         <ScoreRing
-          size={150}
-          stroke={14}
+          size={132}
+          stroke={12}
           value={recoveryScore}
           max={10}
           color={recoveryZoneColor(recoveryScore)}
@@ -245,8 +245,8 @@ export default function DashboardScreen() {
           sublabel={summary?.recovery?.action?.replace(/_/g, ' ').toUpperCase() || '—'}
         />
         <ScoreRing
-          size={150}
-          stroke={14}
+          size={132}
+          stroke={12}
           value={cnsFatigue}
           max={10}
           color={fatigueZoneColor(cnsFatigue)}
@@ -313,15 +313,15 @@ export default function DashboardScreen() {
       {/* ── 5. What's my mission? Daily Mission ─────────────────────────── */}
       <View style={styles.heroCard}>
         <View style={styles.feedLabelRow}>
-          <Ionicons name="flash" size={12} color={COLORS.recoveryHigh} />
-          <Text style={[styles.eyebrow, { color: COLORS.recoveryHigh }]}>TODAY'S MISSION</Text>
+          <Ionicons name="flash" size={12} color={COLORS.recoveryBlue} />
+          <Text style={[styles.eyebrow, { color: COLORS.recoveryBlue }]}>TODAY'S MISSION</Text>
         </View>
         <Text style={styles.feedText}>
           {summary?.mission_text || summary?.next_task || 'Open the Coach to get your first recommendation.'}
         </Text>
         <TouchableOpacity style={styles.feedBtn} onPress={() => router.push('/(tabs)/coach')}>
           <Text style={styles.feedBtnText}>Open Coach</Text>
-          <Ionicons name="arrow-forward" size={14} color={COLORS.recoveryHigh} />
+          <Ionicons name="arrow-forward" size={14} color={COLORS.recoveryBlue} />
         </TouchableOpacity>
       </View>
 
@@ -337,7 +337,7 @@ export default function DashboardScreen() {
             router.push('/(tabs)/workout');
           }}
         >
-          <Ionicons name="play-circle" size={22} color="#000" />
+          <Ionicons name="play-circle" size={19} color="#000" />
           <Text style={styles.startWorkoutText}>Start {summary.workout_today.type} Workout</Text>
         </TouchableOpacity>
       )}
@@ -410,7 +410,7 @@ export default function DashboardScreen() {
           <Text style={styles.aiInsightsText}>{summary.motivation_message}</Text>
           <TouchableOpacity style={styles.feedBtn} onPress={() => router.push('/(tabs)/coach')}>
             <Text style={styles.feedBtnText}>Ask Coach</Text>
-            <Ionicons name="arrow-forward" size={14} color={COLORS.recoveryHigh} />
+            <Ionicons name="arrow-forward" size={14} color={COLORS.strainGlow} />
           </TouchableOpacity>
         </View>
       )}
@@ -483,25 +483,27 @@ function ScoreRing({
   const dashOffset = circumference * (1 - pct);
 
   return (
-    <View style={[styles.ringWrap, { width: size, height: size }]}>
-      <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
-        <Circle
-          cx={size / 2} cy={size / 2} r={radius}
-          stroke={COLORS.cardElevated} strokeWidth={stroke} fill="none"
-        />
-        <Circle
-          cx={size / 2} cy={size / 2} r={radius}
-          stroke={color} strokeWidth={stroke} fill="none"
-          strokeDasharray={`${circumference} ${circumference}`}
-          strokeDashoffset={dashOffset}
-          strokeLinecap="round"
-          rotation={-90}
-          origin={`${size / 2}, ${size / 2}`}
-        />
-      </Svg>
-      <View style={styles.ringCenter}>
-        <Text style={[styles.ringValue, { color }]}>{Math.round((displayed / max) * 100)}</Text>
-        <Text style={styles.ringPercentSign}>%</Text>
+    <View style={[styles.ringWrap, { width: size }]}>
+      <View style={{ width: size, height: size }}>
+        <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
+          <Circle
+            cx={size / 2} cy={size / 2} r={radius}
+            stroke={COLORS.cardElevated} strokeWidth={stroke} fill="none"
+          />
+          <Circle
+            cx={size / 2} cy={size / 2} r={radius}
+            stroke={color} strokeWidth={stroke} fill="none"
+            strokeDasharray={`${circumference} ${circumference}`}
+            strokeDashoffset={dashOffset}
+            strokeLinecap="round"
+            rotation={-90}
+            origin={`${size / 2}, ${size / 2}`}
+          />
+        </Svg>
+        <View style={styles.ringCenter}>
+          <Text style={[styles.ringValue, { color }]}>{Math.round((displayed / max) * 100)}</Text>
+          <Text style={styles.ringPercentSign}>%</Text>
+        </View>
       </View>
       <Text style={styles.ringLabel}>{label}</Text>
       <Text style={[styles.ringSublabel, { color }]}>{sublabel}</Text>
@@ -575,16 +577,19 @@ const styles = StyleSheet.create({
   },
   staleBannerText: { ...BODY, color: COLORS.recoveryMed, fontSize: 11, flex: 1 },
   header: {
-    padding: SPACING.xl, paddingTop: 60, gap: SPACING.md,
+    paddingHorizontal: SPACING.xl, paddingTop: 56, paddingBottom: SPACING.lg, gap: SPACING.sm,
   },
   headerTop: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
   headerGreeting: {
-    gap: 2,
+    gap: 1,
   },
-  greeting: { ...BODY, color: COLORS.textSecondary, fontSize: 14 },
-  name: { color: COLORS.text, fontFamily: FONTS.extrabold, fontSize: 24 },
+  // Greeting demoted to a small muted eyebrow so the name — the thing a
+  // person actually scans for — reads as the clear primary line instead
+  // of the two competing at similar visual weight.
+  greeting: { ...EYEBROW, color: COLORS.textMuted, fontSize: 11, letterSpacing: 1 },
+  name: { color: COLORS.text, fontFamily: FONTS.extrabold, fontSize: 26, letterSpacing: -0.3 },
   phaseBadge: { backgroundColor: alpha(COLORS.recoveryHigh, 0.1), borderRadius: RADIUS.badge, padding: SPACING.sm, marginTop: SPACING.xs },
   phaseText: { ...EYEBROW, color: COLORS.recoveryHigh, fontSize: 10, letterSpacing: 1 },
 
@@ -597,20 +602,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'center', gap: SPACING.xl,
     paddingHorizontal: SPACING.lg, marginBottom: SPACING.sm,
   },
-  ringWrap: { alignItems: 'center', justifyContent: 'center' },
-  ringCenter: { alignItems: 'center', flexDirection: 'row' },
-  ringValue: { fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 36 },
-  ringPercentSign: { ...BODY, color: COLORS.textSecondary, fontSize: 16, fontFamily: FONTS.medium, marginLeft: 2, marginTop: 6 },
+  ringWrap: { alignItems: 'center' },
+  ringCenter: {
+    ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center',
+    flexDirection: 'row',
+  },
+  ringValue: { fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 32 },
+  ringPercentSign: { ...BODY, color: COLORS.textSecondary, fontSize: 15, fontFamily: FONTS.medium, marginLeft: 2, marginTop: 5 },
   ringLabel: {
-    ...EYEBROW, position: 'absolute', bottom: -20, color: COLORS.textSecondary,
-    fontSize: 11,
+    ...EYEBROW, color: COLORS.textSecondary, fontSize: 11, marginTop: SPACING.sm,
   },
   ringSublabel: {
-    ...EYEBROW, position: 'absolute', bottom: -36, fontSize: 10, letterSpacing: 0.5,
+    ...EYEBROW, fontSize: 10, letterSpacing: 0.5, marginTop: 2,
   },
   ringCaption: {
     ...BODY, color: COLORS.textSecondary, fontSize: 12, textAlign: 'center',
-    marginTop: SPACING.xl, marginBottom: SPACING.sm, paddingHorizontal: SPACING.xxl, lineHeight: 17,
+    marginTop: SPACING.md, marginBottom: SPACING.sm, paddingHorizontal: SPACING.xxl, lineHeight: 17,
   },
 
   // ── Hero cards ──────────────────────────────────────────────────────
@@ -639,7 +646,10 @@ const styles = StyleSheet.create({
     ...BODY, color: COLORS.textSecondary, fontSize: 13, lineHeight: 19,
   },
   feedBtn: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, alignSelf: 'flex-start' },
-  feedBtnText: { color: COLORS.recoveryHigh, fontFamily: FONTS.semibold, fontSize: 13 },
+  // Link text stays neutral white; color now lives only in the arrow
+  // icon (and picks up each card's own accent) so green isn't the
+  // default color for every tappable label on the screen.
+  feedBtnText: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 13 },
 
   // Mini rings (nutrition) — pushed further from the CTA above to read as
   // its own "supporting detail" zone, per the briefing/detail split.
@@ -676,7 +686,7 @@ const styles = StyleSheet.create({
   startWorkoutBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm,
     backgroundColor: COLORS.strainGlow, borderRadius: RADIUS.card,
-    marginHorizontal: SPACING.lg, marginBottom: SPACING.lg, paddingVertical: SPACING.lg,
+    marginHorizontal: SPACING.lg, marginBottom: SPACING.lg, paddingVertical: SPACING.md,
   },
   startWorkoutText: { color: '#000', fontFamily: FONTS.extrabold, fontSize: 15, letterSpacing: 0.3, textTransform: 'capitalize' },
 
