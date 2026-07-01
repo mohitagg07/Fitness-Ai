@@ -17,7 +17,9 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { workoutApi, coachApi } from '../../utils/api';
 import { useStore } from '../../store';
-import { COLORS } from '../../theme/colors';
+import { COLORS, alpha } from '../../theme/colors';
+import { FONTS, EYEBROW, BODY } from '../../theme/typography';
+import { SPACING, RADIUS } from '../../theme/spacing';
 import WorkoutSummaryCard from './WorkoutSummaryCard';
 import WorkoutHistoryModal from './WorkoutHistoryModal';
 
@@ -382,7 +384,7 @@ export default function WorkoutHUD() {
             <Ionicons name="barbell-outline" size={28} color={COLORS.primaryGreen} />
           </View>
           <Text style={S.gymTitle}>GYM MODE</Text>
-          <Text style={S.gymSubtitle}>Your AI spotter is ready</Text>
+          <Text style={S.gymSubtitle}>Log every set, get stronger</Text>
           <Text style={S.gymDesc}>
             Start a session, then log each set with weight, reps, and RPE.
             Ask your coach for today's plan anytime.
@@ -474,7 +476,7 @@ export default function WorkoutHUD() {
             </View>
             {ex.cue ? (
               <View style={S.cueRow}>
-                <Ionicons name="bulb-outline" size={12} color="#444" />
+                <Ionicons name="bulb-outline" size={12} color={COLORS.textMuted} />
                 <Text style={S.cue}>{ex.cue}</Text>
               </View>
             ) : null}
@@ -489,7 +491,7 @@ export default function WorkoutHUD() {
             <TextInput
               style={S.exerciseNameInput}
               placeholder="Exercise name (e.g. Bench Press)"
-              placeholderTextColor="#555"
+              placeholderTextColor={COLORS.textMuted}
               value={exerciseName}
               onChangeText={setExerciseName}
               returnKeyType="next"
@@ -503,7 +505,7 @@ export default function WorkoutHUD() {
             <TextInput
               style={S.logInput}
               placeholder="kg"
-              placeholderTextColor="#555"
+              placeholderTextColor={COLORS.textMuted}
               value={weight}
               onChangeText={setWeight}
               keyboardType="decimal-pad"
@@ -514,7 +516,7 @@ export default function WorkoutHUD() {
             <TextInput
               style={S.logInput}
               placeholder="reps"
-              placeholderTextColor="#555"
+              placeholderTextColor={COLORS.textMuted}
               value={reps}
               onChangeText={setReps}
               keyboardType="number-pad"
@@ -539,7 +541,7 @@ export default function WorkoutHUD() {
                     key={r}
                     style={[
                       S.rpeChip,
-                      active && { backgroundColor: color + '25', borderColor: color },
+                      active && { backgroundColor: alpha(color, 0.15), borderColor: color },
                     ]}
                     onPress={() => setRpe(r)}
                   >
@@ -577,7 +579,7 @@ export default function WorkoutHUD() {
                 <View key={i} style={S.setRow}>
                   <Text style={S.setLabel}>Set {log.set_number}</Text>
                   <Text style={S.setDetails}>{log.weight_kg}kg × {log.reps} reps</Text>
-                  <View style={[S.rpeBadge, { borderColor: rpeColor(log.rpe) + '60' }]}>
+                  <View style={[S.rpeBadge, { borderColor: alpha(rpeColor(log.rpe), 0.4) }]}>
                     <Text style={[S.rpeBadgeText, { color: rpeColor(log.rpe) }]}>
                       RPE {log.rpe}
                     </Text>
@@ -606,150 +608,168 @@ export default function WorkoutHUD() {
 }
 
 // ─── Timer styles ─────────────────────────────────────────────────────────────
+// Rest timer bar — subtle green-tinted strip that never competes with the
+// exercise card below it; the countdown number is the only strong element.
 const T = StyleSheet.create({
   timerBar: {
-    backgroundColor: COLORS.primaryGreen + '08',
+    backgroundColor: alpha(COLORS.primaryGreen, 0.05),
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.primaryGreen + '18',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    borderBottomColor: alpha(COLORS.primaryGreen, 0.1),
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
   },
-  timerContent: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  timerLeft:    { flexDirection: 'row', alignItems: 'center', gap: 6, width: 90 },
-  timerLabel:   { fontSize: 10, fontWeight: '800', letterSpacing: 1.5 },
-  timerSeconds: { fontSize: 22, fontWeight: '800', lineHeight: 26 },
+  timerContent: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
+  timerLeft:    { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, width: 90 },
+  timerLabel:   { ...EYEBROW, fontSize: 10 },
+  timerSeconds: { fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 22, lineHeight: 26 },
   timerTrack:   { flex: 1, height: 3, backgroundColor: COLORS.cardElevated, borderRadius: 2, overflow: 'hidden' },
   timerFill:    { height: 3, borderRadius: 2 },
-  skipBtn:      { paddingHorizontal: 10, paddingVertical: 4,
-                  backgroundColor: COLORS.cardElevated, borderRadius: 8 },
-  skipText:     { color: COLORS.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1 },
+  skipBtn:      { paddingHorizontal: SPACING.sm, paddingVertical: SPACING.xs,
+                  backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.badge },
+  skipText:     { ...EYEBROW, color: COLORS.textMuted, fontSize: 11 },
 });
 
 // ─── Session header styles ────────────────────────────────────────────────────
 const H = StyleSheet.create({
   row: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20,
-    paddingVertical: 10, backgroundColor: COLORS.card,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 12,
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.md, backgroundColor: COLORS.card,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: SPACING.md,
   },
   pill: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: COLORS.primaryGreen + '10', borderRadius: 20, paddingHorizontal: 8,
-    paddingVertical: 4, borderWidth: 1, borderColor: COLORS.primaryGreen + '30',
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.xs,
+    backgroundColor: alpha(COLORS.primaryGreen, 0.08), borderRadius: 20, paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs, borderWidth: 1, borderColor: alpha(COLORS.primaryGreen, 0.25),
   },
   activeDot:  { width: 5, height: 5, borderRadius: 3, backgroundColor: COLORS.primaryGreen },
-  pillText:   { color: COLORS.primaryGreen, fontSize: 9, fontWeight: '800', letterSpacing: 1.5 },
+  pillText:   { ...EYEBROW, color: COLORS.primaryGreen, fontSize: 9 },
   stat:       { alignItems: 'center' },
-  statVal:    { color: COLORS.text, fontSize: 16, fontWeight: '800' },
-  statLabel:  { color: COLORS.textDim, fontSize: 8, fontWeight: '700', letterSpacing: 1, marginTop: 1 },
+  statVal:    { color: COLORS.text, fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 16 },
+  statLabel:  { ...EYEBROW, color: COLORS.textDim, fontSize: 8, marginTop: 1 },
   divider:    { width: 1, height: 24, backgroundColor: COLORS.border },
 });
 
 // ─── Ghost styles ─────────────────────────────────────────────────────────────
 const G = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
-  text: { color: COLORS.textDim, fontSize: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, marginBottom: SPACING.sm },
+  text: { ...BODY, color: COLORS.textDim, fontSize: 12 },
 });
 
 // ─── Main styles ──────────────────────────────────────────────────────────────
 const S = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212' },
+  // Was a one-off #121212 — now matches the true-black canvas every other
+  // screen in the app uses.
+  container: { flex: 1, backgroundColor: COLORS.background },
 
   // Pre-session
-  preSession:  { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-  preBadge:    { width: 60, height: 60, borderRadius: 16, backgroundColor: '#1A2535',
-                 alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
-  gymTitle:    { color: COLORS.primaryGreen, fontSize: 28, fontWeight: '800', letterSpacing: 1 },
-  gymSubtitle: { color: '#888', fontSize: 14, marginTop: 4, marginBottom: 16 },
-  gymDesc:     { color: '#666', fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: 32 },
-  startBtn:    { backgroundColor: COLORS.primaryGreen, borderRadius: 14,
-                 paddingVertical: 16, paddingHorizontal: 32, width: '100%',
-                 alignItems: 'center', marginBottom: 12 },
-  startBtnText:{ color: '#000', fontSize: 15, fontWeight: '800', letterSpacing: 1 },
-  coachBtn:    { backgroundColor: '#1A2535', borderRadius: 14, paddingVertical: 14,
-                 paddingHorizontal: 32, width: '100%', alignItems: 'center',
-                 flexDirection: 'row', justifyContent: 'center', gap: 8 },
-  coachBtnText:{ color: COLORS.primaryGreen, fontSize: 14, fontWeight: '600' },
-  historyBtn:  { marginTop: 12, paddingVertical: 12, paddingHorizontal: 32,
-                 alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 },
-  historyBtnText: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '600' },
+  preSession:  { flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.xxl },
+  // Accent now comes from the icon color alone (green), not a mismatched
+  // blue-tinted tile behind a green icon.
+  preBadge:    { width: 60, height: 60, borderRadius: RADIUS.card, backgroundColor: COLORS.cardElevated,
+                 alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.xl },
+  gymTitle:    { color: COLORS.primaryGreen, fontFamily: FONTS.extrabold, fontSize: 28, letterSpacing: 1 },
+  gymSubtitle: { ...BODY, color: COLORS.textSecondary, fontSize: 14, marginTop: SPACING.xs, marginBottom: SPACING.lg },
+  gymDesc:     { ...BODY, color: COLORS.textMuted, fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: SPACING.xxl },
+  startBtn:    { backgroundColor: COLORS.primaryGreen, borderRadius: RADIUS.card,
+                 paddingVertical: SPACING.lg, paddingHorizontal: SPACING.xxl, width: '100%',
+                 alignItems: 'center', marginBottom: SPACING.md },
+  startBtnText:{ color: '#000', fontFamily: FONTS.extrabold, fontSize: 15, letterSpacing: 1 },
+  coachBtn:    { backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.card, paddingVertical: SPACING.lg,
+                 paddingHorizontal: SPACING.xxl, width: '100%', alignItems: 'center',
+                 flexDirection: 'row', justifyContent: 'center', gap: SPACING.sm },
+  coachBtnText:{ color: COLORS.primaryGreen, fontFamily: FONTS.semibold, fontSize: 14 },
+  historyBtn:  { marginTop: SPACING.md, paddingVertical: SPACING.md, paddingHorizontal: SPACING.xxl,
+                 alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: SPACING.sm },
+  historyBtnText: { color: COLORS.textSecondary, fontFamily: FONTS.semibold, fontSize: 13 },
 
   // Exercise tabs
   exTabsScroll: { maxHeight: 68 },
-  exTabs:       { paddingHorizontal: 12, paddingVertical: 8, gap: 6, flexDirection: 'row' },
-  exTab:        { backgroundColor: '#1A1A1A', borderRadius: 10, paddingHorizontal: 12,
-                  paddingVertical: 6, borderWidth: 1, borderColor: '#2A2A2A', alignItems: 'center' },
-  exTabActive:  { backgroundColor: '#0D1A0D', borderColor: COLORS.primaryGreen + '60' },
+  exTabs:       { paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, gap: SPACING.sm, flexDirection: 'row' },
+  exTab:        { backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.button, paddingHorizontal: SPACING.md,
+                  paddingVertical: SPACING.sm, borderWidth: 1, borderColor: COLORS.borderLight, alignItems: 'center' },
+  exTabActive:  { backgroundColor: alpha(COLORS.primaryGreen, 0.08), borderColor: alpha(COLORS.primaryGreen, 0.4) },
   exTabDone:    { opacity: 0.45 },
-  exTabText:    { color: '#666', fontSize: 11, fontWeight: '600' },
+  exTabText:    { ...BODY, color: COLORS.textMuted, fontSize: 11, fontFamily: FONTS.semibold },
   exTabTextActive:{ color: COLORS.primaryGreen },
-  exTabSets:    { color: '#444', fontSize: 10, marginTop: 2 },
-  exTabSetsActive:{ color: COLORS.primaryGreen + 'AA' },
-  exTabSetsDone:{ color: '#2A2A2A' },
+  exTabSets:    { ...BODY, color: COLORS.textMuted, fontSize: 10, marginTop: 2 },
+  exTabSetsActive:{ color: alpha(COLORS.primaryGreen, 0.7) },
+  exTabSetsDone:{ color: COLORS.borderLight },
 
-  // Log card
-  exerciseCard:   { backgroundColor: '#1C1C1C', borderRadius: 16, margin: 12,
-                    marginTop: 8, padding: 14, borderWidth: 1, borderColor: '#2A2A2A' },
+  // Log card — the single most important surface during a session, so it
+  // gets the same card treatment (radius, border) as everywhere else in
+  // the app rather than its own one-off values.
+  exerciseCard:   { backgroundColor: COLORS.card, borderRadius: RADIUS.card, margin: SPACING.md,
+                    marginTop: SPACING.sm, padding: SPACING.lg, borderWidth: 1, borderColor: COLORS.cardBorder },
   exCardHeader:   { flexDirection: 'row', justifyContent: 'space-between',
-                    alignItems: 'flex-start', marginBottom: 8 },
-  setCount:       { color: COLORS.primaryGreen, fontSize: 10, fontWeight: '700',
-                    letterSpacing: 1, marginBottom: 2 },
-  exerciseName:   { color: '#FFF', fontSize: 20, fontWeight: '700' },
-  exerciseTarget: { color: '#888', fontSize: 13, marginTop: 2 },
-  nextExInline:   { flexDirection: 'row', alignItems: 'center', gap: 4,
-                    backgroundColor: '#1A2535', borderRadius: 8, paddingHorizontal: 10,
-                    paddingVertical: 6, borderWidth: 1, borderColor: '#0093E720' },
-  nextExInlineText:{ color: COLORS.strain, fontSize: 12, fontWeight: '600' },
-  cueRow:         { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 10 },
-  cue:            { color: '#555', fontSize: 12, fontStyle: 'italic', flex: 1 },
-  manualEntry:    { marginBottom: 8 },
-  manualTitle:    { color: '#FFF', fontSize: 17, fontWeight: '700', marginBottom: 8 },
-  setCountManual: { color: COLORS.primaryGreen, fontSize: 13, fontWeight: '700', marginBottom: 8 },
-  exerciseNameInput:{ backgroundColor: '#2A2A2A', borderRadius: 10, paddingHorizontal: 14,
-                      paddingVertical: 12, color: '#FFF', fontSize: 15, marginBottom: 4,
-                      borderWidth: 1, borderColor: '#3A3A3A' },
+                    alignItems: 'flex-start', marginBottom: SPACING.sm },
+  setCount:       { ...EYEBROW, color: COLORS.primaryGreen, fontSize: 10, marginBottom: 2 },
+  exerciseName:   { color: COLORS.text, fontFamily: FONTS.extrabold, fontSize: 20 },
+  exerciseTarget: { ...BODY, color: COLORS.textSecondary, fontSize: 13, marginTop: 2 },
+  nextExInline:   { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs,
+                    backgroundColor: alpha(COLORS.strain, 0.1), borderRadius: RADIUS.badge, paddingHorizontal: SPACING.sm,
+                    paddingVertical: SPACING.sm, borderWidth: 1, borderColor: alpha(COLORS.strain, 0.25) },
+  nextExInlineText:{ color: COLORS.strain, fontFamily: FONTS.semibold, fontSize: 12 },
+  cueRow:         { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, marginBottom: SPACING.md },
+  cue:            { ...BODY, color: COLORS.textMuted, fontSize: 12, fontStyle: 'italic', flex: 1 },
+  manualEntry:    { marginBottom: SPACING.sm },
+  manualTitle:    { color: COLORS.text, fontFamily: FONTS.bold, fontSize: 17, marginBottom: SPACING.sm },
+  setCountManual: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 13, marginBottom: SPACING.sm },
+  exerciseNameInput:{ backgroundColor: COLORS.inputBg, borderRadius: RADIUS.button, paddingHorizontal: SPACING.lg,
+                      paddingVertical: SPACING.md, color: COLORS.text, fontFamily: FONTS.regular, fontSize: 15, marginBottom: SPACING.xs,
+                      borderWidth: 1, borderColor: COLORS.borderLight },
 
-  logRow:    { flexDirection: 'row', gap: 10, marginTop: 6, marginBottom: 6 },
+  logRow:    { flexDirection: 'row', gap: SPACING.md, marginTop: SPACING.sm, marginBottom: SPACING.sm },
   inputWrap: { flex: 1, position: 'relative' },
-  logInput:  { backgroundColor: '#2A2A2A', borderRadius: 10, paddingVertical: 12,
-               paddingHorizontal: 14, color: '#FFF', fontSize: 28, fontWeight: '800',
-               textAlign: 'center', borderWidth: 1, borderColor: '#3A3A3A' },
-  inputUnit: { position: 'absolute', bottom: 6, right: 10, color: '#444',
-               fontSize: 11, fontWeight: '600' },
+  // Big tappable number fields — deliberately the largest text on the
+  // screen next to the rest timer, since weight/reps are what the user
+  // is looking at between every single set.
+  logInput:  { backgroundColor: COLORS.inputBg, borderRadius: RADIUS.button, paddingVertical: SPACING.md,
+               paddingHorizontal: SPACING.lg, color: COLORS.text, fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 28,
+               textAlign: 'center', borderWidth: 1, borderColor: COLORS.borderLight },
+  inputUnit: { position: 'absolute', bottom: 6, right: SPACING.sm, color: COLORS.textMuted,
+               fontFamily: FONTS.semibold, fontSize: 11 },
 
-  rpeRow:    { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  rpeLabel:  { color: '#888', fontSize: 10, fontWeight: '700', letterSpacing: 1, width: 30 },
-  rpeChips:  { flexDirection: 'row', gap: 5 },
-  rpeChip:   { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8,
-               backgroundColor: '#2A2A2A', borderWidth: 1, borderColor: '#3A3A3A' },
-  rpeChipText:{ color: '#888', fontSize: 12, fontWeight: '600' },
+  rpeRow:    { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.md },
+  rpeLabel:  { ...EYEBROW, color: COLORS.textSecondary, fontSize: 10, width: 30 },
+  rpeChips:  { flexDirection: 'row', gap: SPACING.xs },
+  rpeChip:   { paddingVertical: SPACING.sm, paddingHorizontal: SPACING.md, borderRadius: RADIUS.badge,
+               backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.borderLight },
+  rpeChipText:{ color: COLORS.textSecondary, fontFamily: FONTS.semibold, fontSize: 12 },
 
-  logBtn:     { backgroundColor: COLORS.primaryGreen, borderRadius: 12, paddingVertical: 14,
-                flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  // Primary action during an active session — same weight and radius as
+  // the Dashboard's "Start Workout" CTA so every screen's main action
+  // reads the same way.
+  logBtn:     { backgroundColor: COLORS.primaryGreen, borderRadius: RADIUS.card, paddingVertical: SPACING.md,
+                flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm },
   logBtnDisabled: { opacity: 0.5 },
-  logBtnText: { color: '#000', fontSize: 13, fontWeight: '800', letterSpacing: 0.5 },
+  logBtnText: { color: '#000', fontFamily: FONTS.extrabold, fontSize: 13, letterSpacing: 0.5 },
 
   // Logs
-  logsScroll:       { flex: 1, paddingHorizontal: 12 },
-  logsLabel:        { color: '#555', fontSize: 9, fontWeight: '700', letterSpacing: 1.5,
-                      marginBottom: 8, marginTop: 4 },
-  noLogs:           { color: '#333', fontSize: 13, textAlign: 'center', paddingTop: 12 },
-  exerciseGroup:    { marginBottom: 10, backgroundColor: '#1A1A1A', borderRadius: 12,
-                      overflow: 'hidden', borderWidth: 1, borderColor: '#222' },
-  groupExerciseName:{ color: '#DDD', fontSize: 13, fontWeight: '700',
-                      paddingHorizontal: 14, paddingVertical: 10,
-                      borderBottomWidth: 1, borderBottomColor: '#222' },
+  logsScroll:       { flex: 1, paddingHorizontal: SPACING.md },
+  logsLabel:        { ...EYEBROW, color: COLORS.textMuted, fontSize: 9,
+                      marginBottom: SPACING.sm, marginTop: SPACING.xs },
+  noLogs:           { ...BODY, color: COLORS.textDim, fontSize: 13, textAlign: 'center', paddingTop: SPACING.md },
+  exerciseGroup:    { marginBottom: SPACING.sm, backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.card,
+                      overflow: 'hidden', borderWidth: 1, borderColor: COLORS.border },
+  groupExerciseName:{ color: COLORS.text, fontFamily: FONTS.bold, fontSize: 13,
+                      paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md,
+                      borderBottomWidth: 1, borderBottomColor: COLORS.border },
   setRow:           { flexDirection: 'row', alignItems: 'center',
-                      paddingHorizontal: 14, paddingVertical: 8,
-                      borderBottomWidth: 1, borderBottomColor: '#1C1C1C', gap: 10 },
-  setLabel:         { color: '#444', fontSize: 11, fontWeight: '600', width: 40 },
-  setDetails:       { color: '#CCC', fontSize: 13, flex: 1 },
-  rpeBadge:         { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2,
-                      backgroundColor: '#1A1A1A', borderWidth: 1 },
-  rpeBadgeText:     { fontSize: 11, fontWeight: '600' },
+                      paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm,
+                      borderBottomWidth: 1, borderBottomColor: COLORS.cardBorder, gap: SPACING.md },
+  setLabel:         { ...BODY, color: COLORS.textMuted, fontFamily: FONTS.semibold, fontSize: 11, width: 40 },
+  setDetails:       { ...BODY, color: COLORS.textSecondary, fontSize: 13, flex: 1 },
+  rpeBadge:         { borderRadius: RADIUS.badge, paddingHorizontal: 7, paddingVertical: 2,
+                      backgroundColor: COLORS.cardElevated, borderWidth: 1 },
+  rpeBadgeText:     { fontFamily: FONTS.semibold, fontSize: 11 },
 
+  // Secondary/closing action — kept visually quieter than the green Log
+  // Set CTA above (tinted, not solid) since it ends the session rather
+  // than driving it.
   finishBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-                   gap: 8, margin: 12, backgroundColor: '#0E1F12', borderRadius: 14,
-                   paddingVertical: 15, borderWidth: 1, borderColor: '#1A3A20' },
-  finishBtnText: { color: '#4CAF50', fontSize: 14, fontWeight: '700', letterSpacing: 0.5 },
+                   gap: SPACING.sm, margin: SPACING.md, backgroundColor: alpha(COLORS.primaryGreen, 0.08), borderRadius: RADIUS.card,
+                   paddingVertical: SPACING.lg, borderWidth: 1, borderColor: alpha(COLORS.primaryGreen, 0.25) },
+  // Was a hardcoded #4CAF50 — a different green from every other accent
+  // in the app. Now the same primaryGreen used everywhere else.
+  finishBtnText: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 14, letterSpacing: 0.5 },
 });

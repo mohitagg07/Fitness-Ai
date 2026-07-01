@@ -21,7 +21,9 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { dashboardApi, missionApi, describeApiError } from '../../utils/api';
 import { useStore } from '../../store';
-import { COLORS, recoveryColor as whoopRecoveryColor } from '../../theme/colors';
+import { COLORS, alpha, recoveryColor as whoopRecoveryColor } from '../../theme/colors';
+import { FONTS, EYEBROW, BODY } from '../../theme/typography';
+import { SPACING, RADIUS } from '../../theme/spacing';
 import ProactiveBriefCard from './ProactiveBriefCard';
 import TodaysDecisionCard from './TodaysDecisionCard';
 import SinceYesterdayCard from './SinceYesterdayCard';
@@ -262,11 +264,11 @@ export default function DashboardScreen() {
       {/* ── 2. What should I do? WORKOUT TODAY — first card after rings so
           the user immediately knows what to do. Most actionable info. ── */}
       {summary && (
-        <View style={styles.workoutTodayCard}>
+        <View style={styles.heroCard}>
           <View style={styles.workoutTodayHeader}>
             <View style={styles.workoutTodayLabelRow}>
               <Ionicons name="barbell-outline" size={13} color={COLORS.strain} />
-              <Text style={styles.workoutTodayLabel}>WORKOUT TODAY</Text>
+              <Text style={[styles.eyebrow, { color: COLORS.strain }]}>WORKOUT TODAY</Text>
             </View>
             {summary.workout_today?.rescheduled && (
               <View style={styles.rescheduledBadge}>
@@ -290,7 +292,7 @@ export default function DashboardScreen() {
                 }}
               >
                 <Ionicons name="flash" size={14} color="#000" />
-                <Text style={styles.generatePlanBtnText}>Generate Workout</Text>
+                <Text style={styles.generatePlanBtnText}>Build Today's Workout</Text>
               </TouchableOpacity>
             </>
           )}
@@ -309,10 +311,10 @@ export default function DashboardScreen() {
       />
 
       {/* ── 5. What's my mission? Daily Mission ─────────────────────────── */}
-      <View style={styles.feedCard}>
+      <View style={styles.heroCard}>
         <View style={styles.feedLabelRow}>
           <Ionicons name="flash" size={12} color={COLORS.recoveryHigh} />
-          <Text style={styles.feedLabel}>TODAY'S MISSION</Text>
+          <Text style={[styles.eyebrow, { color: COLORS.recoveryHigh }]}>TODAY'S MISSION</Text>
         </View>
         <Text style={styles.feedText}>
           {summary?.mission_text || summary?.next_task || 'Open the Coach to get your first recommendation.'}
@@ -359,7 +361,7 @@ export default function DashboardScreen() {
           />
           <MiniRing
             pct={summary.water_pct}
-            color="#3CA7FF"
+            color={COLORS.water}
             label="WATER"
             value={`${(Math.round(summary.water_remaining_ml / 100) / 10).toFixed(1)}L`}
             sub={`of ${(Math.round(summary.water_target_ml / 100) / 10).toFixed(1)}L`}
@@ -400,10 +402,10 @@ export default function DashboardScreen() {
 
       {/* AI Insights card (motivation fallback) */}
       {summary?.motivation_message && !summary?.proactive_brief && (
-        <View style={styles.aiInsightsCard}>
+        <View style={styles.heroCard}>
           <View style={styles.aiInsightsHeader}>
             <Ionicons name="sparkles" size={13} color={COLORS.strainGlow} />
-            <Text style={styles.aiInsightsLabel}>AI INSIGHTS</Text>
+            <Text style={[styles.eyebrow, { color: COLORS.strainGlow }]}>I NOTICED SOMETHING</Text>
           </View>
           <Text style={styles.aiInsightsText}>{summary.motivation_message}</Text>
           <TouchableOpacity style={styles.feedBtn} onPress={() => router.push('/(tabs)/coach')}>
@@ -427,23 +429,23 @@ export default function DashboardScreen() {
         <QuickBtn label="Analytics"  icon="stats-chart-outline" onPress={() => router.push('/(tabs)/progress')} accent={COLORS.sleep}        />
       </View>
 
-      {/* Secondary feature cards — Decisions/Simulate/Form AI moved off bottom nav */}
-      <Text style={styles.sectionLabel}>AI TOOLS</Text>
+      {/* Secondary feature cards — Decisions/Simulate/Form check moved off bottom nav */}
+      <Text style={styles.sectionLabel}>MORE TOOLS</Text>
       <View style={styles.aiToolsGrid}>
-        <TouchableOpacity style={[styles.aiToolBtn, { borderColor: COLORS.strainGlow + '40' }]} onPress={() => router.push('/(tabs)/decisions')}>
+        <TouchableOpacity style={[styles.aiToolBtn, { borderColor: alpha(COLORS.strainGlow, 0.25) }]} onPress={() => router.push('/(tabs)/decisions')}>
           <Ionicons name="analytics-outline" size={22} color={COLORS.strainGlow} />
           <Text style={styles.aiToolLabel}>Decisions</Text>
-          <Text style={styles.aiToolSub}>AI history & accuracy</Text>
+          <Text style={styles.aiToolSub}>Past calls & how they played out</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.aiToolBtn, { borderColor: COLORS.recoveryMed + '40' }]} onPress={() => router.push('/(tabs)/simulate')}>
+        <TouchableOpacity style={[styles.aiToolBtn, { borderColor: alpha(COLORS.recoveryMed, 0.25) }]} onPress={() => router.push('/(tabs)/simulate')}>
           <Ionicons name="flask-outline" size={22} color={COLORS.recoveryMed} />
           <Text style={styles.aiToolLabel}>What If?</Text>
-          <Text style={styles.aiToolSub}>Training simulations</Text>
+          <Text style={styles.aiToolSub}>See how changes play out</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.aiToolBtn, { borderColor: COLORS.recoveryLow + '40' }]} onPress={() => router.push('/(tabs)/formanalysis')}>
+        <TouchableOpacity style={[styles.aiToolBtn, { borderColor: alpha(COLORS.recoveryLow, 0.25) }]} onPress={() => router.push('/(tabs)/formanalysis')}>
           <Ionicons name="body-outline" size={22} color={COLORS.recoveryLow} />
-          <Text style={styles.aiToolLabel}>Form AI</Text>
-          <Text style={styles.aiToolSub}>Camera form analysis</Text>
+          <Text style={styles.aiToolLabel}>Form Check</Text>
+          <Text style={styles.aiToolSub}>Camera form feedback</Text>
         </TouchableOpacity>
       </View>
 
@@ -485,7 +487,7 @@ function ScoreRing({
       <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
         <Circle
           cx={size / 2} cy={size / 2} r={radius}
-          stroke="#161616" strokeWidth={stroke} fill="none"
+          stroke={COLORS.cardElevated} strokeWidth={stroke} fill="none"
         />
         <Circle
           cx={size / 2} cy={size / 2} r={radius}
@@ -523,7 +525,7 @@ function MiniRing({
     <View style={styles.miniRingWrap}>
       <View style={{ width: size, height: size }}>
         <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
-          <Circle cx={size / 2} cy={size / 2} r={radius} stroke="#161616" strokeWidth={stroke} fill="none" />
+          <Circle cx={size / 2} cy={size / 2} r={radius} stroke={COLORS.cardElevated} strokeWidth={stroke} fill="none" />
           <Circle
             cx={size / 2} cy={size / 2} r={radius}
             stroke={color} strokeWidth={stroke} fill="none"
@@ -546,7 +548,7 @@ function QuickBtn({
   label, icon, onPress, accent,
 }: { label: string; icon: IoniconName; onPress: () => void; accent: string }) {
   return (
-    <TouchableOpacity style={[styles.quickBtn, { borderColor: accent + '33' }]} onPress={onPress}>
+    <TouchableOpacity style={[styles.quickBtn, { borderColor: alpha(accent, 0.2) }]} onPress={onPress}>
       <Ionicons name={icon} size={24} color={accent} />
       <Text style={styles.quickLabel}>{label}</Text>
     </TouchableOpacity>
@@ -554,26 +556,26 @@ function QuickBtn({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000000' },
+  container: { flex: 1, backgroundColor: COLORS.background },
   centerContainer: {
-    flex: 1, backgroundColor: '#000000',
-    justifyContent: 'center', alignItems: 'center', padding: 32,
+    flex: 1, backgroundColor: COLORS.background,
+    justifyContent: 'center', alignItems: 'center', padding: SPACING.xxl,
   },
-  errorTitle: { color: '#FFF', fontSize: 17, fontWeight: '700', marginTop: 16, textAlign: 'center' },
-  errorBody: { color: '#5C6B6E', fontSize: 13, marginTop: 8, textAlign: 'center', lineHeight: 19 },
+  errorTitle: { ...BODY, color: COLORS.text, fontFamily: FONTS.bold, fontSize: 17, marginTop: SPACING.lg, textAlign: 'center' },
+  errorBody: { ...BODY, color: COLORS.textSecondary, fontSize: 13, marginTop: SPACING.sm, textAlign: 'center', lineHeight: 19 },
   retryBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: COLORS.recoveryHigh, borderRadius: 12,
-    paddingVertical: 12, paddingHorizontal: 24, marginTop: 20,
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.xs,
+    backgroundColor: COLORS.recoveryHigh, borderRadius: RADIUS.button,
+    paddingVertical: SPACING.md, paddingHorizontal: SPACING.xl, marginTop: SPACING.lg,
   },
-  retryText: { color: '#000', fontSize: 13, fontWeight: '700' },
+  retryText: { ...BODY, color: '#000', fontFamily: FONTS.bold, fontSize: 13 },
   staleBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#1A1606', paddingVertical: 8, paddingHorizontal: 16,
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    backgroundColor: alpha(COLORS.recoveryMed, 0.08), paddingVertical: SPACING.sm, paddingHorizontal: SPACING.lg,
   },
-  staleBannerText: { color: COLORS.recoveryMed, fontSize: 11, flex: 1 },
+  staleBannerText: { ...BODY, color: COLORS.recoveryMed, fontSize: 11, flex: 1 },
   header: {
-    padding: 24, paddingTop: 60, gap: 12,
+    padding: SPACING.xl, paddingTop: 60, gap: SPACING.md,
   },
   headerTop: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -581,139 +583,136 @@ const styles = StyleSheet.create({
   headerGreeting: {
     gap: 2,
   },
-  greeting: { color: '#5C6B6E', fontSize: 14 },
-  name: { color: '#FFF', fontSize: 24, fontWeight: '800' },
-  phaseBadge: { backgroundColor: '#0E1F1A', borderRadius: 8, padding: 8, marginTop: 4 },
-  phaseText: { color: COLORS.recoveryHigh, fontSize: 10, fontWeight: '700', letterSpacing: 1 },
+  greeting: { ...BODY, color: COLORS.textSecondary, fontSize: 14 },
+  name: { color: COLORS.text, fontFamily: FONTS.extrabold, fontSize: 24 },
+  phaseBadge: { backgroundColor: alpha(COLORS.recoveryHigh, 0.1), borderRadius: RADIUS.badge, padding: SPACING.sm, marginTop: SPACING.xs },
+  phaseText: { ...EYEBROW, color: COLORS.recoveryHigh, fontSize: 10, letterSpacing: 1 },
+
+  // One shared eyebrow style for every small uppercase card/section label —
+  // cards differentiate by icon + text color only, never by font treatment.
+  eyebrow: { ...EYEBROW, fontSize: 10 },
 
   // Primary rings
   ringsRow: {
-    flexDirection: 'row', justifyContent: 'center', gap: 20,
-    paddingHorizontal: 16, marginBottom: 8,
+    flexDirection: 'row', justifyContent: 'center', gap: SPACING.xl,
+    paddingHorizontal: SPACING.lg, marginBottom: SPACING.sm,
   },
   ringWrap: { alignItems: 'center', justifyContent: 'center' },
   ringCenter: { alignItems: 'center', flexDirection: 'row' },
-  ringValue: { fontSize: 36, fontWeight: '800' },
-  ringPercentSign: { color: '#5C6B6E', fontSize: 16, fontWeight: '600', marginLeft: 2, marginTop: 6 },
+  ringValue: { fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 36 },
+  ringPercentSign: { ...BODY, color: COLORS.textSecondary, fontSize: 16, fontFamily: FONTS.medium, marginLeft: 2, marginTop: 6 },
   ringLabel: {
-    position: 'absolute', bottom: -20, color: '#5C6B6E',
-    fontSize: 11, fontWeight: '700', letterSpacing: 1.5,
+    ...EYEBROW, position: 'absolute', bottom: -20, color: COLORS.textSecondary,
+    fontSize: 11,
   },
   ringSublabel: {
-    position: 'absolute', bottom: -36, fontSize: 10, fontWeight: '700', letterSpacing: 0.5,
+    ...EYEBROW, position: 'absolute', bottom: -36, fontSize: 10, letterSpacing: 0.5,
   },
   ringCaption: {
-    color: '#7A8A8E', fontSize: 12, textAlign: 'center',
-    marginTop: 28, marginBottom: 8, paddingHorizontal: 32, lineHeight: 17,
+    ...BODY, color: COLORS.textSecondary, fontSize: 12, textAlign: 'center',
+    marginTop: SPACING.xl, marginBottom: SPACING.sm, paddingHorizontal: SPACING.xxl, lineHeight: 17,
   },
 
-  feedCard: {
-    margin: 16, marginTop: 16,
-    backgroundColor: '#0C1714', borderRadius: 16, padding: 16,
-    borderWidth: 1, borderColor: '#16352A',
+  // ── Hero cards ──────────────────────────────────────────────────────
+  // Workout Today / Today's Mission / I Noticed Something all share this
+  // one card shell. They differentiate purely through icon + label color
+  // (strain blue / recovery green / strain glow teal) — never through a
+  // one-off tinted background, so the "what should I focus on" story
+  // reads as one consistent system instead of three competing cards.
+  heroCard: {
+    marginHorizontal: SPACING.lg, marginBottom: SPACING.md,
+    backgroundColor: COLORS.card, borderRadius: RADIUS.card,
+    padding: SPACING.lg, borderWidth: 1, borderColor: COLORS.cardBorder,
   },
-  feedLabelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 },
-  feedLabel: { color: COLORS.recoveryHigh, fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
-  feedText: { color: '#C8D2D4', fontSize: 14, lineHeight: 20, marginBottom: 12 },
-  // Workout Today card (moved to top — Priority 2)
-  workoutTodayCard: {
-    marginHorizontal: 16, marginBottom: 14,
-    backgroundColor: COLORS.card, borderRadius: 18,
-    padding: 18, borderWidth: 1, borderColor: COLORS.strain + '40',
-  },
+  feedLabelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.sm, gap: SPACING.xs },
+  feedText: { ...BODY, color: COLORS.textSecondary, fontSize: 14, lineHeight: 20, marginBottom: SPACING.md },
   workoutTodayHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: SPACING.sm,
   },
-  workoutTodayLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  workoutTodayLabel: {
-    color: COLORS.strain, fontSize: 10, fontWeight: '800', letterSpacing: 1.5,
-  },
+  workoutTodayLabelRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
   workoutTodayType: {
-    color: COLORS.text, fontSize: 24, fontWeight: '800', letterSpacing: 0.5,
-    marginBottom: 6,
+    color: COLORS.text, fontFamily: FONTS.extrabold, fontSize: 24, letterSpacing: 0.5,
+    marginBottom: SPACING.xs,
   },
   workoutTodayMsg: {
-    color: COLORS.textSecondary, fontSize: 13, lineHeight: 19,
+    ...BODY, color: COLORS.textSecondary, fontSize: 13, lineHeight: 19,
   },
-  feedBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' },
-  feedBtnText: { color: COLORS.recoveryHigh, fontSize: 13, fontWeight: '600' },
+  feedBtn: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, alignSelf: 'flex-start' },
+  feedBtnText: { color: COLORS.recoveryHigh, fontFamily: FONTS.semibold, fontSize: 13 },
 
-  // Mini rings (nutrition)
+  // Mini rings (nutrition) — pushed further from the CTA above to read as
+  // its own "supporting detail" zone, per the briefing/detail split.
   miniRingsRow: {
     flexDirection: 'row', justifyContent: 'space-around',
-    marginHorizontal: 16, marginBottom: 16, marginTop: 8,
+    marginHorizontal: SPACING.lg, marginBottom: SPACING.lg, marginTop: SPACING.xl,
   },
   miniRingWrap: { alignItems: 'center', width: 90 },
-  miniRingValue: { color: '#FFF', fontSize: 13, fontWeight: '800', marginTop: 8 },
-  miniRingLabel: { color: '#5C6B6E', fontSize: 9, fontWeight: '700', letterSpacing: 1, marginTop: 2 },
-  miniRingSub: { color: '#3F4A4C', fontSize: 9, marginTop: 1 },
+  miniRingValue: { color: COLORS.text, fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 13, marginTop: SPACING.sm },
+  miniRingLabel: { ...EYEBROW, color: COLORS.textSecondary, fontSize: 9, letterSpacing: 1, marginTop: 2 },
+  miniRingSub: { ...BODY, color: COLORS.textMuted, fontSize: 9, marginTop: 1 },
 
   card: {
-    backgroundColor: '#0E0E0E', borderRadius: 16, padding: 16,
-    marginHorizontal: 16, marginBottom: 12,
-    borderWidth: 1, borderColor: '#1C1C1C',
+    backgroundColor: COLORS.card, borderRadius: RADIUS.card, padding: SPACING.lg,
+    marginHorizontal: SPACING.lg, marginBottom: SPACING.md,
+    borderWidth: 1, borderColor: COLORS.cardBorder,
   },
-  cardLabel: { color: '#5C6B6E', fontSize: 11, fontWeight: '700', letterSpacing: 1.5, marginBottom: 12 },
-  cardMessage: { color: '#C8D2D4', fontSize: 13, lineHeight: 19, marginTop: 4 },
-  workoutRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  workoutType: { color: '#FFF', fontSize: 16, fontWeight: '700', flex: 1 },
-  rescheduledBadge: { backgroundColor: '#1A1606', borderRadius: 6, paddingVertical: 3, paddingHorizontal: 8 },
-  rescheduledText: { color: COLORS.recoveryMed, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
+  cardLabel: { ...EYEBROW, color: COLORS.textSecondary, fontSize: 11, marginBottom: SPACING.md },
+  cardMessage: { ...BODY, color: COLORS.textSecondary, fontSize: 13, lineHeight: 19, marginTop: SPACING.xs },
+  workoutRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  workoutType: { color: COLORS.text, fontFamily: FONTS.bold, fontSize: 16, flex: 1 },
+  rescheduledBadge: { backgroundColor: alpha(COLORS.recoveryMed, 0.08), borderRadius: RADIUS.badge, paddingVertical: 3, paddingHorizontal: SPACING.sm },
+  rescheduledText: { ...EYEBROW, color: COLORS.recoveryMed, fontSize: 9, letterSpacing: 0.5 },
   generatePlanBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: COLORS.primaryGreen, borderRadius: 10,
-    paddingVertical: 10, paddingHorizontal: 14,
-    alignSelf: 'flex-start', marginTop: 10,
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.xs,
+    backgroundColor: COLORS.primaryGreen, borderRadius: RADIUS.button,
+    paddingVertical: SPACING.sm, paddingHorizontal: SPACING.md,
+    alignSelf: 'flex-start', marginTop: SPACING.sm,
   },
-  generatePlanBtnText: { color: '#000', fontSize: 13, fontWeight: '700' },
+  generatePlanBtnText: { color: '#000', fontFamily: FONTS.bold, fontSize: 13 },
 
+  // Single primary CTA that closes the briefing — the brightest surface
+  // on the screen on purpose, so it reads as the one clear next action.
   startWorkoutBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: COLORS.strainGlow, borderRadius: 16,
-    marginHorizontal: 16, marginBottom: 16, paddingVertical: 16,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm,
+    backgroundColor: COLORS.strainGlow, borderRadius: RADIUS.card,
+    marginHorizontal: SPACING.lg, marginBottom: SPACING.lg, paddingVertical: SPACING.lg,
   },
-  startWorkoutText: { color: '#000', fontSize: 15, fontWeight: '800', letterSpacing: 0.3, textTransform: 'capitalize' },
+  startWorkoutText: { color: '#000', fontFamily: FONTS.extrabold, fontSize: 15, letterSpacing: 0.3, textTransform: 'capitalize' },
 
-  streakRow: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 12, gap: 10 },
+  streakRow: { flexDirection: 'row', marginHorizontal: SPACING.lg, marginBottom: SPACING.md, gap: SPACING.sm },
   streakCard: {
-    flex: 1, backgroundColor: '#0E0E0E', borderRadius: 14, padding: 14,
-    alignItems: 'center', borderWidth: 1, borderColor: '#1C1C1C',
+    flex: 1, backgroundColor: COLORS.card, borderRadius: RADIUS.card, padding: SPACING.md,
+    alignItems: 'center', borderWidth: 1, borderColor: COLORS.cardBorder,
   },
-  streakValue: { color: '#FFF', fontSize: 22, fontWeight: '800', marginTop: 4 },
-  streakLabel: { color: '#5C6B6E', fontSize: 9, fontWeight: '700', letterSpacing: 0.5, marginTop: 2 },
+  streakValue: { color: COLORS.text, fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 22, marginTop: SPACING.xs },
+  streakLabel: { ...EYEBROW, color: COLORS.textSecondary, fontSize: 9, letterSpacing: 0.5, marginTop: 2 },
 
   motivationCard: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    backgroundColor: '#0E0E0E', borderRadius: 14,
-    marginHorizontal: 16, marginBottom: 12, padding: 14,
-    borderWidth: 1, borderColor: '#1C1C1C',
+    flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm,
+    backgroundColor: COLORS.card, borderRadius: RADIUS.card,
+    marginHorizontal: SPACING.lg, marginBottom: SPACING.md, padding: SPACING.md,
+    borderWidth: 1, borderColor: COLORS.cardBorder,
   },
-  motivationText: { color: '#C8D2D4', fontSize: 13, lineHeight: 19, flex: 1 },
+  motivationText: { ...BODY, color: COLORS.textSecondary, fontSize: 13, lineHeight: 19, flex: 1 },
 
-  aiInsightsCard: {
-    marginHorizontal: 16, marginBottom: 14,
-    backgroundColor: '#0A0F0A', borderRadius: 18,
-    padding: 18, borderWidth: 1, borderColor: COLORS.strainGlow + '30',
-  },
-  aiInsightsHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
-  aiInsightsLabel: { color: COLORS.strainGlow, fontSize: 10, fontWeight: '800', letterSpacing: 1.5 },
-  aiInsightsText: { color: COLORS.textSecondary, fontSize: 14, lineHeight: 21, marginBottom: 12 },
+  aiInsightsHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, marginBottom: SPACING.sm },
+  aiInsightsText: { ...BODY, color: COLORS.textSecondary, fontSize: 14, lineHeight: 21, marginBottom: SPACING.md },
   sectionLabel: {
-    color: '#5C6B6E', fontSize: 11, fontWeight: '700', letterSpacing: 1.5,
-    marginHorizontal: 16, marginBottom: 8, marginTop: 8,
+    ...EYEBROW, color: COLORS.textSecondary, fontSize: 11,
+    marginHorizontal: SPACING.lg, marginBottom: SPACING.sm, marginTop: SPACING.xl,
   },
-  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: 16, gap: 8, marginBottom: 12 },
-  aiToolsGrid: { flexDirection: 'row', marginHorizontal: 16, gap: 8, marginBottom: 16 },
+  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: SPACING.lg, gap: SPACING.sm, marginBottom: SPACING.md },
+  aiToolsGrid: { flexDirection: 'row', marginHorizontal: SPACING.lg, gap: SPACING.sm, marginBottom: SPACING.lg },
   aiToolBtn: {
-    flex: 1, backgroundColor: '#0E0E0E', borderRadius: 14, padding: 14,
-    borderWidth: 1, alignItems: 'center', gap: 4,
+    flex: 1, backgroundColor: COLORS.card, borderRadius: RADIUS.card, padding: SPACING.md,
+    borderWidth: 1, alignItems: 'center', gap: SPACING.xs,
   },
-  aiToolLabel: { color: '#E0E0E0', fontSize: 12, fontWeight: '700' },
-  aiToolSub: { color: '#5C6B6E', fontSize: 9, textAlign: 'center', lineHeight: 13 },
+  aiToolLabel: { color: COLORS.text, fontFamily: FONTS.bold, fontSize: 12 },
+  aiToolSub: { ...BODY, color: COLORS.textSecondary, fontSize: 9, textAlign: 'center', lineHeight: 13 },
   quickBtn: {
-    width: '47%', backgroundColor: '#0E0E0E', borderRadius: 14, padding: 16,
-    borderWidth: 1, alignItems: 'center', gap: 6,
+    width: '47%', backgroundColor: COLORS.card, borderRadius: RADIUS.card, padding: SPACING.lg,
+    borderWidth: 1, alignItems: 'center', gap: SPACING.sm,
   },
-  quickLabel: { color: '#C0C0C0', fontSize: 13, fontWeight: '600' },
+  quickLabel: { color: COLORS.textSecondary, fontFamily: FONTS.semibold, fontSize: 13 },
 });
