@@ -72,6 +72,43 @@ class WorkoutLocation(str, Enum):
     hybrid = "hybrid"
 
 
+class FoodPreference(str, Enum):
+    veg = "veg"
+    non_veg = "non-veg"
+    vegan = "vegan"
+    eggetarian = "eggetarian"
+
+
+class WorkoutTimePreference(str, Enum):
+    morning = "morning"
+    afternoon = "afternoon"
+    evening = "evening"
+
+
+class Mood(str, Enum):
+    great = "great"
+    good = "good"
+    okay = "okay"
+    bad = "bad"
+
+
+class Intensity(str, Enum):
+    high = "High"
+    moderate = "Moderate"
+    low = "Low"
+    rest = "Rest"
+
+
+class ResponseType(str, Enum):
+    workout_plan = "workout_plan"
+    live_set = "live_set"
+    nutrition_tip = "nutrition_tip"
+    recovery_advice = "recovery_advice"
+    progress_update = "progress_update"
+    chat = "chat"
+    emergency = "emergency"
+
+
 # ─── Auth ────────────────────────────────────────────────────────────────────
 
 class RegisterRequest(BaseModel):
@@ -115,7 +152,7 @@ class OnboardingCreate(BaseModel):
     occupation: Optional[str] = Field(None, max_length=100)
     daily_steps: Optional[int] = Field(None, ge=0)
     injuries: List[dict] = Field(default_factory=list)
-    food_preference: Optional[str] = None             # "veg" | "non-veg" | "vegan" | "eggetarian"
+    food_preference: Optional[FoodPreference] = None
     allergies: List[str] = Field(default_factory=list)
     food_restrictions: List[str] = Field(default_factory=list)
     gym_or_home: WorkoutLocation = WorkoutLocation.gym
@@ -123,7 +160,7 @@ class OnboardingCreate(BaseModel):
     equipment: List[str] = Field(default_factory=list)
     wake_time: Optional[str] = None
     sleep_time: Optional[str] = None
-    workout_time_preference: Optional[str] = None
+    workout_time_preference: Optional[WorkoutTimePreference] = None
     coach_style: CoachStyle = CoachStyle.friendly
 
 
@@ -143,7 +180,7 @@ class ProfileCreate(BaseModel):
     sleep_hours: Optional[float] = Field(None, ge=0, le=24)
     occupation: Optional[str] = Field(None, max_length=100)
     daily_steps: Optional[int] = Field(None, ge=0)
-    food_preference: Optional[str] = None              # "veg" | "non-veg" | "vegan" | "eggetarian"
+    food_preference: Optional[FoodPreference] = None
     allergies: List[str] = Field(default_factory=list)
     food_restrictions: List[str] = Field(default_factory=list)
     gym_or_home: WorkoutLocation = WorkoutLocation.gym
@@ -151,7 +188,7 @@ class ProfileCreate(BaseModel):
     equipment: List[str] = Field(default_factory=list)
     wake_time: Optional[str] = None                     # "HH:MM"
     sleep_time: Optional[str] = None                     # "HH:MM"
-    workout_time_preference: Optional[str] = None         # "morning" | "afternoon" | "evening"
+    workout_time_preference: Optional[WorkoutTimePreference] = None
     coach_style: CoachStyle = CoachStyle.friendly
 
 
@@ -171,14 +208,14 @@ class ProfileUpdate(BaseModel):
     occupation: Optional[str] = Field(None, max_length=100)
     daily_steps: Optional[int] = Field(None, ge=0)
     equipment: Optional[List[str]] = None
-    food_preference: Optional[str] = None
+    food_preference: Optional[FoodPreference] = None
     allergies: Optional[List[str]] = None
     food_restrictions: Optional[List[str]] = None
     gym_or_home: Optional[WorkoutLocation] = None
     workout_days_per_week: Optional[int] = Field(None, ge=1, le=7)
     wake_time: Optional[str] = None
     sleep_time: Optional[str] = None
-    workout_time_preference: Optional[str] = None
+    workout_time_preference: Optional[WorkoutTimePreference] = None
     coach_style: Optional[CoachStyle] = None
 
 
@@ -230,7 +267,7 @@ class SessionComplete(BaseModel):
     total_volume_kg: Optional[float] = None
     duration_minutes: Optional[int] = None
     calories_burned: Optional[int] = None
-    mood: Optional[str] = None  # "great" | "good" | "okay" | "bad"
+    mood: Optional[Mood] = None
 
 
 # ─── AI Chat ─────────────────────────────────────────────────────────────────
@@ -247,7 +284,7 @@ class StructuredDecision(BaseModel):
     All fields optional so partial decisions valid for chat/plain turns.
     """
     # v2 fields (new card system)
-    response_type: Optional[str] = None    # workout_plan|live_set|nutrition_tip|recovery_advice|chat|emergency
+    response_type: Optional[ResponseType] = None
     coach_message: Optional[str] = None    # user-facing message — never internal reasoning
     exercises: Optional[List[Any]] = None  # [{name, sets, reps, weight, rest, focus}]
     summary: Optional[Any] = None          # {intensity, estimated_time, reason}
@@ -255,7 +292,26 @@ class StructuredDecision(BaseModel):
     next_action: Optional[str] = None
     coach_insight: Optional[str] = None
     recovery: Optional[int] = None         # 0-100
-    intensity: Optional[str] = None        # High|Moderate|Low|Rest
+    intensity: Optional[Intensity] = None
+
+    @field_validator("response_type", mode="before")
+    @classmethod
+    def _fallback_response_type(cls, v):
+        # LLM-generated field — never let an unexpected value 500 the chat endpoint.
+        if v is None or v in ResponseType._value2member_map_:
+            return v
+        return ResponseType.chat
+
+    @field_validator("intensity", mode="before")
+    @classmethod
+    def _fallback_intensity(cls, v):
+        # LLM-generated field (the prompt itself inconsistently says "Recovery" in one
+        # spot vs "Rest" elsewhere) — normalize instead of raising.
+        if v is None or v in Intensity._value2member_map_:
+            return v
+        if isinstance(v, str) and v.strip().lower() in ("recovery", "rest", "deload"):
+            return Intensity.rest
+        return None
     # v1 backward-compat aliases
     mode: Optional[str] = None
     analysis: Optional[str] = None

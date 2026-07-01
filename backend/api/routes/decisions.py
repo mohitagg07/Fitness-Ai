@@ -106,6 +106,10 @@ async def save_today_decision(
             }
             for s in center.signals
         ],
+        "why_not": [
+            {"option": w.option, "reason": w.reason}
+            for w in center.why_not
+        ],
         "outcome": "pending",
         "outcome_note": None,
     }

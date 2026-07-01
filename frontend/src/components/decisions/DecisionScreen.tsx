@@ -13,8 +13,10 @@ import {
   ActivityIndicator, RefreshControl, LayoutAnimation,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { COLORS } from '../../theme/colors';
 import api, { describeApiError } from '../../utils/api';
+import EmptyState from '../shared/EmptyState';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Signal {
@@ -174,11 +176,13 @@ export default function DecisionScreen() {
       )}
 
       {decisions.length === 0 && !loading && (
-        <View style={styles.emptyState}>
-          <Ionicons name="analytics-outline" size={48} color="#2A2A2A" />
-          <Text style={styles.emptyTitle}>No decisions yet</Text>
-          <Text style={styles.emptyBody}>Open the Dashboard to generate your first AI decision. It'll appear here with full reasoning.</Text>
-        </View>
+        <EmptyState
+          icon="analytics-outline"
+          title="No decisions yet"
+          body="Open the Dashboard to generate your first AI decision. It'll appear here with full reasoning."
+          actionLabel="Open Dashboard"
+          onAction={() => router.push('/(tabs)')}
+        />
       )}
 
       {/* Decision cards */}

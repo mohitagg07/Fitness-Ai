@@ -11,8 +11,9 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  RefreshControl, ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import Logo from '../shared/Logo';
 import Svg, { Circle } from 'react-native-svg';
 import { router } from 'expo-router';
@@ -22,6 +23,8 @@ import { useStore } from '../../store';
 import { COLORS, recoveryColor as whoopRecoveryColor } from '../../theme/colors';
 import ProactiveBriefCard from './ProactiveBriefCard';
 import TodaysDecisionCard from './TodaysDecisionCard';
+import SinceYesterdayCard from './SinceYesterdayCard';
+import DashboardSkeleton from './DashboardSkeleton';
 import PatternInsightsCard from './PatternInsightsCard';
 import CoachTimelineCard from './CoachTimelineCard';
 import ProgramEvolutionCard from './ProgramEvolutionCard';
@@ -132,9 +135,11 @@ export default function DashboardScreen() {
   }, [loadData]);
 
   const onRefresh = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
   };
 
   const hour = new Date().getHours();
@@ -144,12 +149,7 @@ export default function DashboardScreen() {
     user?.full_name?.split(' ')[0] || profile?.full_name?.split(' ')[0] || 'Athlete';
 
   if (loading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator color={COLORS.recoveryHigh} size="large" />
-        <Text style={styles.loadingLabel}>Loading your mission...</Text>
-      </View>
-    );
+    return <DashboardSkeleton />;
   }
 
   if (errorMsg && !summary) {
@@ -199,14 +199,21 @@ export default function DashboardScreen() {
         </View>
       </View>
 
-      {/* ── AI Decision Center — the README's headline feature, now the
-          first thing under the greeting instead of buried on a hidden
-          tab. Real decision, real confidence, real evidence. ─────────── */}
-      <TodaysDecisionCard />
+      {/* ── Morning-briefing story arc ────────────────────────────────────
+          1. How am I today?      → score rings (this section)
+          2. What should I do?    → Workout Today card
+          3. Why?                 → Today's Decision card (confidence,
+                                     evidence, expandable reasoning)
+          4. What's changed?      → Since Yesterday card
+          5. What's my mission?   → Today's Mission card
+          6. Start workout        → CTA button
+          Everything below that is supporting detail the user can scroll
+          into, not part of the briefing itself. ─────────────────────── */}
 
-      {/* ── Primary score rings row: Recovery + CNS Load — the Whoop-style
-          centerpiece. Two large rings side by side, exactly mirroring how
-          Whoop pairs Recovery % with Strain on its home screen. ──────── */}
+      {/* ── 1. How am I today? Primary score rings: Recovery + CNS Load —
+          the Whoop-style centerpiece. Two large rings side by side,
+          exactly mirroring how Whoop pairs Recovery % with Strain on its
+          home screen. ──────────────────────────────────────────────── */}
       <View style={styles.ringsRow}>
         <ScoreRing
           size={150}
@@ -234,8 +241,8 @@ export default function DashboardScreen() {
         <Text style={styles.ringCaption}>{summary.recovery.message}</Text>
       )}
 
-      {/* ── WORKOUT TODAY — first card after rings so the user immediately
-          knows what to do. This is the most actionable info. ────────── */}
+      {/* ── 2. What should I do? WORKOUT TODAY — first card after rings so
+          the user immediately knows what to do. Most actionable info. ── */}
       {summary && (
         <View style={styles.workoutTodayCard}>
           <View style={styles.workoutTodayHeader}>
@@ -259,7 +266,10 @@ export default function DashboardScreen() {
               <Text style={styles.workoutTodayMsg}>No plan yet. Ask Coach to generate one based on your recovery.</Text>
               <TouchableOpacity
                 style={styles.generatePlanBtn}
-                onPress={() => router.push('/(tabs)/coach')}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+                  router.push('/(tabs)/coach');
+                }}
               >
                 <Ionicons name="flash" size={14} color="#000" />
                 <Text style={styles.generatePlanBtnText}>Generate Workout</Text>
@@ -269,7 +279,18 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* Daily Mission */}
+      {/* ── 3. Why? Today's Decision card — confidence, evidence signals,
+          and an expandable reasoning panel that justifies the workout
+          card above. ───────────────────────────────────────────────── */}
+      <TodaysDecisionCard />
+
+      {/* ── 4. What's changed since yesterday? ─────────────────────────── */}
+      <SinceYesterdayCard
+        workoutStreak={summary?.workout_streak}
+        proteinStreak={summary?.protein_streak}
+      />
+
+      {/* ── 5. What's my mission? Daily Mission ─────────────────────────── */}
       <View style={styles.feedCard}>
         <View style={styles.feedLabelRow}>
           <Ionicons name="flash" size={12} color={COLORS.recoveryHigh} />
@@ -283,6 +304,23 @@ export default function DashboardScreen() {
           <Ionicons name="arrow-forward" size={14} color={COLORS.recoveryHigh} />
         </TouchableOpacity>
       </View>
+
+      {/* ── 6. Start workout ─────────────────────────────────────────────
+          Closes the briefing loop — everything above built the case,
+          this is the single action it was all leading to. ────────────── */}
+      {summary?.workout_today?.type && (
+        <TouchableOpacity
+          style={styles.startWorkoutBtn}
+          activeOpacity={0.85}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+            router.push('/(tabs)/workout');
+          }}
+        >
+          <Ionicons name="play-circle" size={22} color="#000" />
+          <Text style={styles.startWorkoutText}>Start {summary.workout_today.type} Workout</Text>
+        </TouchableOpacity>
+      )}
 
       {/* ── Nutrition rings ──────────────────────────────────────────────── */}
       {summary && (
@@ -503,7 +541,6 @@ const styles = StyleSheet.create({
     flex: 1, backgroundColor: '#000000',
     justifyContent: 'center', alignItems: 'center', padding: 32,
   },
-  loadingLabel: { color: '#5C6B6E', fontSize: 13, marginTop: 14 },
   errorTitle: { color: '#FFF', fontSize: 17, fontWeight: '700', marginTop: 16, textAlign: 'center' },
   errorBody: { color: '#5C6B6E', fontSize: 13, marginTop: 8, textAlign: 'center', lineHeight: 19 },
   retryBtn: {
@@ -612,6 +649,13 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start', marginTop: 10,
   },
   generatePlanBtnText: { color: '#000', fontSize: 13, fontWeight: '700' },
+
+  startWorkoutBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: COLORS.strainGlow, borderRadius: 16,
+    marginHorizontal: 16, marginBottom: 16, paddingVertical: 16,
+  },
+  startWorkoutText: { color: '#000', fontSize: 15, fontWeight: '800', letterSpacing: 0.3, textTransform: 'capitalize' },
 
   streakRow: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 12, gap: 10 },
   streakCard: {

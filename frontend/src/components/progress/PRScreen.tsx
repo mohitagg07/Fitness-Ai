@@ -8,9 +8,11 @@ import {
   RefreshControl, ActivityIndicator, TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { profileApi } from '../../utils/api';
 import { COLORS } from '../../theme/colors';
 import Logo from '../shared/Logo';
+import EmptyState from '../shared/EmptyState';
 
 interface PR {
   id: string;
@@ -173,13 +175,13 @@ export default function PRScreen() {
         }
       >
         {prs.length === 0 && !error && (
-          <View style={styles.empty}>
-            <Ionicons name="barbell-outline" size={48} color="#333" />
-            <Text style={styles.emptyTitle}>No PRs yet</Text>
-            <Text style={styles.emptyBody}>
-              Log a set in Workout mode and your PRs will appear here automatically.
-            </Text>
-          </View>
+          <EmptyState
+            icon="barbell-outline"
+            title="No PRs yet"
+            body="Log a set in Workout mode and your PRs will appear here automatically."
+            actionLabel="Start Workout"
+            onAction={() => router.push('/(tabs)/workout')}
+          />
         )}
 
         {orderedGroups.map((cat) => (

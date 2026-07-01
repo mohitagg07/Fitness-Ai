@@ -334,3 +334,12 @@ CREATE POLICY "Users own their notifications" ON public.notifications FOR ALL US
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON public.notifications(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_unread  ON public.notifications(user_id, read) WHERE read = FALSE;
+
+-- ============================================================
+-- Schema addition — "why not the alternatives" column for
+-- ai_decisions. Added so decision_engine.py's why_not list
+-- (rejected alternatives with signal-grounded reasons) persists
+-- alongside the rest of the Decision Center payload.
+-- Safe to run even if ai_decisions already has rows.
+-- ============================================================
+ALTER TABLE public.ai_decisions ADD COLUMN IF NOT EXISTS why_not JSONB DEFAULT '[]'::jsonb;

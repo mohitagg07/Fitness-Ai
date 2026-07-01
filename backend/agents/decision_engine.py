@@ -27,7 +27,7 @@ import logging
 from datetime import date, timedelta
 from typing import Optional
 
-from schemas.models import Goal, DecisionCenter, EvidenceSignal
+from schemas.models import Goal, DecisionCenter, EvidenceSignal, WhyNotItem
 from db.supabase_client import get_supabase
 from agents.recovery_agent import run_recovery_agent
 from agents.progress_agent import run_progress_agent
@@ -225,6 +225,38 @@ def build_decision_center(
     elif recovery_decision.action != "rest":
         alternative = "If fatigue or soreness spikes mid-session, cut volume by 30% rather than pushing through."
 
+    # ── Why not the alternatives: same rule, every reason traces back to a
+    # signal already shown above — no LLM, matching this file's design
+    # principle for confidence/reasoning. Only includes alternatives that
+    # are actually plausible given today's recovery/injury state, so the
+    # list stays short and specific rather than listing every workout type.
+    why_not: list[WhyNotItem] = []
+    recovery_pct_val = recovery_decision.recovery_score * 10
+
+    if decision != "Rest Day" and recovery_decision.recovery_score >= 4:
+        why_not.append(WhyNotItem(
+            option="Rest Day",
+            reason=f"Recovery at {recovery_pct_val}% doesn't call for a full rest day.",
+        ))
+
+    if decision not in ("Rest Day", "Light / Active Recovery"):
+        if injury and injury["severity"] >= 4:
+            why_not.append(WhyNotItem(
+                option="PR Attempt",
+                reason=f"{injury['body_part'].replace('_', ' ').title()} pain at {injury['severity']}/10 rules out max-effort lifts today.",
+            ))
+        elif recovery_decision.recovery_score < 8:
+            why_not.append(WhyNotItem(
+                option="PR Attempt",
+                reason=f"Recovery at {recovery_pct_val}% is solid but not peak — save max attempts for a fresher day.",
+            ))
+
+    if decision == "Rest Day" and workout_decision.recommended_type:
+        why_not.append(WhyNotItem(
+            option=f"{workout_decision.recommended_type.title()} Day",
+            reason=f"Recovery at {recovery_pct_val}% is too low to load safely — rest first.",
+        ))
+
     return DecisionCenter(
         decision=decision,
         confidence_pct=confidence_pct,
@@ -232,4 +264,5 @@ def build_decision_center(
         reasoning=reasoning,
         expected_outcome=expected_outcome,
         alternative=alternative,
+        why_not=why_not,
     )

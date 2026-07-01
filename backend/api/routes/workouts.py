@@ -362,6 +362,7 @@ async def complete_session(
     # "Recovery Prediction: Medium" without the frontend making a second
     # round-trip to a different endpoint right after this one returns. ──
     recovery_prediction = None
+    recovery_pct = None
     try:
         from agents.recovery_agent import run_recovery_agent
         profile, _ = await asyncio.to_thread(get_full_user_context, user_id)
@@ -371,8 +372,16 @@ async def complete_session(
             sleep_hours=profile.get("sleep_hours"),
             planned_workout_type=None,
         )
-        score = recovery_decision.recovery_score
-        recovery_prediction = "High" if score >= 70 else "Medium" if score >= 40 else "Low"
+        # NOTE: recovery_decision.recovery_score is 0-10 (schema-constrained,
+        # ge=0/le=10) — comparing it against 70/40 here was a pre-existing
+        # scale bug that meant recovery_prediction was effectively always
+        # "Low" in production. score_pct is the real 0-100 value the agent
+        # already computes (attached as an extra attribute, see
+        # recovery_agent.py's docstring) — use that for both the label and
+        # the percentage the summary card shows.
+        score_pct_val = getattr(recovery_decision, "score_pct", recovery_decision.recovery_score * 10)
+        recovery_pct = round(score_pct_val)
+        recovery_prediction = "High" if score_pct_val >= 70 else "Medium" if score_pct_val >= 40 else "Low"
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(f"Recovery prediction failed: {e}")
@@ -402,6 +411,25 @@ async def complete_session(
     except Exception:
         pass
 
+    # ── Coach message: short, deterministic, grounded in this session's
+    # own numbers — no LLM call on this path (latency-sensitive, and a
+    # failed LLM call shouldn't ever block the completion summary). Mirrors
+    # the same "compute don't invent" principle decision_engine.py uses. ──
+    if new_prs:
+        pr_name = new_prs[0]["exercise_name"]
+        coach_message = (
+            f"New PR on {pr_name}. That's {len(new_prs)} personal record"
+            f"{'s' if len(new_prs) != 1 else ''} today — excellent session."
+        )
+    elif total_volume_kg and total_volume_kg > 0:
+        coach_message = "Solid session, logged and saved. Recover well before the next one."
+    else:
+        coach_message = "Session saved."
+    if recovery_prediction == "High":
+        coach_message += " You've earned tomorrow's recovery."
+    elif recovery_prediction == "Low":
+        coach_message += " Prioritize sleep tonight — recovery's tight."
+
     return {
         **session,
         "summary": {
@@ -411,6 +439,8 @@ async def complete_session(
             "calories_is_estimate": True,
             "new_prs": new_prs,
             "recovery_prediction": recovery_prediction,
+            "recovery_pct": recovery_pct,
+            "coach_message": coach_message,
             "sets_logged": len(logs),
         },
     }

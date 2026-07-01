@@ -12,8 +12,10 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { workoutApi, describeApiError } from '../../utils/api';
 import { COLORS } from '../../theme/colors';
+import EmptyState from '../shared/EmptyState';
 
 interface SessionSummary {
   id: string; session_date: string; day_label?: string; workout_type?: string;
@@ -109,10 +111,13 @@ export default function WorkoutHistoryModal({ visible, onClose }: { visible: boo
               </TouchableOpacity>
             </View>
           ) : !hasData || sessions.length === 0 ? (
-            <View style={styles.center}>
-              <Ionicons name="barbell-outline" size={28} color={COLORS.textMuted} />
-              <Text style={styles.emptyText}>{emptyMsg || 'No completed workouts yet.'}</Text>
-            </View>
+            <EmptyState
+              icon="barbell-outline"
+              title="No Workout History Yet"
+              body={emptyMsg || "Complete your first workout and the AI will automatically build your progress timeline."}
+              actionLabel="Start Workout"
+              onAction={() => { onClose(); router.push('/(tabs)/workout'); }}
+            />
           ) : (
             <ScrollView contentContainerStyle={styles.list}>
               {sessions.map((s) => (

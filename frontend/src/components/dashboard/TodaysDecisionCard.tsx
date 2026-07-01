@@ -18,13 +18,19 @@
 // link into the full Decision History for past accuracy tracking.
 
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, LayoutAnimation, Platform, UIManager } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { decisionsApi } from '../../utils/api';
 import { COLORS } from '../../theme/colors';
 
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 interface Signal { label: string; value: string; favorable: boolean; }
+interface WhyNotItem { option: string; reason: string; }
 interface TodayDecision {
   id: string;
   decision: string;
@@ -33,6 +39,7 @@ interface TodayDecision {
   expected_outcome?: string | null;
   alternative?: string | null;
   signals: Signal[];
+  why_not?: WhyNotItem[];
 }
 
 function confidenceColor(pct: number) {
@@ -124,7 +131,15 @@ export default function TodaysDecisionCard() {
         </View>
       )}
 
-      <TouchableOpacity style={styles.whyBtn} onPress={() => setExpanded((v) => !v)} activeOpacity={0.7}>
+      <TouchableOpacity
+        style={styles.whyBtn}
+        activeOpacity={0.7}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+          setExpanded((v) => !v);
+        }}
+      >
         <Ionicons name="help-circle-outline" size={14} color={COLORS.strainGlow} />
         <Text style={styles.whyBtnText}>Why?</Text>
         <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={12} color={COLORS.strainGlow} />
@@ -137,6 +152,17 @@ export default function TodaysDecisionCard() {
             <View style={styles.whyRow}>
               <Text style={styles.whyRowLabel}>EXPECTED OUTCOME</Text>
               <Text style={styles.whyRowText}>{decision.expected_outcome}</Text>
+            </View>
+          )}
+          {!!decision.why_not?.length && (
+            <View style={styles.whyRow}>
+              <Text style={styles.whyRowLabel}>WHY NOT</Text>
+              {decision.why_not.map((w, i) => (
+                <Text key={i} style={styles.whyRowText}>
+                  <Text style={styles.whyNotOption}>{w.option}: </Text>
+                  {w.reason}
+                </Text>
+              ))}
             </View>
           )}
           {!!decision.alternative && (
@@ -192,5 +218,6 @@ const styles = StyleSheet.create({
   whyReasoning: { color: COLORS.textSecondary, fontSize: 13, lineHeight: 20 },
   whyRow: { gap: 3 },
   whyRowLabel: { color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 1 },
-  whyRowText: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 18 },
+  whyRowText: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 18, marginBottom: 4 },
+  whyNotOption: { color: COLORS.text, fontWeight: '700' },
 });
