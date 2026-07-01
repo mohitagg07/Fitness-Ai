@@ -3,7 +3,7 @@
 // Brand system matching the VYRN Adaptive Performance System identity:
 //   - Lime green (#7CFF00) → Electric blue (#28B8FF) gradient
 //   - Three-part V / Y / RN hierarchy: V in white, Y in gradient, RN in white
-//   - Chevron/lightning mark: stylized V-bolt SVG emblem
+//   - Checkmark-weight "V" mark inside a gradient ring emblem
 //
 // Four sizes cover every use case:
 //   sm  → tab bar / inline header
@@ -82,19 +82,23 @@ export default function Logo({
 }
 
 // ── Badge ─────────────────────────────────────────────────────────────────────
-// Circular emblem with a stylized V-chevron (lightning bolt) mark.
-// Matches the visual weight of the VYRN PNG logo.
+// Single-stroke "V" checkmark mark inside a gradient ring — this is the
+// one canonical brand mark (matches the reference brand sheet exactly:
+// a bold checkmark-weight V, diagonal green→blue fill, thin gradient
+// ring outline, small motion flick off the top-right stroke). Every
+// screen's header renders this exact SVG at a different size — never a
+// re-drawn or re-interpreted version of it.
 function LogoBadge({ size }: { size: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 100 100">
       <Defs>
-        <LinearGradient id="vyrnBadgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <LinearGradient id="vyrnBadgeGrad" x1="10%" y1="10%" x2="90%" y2="90%">
           <Stop offset="0%"   stopColor="#7CFF00" />
           <Stop offset="100%" stopColor="#28B8FF" />
         </LinearGradient>
         <LinearGradient id="vyrnRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <Stop offset="0%"   stopColor="#7CFF00" stopOpacity="0.6" />
-          <Stop offset="100%" stopColor="#28B8FF" stopOpacity="0.6" />
+          <Stop offset="0%"   stopColor="#7CFF00" />
+          <Stop offset="100%" stopColor="#28B8FF" />
         </LinearGradient>
       </Defs>
 
@@ -102,25 +106,18 @@ function LogoBadge({ size }: { size: number }) {
       <Circle cx="50" cy="50" r="46" fill="none" stroke="url(#vyrnRingGrad)" strokeWidth="2.5" />
 
       {/* Inner dark circle */}
-      <Circle cx="50" cy="50" r="42" fill="#0A0A0A" />
+      <Circle cx="50" cy="50" r="41.5" fill="#0A0A0A" />
 
-      {/* Chevron / V-bolt mark — left arm (green side) */}
+      {/* Single bold checkmark-weight "V" stroke, diagonal gradient fill */}
       <Path
-        d="M 26 28 L 50 68 L 50 52 L 38 28 Z"
-        fill="#7CFF00"
-        opacity="0.95"
-      />
-      {/* Chevron / V-bolt mark — right arm (blue side) */}
-      <Path
-        d="M 74 28 L 50 68 L 50 52 L 62 28 Z"
-        fill="#28B8FF"
-        opacity="0.95"
-      />
-      {/* Center overlap blend */}
-      <Path
-        d="M 44 52 L 50 68 L 56 52 L 50 40 Z"
+        d="M 30 30 L 50 66 L 70 30 L 60 30 L 50 48 L 40 30 Z"
         fill="url(#vyrnBadgeGrad)"
-        opacity="0.9"
+      />
+      {/* Motion flick off the top-right stroke tip */}
+      <Path
+        d="M 66 26 L 74 22 L 71 30 Z"
+        fill="#7CFF00"
+        opacity="0.85"
       />
     </Svg>
   );
