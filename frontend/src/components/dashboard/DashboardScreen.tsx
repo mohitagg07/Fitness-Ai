@@ -381,10 +381,13 @@ export default function DashboardScreen() {
             style={styles.startWorkoutBtn}
           >
             <View style={styles.startWorkoutPlay}>
-              <Ionicons name="play" size={18} color="#000" style={{ marginLeft: 2 }} />
+              <Ionicons name="play" size={20} color="#000" style={{ marginLeft: 2 }} />
             </View>
-            <Text style={styles.startWorkoutText}>START</Text>
-            <Text style={styles.startWorkoutSub}>{summary.workout_today.type} WORKOUT</Text>
+            <View style={styles.startWorkoutTextCol}>
+              <Text style={styles.startWorkoutText}>START</Text>
+              <Text style={styles.startWorkoutSub}>{summary.workout_today.type} WORKOUT</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={22} color="rgba(0,0,0,0.45)" />
           </LinearGradient>
         </TouchableOpacity>
       )}
@@ -468,16 +471,12 @@ export default function DashboardScreen() {
       {/* ── Phase 2: Program Evolution ───────────────────────────────── */}
       <ProgramEvolutionCard />
 
-      {/* Quick Access — 3 primary actions; secondary features in AI Tools */}
-      <Text style={styles.sectionLabel}>QUICK START</Text>
-      <View style={styles.quickGrid}>
-        <QuickBtn label="Ask Coach"  icon="chatbubble-outline"  onPress={() => router.push('/(tabs)/coach')}    accent={COLORS.recoveryHigh} />
-        <QuickBtn label="Gym Mode"   icon="barbell-outline"     onPress={() => router.push('/(tabs)/workout')}  accent={COLORS.strain}       />
-        <QuickBtn label="Analytics"  icon="stats-chart-outline" onPress={() => router.push('/(tabs)/progress')} accent={COLORS.sleep}        />
-      </View>
-
-      {/* Secondary feature cards — Decisions/Simulate/Form check moved off bottom nav */}
-      <Text style={styles.sectionLabel}>MORE TOOLS</Text>
+      {/* Secondary feature cards — Decisions/Simulate/Form check moved off
+          bottom nav. (The old "QUICK START" grid above this was removed:
+          its three buttons — Ask Coach / Gym Mode / Analytics — routed to
+          the exact same Coach/Workout/Progress tabs already in the bottom
+          bar, so it was a second nav bar with nothing new to offer.) */}
+      <Text style={[styles.sectionLabel, { marginTop: SPACING.lg }]}>MORE TOOLS</Text>
       <View style={styles.aiToolsGrid}>
         <TouchableOpacity style={[styles.aiToolBtn, { borderColor: alpha(COLORS.strainGlow, 0.25) }]} onPress={() => router.push('/(tabs)/decisions')}>
           <Ionicons name="analytics-outline" size={22} color={COLORS.strainGlow} />
@@ -591,17 +590,6 @@ function MiniRing({
       <Text style={styles.miniRingLabel}>{label}</Text>
       <Text style={styles.miniRingSub}>{sub}</Text>
     </View>
-  );
-}
-
-function QuickBtn({
-  label, icon, onPress, accent,
-}: { label: string; icon: IoniconName; onPress: () => void; accent: string }) {
-  return (
-    <TouchableOpacity style={[styles.quickBtn, { borderColor: alpha(accent, 0.2) }]} onPress={onPress}>
-      <Ionicons name={icon} size={24} color={accent} />
-      <Text style={styles.quickLabel}>{label}</Text>
-    </TouchableOpacity>
   );
 }
 
@@ -720,7 +708,7 @@ const styles = StyleSheet.create({
   },
   workoutTodayLabelRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
   workoutTodayType: {
-    color: COLORS.text, fontFamily: FONTS.extrabold, fontSize: 24, letterSpacing: 0.5,
+    color: COLORS.text, fontFamily: FONTS.black, fontSize: 28, letterSpacing: 0.3,
     marginBottom: SPACING.xs,
   },
   workoutTodayMsg: {
@@ -762,14 +750,44 @@ const styles = StyleSheet.create({
   },
   generatePlanBtnText: { color: '#000', fontFamily: FONTS.bold, fontSize: 13 },
 
-  // Single primary CTA that closes the briefing — the brightest surface
-  // on the screen on purpose, so it reads as the one clear next action.
-  startWorkoutBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm,
-    backgroundColor: COLORS.strainGlow, borderRadius: RADIUS.card,
-    marginHorizontal: SPACING.lg, marginBottom: SPACING.lg, paddingVertical: SPACING.md,
+  // Single primary CTA that closes the briefing — the brightest, largest
+  // surface on the screen on purpose, so it reads as the one clear next
+  // action (principle: strongest visual element, elegant not flashy).
+  // `startWorkoutWrap` owns the outer spacing + soft glow shadow;
+  // `startWorkoutBtn` is the gradient surface itself. Previously these
+  // (plus startWorkoutPlay/startWorkoutSub) were referenced in JSX but
+  // never defined, so the CTA rendered with no shape at all.
+  startWorkoutWrap: {
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.xs,
+    marginBottom: SPACING.xxl, // extra breathing room — this closes the briefing story
+    borderRadius: RADIUS.card,
+    shadowColor: COLORS.strainGlow,
+    shadowOpacity: 0.32,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 10,
   },
-  startWorkoutText: { color: '#000', fontFamily: FONTS.extrabold, fontSize: 15, letterSpacing: 0.3, textTransform: 'capitalize' },
+  startWorkoutBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
+    borderRadius: RADIUS.card,
+    paddingVertical: SPACING.xl,
+    paddingHorizontal: SPACING.lg,
+  },
+  startWorkoutPlay: {
+    width: 48, height: 48, borderRadius: 24,
+    backgroundColor: 'rgba(0,0,0,0.16)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  startWorkoutTextCol: { flex: 1 },
+  startWorkoutText: {
+    color: '#000', fontFamily: FONTS.black, fontSize: 26,
+    letterSpacing: 0.2, lineHeight: 28,
+  },
+  startWorkoutSub: {
+    color: 'rgba(0,0,0,0.6)', fontFamily: FONTS.bold, fontSize: 11,
+    letterSpacing: 1, textTransform: 'uppercase', marginTop: 2,
+  },
 
   streakRow: { flexDirection: 'row', marginHorizontal: SPACING.lg, marginBottom: SPACING.md, gap: SPACING.sm },
   streakCard: {
@@ -793,7 +811,6 @@ const styles = StyleSheet.create({
     ...EYEBROW, color: COLORS.textSecondary, fontSize: 11,
     marginHorizontal: SPACING.lg, marginBottom: SPACING.sm, marginTop: SPACING.xl,
   },
-  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: SPACING.lg, gap: SPACING.sm, marginBottom: SPACING.md },
   aiToolsGrid: { flexDirection: 'row', marginHorizontal: SPACING.lg, gap: SPACING.sm, marginBottom: SPACING.lg },
   aiToolBtn: {
     flex: 1, backgroundColor: COLORS.card, borderRadius: RADIUS.card, padding: SPACING.md,
@@ -801,9 +818,4 @@ const styles = StyleSheet.create({
   },
   aiToolLabel: { color: COLORS.text, fontFamily: FONTS.bold, fontSize: 12 },
   aiToolSub: { ...BODY, color: COLORS.textSecondary, fontSize: 9, textAlign: 'center', lineHeight: 13 },
-  quickBtn: {
-    width: '47%', backgroundColor: COLORS.card, borderRadius: RADIUS.card, padding: SPACING.lg,
-    borderWidth: 1, alignItems: 'center', gap: SPACING.sm,
-  },
-  quickLabel: { color: COLORS.textSecondary, fontFamily: FONTS.semibold, fontSize: 13 },
 });
