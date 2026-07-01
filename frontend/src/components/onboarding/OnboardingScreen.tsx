@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  ImageBackground,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -156,10 +157,16 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <ImageBackground
+      source={require('../../../assets/onboarding-hero.png')}
+      style={styles.bg}
+      resizeMode="cover"
     >
+      <View style={styles.scrim} />
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
       <ScrollView
         ref={scrollRef}
         horizontal
@@ -221,7 +228,8 @@ export default function OnboardingScreen() {
           <View style={styles.backButtonHidden} />
         </View>
       </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </ImageBackground>
   );
 }
 
@@ -505,7 +513,12 @@ function SelectRow({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0A0A0A' },
+  bg: { flex: 1, backgroundColor: '#0A0A0A' },
+  scrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(10,10,10,0.72)', // keeps form fields/text legible over the photo
+  },
+  container: { flex: 1, backgroundColor: 'transparent' },
   pager: { flex: 1 },
   slide: { flex: 1 },
   slideContent: { flex: 1, paddingHorizontal: 24, paddingTop: 64 },

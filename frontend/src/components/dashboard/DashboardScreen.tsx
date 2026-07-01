@@ -15,12 +15,11 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
 import Logo from '../shared/Logo';
 import Svg, { Circle } from 'react-native-svg';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { dashboardApi, missionApi, describeApiError } from '../../utils/api';
+import { dashboardApi, missionApi, progressApi, describeApiError } from '../../utils/api';
 import { useStore } from '../../store';
 import { COLORS, alpha, recoveryColor as whoopRecoveryColor } from '../../theme/colors';
 import { FONTS, EYEBROW, BODY } from '../../theme/typography';
@@ -123,6 +122,10 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Real "sessions completed this week" count from /progress/weekly-stats —
+  // used for the Workouts This Week stat. null while unknown/unavailable
+  // so the UI can quietly omit the stat instead of showing a fake number.
+  const [weeklySessions, setWeeklySessions] = useState<number | null>(null);
 
   const loadData = useCallback(async () => {
     setErrorMsg(null);
@@ -141,6 +144,14 @@ export default function DashboardScreen() {
     } catch (err: any) {
       const { message } = describeApiError(err);
       setErrorMsg(message);
+    }
+    try {
+      const weekly = await progressApi.getWeeklyStats();
+      if (typeof weekly.data?.sessions_completed === 'number') {
+        setWeeklySessions(weekly.data.sessions_completed);
+      }
+    } catch {
+      // Non-critical — stat is simply omitted if this fails.
     }
   }, [setCnsFatigue]);
 
@@ -232,13 +243,26 @@ export default function DashboardScreen() {
                 <Text style={styles.phaseText}>{profile.goal.toUpperCase()}</Text>
               </View>
             )}
+            <TouchableOpacity hitSlop={10} onPress={() => router.push('/(tabs)/coach')}>
+              <View>
+                <Ionicons name="notifications-outline" size={22} color={COLORS.textSecondary} />
+                <View style={styles.notifDot} />
+              </View>
+            </TouchableOpacity>
             <TouchableOpacity hitSlop={10} onPress={() => router.push('/(tabs)/profile')}>
               <Ionicons name="menu-outline" size={22} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </View>
         </View>
         <View style={styles.headerGreeting}>
-          <Text style={styles.greeting}>{greeting.toUpperCase()}</Text>
+          <Text style={styles.greetingLine}>
+            <Text style={styles.greetingAccent}>{greeting}, </Text>
+            <Text style={styles.greetingName}>{firstName} </Text>
+            👋
+          </Text>
+          <Text style={styles.greetingStatus} numberOfLines={2}>
+            {summary?.recovery?.message || "Recovery is looking good—today's a great day to train."}
+          </Text>
           <Text style={styles.name}>
             Ready to train,{'\n'}
             <Text style={styles.nameAccent}>{firstName}?</Text>
@@ -264,11 +288,22 @@ export default function DashboardScreen() {
           grouped inside one "Today's Readiness" shell so the two rings
           and the caption beneath them read as a single section instead
           of three elements floating separately on the black canvas. ── */}
-      <Text style={styles.sectionLabelFirst}>TODAY'S READINESS</Text>
+      <View style={styles.sectionHeaderRow}>
+        <Text style={[styles.sectionLabelFirst, { marginHorizontal: 0, marginBottom: 0 }]}>TODAY'S READINESS</Text>
+        <TouchableOpacity
+          style={styles.viewInsightsBtn}
+          onPress={() => router.push('/(tabs)/progress')}
+          hitSlop={8}
+        >
+          <Text style={styles.viewInsightsText}>View Insights</Text>
+          <Ionicons name="chevron-forward" size={13} color={COLORS.primaryGreen} />
+        </TouchableOpacity>
+      </View>
       <View style={styles.readinessGrid}>
         <ReadinessTile
           accent={recoveryZoneColor(recoveryScore)}
           icon="pulse"
+          pillIcon="checkmark-circle"
           label="RECOVERY"
           pct={recoveryScore * 10}
           caption={actionLabel(summary?.recovery?.action)}
@@ -276,27 +311,27 @@ export default function DashboardScreen() {
         <ReadinessTile
           accent={fatigueZoneColor(cnsFatigue)}
           icon="flash"
+          pillIcon="ellipse"
           label="CNS LOAD"
           pct={cnsFatigue * 10}
-          caption={cnsFatigue >= 7 ? 'High' : cnsFatigue >= 4 ? 'Moderate' : 'Fresh'}
+          caption={cnsFatigue >= 7 ? 'High Impact' : cnsFatigue >= 4 ? 'Moderate Impact' : 'Low Impact'}
         />
         <ReadinessTile
           accent={ZONE_YELLOW}
           icon="locate"
+          pillIcon="time-outline"
           label="MISSION FOCUS"
           caption={summary?.next_task || summary?.mission_text || 'Open Coach'}
         />
         <ReadinessTile
           accent={COLORS.coachPurple}
           icon="star"
+          pillIcon="star"
           label="COACH INSIGHT"
           pct={summary?.proactive_brief?.confidence_pct}
           caption={summary?.proactive_brief?.confidence ? `${summary.proactive_brief.confidence} Confidence` : 'Open Coach'}
         />
       </View>
-      {summary?.recovery?.message && (
-        <Text style={styles.readinessCaption}>{summary.recovery.message}</Text>
-      )}
 
       {/* ── 2. What should I do? WORKOUT TODAY — first card after rings so
           the user immediately knows what to do. Most actionable info. ── */}
@@ -374,21 +409,13 @@ export default function DashboardScreen() {
             router.push('/(tabs)/workout');
           }}
         >
-          <LinearGradient
-            colors={[COLORS.primaryGreen, COLORS.strainGlow, COLORS.primaryBlue]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.startWorkoutBtn}
-          >
+          <View style={styles.startWorkoutBtn}>
             <View style={styles.startWorkoutPlay}>
-              <Ionicons name="play" size={20} color="#000" style={{ marginLeft: 2 }} />
+              <Ionicons name="play" size={16} color="#000" style={{ marginLeft: 2 }} />
             </View>
-            <View style={styles.startWorkoutTextCol}>
-              <Text style={styles.startWorkoutText}>START</Text>
-              <Text style={styles.startWorkoutSub}>{summary.workout_today.type} WORKOUT</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={22} color="rgba(0,0,0,0.45)" />
-          </LinearGradient>
+            <Text style={styles.startWorkoutText}>Start Today's Workout</Text>
+            <Ionicons name="chevron-forward" size={20} color="rgba(0,0,0,0.5)" />
+          </View>
         </TouchableOpacity>
       )}
 
@@ -419,18 +446,37 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* Streaks */}
-      {summary && (summary.workout_streak > 0 || summary.protein_streak > 0) && (
-        <View style={styles.streakRow}>
-          <View style={styles.streakCard}>
-            <Ionicons name="flame" size={22} color={ZONE_YELLOW} />
-            <Text style={styles.streakValue}>{summary.workout_streak}</Text>
-            <Text style={styles.streakLabel}>WORKOUT STREAK</Text>
+      {/* Stats bar */}
+      {summary && (summary.workout_streak > 0 || summary.protein_streak > 0 || weeklySessions !== null) && (
+        <View style={styles.statsBar}>
+          <View style={styles.statItem}>
+            <View style={styles.statTopRow}>
+              <Ionicons name="flame" size={18} color={ZONE_YELLOW} />
+              <Text style={styles.statValue}>{summary.workout_streak}</Text>
+            </View>
+            <Text style={styles.statLabel}>Day Streak</Text>
           </View>
-          <View style={styles.streakCard}>
-            <Ionicons name="nutrition" size={22} color={ZONE_GREEN} />
-            <Text style={styles.streakValue}>{summary.protein_streak}</Text>
-            <Text style={styles.streakLabel}>PROTEIN STREAK</Text>
+          {weeklySessions !== null && (
+            <>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <View style={styles.statTopRow}>
+                  <Ionicons name="barbell" size={16} color={ZONE_GREEN} />
+                  <Text style={styles.statValue}>
+                    {weeklySessions}{profile?.workout_days_per_week ? `/${profile.workout_days_per_week}` : ''}
+                  </Text>
+                </View>
+                <Text style={styles.statLabel}>Workouts This Week</Text>
+              </View>
+            </>
+          )}
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <View style={styles.statTopRow}>
+              <Ionicons name="nutrition" size={18} color={COLORS.strainGlow} />
+              <Text style={styles.statValue}>{summary.protein_streak}</Text>
+            </View>
+            <Text style={styles.statLabel}>Protein Streak</Text>
           </View>
         </View>
       )}
@@ -508,9 +554,9 @@ export default function DashboardScreen() {
 // has no single number) it shows a static target glyph instead, so the
 // tile still has a strong focal shape rather than an empty icon.
 function ReadinessTile({
-  accent, icon, label, pct, caption,
+  accent, icon, pillIcon, label, pct, caption,
 }: {
-  accent: string; icon: IoniconName; label: string; pct?: number; caption: string;
+  accent: string; icon: IoniconName; pillIcon: IoniconName; label: string; pct?: number; caption: string;
 }) {
   const hasRing = typeof pct === 'number' && !Number.isNaN(pct);
   const size = 60;
@@ -553,7 +599,10 @@ function ReadinessTile({
           </View>
         )}
       </View>
-      <Text style={styles.tileCaption} numberOfLines={1}>{caption}</Text>
+      <View style={[styles.tilePill, { backgroundColor: alpha(accent, 0.14) }]}>
+        <Ionicons name={pillIcon} size={11} color={accent} />
+        <Text style={[styles.tilePillText, { color: accent }]} numberOfLines={1}>{caption}</Text>
+      </View>
     </View>
   );
 }
@@ -618,18 +667,26 @@ const styles = StyleSheet.create({
   headerTop: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
-  headerTopRight: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
-  headerGreeting: {
-    gap: SPACING.sm,
+  headerTopRight: { flexDirection: 'row', alignItems: 'center', gap: SPACING.lg },
+  notifDot: {
+    position: 'absolute', top: -1, right: -1, width: 7, height: 7, borderRadius: 4,
+    backgroundColor: COLORS.primaryGreen, borderWidth: 1.5, borderColor: COLORS.background,
   },
-  // Small live-status eyebrow in brand green — the opening beat of the
-  // page, not a caption. Sets up the big statement line beneath it.
-  greeting: { ...EYEBROW, color: COLORS.primaryGreen, fontSize: 11, letterSpacing: 1.5 },
+  headerGreeting: {
+    gap: SPACING.xs,
+  },
+  // Name/status line — "Good Morning, {name} 👋" in sentence case, same
+  // body scale as the rest of the app (fontSize 16) rather than a small
+  // eyebrow, so it reads as a real greeting sentence, not a label.
+  greetingLine: { fontFamily: FONTS.bold, fontSize: 16, lineHeight: 22 },
+  greetingAccent: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 16 },
+  greetingName: { color: COLORS.text, fontFamily: FONTS.bold, fontSize: 16 },
+  greetingStatus: { ...BODY, color: COLORS.textSecondary, fontSize: 13, lineHeight: 18 },
   // The greeting is now the actual hero of the header — a real headline,
   // not metadata. Name breaks to its own line and carries the brand
   // accent color so the page opens with confidence, matching the scale
   // a person would expect from Whoop/Nike/Apple Fitness home screens.
-  name: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 34, lineHeight: 38, letterSpacing: -0.6 },
+  name: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 34, lineHeight: 38, letterSpacing: -0.6, marginTop: SPACING.sm },
   nameAccent: { color: COLORS.primaryGreen },
   subGreeting: { ...BODY, color: COLORS.textSecondary, fontSize: 14, marginTop: SPACING.xs },
   // Phase badge now carries a live dot so it reads as status ("Phase 1,
@@ -641,11 +698,13 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: COLORS.cardBorder,
   },
   phaseDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: COLORS.primaryGreen },
-  phaseText: { ...EYEBROW, color: COLORS.textSecondary, fontSize: 10, letterSpacing: 1 },
+  phaseText: { ...EYEBROW, color: COLORS.textSecondary, fontSize: 11, letterSpacing: 1 },
 
   // One shared eyebrow style for every small uppercase card/section label —
   // cards differentiate by icon + text color only, never by font treatment.
-  eyebrow: { ...EYEBROW, fontSize: 10 },
+  // Fixed at 11px everywhere (the canonical EYEBROW size in theme/typography.ts)
+  // — this used to drift to 9/10/12 in different spots on this screen alone.
+  eyebrow: { ...EYEBROW, fontSize: 11 },
 
   // Today's Readiness — four independent tiles (Recovery / CNS Load /
   // Mission Focus / Coach Insight), each owning its own accent color,
@@ -655,6 +714,12 @@ const styles = StyleSheet.create({
     ...EYEBROW, color: COLORS.textSecondary, fontSize: 11,
     marginHorizontal: SPACING.lg, marginBottom: SPACING.sm,
   },
+  sectionHeaderRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginHorizontal: SPACING.lg, marginBottom: SPACING.sm,
+  },
+  viewInsightsBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  viewInsightsText: { ...BODY, color: COLORS.primaryGreen, fontFamily: FONTS.semibold, fontSize: 12 },
   readinessGrid: {
     flexDirection: 'row', flexWrap: 'wrap',
     marginHorizontal: SPACING.lg, gap: SPACING.sm, marginBottom: SPACING.sm,
@@ -664,7 +729,9 @@ const styles = StyleSheet.create({
     padding: SPACING.md, borderWidth: 1,
   },
   tileHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: SPACING.sm },
-  tileLabel: { ...EYEBROW, fontSize: 9, letterSpacing: 0.8 },
+  // Was 9px — smallest label on the whole screen for no reason. Now the
+  // same 11px eyebrow size as every other small uppercase label.
+  tileLabel: { ...EYEBROW, fontSize: 11, letterSpacing: 0.6 },
   tileBody: { alignItems: 'center', justifyContent: 'center', paddingVertical: SPACING.xs },
   tileRingCenter: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
   tileRingValue: { fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 18 },
@@ -677,14 +744,16 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   tileTargetDot: { width: 10, height: 10, borderRadius: 5 },
-  tileCaption: {
-    ...BODY, color: COLORS.textSecondary, fontSize: 11, fontFamily: FONTS.medium,
-    textAlign: 'center', marginTop: SPACING.sm,
+  // Caption pill — colored translucent badge (accent @ 14% opacity) with
+  // a small matching icon, replacing the old plain gray caption text so
+  // each tile's verdict ("GO AS PLANNED", "YOU'VE GOT THIS") reads as a
+  // real status chip instead of a caption line.
+  tilePill: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+    borderRadius: RADIUS.badge, paddingVertical: 6, paddingHorizontal: SPACING.sm,
+    marginTop: SPACING.sm, alignSelf: 'stretch',
   },
-  readinessCaption: {
-    ...BODY, color: COLORS.textMuted, fontSize: 12, textAlign: 'center',
-    marginHorizontal: SPACING.xl, marginBottom: SPACING.lg, lineHeight: 17,
-  },
+  tilePillText: { fontFamily: FONTS.bold, fontSize: 11, letterSpacing: 0.2 },
   // ── Hero cards ──────────────────────────────────────────────────────
   // Workout Today / Today's Mission / I Noticed Something all share this
   // one card shell. They differentiate purely through icon + label color
@@ -753,49 +822,48 @@ const styles = StyleSheet.create({
   // Single primary CTA that closes the briefing — the brightest, largest
   // surface on the screen on purpose, so it reads as the one clear next
   // action (principle: strongest visual element, elegant not flashy).
-  // `startWorkoutWrap` owns the outer spacing + soft glow shadow;
-  // `startWorkoutBtn` is the gradient surface itself. Previously these
-  // (plus startWorkoutPlay/startWorkoutSub) were referenced in JSX but
-  // never defined, so the CTA rendered with no shape at all.
+  // Solid brand green (not a gradient) with centered text — matches the
+  // reference layout's single-line "Start Today's Workout" button.
   startWorkoutWrap: {
     marginHorizontal: SPACING.lg,
     marginTop: SPACING.xs,
     marginBottom: SPACING.xxl, // extra breathing room — this closes the briefing story
     borderRadius: RADIUS.card,
-    shadowColor: COLORS.strainGlow,
+    shadowColor: COLORS.primaryGreen,
     shadowOpacity: 0.32,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 10 },
     elevation: 10,
   },
   startWorkoutBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm,
+    backgroundColor: COLORS.primaryGreen,
     borderRadius: RADIUS.card,
-    paddingVertical: SPACING.xl,
+    paddingVertical: SPACING.lg,
     paddingHorizontal: SPACING.lg,
   },
   startWorkoutPlay: {
-    width: 48, height: 48, borderRadius: 24,
+    width: 30, height: 30, borderRadius: 15,
     backgroundColor: 'rgba(0,0,0,0.16)',
     alignItems: 'center', justifyContent: 'center',
   },
-  startWorkoutTextCol: { flex: 1 },
   startWorkoutText: {
-    color: '#000', fontFamily: FONTS.black, fontSize: 26,
-    letterSpacing: 0.2, lineHeight: 28,
-  },
-  startWorkoutSub: {
-    color: 'rgba(0,0,0,0.6)', fontFamily: FONTS.bold, fontSize: 11,
-    letterSpacing: 1, textTransform: 'uppercase', marginTop: 2,
+    color: '#000', fontFamily: FONTS.bold, fontSize: 17,
   },
 
-  streakRow: { flexDirection: 'row', marginHorizontal: SPACING.lg, marginBottom: SPACING.md, gap: SPACING.sm },
-  streakCard: {
-    flex: 1, backgroundColor: COLORS.card, borderRadius: RADIUS.card, padding: SPACING.md,
-    alignItems: 'center', borderWidth: 1, borderColor: COLORS.cardBorder,
+  // Flat inline stats bar (no card chrome) — icon + number on one line,
+  // label beneath, separated by a thin vertical divider. Matches the
+  // reference footer bar instead of the old boxed streak cards.
+  statsBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    marginHorizontal: SPACING.lg, marginBottom: SPACING.lg,
+    paddingVertical: SPACING.md, gap: SPACING.xl,
   },
-  streakValue: { color: COLORS.text, fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 22, marginTop: SPACING.xs },
-  streakLabel: { ...EYEBROW, color: COLORS.textSecondary, fontSize: 9, letterSpacing: 0.5, marginTop: 2 },
+  statItem: { alignItems: 'center' },
+  statTopRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  statValue: { color: COLORS.text, fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 20 },
+  statLabel: { ...BODY, color: COLORS.textSecondary, fontSize: 12, marginTop: 3 },
+  statDivider: { width: 1, height: 34, backgroundColor: COLORS.cardBorder },
 
   motivationCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm,

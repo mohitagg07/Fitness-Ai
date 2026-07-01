@@ -1,16 +1,14 @@
-import { useEffect } from 'react';
-import { Text, StyleSheet } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withSequence,
   withDelay,
   Easing,
   runOnJS,
 } from 'react-native-reanimated';
 import { COLORS } from '../../theme/colors';
-import Logo from '../shared/Logo';
 
 interface AnimatedSplashProps {
   onFinished: () => void;
@@ -18,41 +16,51 @@ interface AnimatedSplashProps {
 
 /**
  * Animated entrance sequence:
- *  1. Background fades in instantly (black -> avoids a white flash on slow devices)
- *  2. Badge (Logo's own image mark) scales up from 0.85 -> 1 while
- *     fading in (700ms). This is the exact same image asset used
- *     everywhere else in the app, not a second, disconnected graphic.
- *  3. Tagline slides up and fades in, staggered after the badge (400ms, +250ms delay)
- *  4. Brief hold, then the whole screen fades out and onFinished() fires
+ *  1. Background is true black instantly (-> avoids a white flash on slow devices)
+ *  2. Full brand key-art (runner + wordmark + tagline, baked into one image
+ *     asset at assets/splash.png) fades in and settles (700ms). This is the
+ *     one and only "opening" graphic — no separate logo/tagline composited
+ *     on top of it.
+ *  3. Brief hold, then the whole screen fades out and onFinished() fires
  *
- * Reanimated v4 note: direct shared-value assignment (`sv.value = x`) is
- * unreliable for UI updates in this version — every transition below is
- * wrapped in withTiming/withSequence rather than assigned bare.
+ * A previous version chained withDelay(withSequence(...)) with a
+ * zero-duration "anchor" step before the fade-out — that extra
+ * indirection was fragile on Reanimated v4 and could leave the splash
+ * stuck on screen if the callback never fired. This version uses a
+ * single withDelay(withTiming(...)) call for the fade-out, PLUS a
+ * plain JS setTimeout safety net that calls onFinished regardless of
+ * whether the native-thread animation callback ever runs — so the app
+ * can never get stuck on the opening screen.
  */
 export default function AnimatedSplash({ onFinished }: AnimatedSplashProps) {
   const heroOpacity = useSharedValue(0);
-  const heroScale = useSharedValue(0.85);
-  const textOpacity = useSharedValue(0);
-  const textTranslateY = useSharedValue(16);
+  const heroScale = useSharedValue(1.04);
   const screenOpacity = useSharedValue(1);
+  const finishedRef = useRef(false);
+
+  const finishOnce = () => {
+    if (finishedRef.current) return;
+    finishedRef.current = true;
+    onFinished();
+  };
 
   useEffect(() => {
     heroOpacity.value = withTiming(1, { duration: 700, easing: Easing.out(Easing.cubic) });
-    heroScale.value = withTiming(1, { duration: 700, easing: Easing.out(Easing.cubic) });
-
-    textOpacity.value = withDelay(450, withTiming(1, { duration: 400 }));
-    textTranslateY.value = withDelay(450, withTiming(0, { duration: 400, easing: Easing.out(Easing.quad) }));
+    heroScale.value = withTiming(1, { duration: 900, easing: Easing.out(Easing.cubic) });
 
     // Hold on screen, then fade out and hand control back to the navigator.
     screenOpacity.value = withDelay(
       2200,
-      withSequence(
-        withTiming(1, { duration: 0 }), // anchor point so the delay above is honored precisely
-        withTiming(0, { duration: 380 }, (finished) => {
-          if (finished) runOnJS(onFinished)();
-        })
-      )
+      withTiming(0, { duration: 380 }, (finished) => {
+        if (finished) runOnJS(finishOnce)();
+      })
     );
+
+    // Safety net: never let the splash block the app if the animation
+    // callback above doesn't fire for any reason (e.g. app backgrounded
+    // mid-animation on some Android devices).
+    const timer = setTimeout(finishOnce, 3200);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -61,24 +69,17 @@ export default function AnimatedSplash({ onFinished }: AnimatedSplashProps) {
     transform: [{ scale: heroScale.value }],
   }));
 
-  const textStyle = useAnimatedStyle(() => ({
-    opacity: textOpacity.value,
-    transform: [{ translateY: textTranslateY.value }],
-  }));
-
   const screenStyle = useAnimatedStyle(() => ({
     opacity: screenOpacity.value,
   }));
 
   return (
     <Animated.View style={[styles.container, screenStyle]}>
-      <Animated.View style={heroStyle}>
-        <Logo size="xl" showWordmark={false} />
-      </Animated.View>
-
-      <Animated.View style={[styles.textBlock, textStyle]}>
-        <Text style={styles.tagline}>ADAPTIVE PERFORMANCE SYSTEM</Text>
-      </Animated.View>
+      <Animated.Image
+        source={require('../../../assets/splash.png')}
+        style={[styles.hero, heroStyle]}
+        resizeMode="cover"
+      />
     </Animated.View>
   );
 }
@@ -87,18 +88,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background, // #000000 — true black, per WHOOP
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  textBlock: {
-    marginTop: 28,
-    alignItems: 'center',
-  },
-  tagline: {
-    marginTop: 8,
-    fontSize: 11,
-    fontWeight: '500',
-    color: COLORS.textSecondary,
-    letterSpacing: 2.5,
+  hero: {
+    ...StyleSheet.absoluteFillObject,
+    width: undefined,
+    height: undefined,
   },
 });

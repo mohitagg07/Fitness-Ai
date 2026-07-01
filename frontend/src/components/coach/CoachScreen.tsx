@@ -16,7 +16,8 @@ import {
   Alert, ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { coachApi, describeApiError } from '../../utils/api';
+import { router } from 'expo-router';
+import { coachApi, dashboardApi, missionApi, describeApiError } from '../../utils/api';
 import { useStore } from '../../store';
 import { COLORS, recoveryColor } from '../../theme/colors';
 import Logo from '../shared/Logo';
@@ -436,14 +437,49 @@ function getOfflineFallback(message: string): string {
   return OFFLINE_RESPONSES.default;
 }
 
+// ─── Small numeric badge used in the header briefing strip ───────────────────
+function MiniStat({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <View style={S.miniStat}>
+      <View style={[S.miniStatRing, { borderColor: color + '55' }]}>
+        <Text style={[S.miniStatValue, { color }]}>{value}</Text>
+      </View>
+      <Text style={S.miniStatLabel}>{label}</Text>
+    </View>
+  );
+}
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function CoachScreen() {
   const [input, setInput]   = useState('');
   const [loading, setLoading] = useState(false);
   const [serverStatus, setServerStatus] = useState<'online' | 'offline' | 'unknown'>('unknown');
   const [memoryVisible, setMemoryVisible] = useState(false);
+  // Real recovery/CNS numbers for the header briefing strip — reuses the
+  // same summary endpoint the Dashboard uses, so the two screens never
+  // disagree about "how am I today". No fabricated Sleep/Readiness rings
+  // here since the backend doesn't return those as distinct scores.
+  const [brief, setBrief] = useState<{ recoveryScore: number; cnsFatigue: number; message: string } | null>(null);
   const flatListRef = useRef<FlatList>(null);
-  const { chatHistory, addChatMessage, setCnsFatigue, activeSession } = useStore();
+  const { chatHistory, addChatMessage, setCnsFatigue, activeSession, profile, user } = useStore();
+  const firstName = user?.full_name?.split(' ')[0] || profile?.full_name?.split(' ')[0] || 'Athlete';
+
+  useEffect(() => {
+    (async () => {
+      try {
+        let res;
+        try { res = await missionApi.getToday(); } catch { res = await dashboardApi.getSummary(); }
+        const d = res.data;
+        setBrief({
+          recoveryScore: (d.recovery?.score ?? 0) * 10,
+          cnsFatigue: (d.cns_fatigue ?? 0) * 10,
+          message: d.recovery?.message || "Recovery data will show up here once you've logged a session.",
+        });
+      } catch {
+        // Non-critical — header simply omits the briefing strip.
+      }
+    })();
+  }, []);
 
   const sendMessage = async (text?: string) => {
     const message = text || input.trim();
@@ -516,8 +552,47 @@ export default function CoachScreen() {
       <View style={S.header}>
         <View style={S.headerTopRow}>
           <Logo size="sm" />
-          <Text style={S.headerSub}>AI Coach</Text>
+          <View style={S.headerTitleCol}>
+            <View style={S.headerTitleRow}>
+              <Text style={S.headerTitle}>AI Coach</Text>
+              <View style={S.proBadge}>
+                <Text style={S.proBadgeText}>PRO</Text>
+              </View>
+            </View>
+            <Text style={S.headerSub}>Your performance partner</Text>
+          </View>
+          <View style={S.headerIcons}>
+            <TouchableOpacity hitSlop={10}>
+              <View>
+                <Ionicons name="notifications-outline" size={21} color={COLORS.textSecondary} />
+                <View style={S.notifDot} />
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity hitSlop={10} onPress={() => router.push('/(tabs)/profile')}>
+              <Ionicons name="menu-outline" size={22} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {/* Real recovery/CNS briefing — no photo/avatar; the greeting text
+            and the two live numbers carry the "your coach is watching"
+            feeling on their own. */}
+        {brief && (
+          <View style={S.briefCard}>
+            <View style={S.briefTextCol}>
+              <Text style={S.briefGreeting}>Good morning, {firstName} 👋</Text>
+              <Text style={S.briefMessage} numberOfLines={2}>{brief.message}</Text>
+            </View>
+            <View style={S.briefRings}>
+              <MiniStat label="Recovery" value={Math.round(brief.recoveryScore)} color={recoveryColor(brief.recoveryScore)} />
+              <MiniStat
+                label="CNS Load"
+                value={Math.round(brief.cnsFatigue)}
+                color={brief.cnsFatigue <= 30 ? COLORS.recoveryHigh : brief.cnsFatigue <= 60 ? COLORS.recoveryMed : COLORS.recoveryLow}
+              />
+            </View>
+          </View>
+        )}
       </View>
       <CoachMemoryModal visible={memoryVisible} onClose={() => setMemoryVisible(false)} />
 
@@ -700,10 +775,40 @@ const S = StyleSheet.create({
 
   header: {
     paddingHorizontal: 20, paddingTop: 56, paddingBottom: 12,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 4,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 12,
   },
   headerTopRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerTitleCol: { flex: 1 },
+  headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  headerTitle: { color: COLORS.text, fontSize: 16, fontWeight: '700' },
+  proBadge: {
+    backgroundColor: COLORS.recoveryHigh + '20', borderRadius: 6,
+    paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: COLORS.recoveryHigh + '50',
+  },
+  proBadgeText: { color: COLORS.recoveryHigh, fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
   headerSub: { color: COLORS.textMuted, fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
+  headerIcons: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  notifDot: {
+    position: 'absolute', top: -1, right: -1, width: 7, height: 7, borderRadius: 4,
+    backgroundColor: COLORS.recoveryHigh, borderWidth: 1.5, borderColor: COLORS.background,
+  },
+  // Briefing strip — real recovery/CNS numbers, greeting text, no photo.
+  briefCard: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: COLORS.card, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border,
+    padding: 14, gap: 10,
+  },
+  briefTextCol: { flex: 1, gap: 3 },
+  briefGreeting: { color: COLORS.text, fontSize: 14, fontWeight: '700' },
+  briefMessage: { color: COLORS.textMuted, fontSize: 12, lineHeight: 16 },
+  briefRings: { flexDirection: 'row', gap: 14 },
+  miniStat: { alignItems: 'center', gap: 4 },
+  miniStatRing: {
+    width: 42, height: 42, borderRadius: 21, borderWidth: 2,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  miniStatValue: { fontSize: 14, fontWeight: '800' },
+  miniStatLabel: { color: COLORS.textMuted, fontSize: 9, fontWeight: '600' },
   offlineBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: '#1A1606', paddingVertical: 8, paddingHorizontal: 16,
