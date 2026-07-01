@@ -90,7 +90,7 @@ export default function TodaysDecisionCard() {
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
           <Ionicons name="analytics" size={13} color={cc} />
-          <Text style={styles.headerLabel}>TODAY'S DECISION</Text>
+          <Text style={styles.headerLabel}>Today's Decision</Text>
         </View>
         <TouchableOpacity onPress={() => router.push('/(tabs)/decisions')} style={styles.historyLink}>
           <Text style={styles.historyLinkText}>History</Text>

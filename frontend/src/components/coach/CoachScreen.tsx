@@ -516,12 +516,8 @@ export default function CoachScreen() {
       <View style={S.header}>
         <View style={S.headerTopRow}>
           <Logo size="sm" />
-          <TouchableOpacity style={S.memoryBtn} onPress={() => setMemoryVisible(true)}>
-            <Ionicons name="sparkles-outline" size={14} color={COLORS.primaryGreen} />
-            <Text style={S.memoryBtnText}>Memory</Text>
-          </TouchableOpacity>
+          <Text style={S.headerSub}>AI Coach</Text>
         </View>
-        <Text style={S.headerSub}>AI Coach</Text>
       </View>
       <CoachMemoryModal visible={memoryVisible} onClose={() => setMemoryVisible(false)} />
 
@@ -540,7 +536,7 @@ export default function CoachScreen() {
         <ScrollView style={S.emptyScroll} contentContainerStyle={S.emptyContent}>
           <View style={S.emptyHero}>
             <View style={S.emptyIcon}>
-              <Ionicons name="flash" size={28} color={COLORS.recoveryHigh} />
+              <Logo size="md" />
             </View>
             <Text style={S.emptyTitle}>What's the move today?</Text>
             <Text style={S.emptySubtitle}>
@@ -706,14 +702,7 @@ const S = StyleSheet.create({
     paddingHorizontal: 20, paddingTop: 56, paddingBottom: 12,
     borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 4,
   },
-  headerTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  memoryBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    borderWidth: 1, borderColor: COLORS.primaryGreen + '40', borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 6,
-    backgroundColor: COLORS.primaryGreen + '10',
-  },
-  memoryBtnText: { color: COLORS.primaryGreen, fontSize: 11, fontWeight: '700' },
+  headerTopRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerSub: { color: COLORS.textMuted, fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
   offlineBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,

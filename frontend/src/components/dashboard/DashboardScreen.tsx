@@ -241,7 +241,7 @@ export default function DashboardScreen() {
           <Text style={styles.greeting}>{greeting.toUpperCase()}</Text>
           <Text style={styles.name}>
             Ready to train,{'\n'}
-            <Text style={styles.nameAccent}>{(summary?.greeting || firstName)}?</Text>
+            <Text style={styles.nameAccent}>{firstName}?</Text>
           </Text>
           <Text style={styles.subGreeting}>
             Let's optimize <Text style={{ color: COLORS.text, fontFamily: FONTS.semibold }}>your performance</Text> today.
@@ -629,7 +629,7 @@ const styles = StyleSheet.create({
   // not metadata. Name breaks to its own line and carries the brand
   // accent color so the page opens with confidence, matching the scale
   // a person would expect from Whoop/Nike/Apple Fitness home screens.
-  name: { color: COLORS.text, fontFamily: FONTS.extrabold, fontSize: 34, lineHeight: 38, letterSpacing: -0.6 },
+  name: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 34, lineHeight: 38, letterSpacing: -0.6 },
   nameAccent: { color: COLORS.primaryGreen },
   subGreeting: { ...BODY, color: COLORS.textSecondary, fontSize: 14, marginTop: SPACING.xs },
   // Phase badge now carries a live dot so it reads as status ("Phase 1,

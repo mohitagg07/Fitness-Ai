@@ -118,29 +118,33 @@ export const EYEBROW = {
  *               in one lookup table).
  */
 export const TEXT_STYLES = {
+  // Hero/H1/H2/CardTitle now use Space Grotesk (numericBold/semibold) —
+  // the same geometric family as the numeric stats — so headings and
+  // scores read as one deliberate, futuristic voice. Inter is reserved
+  // for anything meant to be read at length (body/caption).
   hero: {
-    fontFamily: FONTS.extrabold,
-    fontWeight: '800' as const,
-    fontSize: 32,
-    lineHeight: 38,
+    fontFamily: FONTS.numericBold,
+    fontWeight: '700' as const,
+    fontSize: 34,
+    lineHeight: 40,
     letterSpacing: -0.5,
   },
   h1: {
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.numericBold,
     fontWeight: '700' as const,
     fontSize: 24,
     lineHeight: 30,
     letterSpacing: -0.3,
   },
   h2: {
-    fontFamily: FONTS.semibold,
+    fontFamily: FONTS.numericSemibold,
     fontWeight: '600' as const,
     fontSize: 18,
     lineHeight: 24,
     letterSpacing: -0.2,
   },
   cardTitle: {
-    fontFamily: FONTS.semibold,
+    fontFamily: FONTS.numericSemibold,
     fontWeight: '600' as const,
     fontSize: 16,
     lineHeight: 21,
@@ -157,7 +161,16 @@ export const TEXT_STYLES = {
     fontSize: 12,
     lineHeight: 16,
   },
-  eyebrow: EYEBROW,
+  // Eyebrow labels ("TODAY'S DECISION") switch to Inter SemiBold, sentence
+  // case, no uppercase transform — small-caps eyebrows read dated next to
+  // the rest of the sentence-case UI. Screens that still want an uppercase
+  // tag (e.g. a status pill) should opt in locally, not via this shared style.
+  eyebrow: {
+    fontFamily: FONTS.semibold,
+    fontSize: 12,
+    fontWeight: '600' as const,
+    letterSpacing: 0.2,
+  },
 } as const;
 
 export type TextVariant = keyof typeof TEXT_STYLES;

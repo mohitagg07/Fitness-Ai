@@ -25,6 +25,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { COLORS } from '../../theme/colors';
 import CountUpNumber from '../shared/CountUpNumber';
 import ConfettiBurst from './ConfettiBurst';
+import Logo from '../shared/Logo';
 
 interface NewPR {
   exercise_name: string;
@@ -93,12 +94,25 @@ function RecoveryRing({ pct }: { pct: number }) {
 
 export default function WorkoutSummaryCard({ visible, data, onClose }: Props) {
   const scaleIn = useRef(new Animated.Value(0.9)).current;
+  // Logo "stamp-in" — starts small + rotated, overshoots past 1 on the way
+  // in so the mark reads as a celebratory stamp rather than a static icon.
+  const logoScale = useRef(new Animated.Value(0)).current;
+  const logoRotate = useRef(new Animated.Value(-1)).current;
   const [confettiActive, setConfettiActive] = React.useState(false);
 
   useEffect(() => {
     if (!visible || !data) return;
     scaleIn.setValue(0.9);
+    logoScale.setValue(0);
+    logoRotate.setValue(-1);
     Animated.spring(scaleIn, { toValue: 1, useNativeDriver: true, friction: 7, tension: 70 }).start();
+    Animated.sequence([
+      Animated.delay(120),
+      Animated.parallel([
+        Animated.spring(logoScale, { toValue: 1, useNativeDriver: true, friction: 5, tension: 60 }),
+        Animated.spring(logoRotate, { toValue: 0, useNativeDriver: true, friction: 6, tension: 50 }),
+      ]),
+    ]).start();
 
     const hasPRs = (data.new_prs?.length || 0) > 0;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -110,6 +124,8 @@ export default function WorkoutSummaryCard({ visible, data, onClose }: Props) {
     }
     setConfettiActive(false);
   }, [visible, data]);
+
+  const logoSpin = logoRotate.interpolate({ inputRange: [-1, 0], outputRange: ['-25deg', '0deg'] });
 
   if (!data) return null;
 
