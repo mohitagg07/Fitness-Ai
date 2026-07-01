@@ -204,7 +204,7 @@ export default function SimulationScreen() {
       {loading && (
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={COLORS.strainGlow} size="small" />
-          <Text style={styles.loadingText}>VYRN COMPUTING…</Text>
+          <Text style={styles.loadingText}>COMPUTING…</Text>
           <View style={styles.skeletonRow}>
             {['Biomechanics', 'Recovery', 'Volume', 'Adaptation'].map((s) => (
               <View key={s} style={styles.skeleton}>

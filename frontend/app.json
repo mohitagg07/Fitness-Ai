@@ -39,7 +39,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "VYRN needs photo access for form check uploads."
+          "photosPermission": "This app needs photo access for form check uploads."
         }
       ],
       "expo-font"

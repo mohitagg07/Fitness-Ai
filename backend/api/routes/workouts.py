@@ -127,7 +127,7 @@ async def get_workout_history(
 
     sessions_res = (
         sb.table("workout_sessions")
-        .select("id, session_date, day_label, workout_type, total_volume_kg, duration_minutes, calories_burned, session_notes, completed")
+        .select("id, session_date, day_label, workout_type, total_volume_kg, duration_minutes, calories_burned, notes, completed")
         .eq("user_id", user_id)
         .eq("completed", True)
         .order("session_date", desc=True)
@@ -161,6 +161,7 @@ async def get_workout_history(
         session_logs = logs_by_session.get(s["id"], [])
         working = [l for l in session_logs if not l.get("is_warmup")]
         exercise_names = sorted(set(l["exercise_name"] for l in session_logs if l.get("exercise_name")))
+        s = {**s, "session_notes": s.pop("notes", None)}
         enriched.append({
             **s,
             "exercise_count": len(exercise_names),
@@ -293,7 +294,7 @@ async def complete_session(
     if cns_fatigue_after is not None:
         update_data["cns_fatigue_after"] = cns_fatigue_after
     if session_notes is not None:
-        update_data["session_notes"] = session_notes
+        update_data["notes"] = session_notes
     if total_volume_kg:
         update_data["total_volume_kg"] = total_volume_kg
     if duration_minutes:

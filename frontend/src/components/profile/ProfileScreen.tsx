@@ -322,7 +322,7 @@ export default function ProfileScreen() {
           <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>
 
-        <Text style={styles.versionText}>VYRN v{APP_VERSION}</Text>
+        <Text style={styles.versionText}>v{APP_VERSION}</Text>
         <View style={{ height: 32 }} />
       </ScrollView>
     </View>

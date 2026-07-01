@@ -496,7 +496,7 @@ export default function CoachScreen() {
       {item.role === 'assistant' && (
         <View style={S.roleLabelRow}>
           <Ionicons name="flash" size={10} color={COLORS.recoveryHigh} />
-          <Text style={S.roleLabel}>VYRN COACH</Text>
+          <Text style={S.roleLabel}>COACH</Text>
         </View>
       )}
       {item.role === 'assistant'

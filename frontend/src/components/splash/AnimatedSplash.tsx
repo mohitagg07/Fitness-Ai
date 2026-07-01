@@ -19,13 +19,10 @@ interface AnimatedSplashProps {
 /**
  * Animated entrance sequence:
  *  1. Background fades in instantly (black -> avoids a white flash on slow devices)
- *  2. VYRN badge (Logo's own SVG chevron mark) scales up from 0.85 -> 1 while
- *     fading in (700ms). Previously this slot rendered a separate raster
- *     "hero-splash.png" (a leftover neural-network/brain icon from the old
- *     brand) instead of the real VYRN mark — removed so the badge shown here
- *     is the exact same vector asset used everywhere else in the app, not a
- *     second, disconnected graphic.
- *  3. Wordmark + tagline slide up and fade in, staggered after the badge (400ms, +250ms delay)
+ *  2. Badge (Logo's own image mark) scales up from 0.85 -> 1 while
+ *     fading in (700ms). This is the exact same image asset used
+ *     everywhere else in the app, not a second, disconnected graphic.
+ *  3. Tagline slides up and fades in, staggered after the badge (400ms, +250ms delay)
  *  4. Brief hold, then the whole screen fades out and onFinished() fires
  *
  * Reanimated v4 note: direct shared-value assignment (`sv.value = x`) is
@@ -80,7 +77,6 @@ export default function AnimatedSplash({ onFinished }: AnimatedSplashProps) {
       </Animated.View>
 
       <Animated.View style={[styles.textBlock, textStyle]}>
-        <Logo size="xl" showBadge={false} />
         <Text style={styles.tagline}>ADAPTIVE PERFORMANCE SYSTEM</Text>
       </Animated.View>
     </Animated.View>
