@@ -95,3 +95,69 @@ export const EYEBROW = {
   letterSpacing: 1.5,
   textTransform: 'uppercase' as const,
 };
+
+/**
+ * VYRN — canonical type scale.
+ *
+ * These are the ONLY seven text styles that should exist anywhere in the
+ * app. Every screen renders text through <Text variant="..."/> (see
+ * components/ui/Text.tsx) instead of inventing a new fontSize/fontWeight
+ * combination. If something doesn't fit one of these seven, it should be
+ * reconsidered as one of these seven — not given an eighth.
+ *
+ *   Hero      — the one big greeting/headline per screen ("Ready to
+ *               train, Mohit?", workout-complete title).
+ *   H1        — screen-level heading (rare; most screens use Header +
+ *               Hero instead).
+ *   H2        — section heading ("Recent Workouts", "This Week").
+ *   CardTitle — the title inside a card ("Light / Active Recovery").
+ *   Body      — default paragraph/label/value text.
+ *   Caption   — secondary/muted small text (helper copy, timestamps).
+ *   Eyebrow   — small uppercase label above a card/section (alias of
+ *               EYEBROW above, included here so the whole scale lives
+ *               in one lookup table).
+ */
+export const TEXT_STYLES = {
+  hero: {
+    fontFamily: FONTS.extrabold,
+    fontWeight: '800' as const,
+    fontSize: 32,
+    lineHeight: 38,
+    letterSpacing: -0.5,
+  },
+  h1: {
+    fontFamily: FONTS.bold,
+    fontWeight: '700' as const,
+    fontSize: 24,
+    lineHeight: 30,
+    letterSpacing: -0.3,
+  },
+  h2: {
+    fontFamily: FONTS.semibold,
+    fontWeight: '600' as const,
+    fontSize: 18,
+    lineHeight: 24,
+    letterSpacing: -0.2,
+  },
+  cardTitle: {
+    fontFamily: FONTS.semibold,
+    fontWeight: '600' as const,
+    fontSize: 16,
+    lineHeight: 21,
+  },
+  body: {
+    fontFamily: FONTS.regular,
+    fontWeight: '400' as const,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  caption: {
+    fontFamily: FONTS.medium,
+    fontWeight: '500' as const,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  eyebrow: EYEBROW,
+} as const;
+
+export type TextVariant = keyof typeof TEXT_STYLES;

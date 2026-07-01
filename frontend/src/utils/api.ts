@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { router } from 'expo-router';
+import { Platform } from 'react-native';
 import { storage } from './storage';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/api';
@@ -139,21 +140,39 @@ export const profileApi = {
   deleteInjury: (id: string) => api.delete(`/profile/injuries/${id}`),
   upsertPR: (data: any) => api.post('/profile/prs', data),
   getPRs: () => api.get('/profile/prs'),
-  uploadAvatar: (uri: string, mimeType: string) => {
+  uploadAvatar: async (uri: string, mimeType: string) => {
     const form = new FormData();
     const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
-    form.append('file', {
-      uri,
-      name: `avatar.${ext}`,
-      type: mimeType,
-    } as any);
-    // IMPORTANT: do NOT set Content-Type here. React Native's FormData
-    // needs the networking layer to generate the multipart boundary
-    // itself (e.g. "multipart/form-data; boundary=..."). Setting a bare
-    // 'multipart/form-data' header with no boundary, as this used to do,
-    // makes the server unable to parse the body into parts at all —
-    // FastAPI then sees no 'file' field and returns 422 Unprocessable
-    // Entity on every upload, regardless of the image being valid.
+    const filename = `avatar.${ext}`;
+
+    if (Platform.OS === 'web') {
+      // On web, `uri` is a blob:/data: URL string from expo-image-picker,
+      // not a native file path. The DOM's real FormData.append() requires
+      // an actual Blob/File object — appending a plain {uri, name, type}
+      // object here gets silently coerced to the string "[object Object]"
+      // as a text field, not a file part. FastAPI's UploadFile then sees a
+      // field with no filename/content-type and rejects it with 422
+      // Unprocessable Entity on every single upload. We have to resolve
+      // the blob URL to real bytes first and append that.
+      const blob = await (await fetch(uri)).blob();
+      form.append('file', blob, filename);
+    } else {
+      // React Native's FormData polyfill (iOS/Android) DOES accept this
+      // {uri, name, type} shape and turns it into a real multipart file
+      // part — this is not a bug on native, only on web.
+      form.append('file', {
+        uri,
+        name: filename,
+        type: mimeType,
+      } as any);
+    }
+
+    // IMPORTANT: do NOT set Content-Type here. Both RN's networking layer
+    // and the browser need to generate the multipart boundary themselves
+    // (e.g. "multipart/form-data; boundary=..."). Setting a bare
+    // 'multipart/form-data' header with no boundary makes the server
+    // unable to parse the body into parts at all — FastAPI then sees no
+    // 'file' field and returns 422 regardless of the image being valid.
     return api.post('/profile/avatar', form, {
       headers: { 'Content-Type': undefined },
     });
