@@ -203,7 +203,7 @@ async def get_session_detail(
         .select("*")
         .eq("session_id", session_id)
         .eq("user_id", user_id)
-        .order("created_at")
+        .order("logged_at")
         .execute()
     )
     logs = logs_res.data or []
@@ -257,10 +257,10 @@ async def complete_session(
     # exercise_logs that were actually inserted during the session.
     logs_res = (
         sb.table("exercise_logs")
-        .select("exercise_name, weight_kg, reps, rpe, created_at, is_warmup")
+        .select("exercise_name, weight_kg, reps, rpe, logged_at, is_warmup")
         .eq("session_id", session_id)
         .eq("user_id", user_id)
-        .order("created_at", desc=False)
+        .order("logged_at", desc=False)
         .execute()
     )
     logs = logs_res.data or []
@@ -276,8 +276,8 @@ async def complete_session(
     duration_minutes = None
     if len(logs) >= 2:
         try:
-            first_ts = datetime.fromisoformat(logs[0]["created_at"].replace("Z", "+00:00"))
-            last_ts = datetime.fromisoformat(logs[-1]["created_at"].replace("Z", "+00:00"))
+            first_ts = datetime.fromisoformat(logs[0]["logged_at"].replace("Z", "+00:00"))
+            last_ts = datetime.fromisoformat(logs[-1]["logged_at"].replace("Z", "+00:00"))
             duration_minutes = max(1, round((last_ts - first_ts).total_seconds() / 60))
         except Exception:
             duration_minutes = None

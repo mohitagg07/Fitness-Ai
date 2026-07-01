@@ -441,6 +441,11 @@ class EvidenceSignal(BaseModel):
     weight: float = 1.0    # relative weight this signal had in the confidence calc, for transparency
 
 
+class WhyNotItem(BaseModel):
+    option: str    # the rejected alternative: "Rest", "Legs Day", "PR Attempt"
+    reason: str    # deterministic, signal-grounded explanation for rejecting it
+
+
 class DecisionCenter(BaseModel):
     decision: str                      # "Heavy Push Day", "Rest Day", "Deload Week"
     confidence_pct: int = Field(ge=0, le=100)
@@ -448,6 +453,7 @@ class DecisionCenter(BaseModel):
     reasoning: str                     # short LLM sentence explaining the decision, grounded in `signals`
     expected_outcome: Optional[str] = None
     alternative: Optional[str] = None  # what to do instead if a named signal worsens
+    why_not: List[WhyNotItem] = Field(default_factory=list)  # alternatives considered and rejected, each grounded in real signals
 
 
 # ─── Streak / Achievements ───────────────────────────────────────────────────

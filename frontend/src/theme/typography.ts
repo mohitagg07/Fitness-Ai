@@ -79,7 +79,7 @@ export const HEADLINE = {
 export const SCORE_DISPLAY = {
   fontFamily: FONTS.numericBold,
   fontWeight: '800' as const,
-  fontVariant: ['tabular-nums'] as const,
+  fontVariant: ['tabular-nums'] as ('tabular-nums')[],
 };
 
 // Body copy — the default for ordinary sentences and descriptions.

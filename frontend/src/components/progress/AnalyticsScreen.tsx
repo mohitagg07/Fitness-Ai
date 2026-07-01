@@ -1,169 +1,154 @@
 // VYRN — Analytics Screen (Priority 4 + 6: Rich Charts)
 // Three chart types: 8-week volume heatmap, muscle group radar with imbalance alerts,
-// animated PR timeline. Integrated as a new tab distinct from the original Progress screen.
+// animated PR timeline. All data is real, pulled from /api/progress/heatmap,
+// /api/progress/muscle-balance and /api/progress/pr-timeline — nothing here is
+// generated or hardcoded. Each chart has its own empty state for new accounts.
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, TouchableOpacity,
+  View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import Svg, {
   Polygon, Circle as SvgCircle, Line as SvgLine,
   Text as SvgText,
 } from 'react-native-svg';
+import { analyticsApi, describeApiError } from '../../utils/api';
 import { COLORS } from '../../theme/colors';
 import { FONTS } from '../../theme/typography';
 
-// ── Volume Heatmap ─────────────────────────────────────────────────────────────
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const WEEKS = 8;
+// ── Types (mirror backend responses exactly) ────────────────────────────────────
+interface HeatmapDay { date: string; sets: number; volume_kg: number; has_session: boolean; future: boolean; }
+interface HeatmapResponse { weeks: HeatmapDay[][]; total_sessions: number; has_data: boolean; }
 
-function volumeColor(v: number): string {
-  if (v === 0)  return '#0D0D0D';
-  if (v < 20)   return '#16EC0622';
-  if (v < 40)   return '#16EC0650';
-  if (v < 60)   return '#16EC0680';
-  if (v < 80)   return '#16EC06BB';
+interface MuscleGroupStat { name: string; sets: number; pct: number; }
+interface MuscleBalanceResponse {
+  has_data: boolean; muscle_groups: MuscleGroupStat[]; lagging?: string[];
+  empty_state?: string; total_sets?: number; weeks?: number;
+}
+
+interface PREntryResponse { date: string; lift: string; weight_kg: number; reps: number; is_pr: boolean; }
+interface PRTimelineResponse { has_data: boolean; prs: PREntryResponse[]; empty_state?: string; }
+
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+// ── Empty state ──────────────────────────────────────────────────────────────
+function EmptyState({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) {
+  return (
+    <View style={styles.emptyWrap}>
+      <Ionicons name={icon} size={28} color={COLORS.textMuted} />
+      <Text style={styles.emptyText}>{text}</Text>
+    </View>
+  );
+}
+
+// ── Volume Heatmap ─────────────────────────────────────────────────────────────
+function volumeColor(sets: number): string {
+  if (sets === 0)  return '#0D0D0D';
+  if (sets < 4)    return '#16EC0628';
+  if (sets < 8)    return '#16EC0655';
+  if (sets < 14)   return '#16EC0685';
+  if (sets < 20)   return '#16EC06B8';
   return COLORS.recoveryHigh;
 }
 
-function generateHeatmap(): number[][] {
-  return Array.from({ length: WEEKS }, (_, w) =>
-    DAYS.map((_, d) => {
-      if (w === WEEKS - 1 && d > 1) return -1;
-      if (Math.random() < 0.12) return 0;
-      return Math.floor(Math.random() * 100);
-    }),
-  );
-}
-const HEATMAP = generateHeatmap();
+function VolumeHeatmap({ data }: { data: HeatmapResponse }) {
+  const [tooltip, setTooltip] = useState<{ w: number; d: number; day: HeatmapDay } | null>(null);
 
-function VolumeHeatmap() {
-  const [tooltip, setTooltip] = useState<{ w: number; d: number; v: number } | null>(null);
+  if (!data.has_data) {
+    return <EmptyState icon="grid-outline" text="No workouts logged yet. Complete a session to start building your volume map." />;
+  }
+
   return (
     <View>
-      {/* Day labels */}
       <View style={styles.hmDayRow}>
         {DAYS.map((d) => (
           <Text key={d} style={styles.hmDayLabel}>{d}</Text>
         ))}
       </View>
-      {/* Grid */}
-      {HEATMAP.map((week, wi) => (
+      {data.weeks.map((week, wi) => (
         <View key={wi} style={styles.hmWeekRow}>
-          {week.map((v, di) => (
+          {week.map((day, di) => (
             <TouchableOpacity
               key={di}
               style={[
                 styles.hmCell,
                 {
-                  backgroundColor: v < 0 ? 'transparent' : volumeColor(v),
-                  borderColor: v >= 0 ? '#ffffff08' : 'transparent',
+                  backgroundColor: day.future ? 'transparent' : volumeColor(day.sets),
+                  borderColor: day.future ? 'transparent' : '#ffffff08',
                   opacity: tooltip?.w === wi && tooltip?.d === di ? 0.7 : 1,
                 },
               ]}
-              onPress={() => v >= 0 && setTooltip({ w: wi, d: di, v })}
-              disabled={v < 0}
+              onPress={() => !day.future && setTooltip({ w: wi, d: di, day })}
+              disabled={day.future}
             />
           ))}
         </View>
       ))}
-      {/* Tooltip */}
       {tooltip && (
         <Text style={styles.hmTooltip}>
-          W{tooltip.w + 1} {DAYS[tooltip.d]} —{' '}
+          {tooltip.day.date} —{' '}
           <Text style={{ color: COLORS.recoveryHigh, fontFamily: FONTS.numericBold }}>
-            {tooltip.v}
+            {tooltip.day.sets}
           </Text>{' '}
           sets
+          {tooltip.day.volume_kg > 0 && (
+            <Text style={{ color: COLORS.textSecondary }}> · {tooltip.day.volume_kg} kg volume</Text>
+          )}
         </Text>
       )}
-      {/* Legend */}
       <View style={styles.hmLegend}>
         <Text style={styles.hmLegendLabel}>Less</Text>
-        {[0, 20, 40, 60, 80, 100].map((v) => (
-          <View
-            key={v}
-            style={[styles.hmLegendCell, { backgroundColor: volumeColor(v) }]}
-          />
+        {[0, 4, 8, 14, 20, 26].map((v) => (
+          <View key={v} style={[styles.hmLegendCell, { backgroundColor: volumeColor(v) }]} />
         ))}
         <Text style={styles.hmLegendLabel}>More</Text>
       </View>
+      <Text style={styles.hmFootnote}>{data.total_sessions} session{data.total_sessions === 1 ? '' : 's'} logged in this window</Text>
     </View>
   );
 }
 
 // ── Radar Chart ────────────────────────────────────────────────────────────────
-const MUSCLE_GROUPS = ['Chest', 'Back', 'Shoulders', 'Arms', 'Core', 'Legs'];
-const MUSCLE_DATA   = [72, 85, 60, 68, 45, 90];
-const RADAR_SIZE    = 200;
-const CR            = RADAR_SIZE / 2;
-const RR            = RADAR_SIZE * 0.36;
-const N             = MUSCLE_GROUPS.length;
-const ANGLES        = MUSCLE_GROUPS.map((_, i) => (i * 2 * Math.PI) / N - Math.PI / 2);
+const RADAR_SIZE = 200;
+const CR = RADAR_SIZE / 2;
+const RR = RADAR_SIZE * 0.36;
 
-function radarXY(val: number, angle: number, scale = 1) {
-  const dist = (val / 100) * RR * scale;
+function radarXY(val: number, angle: number) {
+  const dist = (val / 100) * RR;
   return { x: CR + dist * Math.cos(angle), y: CR + dist * Math.sin(angle) };
 }
 
-function RadarChart() {
-  const dataPoints = MUSCLE_DATA.map((v, i) => radarXY(v, ANGLES[i]));
+function RadarChart({ groups }: { groups: MuscleGroupStat[] }) {
+  const n = groups.length;
+  const angles = groups.map((_, i) => (i * 2 * Math.PI) / n - Math.PI / 2);
+  const dataPoints = groups.map((g, i) => radarXY(g.pct, angles[i]));
   const polyPts = dataPoints.map((p) => `${p.x},${p.y}`).join(' ');
   const GRID_LEVELS = [25, 50, 75, 100];
 
   return (
     <Svg width={RADAR_SIZE} height={RADAR_SIZE}>
-      {/* Grid polygons */}
       {GRID_LEVELS.map((lvl) => {
-        const pts = ANGLES.map((a) => {
+        const pts = angles.map((a) => {
           const p = radarXY(lvl, a);
           return `${p.x},${p.y}`;
         }).join(' ');
-        return (
-          <Polygon
-            key={lvl}
-            points={pts}
-            fill="none"
-            stroke="#1F1F1F"
-            strokeWidth={1}
-          />
-        );
+        return <Polygon key={lvl} points={pts} fill="none" stroke="#1F1F1F" strokeWidth={1} />;
       })}
-      {/* Axis lines */}
-      {ANGLES.map((angle, i) => {
+      {angles.map((angle, i) => {
         const end = radarXY(100, angle);
-        return (
-          <SvgLine key={i} x1={CR} y1={CR} x2={end.x} y2={end.y} stroke="#1F1F1F" strokeWidth={1} />
-        );
+        return <SvgLine key={i} x1={CR} y1={CR} x2={end.x} y2={end.y} stroke="#1F1F1F" strokeWidth={1} />;
       })}
-      {/* Data polygon */}
-      <Polygon
-        points={polyPts}
-        fill="#16EC0618"
-        stroke={COLORS.recoveryHigh}
-        strokeWidth={1.5}
-      />
-      {/* Data dots */}
+      <Polygon points={polyPts} fill="#16EC0618" stroke={COLORS.recoveryHigh} strokeWidth={1.5} />
       {dataPoints.map((p, i) => (
         <SvgCircle key={i} cx={p.x} cy={p.y} r={3} fill={COLORS.recoveryHigh} />
       ))}
-      {/* Labels */}
-      {MUSCLE_GROUPS.map((lbl, i) => {
-        const lp = radarXY(100, ANGLES[i]);
-        const lx = CR + (RR + 22) * Math.cos(ANGLES[i]);
-        const ly = CR + (RR + 22) * Math.sin(ANGLES[i]);
+      {groups.map((g, i) => {
+        const lx = CR + (RR + 22) * Math.cos(angles[i]);
+        const ly = CR + (RR + 22) * Math.sin(angles[i]);
         return (
-          <SvgText
-            key={i}
-            x={lx}
-            y={ly}
-            textAnchor="middle"
-            alignmentBaseline="middle"
-            fontSize={9}
-            fill={COLORS.textSecondary}
-            fontWeight="600"
-          >
-            {lbl}
+          <SvgText key={i} x={lx} y={ly} textAnchor="middle" alignmentBaseline="middle" fontSize={9} fill={COLORS.textSecondary} fontWeight="600">
+            {g.name}
           </SvgText>
         );
       })}
@@ -172,50 +157,27 @@ function RadarChart() {
 }
 
 // ── PR Timeline ────────────────────────────────────────────────────────────────
-interface PREntry {
-  date: string;
-  lift: string;
-  weight: number;
-  isPR: boolean;
-}
-
-const PR_DATA: PREntry[] = [
-  { date: 'Jan 6',  lift: 'Deadlift',   weight: 185,   isPR: false },
-  { date: 'Jan 20', lift: 'Deadlift',   weight: 192.5, isPR: true  },
-  { date: 'Feb 3',  lift: 'Squat',      weight: 140,   isPR: false },
-  { date: 'Feb 17', lift: 'Deadlift',   weight: 200,   isPR: true  },
-  { date: 'Mar 3',  lift: 'Bench Press',weight: 100,   isPR: true  },
-  { date: 'Mar 24', lift: 'Squat',      weight: 152.5, isPR: true  },
-  { date: 'Apr 7',  lift: 'Deadlift',   weight: 210,   isPR: true  },
-  { date: 'May 5',  lift: 'Bench Press',weight: 107.5, isPR: true  },
-  { date: 'Jun 2',  lift: 'Squat',      weight: 162.5, isPR: true  },
-  { date: 'Jun 16', lift: 'Deadlift',   weight: 220,   isPR: true  },
-];
-
-function PRTimeline() {
+function PRTimeline({ prs }: { prs: PREntryResponse[] }) {
   return (
     <View style={styles.tlContainer}>
       <View style={styles.tlLine} />
-      {[...PR_DATA].reverse().map((pr, i) => (
+      {prs.map((pr, i) => (
         <View key={i} style={styles.tlItem}>
-          {/* Dot */}
           <View
             style={[
               styles.tlDot,
               {
-                backgroundColor: pr.isPR ? COLORS.recoveryHigh : COLORS.border,
-                borderColor:     pr.isPR ? COLORS.recoveryHigh : '#2A2A2A',
-                shadowColor:     pr.isPR ? COLORS.recoveryHigh : 'transparent',
-                shadowRadius:    pr.isPR ? 6 : 0,
+                backgroundColor: pr.is_pr ? COLORS.recoveryHigh : COLORS.border,
+                borderColor:     pr.is_pr ? COLORS.recoveryHigh : '#2A2A2A',
+                shadowColor:     pr.is_pr ? COLORS.recoveryHigh : 'transparent',
+                shadowRadius:    pr.is_pr ? 6 : 0,
                 shadowOpacity:   0.5,
                 elevation:       0,
               },
             ]}
           >
-            {pr.isPR && <Text style={styles.tlStar}>★</Text>}
+            {pr.is_pr && <Text style={styles.tlStar}>★</Text>}
           </View>
-
-          {/* Card */}
           <View style={styles.tlCard}>
             <View style={styles.tlRow}>
               <View>
@@ -223,12 +185,13 @@ function PRTimeline() {
                 <Text style={styles.tlDate}>{pr.date}</Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <Text style={[styles.tlWeight, { color: pr.isPR ? COLORS.recoveryHigh : COLORS.text }]}>
-                  {pr.weight}<Text style={styles.tlKg}> kg</Text>
+                <Text style={[styles.tlWeight, { color: pr.is_pr ? COLORS.recoveryHigh : COLORS.text }]}>
+                  {pr.weight_kg}<Text style={styles.tlKg}> kg</Text>
                 </Text>
-                {pr.isPR && (
+                <Text style={styles.tlReps}>{pr.reps} rep{pr.reps === 1 ? '' : 's'}</Text>
+                {pr.is_pr && (
                   <View style={styles.prBadge}>
-                    <Text style={styles.prBadgeText}>NEW PR</Text>
+                    <Text style={styles.prBadgeText}>PR</Text>
                   </View>
                 )}
               </View>
@@ -251,14 +214,40 @@ const CHART_TABS: { id: ChartTab; label: string }[] = [
 
 export default function AnalyticsScreen({ embedded = false }: { embedded?: boolean }) {
   const [activeChart, setActiveChart] = useState<ChartTab>('heatmap');
-  const lagging = MUSCLE_GROUPS.filter((_, i) => MUSCLE_DATA[i] < 60);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [heatmap, setHeatmap] = useState<HeatmapResponse | null>(null);
+  const [balance, setBalance] = useState<MuscleBalanceResponse | null>(null);
+  const [prTimeline, setPrTimeline] = useState<PRTimelineResponse | null>(null);
+
+  const loadData = useCallback(async () => {
+    setErrorMsg(null);
+    try {
+      const [hRes, bRes, pRes] = await Promise.all([
+        analyticsApi.getHeatmap(8),
+        analyticsApi.getMuscleBalance(4),
+        analyticsApi.getPRTimeline(20),
+      ]);
+      setHeatmap(hRes.data);
+      setBalance(bRes.data);
+      setPrTimeline(pRes.data);
+    } catch (err: any) {
+      const { message } = describeApiError(err);
+      setErrorMsg(message);
+    }
+  }, []);
+
+  useEffect(() => {
+    (async () => { setLoading(true); await loadData(); setLoading(false); })();
+  }, [loadData]);
+
+  const lagging = balance?.lagging || [];
 
   const content = (
     <View style={embedded ? { paddingBottom: 40 } : styles.content}>
       {!embedded && <Text style={styles.title}>Analytics</Text>}
-      {!embedded && <Text style={styles.subtitle}>Rich training data, visualized</Text>}
+      {!embedded && <Text style={styles.subtitle}>Your real training data, visualized</Text>}
 
-      {/* Chart picker */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabRow}>
         {CHART_TABS.map((t) => (
           <TouchableOpacity
@@ -273,57 +262,81 @@ export default function AnalyticsScreen({ embedded = false }: { embedded?: boole
         ))}
       </ScrollView>
 
-      {/* Content */}
-      {activeChart === 'heatmap' && (
+      {loading ? (
         <View style={styles.card}>
-          <Text style={[styles.cardTitle, { color: COLORS.recoveryHigh }]}>
-            Training Volume — 8 Weeks
-          </Text>
-          <VolumeHeatmap />
+          <ActivityIndicator color={COLORS.recoveryHigh} />
         </View>
-      )}
-
-      {activeChart === 'radar' && (
+      ) : errorMsg ? (
         <View style={styles.card}>
-          <Text style={[styles.cardTitle, { color: COLORS.recoveryHigh }]}>
-            Muscle Group Balance
-          </Text>
-          <View style={styles.radarCenter}>
-            <RadarChart />
-          </View>
-          <View style={styles.muscleGrid}>
-            {MUSCLE_GROUPS.map((g, i) => (
-              <View key={g} style={styles.muscleCell}>
-                <Text style={styles.muscleLabel}>{g.toUpperCase()}</Text>
-                <Text
-                  style={[
-                    styles.muscleValue,
-                    { color: MUSCLE_DATA[i] < 60 ? COLORS.recoveryMed : COLORS.recoveryHigh },
-                  ]}
-                >
-                  {MUSCLE_DATA[i]}%
-                </Text>
-              </View>
-            ))}
-          </View>
-          {lagging.length > 0 && (
-            <View style={styles.alertBox}>
-              <Text style={styles.alertTitle}>BALANCE ALERT</Text>
-              <Text style={styles.alertText}>
-                {lagging.join(', ')} volume lagging. Add 2 sets per session for 3 weeks.
+          <EmptyState icon="cloud-offline-outline" text={errorMsg} />
+          <TouchableOpacity style={styles.retryBtn} onPress={() => { setLoading(true); loadData().finally(() => setLoading(false)); }}>
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <>
+          {activeChart === 'heatmap' && heatmap && (
+            <View style={styles.card}>
+              <Text style={[styles.cardTitle, { color: COLORS.recoveryHigh }]}>
+                Training Volume — 8 Weeks
               </Text>
+              <VolumeHeatmap data={heatmap} />
             </View>
           )}
-        </View>
-      )}
 
-      {activeChart === 'prs' && (
-        <View style={styles.card}>
-          <Text style={[styles.cardTitle, { color: COLORS.recoveryHigh }]}>
-            Personal Record Timeline
-          </Text>
-          <PRTimeline />
-        </View>
+          {activeChart === 'radar' && balance && (
+            <View style={styles.card}>
+              <Text style={[styles.cardTitle, { color: COLORS.recoveryHigh }]}>
+                Muscle Group Balance
+              </Text>
+              {!balance.has_data ? (
+                <EmptyState icon="body-outline" text={balance.empty_state || 'Not enough data yet.'} />
+              ) : (
+                <>
+                  <View style={styles.radarCenter}>
+                    <RadarChart groups={balance.muscle_groups} />
+                  </View>
+                  <View style={styles.muscleGrid}>
+                    {balance.muscle_groups.map((g) => (
+                      <View key={g.name} style={styles.muscleCell}>
+                        <Text style={styles.muscleLabel}>{g.name.toUpperCase()}</Text>
+                        <Text
+                          style={[
+                            styles.muscleValue,
+                            { color: g.pct < 40 ? COLORS.recoveryMed : COLORS.recoveryHigh },
+                          ]}
+                        >
+                          {g.sets} set{g.sets === 1 ? '' : 's'}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                  {lagging.length > 0 && (
+                    <View style={styles.alertBox}>
+                      <Text style={styles.alertTitle}>BALANCE ALERT</Text>
+                      <Text style={styles.alertText}>
+                        {lagging.join(', ')} volume lagging relative to your other muscle groups. Add 2 sets per session for 3 weeks.
+                      </Text>
+                    </View>
+                  )}
+                </>
+              )}
+            </View>
+          )}
+
+          {activeChart === 'prs' && prTimeline && (
+            <View style={styles.card}>
+              <Text style={[styles.cardTitle, { color: COLORS.recoveryHigh }]}>
+                Personal Record Timeline
+              </Text>
+              {!prTimeline.has_data ? (
+                <EmptyState icon="trophy-outline" text={prTimeline.empty_state || 'No PRs logged yet.'} />
+              ) : (
+                <PRTimeline prs={prTimeline.prs} />
+              )}
+            </View>
+          )}
+        </>
       )}
     </View>
   );
@@ -394,6 +407,12 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
 
+  // Empty state
+  emptyWrap: { alignItems: 'center', paddingVertical: 28, gap: 10 },
+  emptyText: { color: COLORS.textMuted, fontSize: 13, textAlign: 'center', paddingHorizontal: 16, lineHeight: 19 },
+  retryBtn: { marginTop: 4, alignSelf: 'center', backgroundColor: '#1A1A1A', borderRadius: 10, paddingHorizontal: 24, paddingVertical: 10, borderWidth: 1, borderColor: '#2A2A2A' },
+  retryText: { color: COLORS.recoveryHigh, fontSize: 13, fontWeight: '700' },
+
   // Heatmap
   hmDayRow: { flexDirection: 'row', gap: 3, marginBottom: 5 },
   hmDayLabel: {
@@ -440,6 +459,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ffffff08',
   },
+  hmFootnote: {
+    fontFamily: FONTS.regular,
+    fontSize: 11,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    marginTop: 10,
+  },
 
   // Radar
   radarCenter: { alignItems: 'center', marginBottom: 14 },
@@ -469,7 +495,7 @@ const styles = StyleSheet.create({
   },
   muscleValue: {
     fontFamily: FONTS.numericBold,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
   },
   alertBox: {
@@ -548,6 +574,12 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     fontSize: 10,
     color: COLORS.textMuted,
+  },
+  tlReps: {
+    fontFamily: FONTS.regular,
+    fontSize: 10,
+    color: COLORS.textMuted,
+    marginTop: 1,
   },
   prBadge: {
     backgroundColor: '#16EC0618',

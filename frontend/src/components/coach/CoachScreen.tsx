@@ -20,6 +20,7 @@ import { coachApi, describeApiError } from '../../utils/api';
 import { useStore } from '../../store';
 import { COLORS, recoveryColor } from '../../theme/colors';
 import Logo from '../shared/Logo';
+import CoachMemoryModal from './CoachMemoryModal';
 
 // ─── Suggestion chips shown on empty state ────────────────────────────────────
 const SUGGESTIONS = [
@@ -440,6 +441,7 @@ export default function CoachScreen() {
   const [input, setInput]   = useState('');
   const [loading, setLoading] = useState(false);
   const [serverStatus, setServerStatus] = useState<'online' | 'offline' | 'unknown'>('unknown');
+  const [memoryVisible, setMemoryVisible] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const { chatHistory, addChatMessage, setCnsFatigue, activeSession } = useStore();
 
@@ -512,9 +514,16 @@ export default function CoachScreen() {
     >
       {/* Header */}
       <View style={S.header}>
-        <Logo size="sm" />
+        <View style={S.headerTopRow}>
+          <Logo size="sm" />
+          <TouchableOpacity style={S.memoryBtn} onPress={() => setMemoryVisible(true)}>
+            <Ionicons name="sparkles-outline" size={14} color={COLORS.primaryGreen} />
+            <Text style={S.memoryBtnText}>Memory</Text>
+          </TouchableOpacity>
+        </View>
         <Text style={S.headerSub}>AI Coach</Text>
       </View>
+      <CoachMemoryModal visible={memoryVisible} onClose={() => setMemoryVisible(false)} />
 
       {/* Offline warning banner */}
       {serverStatus === 'offline' && (
@@ -697,6 +706,14 @@ const S = StyleSheet.create({
     paddingHorizontal: 20, paddingTop: 60, paddingBottom: 14,
     borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 4,
   },
+  headerTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  memoryBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderWidth: 1, borderColor: COLORS.primaryGreen + '40', borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 6,
+    backgroundColor: COLORS.primaryGreen + '10',
+  },
+  memoryBtnText: { color: COLORS.primaryGreen, fontSize: 11, fontWeight: '700' },
   headerSub: { color: COLORS.textMuted, fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
   offlineBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,

@@ -139,12 +139,37 @@ export const profileApi = {
   deleteInjury: (id: string) => api.delete(`/profile/injuries/${id}`),
   upsertPR: (data: any) => api.post('/profile/prs', data),
   getPRs: () => api.get('/profile/prs'),
+  uploadAvatar: (uri: string, mimeType: string) => {
+    const form = new FormData();
+    const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+    form.append('file', {
+      uri,
+      name: `avatar.${ext}`,
+      type: mimeType,
+    } as any);
+    // IMPORTANT: do NOT set Content-Type here. React Native's FormData
+    // needs the networking layer to generate the multipart boundary
+    // itself (e.g. "multipart/form-data; boundary=..."). Setting a bare
+    // 'multipart/form-data' header with no boundary, as this used to do,
+    // makes the server unable to parse the body into parts at all —
+    // FastAPI then sees no 'file' field and returns 422 Unprocessable
+    // Entity on every upload, regardless of the image being valid.
+    return api.post('/profile/avatar', form, {
+      headers: { 'Content-Type': undefined },
+    });
+  },
 };
 
 export const coachApi = {
   chat: (content: string, session_id?: string) =>
     api.post('/coach/chat', { content, session_id }),
   getHistory: (limit = 20) => api.get(`/coach/history?limit=${limit}`),
+  regenerateWorkout: () => api.post('/coach/regenerate-workout'),
+  // Coach Memory panel — real profile/injury/freeform-memory data the
+  // coach actually uses on every turn (see GET /coach/memory docstring).
+  getMemory: () => api.get('/coach/memory'),
+  // Chronological feed of PRs, AI decisions, and program rewrites.
+  getTimeline: (limit = 15) => api.get('/coach/coach-timeline', { params: { limit } }),
 };
 
 export const workoutApi = {
@@ -161,6 +186,11 @@ export const workoutApi = {
   // Returns weekly best weight for a given exercise (last N weeks)
   getStrengthProgression: (exercise: string, weeks = 8) =>
     api.get('/workouts/strength-progression', { params: { exercise, weeks } }),
+  // Completed-session history list (date, volume, exercise count) + detail
+  getHistory: (limit = 20, offset = 0) =>
+    api.get('/workouts/history', { params: { limit, offset } }),
+  getSessionDetail: (sessionId: string) =>
+    api.get(`/workouts/sessions/${sessionId}/detail`),
 };
 
 export const progressApi = {

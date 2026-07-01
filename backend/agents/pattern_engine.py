@@ -54,11 +54,11 @@ def _get_exercise_bests(user_id: str, exercise: str, weeks: int) -> list[dict]:
     cutoff = str(date.today() - timedelta(weeks=weeks))
     res = (
         sb.table("exercise_logs")
-        .select("weight_kg, reps, created_at")
+        .select("weight_kg, reps, logged_at")
         .eq("user_id", user_id)
         .ilike("exercise_name", f"%{exercise}%")
-        .gte("created_at", cutoff)
-        .order("created_at")
+        .gte("logged_at", cutoff)
+        .order("logged_at")
         .execute()
     )
     return res.data or []

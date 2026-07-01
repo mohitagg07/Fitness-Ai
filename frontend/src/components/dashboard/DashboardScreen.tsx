@@ -21,6 +21,7 @@ import { dashboardApi, missionApi, describeApiError } from '../../utils/api';
 import { useStore } from '../../store';
 import { COLORS, recoveryColor as whoopRecoveryColor } from '../../theme/colors';
 import ProactiveBriefCard from './ProactiveBriefCard';
+import TodaysDecisionCard from './TodaysDecisionCard';
 import PatternInsightsCard from './PatternInsightsCard';
 import CoachTimelineCard from './CoachTimelineCard';
 import ProgramEvolutionCard from './ProgramEvolutionCard';
@@ -197,6 +198,11 @@ export default function DashboardScreen() {
           <Text style={styles.name}>{summary?.greeting || firstName}</Text>
         </View>
       </View>
+
+      {/* ── AI Decision Center — the README's headline feature, now the
+          first thing under the greeting instead of buried on a hidden
+          tab. Real decision, real confidence, real evidence. ─────────── */}
+      <TodaysDecisionCard />
 
       {/* ── Primary score rings row: Recovery + CNS Load — the Whoop-style
           centerpiece. Two large rings side by side, exactly mirroring how

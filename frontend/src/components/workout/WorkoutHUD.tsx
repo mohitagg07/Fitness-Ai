@@ -19,6 +19,7 @@ import { workoutApi, coachApi } from '../../utils/api';
 import { useStore } from '../../store';
 import { COLORS } from '../../theme/colors';
 import WorkoutSummaryCard from './WorkoutSummaryCard';
+import WorkoutHistoryModal from './WorkoutHistoryModal';
 
 interface ExerciseCard {
   name: string;
@@ -26,6 +27,7 @@ interface ExerciseCard {
   reps: string;
   load: string;
   cue: string;
+  rest: string;
   completed_sets: number;
 }
 
@@ -148,6 +150,7 @@ export default function WorkoutHUD() {
   const [exerciseName, setExerciseName] = useState('');
   const [summaryVisible, setSummaryVisible] = useState(false);
   const [summaryData, setSummaryData]       = useState<any>(null);
+  const [historyVisible, setHistoryVisible] = useState(false);
   const [, forceTick]                   = useState(0);
 
   // Tick for elapsed time
@@ -225,6 +228,7 @@ export default function WorkoutHUD() {
           reps: e.reps || '8',
           load: e.weight || '',
           cue:  e.focus  || '',
+          rest: e.rest   || '',
           completed_sets: 0,
         })));
         setActiveIdx(0);
@@ -343,6 +347,10 @@ export default function WorkoutHUD() {
           data={summaryData}
           onClose={() => setSummaryVisible(false)}
         />
+        <WorkoutHistoryModal
+          visible={historyVisible}
+          onClose={() => setHistoryVisible(false)}
+        />
         <View style={S.preSession}>
           <View style={S.preBadge}>
             <Ionicons name="barbell-outline" size={28} color={COLORS.primaryGreen} />
@@ -359,6 +367,10 @@ export default function WorkoutHUD() {
           <TouchableOpacity style={S.coachBtn} onPress={askCoachForWorkout}>
             <Ionicons name="flash" size={16} color={COLORS.primaryGreen} />
             <Text style={S.coachBtnText}>Ask Coach for Today's Plan</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={S.historyBtn} onPress={() => setHistoryVisible(true)}>
+            <Ionicons name="time-outline" size={16} color={COLORS.textSecondary} />
+            <Text style={S.historyBtnText}>View Workout History</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -618,6 +630,9 @@ const S = StyleSheet.create({
                  paddingHorizontal: 32, width: '100%', alignItems: 'center',
                  flexDirection: 'row', justifyContent: 'center', gap: 8 },
   coachBtnText:{ color: COLORS.primaryGreen, fontSize: 14, fontWeight: '600' },
+  historyBtn:  { marginTop: 12, paddingVertical: 12, paddingHorizontal: 32,
+                 alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 },
+  historyBtnText: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '600' },
 
   // Exercise tabs
   exTabsScroll: { maxHeight: 68 },

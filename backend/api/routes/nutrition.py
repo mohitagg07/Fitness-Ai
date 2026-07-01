@@ -427,13 +427,25 @@ async def _get_fatsecret_token() -> str:
     if cached and cached["expires_at"] > now + 60:
         return cached["token"]
 
-    async with _httpx.AsyncClient() as client:
-        resp = await client.post(
-            "https://oauth.fatsecret.com/connect/token",
-            data={"grant_type": "client_credentials", "scope": "basic"},
-            auth=(client_id, client_secret),
-            timeout=10,
-        )
+    # FIX: a bare httpx call here meant any transient network failure
+    # (DNS hiccup, FatSecret being briefly unreachable, a slow connection
+    # on the dev machine) surfaced as an unhandled httpx.ConnectTimeout
+    # that FastAPI turned into a raw 500 with a full stack trace instead
+    # of a clean, actionable error — and search results just vanished
+    # with no useful message on the frontend.
+    try:
+        async with _httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://oauth.fatsecret.com/connect/token",
+                data={"grant_type": "client_credentials", "scope": "basic"},
+                auth=(client_id, client_secret),
+                timeout=10,
+            )
+    except _httpx.TimeoutException:
+        raise HTTPException(503, "Food search is temporarily unreachable (connection timed out). Please try again.")
+    except _httpx.HTTPError as e:
+        raise HTTPException(503, f"Food search is temporarily unreachable: {e}")
+
     if resp.status_code != 200:
         raise HTTPException(502, f"FatSecret token error {resp.status_code}: {resp.text[:300]}")
 
@@ -470,19 +482,24 @@ async def search_food(
     token = await _get_fatsecret_token()
     clamp = min(max(1, max_results), 20)
 
-    async with _httpx.AsyncClient() as client:
-        resp = await client.get(
-            "https://platform.fatsecret.com/rest/server.api",
-            params={
-                "method":            "foods.search",
-                "search_expression": q.strip(),
-                "format":            "json",
-                "max_results":       clamp,
-                "page_number":       0,
-            },
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=12,
-        )
+    try:
+        async with _httpx.AsyncClient() as client:
+            resp = await client.get(
+                "https://platform.fatsecret.com/rest/server.api",
+                params={
+                    "method":            "foods.search",
+                    "search_expression": q.strip(),
+                    "format":            "json",
+                    "max_results":       clamp,
+                    "page_number":       0,
+                },
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=12,
+            )
+    except _httpx.TimeoutException:
+        raise HTTPException(503, "Food search is temporarily unreachable (connection timed out). Please try again.")
+    except _httpx.HTTPError as e:
+        raise HTTPException(503, f"Food search is temporarily unreachable: {e}")
 
     if resp.status_code != 200:
         raise HTTPException(502, f"FatSecret search failed {resp.status_code}: {resp.text[:300]}")

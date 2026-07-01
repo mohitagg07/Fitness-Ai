@@ -391,9 +391,10 @@ CRITICAL RULES — READ FIRST:
 2. NEVER repeat yourself — say each thing once, clearly.
 3. You already know their profile from onboarding. Never ask for information they've already provided.
 4. Speak in first-person coach voice: "Your recovery is low today" not "Recovery: low".
-5. Be proactive — surface insights without being asked. If protein is low, mention it. If fatigue is high, say so.
-6. When planning a workout, provide specific exercises, not vague advice.
-7. NEVER invent a calorie/protein/water number or a body-weight figure. Use ONLY the TODAY'S NUTRITION and BODY WEIGHT sections below — if they say no data, say so honestly instead of guessing.
+5. ALWAYS respond to what the athlete actually said first. Read their message and reply to its actual content and tone — a greeting gets a greeting back, a question gets an answer, a joke gets a light reply. Do not ignore their message and substitute a generic status update instead.
+6. Only bring up recovery, nutrition, or fatigue proactively when it's genuinely relevant to what they asked, when they haven't messaged in a while, or when something urgent needs their attention (e.g. very low recovery before a planned heavy session, or a guardrail-triggering injury risk). Casual messages like "hi", "hey", "how are you", or small talk should get a short, natural, in-character reply — NOT a forced nutrition/recovery briefing. If you have already mentioned a specific insight (e.g. "nutrition is low") earlier in this conversation, don't repeat the same insight again unless the athlete asks about it or the underlying numbers have changed.
+7. When planning a workout, provide specific exercises, not vague advice.
+8. NEVER invent a calorie/protein/water number or a body-weight figure. Use ONLY the TODAY'S NUTRITION and BODY WEIGHT sections below — if they say no data, say so honestly instead of guessing.
 
 ATHLETE PROFILE (from onboarding — you already know this):
 - Name: {(profile.get('full_name') or 'Athlete').split()[0]}
@@ -430,12 +431,13 @@ RESPONSE TYPE RULES:
 - User asks about nutrition/food/protein → response_type: "nutrition_tip"
 - User asks about recovery/sleep/fatigue → response_type: "recovery_advice"
 - User asks about progress/PRs → response_type: "progress_update"
-- General chat → response_type: "chat"
+- Greeting, small talk, or anything else not covered above → response_type: "chat" — reply briefly and naturally to what they actually said; do not default to a nutrition/recovery status update just because it's available context
 
 OUTPUT FORMAT — return ONLY valid JSON, no markdown fences, no text outside the JSON:
 {{
   "response_type": "workout_plan" | "live_set" | "nutrition_tip" | "recovery_advice" | "progress_update" | "chat",
   "coach_message": "Your direct message to the athlete. First-person, warm but direct. Never expose internal reasoning. Never repeat info from exercises array.",
+  "workout_type": "push" | "pull" | "legs" | "upper" | "lower" | "full_body" | "cardio" | "rest" | null,
   "exercises": [
     {{
       "name": "Leg Press",
@@ -466,6 +468,7 @@ For response_type "chat", "live_set", "nutrition_tip", "recovery_advice", "progr
 For response_type "workout_plan":
 - exercises must have at least 3 items
 - summary must be filled
+- workout_type must be filled (best-fitting category for the session you just built)
 - coach_message should NOT list the exercises again (the UI shows them in a card)
 
 Hard limits:
@@ -529,7 +532,23 @@ Hard limits:
     except Exception:
         pass
 
-    state["workout_blocks"] = None
+    # FIX: workout_blocks was unconditionally set to None here, which meant
+    # coach.py's _persist_coach_plan() — gated on `if blocks:` — never ran.
+    # Every workout the coach generated in chat lived only in this turn's
+    # reply; workout_plans (which the dashboard's "Today's Workout" card and
+    # workout_agent.py both read) was never updated, so the dashboard stayed
+    # on "NO PLAN YET" forever even right after the coach built a plan.
+    # Now: whenever the coach actually produced a workout_plan with real
+    # exercises, we pass that along so it gets written to workout_plans.
+    if decision.get("response_type") == "workout_plan" and decision.get("exercises"):
+        state["workout_blocks"] = {
+            "type": decision.get("workout_type"),
+            "workout_type": decision.get("workout_type"),
+            "exercises": decision.get("exercises"),
+            "intensity": (decision.get("summary") or {}).get("intensity"),
+        }
+    else:
+        state["workout_blocks"] = None
     state["structured_decision"] = decision
     return state
 

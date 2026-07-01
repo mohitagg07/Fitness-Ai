@@ -102,10 +102,10 @@ def _get_month_exercise_logs(user_id: str, start: date, end: date) -> list[dict]
     sb = get_supabase()
     res = (
         sb.table("exercise_logs")
-        .select("exercise_name, weight_kg, reps, created_at")
+        .select("exercise_name, weight_kg, reps, logged_at")
         .eq("user_id", user_id)
-        .gte("created_at", str(start))
-        .lte("created_at", str(end) + "T23:59:59")
+        .gte("logged_at", str(start))
+        .lte("logged_at", str(end) + "T23:59:59")
         .execute()
     )
     return res.data or []
@@ -139,9 +139,9 @@ def _get_weight_trend(user_id: str, start: date, end: date) -> dict:
 
 
 def _exercise_first_last_best(logs: list[dict]) -> dict[str, tuple[float, float]]:
-    """Returns {exercise: (first_weight, best_weight)} from a month of logs, ordered by created_at."""
+    """Returns {exercise: (first_weight, best_weight)} from a month of logs, ordered by logged_at."""
     by_ex: dict[str, list[dict]] = {}
-    for l in sorted(logs, key=lambda x: x.get("created_at", "")):
+    for l in sorted(logs, key=lambda x: x.get("logged_at", "")):
         ex = l.get("exercise_name", "")
         if ex and l.get("weight_kg"):
             by_ex.setdefault(ex, []).append(l)

@@ -50,10 +50,10 @@ def _recent_bench_style_trend(user_id: str, days: int = 21) -> Optional[dict]:
     cutoff = str(date.today() - timedelta(days=days))
     res = (
         sb.table("exercise_logs")
-        .select("exercise_name, weight_kg, created_at")
+        .select("exercise_name, weight_kg, logged_at")
         .eq("user_id", user_id)
-        .gte("created_at", cutoff)
-        .order("created_at")
+        .gte("logged_at", cutoff)
+        .order("logged_at")
         .execute()
     )
     logs = res.data or []

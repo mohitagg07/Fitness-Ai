@@ -69,13 +69,23 @@ def _persist_coach_plan(user_id: str, blocks: dict) -> None:
     # Deactivate any existing active plan for this user
     sb.table("workout_plans")       .update({"is_active": False})       .eq("user_id", user_id)       .eq("is_active", True)       .execute()
 
-    # Insert new active plan with today's session type
+    # FIX: this insert was previously guaranteed to fail on every call —
+    # it wrote a "source" column that doesn't exist in workout_plans, and
+    # never provided "name", which the table defines as NOT NULL with no
+    # default. Both problems caused Postgrest to reject the insert. Because
+    # the caller (coach.py chat()/regenerate_workout()) wraps this in a
+    # broad try/except that only logs, the failure was invisible — the
+    # coach would generate a full workout plan, the chat card would show
+    # it correctly, and the dashboard would still say "NO PLAN YET" because
+    # workout_plans was never actually written. Now matches the real schema:
+    # name (required), schedule, is_active. created_at has a DB default,
+    # so it isn't set explicitly here either.
+    display_name = workout_type.replace("_", " ").title()
     sb.table("workout_plans").insert({
         "user_id": user_id,
+        "name": f"{display_name} — Coach Generated",
         "is_active": True,
         "schedule": {today_key: workout_type},
-        "source": "coach",
-        "created_at": _date.today().isoformat(),
     }).execute()
 
 
