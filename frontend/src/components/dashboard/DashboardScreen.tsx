@@ -13,6 +13,7 @@ import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   RefreshControl,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import Logo from '../shared/Logo';
 import Svg, { Circle } from 'react-native-svg';
@@ -133,6 +134,23 @@ export default function DashboardScreen() {
       setLoading(false);
     })();
   }, [loadData]);
+
+  // Refetch whenever this tab regains focus (e.g. returning from a just-
+  // completed workout) so the recovery score, decision card, and "Since
+  // Yesterday" summary never show stale pre-session data. Skips the very
+  // first focus since the mount effect above already covers it, and
+  // deliberately doesn't toggle `loading` — a background refresh shouldn't
+  // flash the skeleton every time the user switches tabs.
+  const hasFocusedOnce = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasFocusedOnce.current) {
+        hasFocusedOnce.current = true;
+        return;
+      }
+      loadData();
+    }, [loadData])
+  );
 
   const onRefresh = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});

@@ -7,11 +7,12 @@
 //   - POST /api/decisions/{id}/outcome  lets user mark outcomes
 //   - Each card has an expandable "Why?" panel surfacing reasoning_steps
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   ActivityIndicator, RefreshControl, LayoutAnimation,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { COLORS } from '../../theme/colors';
@@ -101,15 +102,36 @@ export default function DecisionScreen() {
     }
   }, []);
 
+  // Save today's decision (idempotent — safe to call on every visit) then
+  // reload the list. Shared by the initial mount load and the silent
+  // focus refetch below so both stay in sync with the same behavior.
+  const saveAndLoad = useCallback(async () => {
+    try { await api.post('/decisions/save'); } catch {}
+    await loadData();
+  }, [loadData]);
+
   useEffect(() => {
     (async () => {
       setLoading(true);
-      // Save today's decision (idempotent — safe to call on every visit)
-      try { await api.post('/decisions/save'); } catch {}
-      await loadData();
+      await saveAndLoad();
       setLoading(false);
     })();
-  }, [loadData]);
+  }, [saveAndLoad]);
+
+  // Silent refetch on tab focus (e.g. after a new decision was generated
+  // from the Dashboard) — skips the first focus since the mount effect
+  // above already covers it, and doesn't toggle `loading` so switching
+  // tabs never flashes the loading state.
+  const hasFocusedOnce = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasFocusedOnce.current) {
+        hasFocusedOnce.current = true;
+        return;
+      }
+      saveAndLoad();
+    }, [saveAndLoad])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);

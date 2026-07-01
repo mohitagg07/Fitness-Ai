@@ -6,7 +6,8 @@
 //   • Recovery tab: HRV trend, sleep trend
 //   • Review tab: existing WeeklyReviewScreen
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   TextInput, Alert, ActivityIndicator, RefreshControl,
@@ -354,6 +355,21 @@ export default function ProgressScreen() {
   useEffect(() => {
     (async () => { setLoading(true); await loadData(); setLoading(false); })();
   }, [loadData]);
+
+  // Silent refetch on tab focus (e.g. after logging a PR or a meal
+  // elsewhere) — skips the first focus since the mount effect above
+  // already covers it, and doesn't toggle `loading` so switching tabs
+  // never flashes the skeleton.
+  const hasFocusedOnce = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasFocusedOnce.current) {
+        hasFocusedOnce.current = true;
+        return;
+      }
+      loadData();
+    }, [loadData])
+  );
 
   const onRefresh = async () => { setRefreshing(true); await loadData(); setRefreshing(false); };
 

@@ -42,9 +42,9 @@ interface SetLog {
 const RPE_LEVELS = [6, 7, 7.5, 8, 8.5, 9, 9.5, 10];
 
 function rpeColor(r: number): string {
-  if (r <= 7)   return '#4CAF50';
+  if (r <= 7)   return COLORS.primaryGreen;
   if (r <= 8)   return COLORS.recoveryMed;
-  if (r <= 9.5) return '#FF6B35';
+  if (r <= 9.5) return COLORS.calories;
   return COLORS.recoveryLow;
 }
 
@@ -125,7 +125,7 @@ function PrevSetGhost({ log }: { log: SetLog | null }) {
   if (!log) return null;
   return (
     <View style={G.row}>
-      <Ionicons name="time-outline" size={12} color="#444" />
+      <Ionicons name="time-outline" size={12} color={COLORS.textDim} />
       <Text style={G.text}>
         Last: {log.weight_kg}kg × {log.reps} @ RPE {log.rpe}
       </Text>
@@ -152,6 +152,8 @@ export default function WorkoutHUD() {
   const [summaryData, setSummaryData]       = useState<any>(null);
   const [historyVisible, setHistoryVisible] = useState(false);
   const [, forceTick]                   = useState(0);
+  const [isLogging, setIsLogging]       = useState(false);
+  const [isFinishing, setIsFinishing]   = useState(false);
 
   // Tick for elapsed time
   useEffect(() => {
@@ -243,6 +245,12 @@ export default function WorkoutHUD() {
 
   const logSet = async () => {
     if (!activeSession) return;
+    // Guards against a fast double-tap firing two requests before the store
+    // updates — without this, both calls read the same currentSetNum and
+    // both succeed, logging two sets with an identical set_number and
+    // silently corrupting volume/PR totals for this session.
+    if (isLogging) return;
+
     const w = parseFloat(weight);
     const r = parseInt(reps);
     const name = resolvedName;
@@ -254,6 +262,7 @@ export default function WorkoutHUD() {
     const setNum = currentSetNum;
     const logData = { exercise_name: name, set_number: setNum, weight_kg: w, reps: r, rpe };
 
+    setIsLogging(true);
     try {
       await workoutApi.logSet(activeSession.id, logData);
       addLogToSession(logData);
@@ -278,6 +287,8 @@ export default function WorkoutHUD() {
       }
     } catch {
       Alert.alert('Error', 'Could not log set.');
+    } finally {
+      setIsLogging(false);
     }
   };
 
@@ -292,36 +303,51 @@ export default function WorkoutHUD() {
     }
   };
 
+  // Extracted so a failed completion can be retried directly — without this,
+  // a network blip meant the only way to retry was dismissing the alert and
+  // going back through the destructive "Finish Workout?" confirm again.
+  // The backend PATCH /sessions/{id}/complete recomputes stats from the
+  // already-persisted logs and upserts PRs idempotently, so calling it again
+  // on the same session id after a failed/lost response is safe.
+  const completeAndShowSummary = async () => {
+    if (!activeSession || isFinishing) return;
+    setIsFinishing(true);
+    try {
+      const res = await workoutApi.completeSession(activeSession.id);
+      const summary = res.data;
+      setActiveSession(null);
+      setExercises([]);
+      setActiveIdx(0);
+      setTimerRunning(false);
+      setRestTimer(0);
+      setSummaryData(summary || {
+        total_volume_kg: Math.round(totalVolume),
+        sets_logged: totalSets,
+        exercises: [...new Set((activeSession.logs as SetLog[]).map(l => l.exercise_name))],
+        exercise_count: new Set((activeSession.logs as SetLog[]).map(l => l.exercise_name)).size,
+        best_set: null,
+        session_minutes: Math.round((Date.now() - (activeSession.startedAt || Date.now())) / 60000),
+      });
+      setSummaryVisible(true);
+    } catch {
+      // Local session state is left untouched here on purpose — the sets
+      // already logged during the session live server-side (each logSet
+      // call already persisted), so nothing is lost and Retry can safely
+      // call the same idempotent endpoint again.
+      Alert.alert('Error', 'Could not complete session. Check your connection and try again.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Retry', style: 'default', onPress: () => completeAndShowSummary() },
+      ]);
+    } finally {
+      setIsFinishing(false);
+    }
+  };
+
   const finishWorkout = () => {
     if (!activeSession) return;
     Alert.alert('Finish Workout?', 'This will end your session and save all sets.', [
       { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Finish',
-        style: 'default',
-        onPress: async () => {
-          try {
-            const res = await workoutApi.completeSession(activeSession.id);
-            const summary = res.data;
-            setActiveSession(null);
-            setExercises([]);
-            setActiveIdx(0);
-            setTimerRunning(false);
-            setRestTimer(0);
-            setSummaryData(summary || {
-              total_volume_kg: Math.round(totalVolume),
-              sets_logged: totalSets,
-              exercises: [...new Set((activeSession.logs as SetLog[]).map(l => l.exercise_name))],
-              exercise_count: new Set((activeSession.logs as SetLog[]).map(l => l.exercise_name)).size,
-              best_set: null,
-              session_minutes: Math.round((Date.now() - (activeSession.startedAt || Date.now())) / 60000),
-            });
-            setSummaryVisible(true);
-          } catch {
-            Alert.alert('Error', 'Could not complete session.');
-          }
-        },
-      },
+      { text: 'Finish', style: 'default', onPress: () => completeAndShowSummary() },
     ]);
   };
 
@@ -525,9 +551,16 @@ export default function WorkoutHUD() {
           </ScrollView>
         </View>
 
-        <TouchableOpacity style={S.logBtn} onPress={logSet}>
+        <TouchableOpacity
+          style={[S.logBtn, isLogging && S.logBtnDisabled]}
+          onPress={logSet}
+          disabled={isLogging}
+          accessibilityRole="button"
+          accessibilityLabel="Log set and start rest timer"
+          accessibilityState={{ disabled: isLogging }}
+        >
           <Ionicons name="add-circle-outline" size={16} color="#000" />
-          <Text style={S.logBtnText}>LOG SET + START REST</Text>
+          <Text style={S.logBtnText}>{isLogging ? 'LOGGING…' : 'LOG SET + START REST'}</Text>
         </TouchableOpacity>
       </View>
 
@@ -557,9 +590,16 @@ export default function WorkoutHUD() {
         <View style={{ height: 16 }} />
       </ScrollView>
 
-      <TouchableOpacity style={S.finishBtn} onPress={finishWorkout}>
-        <Ionicons name="checkmark-circle-outline" size={18} color="#4CAF50" />
-        <Text style={S.finishBtnText}>FINISH WORKOUT</Text>
+      <TouchableOpacity
+        style={[S.finishBtn, isFinishing && S.logBtnDisabled]}
+        onPress={finishWorkout}
+        disabled={isFinishing}
+        accessibilityRole="button"
+        accessibilityLabel="Finish workout and save session"
+        accessibilityState={{ disabled: isFinishing }}
+      >
+        <Ionicons name="checkmark-circle-outline" size={18} color={COLORS.primaryGreen} />
+        <Text style={S.finishBtnText}>{isFinishing ? 'SAVING…' : 'FINISH WORKOUT'}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -568,9 +608,9 @@ export default function WorkoutHUD() {
 // ─── Timer styles ─────────────────────────────────────────────────────────────
 const T = StyleSheet.create({
   timerBar: {
-    backgroundColor: '#030E06',
+    backgroundColor: COLORS.primaryGreen + '08',
     borderBottomWidth: 1,
-    borderBottomColor: '#0D2410',
+    borderBottomColor: COLORS.primaryGreen + '18',
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
@@ -578,37 +618,37 @@ const T = StyleSheet.create({
   timerLeft:    { flexDirection: 'row', alignItems: 'center', gap: 6, width: 90 },
   timerLabel:   { fontSize: 10, fontWeight: '800', letterSpacing: 1.5 },
   timerSeconds: { fontSize: 22, fontWeight: '800', lineHeight: 26 },
-  timerTrack:   { flex: 1, height: 3, backgroundColor: '#1A1A1A', borderRadius: 2, overflow: 'hidden' },
+  timerTrack:   { flex: 1, height: 3, backgroundColor: COLORS.cardElevated, borderRadius: 2, overflow: 'hidden' },
   timerFill:    { height: 3, borderRadius: 2 },
   skipBtn:      { paddingHorizontal: 10, paddingVertical: 4,
-                  backgroundColor: '#1A1A1A', borderRadius: 8 },
-  skipText:     { color: '#666', fontSize: 11, fontWeight: '700', letterSpacing: 1 },
+                  backgroundColor: COLORS.cardElevated, borderRadius: 8 },
+  skipText:     { color: COLORS.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1 },
 });
 
 // ─── Session header styles ────────────────────────────────────────────────────
 const H = StyleSheet.create({
   row: {
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20,
-    paddingVertical: 10, backgroundColor: '#0A0A0A',
-    borderBottomWidth: 1, borderBottomColor: '#141414', gap: 12,
+    paddingVertical: 10, backgroundColor: COLORS.card,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 12,
   },
   pill: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: '#0D1F0D', borderRadius: 20, paddingHorizontal: 8,
-    paddingVertical: 4, borderWidth: 1, borderColor: '#1A3A1A',
+    backgroundColor: COLORS.primaryGreen + '10', borderRadius: 20, paddingHorizontal: 8,
+    paddingVertical: 4, borderWidth: 1, borderColor: COLORS.primaryGreen + '30',
   },
   activeDot:  { width: 5, height: 5, borderRadius: 3, backgroundColor: COLORS.primaryGreen },
   pillText:   { color: COLORS.primaryGreen, fontSize: 9, fontWeight: '800', letterSpacing: 1.5 },
   stat:       { alignItems: 'center' },
-  statVal:    { color: '#DDD', fontSize: 16, fontWeight: '800' },
-  statLabel:  { color: '#444', fontSize: 8, fontWeight: '700', letterSpacing: 1, marginTop: 1 },
-  divider:    { width: 1, height: 24, backgroundColor: '#1E1E1E' },
+  statVal:    { color: COLORS.text, fontSize: 16, fontWeight: '800' },
+  statLabel:  { color: COLORS.textDim, fontSize: 8, fontWeight: '700', letterSpacing: 1, marginTop: 1 },
+  divider:    { width: 1, height: 24, backgroundColor: COLORS.border },
 });
 
 // ─── Ghost styles ─────────────────────────────────────────────────────────────
 const G = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
-  text: { color: '#444', fontSize: 12 },
+  text: { color: COLORS.textDim, fontSize: 12 },
 });
 
 // ─── Main styles ──────────────────────────────────────────────────────────────
@@ -686,6 +726,7 @@ const S = StyleSheet.create({
 
   logBtn:     { backgroundColor: COLORS.primaryGreen, borderRadius: 12, paddingVertical: 14,
                 flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  logBtnDisabled: { opacity: 0.5 },
   logBtnText: { color: '#000', fontSize: 13, fontWeight: '800', letterSpacing: 0.5 },
 
   // Logs
