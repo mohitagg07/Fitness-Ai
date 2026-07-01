@@ -102,6 +102,20 @@ function fatigueZoneColor(score0to10: number) {
   return ZONE_RED;
 }
 
+// Friendlier display copy for the backend's snake_case recovery actions —
+// "replace_with_light" read like a config key, not something a coach
+// would actually say. Same information, more natural phrasing.
+const ACTION_LABELS: Record<string, string> = {
+  proceed: 'GO AS PLANNED',
+  replace_with_light: 'TAKE IT EASY',
+  rest: 'REST DAY',
+  deload: 'DELOAD',
+};
+function actionLabel(action?: string) {
+  if (!action) return '—';
+  return ACTION_LABELS[action] || action.replace(/_/g, ' ').toUpperCase();
+}
+
 export default function DashboardScreen() {
   const { user, profile, setCnsFatigue } = useStore();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
@@ -203,7 +217,10 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* Header */}
+      {/* Header — one brand lockup: badge + wordmark read as a unit, a
+          hairline divider anchors it to the page instead of floating in
+          open space, and the greeting sits close underneath so the whole
+          block reads as a single header rather than logo-then-text. */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <Logo size="sm" />
@@ -218,6 +235,7 @@ export default function DashboardScreen() {
           <Text style={styles.name}>{summary?.greeting || firstName}</Text>
         </View>
       </View>
+      <View style={styles.headerDivider} />
 
       {/* ── Morning-briefing story arc ────────────────────────────────────
           1. How am I today?      → score rings (this section)
@@ -230,36 +248,38 @@ export default function DashboardScreen() {
           Everything below that is supporting detail the user can scroll
           into, not part of the briefing itself. ─────────────────────── */}
 
-      {/* ── 1. How am I today? Primary score rings: Recovery + CNS Load —
-          the Whoop-style centerpiece. Two large rings side by side,
-          exactly mirroring how Whoop pairs Recovery % with Strain on its
-          home screen. ──────────────────────────────────────────────── */}
-      <View style={styles.ringsRow}>
-        <ScoreRing
-          size={132}
-          stroke={12}
-          value={recoveryScore}
-          max={10}
-          color={recoveryZoneColor(recoveryScore)}
-          label="RECOVERY"
-          sublabel={summary?.recovery?.action?.replace(/_/g, ' ').toUpperCase() || '—'}
-        />
-        <ScoreRing
-          size={132}
-          stroke={12}
-          value={cnsFatigue}
-          max={10}
-          color={fatigueZoneColor(cnsFatigue)}
-          label="CNS LOAD"
-          sublabel={
-            cnsFatigue >= 7 ? 'HIGH' : cnsFatigue >= 4 ? 'MODERATE' : 'FRESH'
-          }
-        />
+      {/* ── 1. How am I today? Primary score rings: Recovery + CNS Load,
+          grouped inside one "Today's Readiness" shell so the two rings
+          and the caption beneath them read as a single section instead
+          of three elements floating separately on the black canvas. ── */}
+      <View style={styles.readinessCard}>
+        <Text style={styles.readinessLabel}>TODAY'S READINESS</Text>
+        <View style={styles.ringsRow}>
+          <ScoreRing
+            size={128}
+            stroke={11}
+            value={recoveryScore}
+            max={10}
+            color={recoveryZoneColor(recoveryScore)}
+            label="RECOVERY"
+            sublabel={actionLabel(summary?.recovery?.action)}
+          />
+          <ScoreRing
+            size={128}
+            stroke={11}
+            value={cnsFatigue}
+            max={10}
+            color={fatigueZoneColor(cnsFatigue)}
+            label="CNS LOAD"
+            sublabel={
+              cnsFatigue >= 7 ? 'HIGH' : cnsFatigue >= 4 ? 'MODERATE' : 'FRESH'
+            }
+          />
+        </View>
+        {summary?.recovery?.message && (
+          <Text style={styles.ringCaption}>{summary.recovery.message}</Text>
+        )}
       </View>
-
-      {summary?.recovery?.message && (
-        <Text style={styles.ringCaption}>{summary.recovery.message}</Text>
-      )}
 
       {/* ── 2. What should I do? WORKOUT TODAY — first card after rings so
           the user immediately knows what to do. Most actionable info. ── */}
@@ -347,14 +367,14 @@ export default function DashboardScreen() {
         <View style={styles.miniRingsRow}>
           <MiniRing
             pct={summary.calories_pct}
-            color={COLORS.recoveryHigh}
+            color={COLORS.calories}
             label="CALORIES"
             value={`${summary.calories_remaining}`}
             sub={`of ${summary.calories_target}`}
           />
           <MiniRing
             pct={summary.protein_pct}
-            color={COLORS.strain}
+            color={COLORS.protein}
             label="PROTEIN"
             value={`${Math.round(summary.protein_remaining_g)}g`}
             sub={`of ${Math.round(summary.protein_target_g)}g`}
@@ -567,7 +587,7 @@ const styles = StyleSheet.create({
   errorBody: { ...BODY, color: COLORS.textSecondary, fontSize: 13, marginTop: SPACING.sm, textAlign: 'center', lineHeight: 19 },
   retryBtn: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.xs,
-    backgroundColor: COLORS.recoveryHigh, borderRadius: RADIUS.button,
+    backgroundColor: COLORS.strainGlow, borderRadius: RADIUS.button,
     paddingVertical: SPACING.md, paddingHorizontal: SPACING.xl, marginTop: SPACING.lg,
   },
   retryText: { ...BODY, color: '#000', fontFamily: FONTS.bold, fontSize: 13 },
@@ -577,7 +597,7 @@ const styles = StyleSheet.create({
   },
   staleBannerText: { ...BODY, color: COLORS.recoveryMed, fontSize: 11, flex: 1 },
   header: {
-    paddingHorizontal: SPACING.xl, paddingTop: 56, paddingBottom: SPACING.lg, gap: SPACING.sm,
+    paddingHorizontal: SPACING.xl, paddingTop: 56, paddingBottom: SPACING.lg, gap: SPACING.md,
   },
   headerTop: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -590,34 +610,53 @@ const styles = StyleSheet.create({
   // of the two competing at similar visual weight.
   greeting: { ...EYEBROW, color: COLORS.textMuted, fontSize: 11, letterSpacing: 1 },
   name: { color: COLORS.text, fontFamily: FONTS.extrabold, fontSize: 26, letterSpacing: -0.3 },
-  phaseBadge: { backgroundColor: alpha(COLORS.recoveryHigh, 0.1), borderRadius: RADIUS.badge, padding: SPACING.sm, marginTop: SPACING.xs },
-  phaseText: { ...EYEBROW, color: COLORS.recoveryHigh, fontSize: 10, letterSpacing: 1 },
+  // Phase badge is a plain status tag, not a recovery signal — kept
+  // neutral so green stays reserved for actual recovery meaning.
+  phaseBadge: { backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.badge, paddingVertical: 6, paddingHorizontal: SPACING.sm, borderWidth: 1, borderColor: COLORS.cardBorder },
+  phaseText: { ...EYEBROW, color: COLORS.textSecondary, fontSize: 10, letterSpacing: 1 },
+  // Hairline seam that anchors the header to the page — the badge/
+  // wordmark/greeting block now reads as one brand header, not a logo
+  // dropped on top of unrelated content.
+  headerDivider: { height: 1, backgroundColor: COLORS.cardBorder, marginHorizontal: SPACING.xl },
 
   // One shared eyebrow style for every small uppercase card/section label —
   // cards differentiate by icon + text color only, never by font treatment.
   eyebrow: { ...EYEBROW, fontSize: 10 },
 
-  // Primary rings
+  // Today's Readiness — Recovery + CNS rings and their caption now live
+  // inside one bordered shell (matching every other card on the screen)
+  // instead of floating loose on the black canvas.
+  readinessCard: {
+    marginHorizontal: SPACING.lg, marginTop: SPACING.lg, marginBottom: SPACING.md,
+    backgroundColor: COLORS.card, borderRadius: RADIUS.card,
+    paddingVertical: SPACING.lg, borderWidth: 1, borderColor: COLORS.cardBorder,
+  },
+  readinessLabel: {
+    ...EYEBROW, color: COLORS.textSecondary, fontSize: 11,
+    textAlign: 'center', marginBottom: SPACING.md,
+  },
   ringsRow: {
     flexDirection: 'row', justifyContent: 'center', gap: SPACING.xl,
-    paddingHorizontal: SPACING.lg, marginBottom: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
   },
   ringWrap: { alignItems: 'center' },
   ringCenter: {
     ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center',
     flexDirection: 'row',
   },
-  ringValue: { fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 32 },
-  ringPercentSign: { ...BODY, color: COLORS.textSecondary, fontSize: 15, fontFamily: FONTS.medium, marginLeft: 2, marginTop: 5 },
+  // Number is the whole point of the ring — sized up so it dominates,
+  // with the label/sublabel underneath pulled down in weight to match.
+  ringValue: { fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 38 },
+  ringPercentSign: { ...BODY, color: COLORS.textSecondary, fontSize: 16, fontFamily: FONTS.medium, marginLeft: 2, marginTop: 6 },
   ringLabel: {
-    ...EYEBROW, color: COLORS.textSecondary, fontSize: 11, marginTop: SPACING.sm,
+    ...EYEBROW, color: COLORS.textMuted, fontSize: 10, letterSpacing: 1, marginTop: SPACING.sm,
   },
   ringSublabel: {
-    ...EYEBROW, fontSize: 10, letterSpacing: 0.5, marginTop: 2,
+    ...EYEBROW, fontSize: 9, letterSpacing: 0.5, marginTop: 1,
   },
   ringCaption: {
     ...BODY, color: COLORS.textSecondary, fontSize: 12, textAlign: 'center',
-    marginTop: SPACING.md, marginBottom: SPACING.sm, paddingHorizontal: SPACING.xxl, lineHeight: 17,
+    marginTop: SPACING.md, paddingHorizontal: SPACING.xl, lineHeight: 17,
   },
 
   // ── Hero cards ──────────────────────────────────────────────────────
@@ -632,7 +671,11 @@ const styles = StyleSheet.create({
     padding: SPACING.lg, borderWidth: 1, borderColor: COLORS.cardBorder,
   },
   feedLabelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.sm, gap: SPACING.xs },
-  feedText: { ...BODY, color: COLORS.textSecondary, fontSize: 14, lineHeight: 20, marginBottom: SPACING.md },
+  // Tightened from lineHeight 20 / marginBottom lg — the same sentence
+  // was taking noticeably more vertical space than its neighbors for no
+  // reason; this brings it in line with the density of the rest of the
+  // briefing without cutting any text.
+  feedText: { ...BODY, color: COLORS.textSecondary, fontSize: 14, lineHeight: 19, marginBottom: SPACING.sm },
   workoutTodayHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     marginBottom: SPACING.sm,
@@ -675,7 +718,7 @@ const styles = StyleSheet.create({
   rescheduledText: { ...EYEBROW, color: COLORS.recoveryMed, fontSize: 9, letterSpacing: 0.5 },
   generatePlanBtn: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.xs,
-    backgroundColor: COLORS.primaryGreen, borderRadius: RADIUS.button,
+    backgroundColor: COLORS.strainGlow, borderRadius: RADIUS.button,
     paddingVertical: SPACING.sm, paddingHorizontal: SPACING.md,
     alignSelf: 'flex-start', marginTop: SPACING.sm,
   },

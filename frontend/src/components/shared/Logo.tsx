@@ -24,18 +24,18 @@ import { FONTS } from '../../theme/typography';
 
 type LogoSize = 'sm' | 'md' | 'lg' | 'xl';
 
-// Sizes bumped up from the original pass (badge was reading as an
-// afterthought next to the wordmark) and gaps tightened so the badge
-// and wordmark read as one lockup instead of two separate elements —
-// the difference between a "logo" and "an icon next to some text".
+// Sizes bumped up again for the final balance pass — the badge was
+// still reading as a small icon dropped next to text rather than a
+// mark with real presence. Wordmark sizes scaled up to match, gaps
+// tightened further so the badge and wordmark read as one lockup.
 const SIZE_MAP: Record<LogoSize, {
   badge: number;
   wordmark: number;
   gap: number;
 }> = {
-  sm: { badge: 34, wordmark: 18, gap: 5  },
-  md: { badge: 50, wordmark: 24, gap: 6  },
-  lg: { badge: 68, wordmark: 32, gap: 8  },
+  sm: { badge: 42, wordmark: 20, gap: 6  },
+  md: { badge: 58, wordmark: 26, gap: 7  },
+  lg: { badge: 76, wordmark: 34, gap: 9  },
   xl: { badge: 188, wordmark: 44, gap: 16 },
 };
 
@@ -54,7 +54,11 @@ export default function Logo({
 
   return (
     <View style={[styles.row, vertical && styles.column, { gap: s.gap }]}>
-      {showBadge && <LogoBadge size={s.badge} />}
+      {showBadge && (
+        <View style={styles.badgeGlow}>
+          <LogoBadge size={s.badge} />
+        </View>
+      )}
       {showWordmark && (
         <View style={vertical ? styles.wordmarkCenter : undefined}>
           <View style={styles.wordmarkRow}>
@@ -129,7 +133,7 @@ function LogoBadge({ size }: { size: number }) {
 // ── Gradient "Y" letter ───────────────────────────────────────────────────────
 // React Native Text doesn't support gradient fills — SVG Text does natively.
 function GradientY({ fontSize }: { fontSize: number }) {
-  const width  = fontSize * 0.72 + 12;
+  const width  = fontSize * 0.72 + 8;
   const height = fontSize * 1.4;
 
   return (
@@ -146,7 +150,7 @@ function GradientY({ fontSize }: { fontSize: number }) {
         textAnchor="middle"
         fontSize={fontSize}
         fontWeight="800"
-        letterSpacing={-0.3}
+        letterSpacing={-0.6}
         fill="url(#vyrnYGrad)"
         fontFamily={FONTS.logo as string}
       >
@@ -163,12 +167,21 @@ const styles = StyleSheet.create({
   wordmarkCenter: { alignItems: 'center' },
   wordmarkRow:    { flexDirection: 'row', alignItems: 'center' },
 
+  // Soft brand-color glow behind the badge so it reads as a considered
+  // emblem rather than a flat icon sitting on the black canvas.
+  badgeGlow: {
+    shadowColor: '#28B8FF',
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
+  },
+
   letterWhite: {
     color:         COLORS.text,
     fontFamily:    FONTS.logo as string,
     fontWeight:    '800',
-    // Tight (not spaced) lettering — spaced-out caps was reading as a
-    // placeholder wordmark rather than a considered brand mark.
-    letterSpacing: -0.3,
+    // Tighter than the previous pass — closer kerning reads as a single
+    // considered wordmark rather than individually-set placeholder caps.
+    letterSpacing: -0.6,
   },
 });
