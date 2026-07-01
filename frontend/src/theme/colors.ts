@@ -47,6 +47,13 @@ export const COLORS = {
   primaryGreen:   '#16EC06',   // = recoveryHigh, single source of truth
   primaryBlue:    '#0093E7',   // = strain
 
+  // ── Coach / intelligence accent ──────────────────────────
+  // Purple is reserved exclusively for "the coach is thinking" surfaces
+  // (Coach Insight tile, confidence signals) so it stays a distinct,
+  // legible fourth accent alongside green/blue/yellow rather than
+  // another shade competing with the recovery vocabulary above.
+  coachPurple:    '#8B5CF6',
+
   // ── Semantic ────────────────────────────────────────────
   success:  '#16EC06',
   warning:  '#FFDE00',

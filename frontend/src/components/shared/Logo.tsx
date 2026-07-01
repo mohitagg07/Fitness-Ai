@@ -33,10 +33,10 @@ const SIZE_MAP: Record<LogoSize, {
   wordmark: number;
   gap: number;
 }> = {
-  sm: { badge: 42, wordmark: 20, gap: 6  },
-  md: { badge: 58, wordmark: 26, gap: 7  },
-  lg: { badge: 76, wordmark: 34, gap: 9  },
-  xl: { badge: 188, wordmark: 44, gap: 16 },
+  sm: { badge: 34, wordmark: 19, gap: 9  },
+  md: { badge: 44, wordmark: 24, gap: 10 },
+  lg: { badge: 64, wordmark: 32, gap: 12 },
+  xl: { badge: 156, wordmark: 42, gap: 16 },
 };
 
 export default function Logo({
@@ -54,11 +54,7 @@ export default function Logo({
 
   return (
     <View style={[styles.row, vertical && styles.column, { gap: s.gap }]}>
-      {showBadge && (
-        <View style={styles.badgeGlow}>
-          <LogoBadge size={s.badge} />
-        </View>
-      )}
+      {showBadge && <LogoBadge size={s.badge} />}
       {showWordmark && (
         <View style={vertical ? styles.wordmarkCenter : undefined}>
           <View style={styles.wordmarkRow}>
@@ -166,15 +162,6 @@ const styles = StyleSheet.create({
   column:         { flexDirection: 'column', alignItems: 'center' },
   wordmarkCenter: { alignItems: 'center' },
   wordmarkRow:    { flexDirection: 'row', alignItems: 'center' },
-
-  // Soft brand-color glow behind the badge so it reads as a considered
-  // emblem rather than a flat icon sitting on the black canvas.
-  badgeGlow: {
-    shadowColor: '#28B8FF',
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 0 },
-  },
 
   letterWhite: {
     color:         COLORS.text,

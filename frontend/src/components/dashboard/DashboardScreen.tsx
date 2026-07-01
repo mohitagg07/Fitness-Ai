@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 import Logo from '../shared/Logo';
 import Svg, { Circle } from 'react-native-svg';
 import { router } from 'expo-router';
@@ -224,18 +225,29 @@ export default function DashboardScreen() {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <Logo size="sm" />
-          {profile?.goal && (
-            <View style={styles.phaseBadge}>
-              <Text style={styles.phaseText}>{profile.goal.toUpperCase()}</Text>
-            </View>
-          )}
+          <View style={styles.headerTopRight}>
+            {profile?.goal && (
+              <View style={styles.phaseBadge}>
+                <View style={styles.phaseDot} />
+                <Text style={styles.phaseText}>{profile.goal.toUpperCase()}</Text>
+              </View>
+            )}
+            <TouchableOpacity hitSlop={10} onPress={() => router.push('/(tabs)/profile')}>
+              <Ionicons name="menu-outline" size={22} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          </View>
         </View>
         <View style={styles.headerGreeting}>
-          <Text style={styles.greeting}>{greeting}</Text>
-          <Text style={styles.name}>{summary?.greeting || firstName}</Text>
+          <Text style={styles.greeting}>{greeting.toUpperCase()}</Text>
+          <Text style={styles.name}>
+            Ready to train,{'\n'}
+            <Text style={styles.nameAccent}>{(summary?.greeting || firstName)}?</Text>
+          </Text>
+          <Text style={styles.subGreeting}>
+            Let's optimize <Text style={{ color: COLORS.text, fontFamily: FONTS.semibold }}>your performance</Text> today.
+          </Text>
         </View>
       </View>
-      <View style={styles.headerDivider} />
 
       {/* ── Morning-briefing story arc ────────────────────────────────────
           1. How am I today?      → score rings (this section)
@@ -252,34 +264,39 @@ export default function DashboardScreen() {
           grouped inside one "Today's Readiness" shell so the two rings
           and the caption beneath them read as a single section instead
           of three elements floating separately on the black canvas. ── */}
-      <View style={styles.readinessCard}>
-        <Text style={styles.readinessLabel}>TODAY'S READINESS</Text>
-        <View style={styles.ringsRow}>
-          <ScoreRing
-            size={128}
-            stroke={11}
-            value={recoveryScore}
-            max={10}
-            color={recoveryZoneColor(recoveryScore)}
-            label="RECOVERY"
-            sublabel={actionLabel(summary?.recovery?.action)}
-          />
-          <ScoreRing
-            size={128}
-            stroke={11}
-            value={cnsFatigue}
-            max={10}
-            color={fatigueZoneColor(cnsFatigue)}
-            label="CNS LOAD"
-            sublabel={
-              cnsFatigue >= 7 ? 'HIGH' : cnsFatigue >= 4 ? 'MODERATE' : 'FRESH'
-            }
-          />
-        </View>
-        {summary?.recovery?.message && (
-          <Text style={styles.ringCaption}>{summary.recovery.message}</Text>
-        )}
+      <Text style={styles.sectionLabelFirst}>TODAY'S READINESS</Text>
+      <View style={styles.readinessGrid}>
+        <ReadinessTile
+          accent={recoveryZoneColor(recoveryScore)}
+          icon="pulse"
+          label="RECOVERY"
+          pct={recoveryScore * 10}
+          caption={actionLabel(summary?.recovery?.action)}
+        />
+        <ReadinessTile
+          accent={fatigueZoneColor(cnsFatigue)}
+          icon="flash"
+          label="CNS LOAD"
+          pct={cnsFatigue * 10}
+          caption={cnsFatigue >= 7 ? 'High' : cnsFatigue >= 4 ? 'Moderate' : 'Fresh'}
+        />
+        <ReadinessTile
+          accent={ZONE_YELLOW}
+          icon="locate"
+          label="MISSION FOCUS"
+          caption={summary?.next_task || summary?.mission_text || 'Open Coach'}
+        />
+        <ReadinessTile
+          accent={COLORS.coachPurple}
+          icon="star"
+          label="COACH INSIGHT"
+          pct={summary?.proactive_brief?.confidence_pct}
+          caption={summary?.proactive_brief?.confidence ? `${summary.proactive_brief.confidence} Confidence` : 'Open Coach'}
+        />
       </View>
+      {summary?.recovery?.message && (
+        <Text style={styles.readinessCaption}>{summary.recovery.message}</Text>
+      )}
 
       {/* ── 2. What should I do? WORKOUT TODAY — first card after rings so
           the user immediately knows what to do. Most actionable info. ── */}
@@ -350,15 +367,25 @@ export default function DashboardScreen() {
           this is the single action it was all leading to. ────────────── */}
       {summary?.workout_today?.type && (
         <TouchableOpacity
-          style={styles.startWorkoutBtn}
-          activeOpacity={0.85}
+          style={styles.startWorkoutWrap}
+          activeOpacity={0.9}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
             router.push('/(tabs)/workout');
           }}
         >
-          <Ionicons name="play-circle" size={19} color="#000" />
-          <Text style={styles.startWorkoutText}>Start {summary.workout_today.type} Workout</Text>
+          <LinearGradient
+            colors={[COLORS.primaryGreen, COLORS.strainGlow, COLORS.primaryBlue]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.startWorkoutBtn}
+          >
+            <View style={styles.startWorkoutPlay}>
+              <Ionicons name="play" size={18} color="#000" style={{ marginLeft: 2 }} />
+            </View>
+            <Text style={styles.startWorkoutText}>START</Text>
+            <Text style={styles.startWorkoutSub}>{summary.workout_today.type} WORKOUT</Text>
+          </LinearGradient>
         </TouchableOpacity>
       )}
 
@@ -476,57 +503,58 @@ export default function DashboardScreen() {
 
 // ── Reusable ring primitives ─────────────────────────────────────────────
 
-function ScoreRing({
-  size, stroke, value, max, color, label, sublabel,
+// Compact 2x2 readiness tile — used for Recovery / CNS Load / Mission
+// Focus / Coach Insight. When `pct` is provided it draws a small ring
+// (matching the Recovery/CNS/Coach cards); when omitted (Mission Focus
+// has no single number) it shows a static target glyph instead, so the
+// tile still has a strong focal shape rather than an empty icon.
+function ReadinessTile({
+  accent, icon, label, pct, caption,
 }: {
-  size: number; stroke: number; value: number; max: number;
-  color: string; label: string; sublabel: string;
+  accent: string; icon: IoniconName; label: string; pct?: number; caption: string;
 }) {
-  // Animate ring fill on mount (count-up effect)
-  const [displayed, setDisplayed] = useState(0);
-  useEffect(() => {
-    let startTs: number | null = null;
-    const duration = 900;
-    const tick = (ts: number) => {
-      if (!startTs) startTs = ts;
-      const progress = Math.min((ts - startTs) / duration, 1);
-      const ease = 1 - Math.pow(1 - progress, 3);
-      setDisplayed(ease * value);
-      if (progress < 1) requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  }, [value]);
-
+  const hasRing = typeof pct === 'number' && !Number.isNaN(pct);
+  const size = 60;
+  const stroke = 6;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
-  const pct = Math.max(0, Math.min(1, displayed / max));
-  const dashOffset = circumference * (1 - pct);
+  const clamped = Math.max(0, Math.min(1, (pct ?? 0) / 100));
+  const dashOffset = circumference * (1 - clamped);
 
   return (
-    <View style={[styles.ringWrap, { width: size }]}>
-      <View style={{ width: size, height: size }}>
-        <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
-          <Circle
-            cx={size / 2} cy={size / 2} r={radius}
-            stroke={COLORS.cardElevated} strokeWidth={stroke} fill="none"
-          />
-          <Circle
-            cx={size / 2} cy={size / 2} r={radius}
-            stroke={color} strokeWidth={stroke} fill="none"
-            strokeDasharray={`${circumference} ${circumference}`}
-            strokeDashoffset={dashOffset}
-            strokeLinecap="round"
-            rotation={-90}
-            origin={`${size / 2}, ${size / 2}`}
-          />
-        </Svg>
-        <View style={styles.ringCenter}>
-          <Text style={[styles.ringValue, { color }]}>{Math.round((displayed / max) * 100)}</Text>
-          <Text style={styles.ringPercentSign}>%</Text>
-        </View>
+    <View style={[styles.tile, { borderColor: alpha(accent, 0.22) }]}>
+      <View style={styles.tileHeaderRow}>
+        <Ionicons name={icon} size={12} color={accent} />
+        <Text style={[styles.tileLabel, { color: accent }]}>{label}</Text>
       </View>
-      <Text style={styles.ringLabel}>{label}</Text>
-      <Text style={[styles.ringSublabel, { color }]}>{sublabel}</Text>
+      <View style={styles.tileBody}>
+        {hasRing ? (
+          <View style={{ width: size, height: size }}>
+            <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
+              <Circle cx={size / 2} cy={size / 2} r={radius} stroke={COLORS.cardElevated} strokeWidth={stroke} fill="none" />
+              <Circle
+                cx={size / 2} cy={size / 2} r={radius}
+                stroke={accent} strokeWidth={stroke} fill="none"
+                strokeDasharray={`${circumference} ${circumference}`}
+                strokeDashoffset={dashOffset}
+                strokeLinecap="round"
+                rotation={-90}
+                origin={`${size / 2}, ${size / 2}`}
+              />
+            </Svg>
+            <View style={styles.tileRingCenter}>
+              <Text style={[styles.tileRingValue, { color: accent }]}>{Math.round(pct as number)}</Text>
+            </View>
+          </View>
+        ) : (
+          <View style={[styles.tileTargetOuter, { borderColor: alpha(accent, 0.35) }]}>
+            <View style={[styles.tileTargetMid, { borderColor: alpha(accent, 0.6) }]}>
+              <View style={[styles.tileTargetDot, { backgroundColor: accent }]} />
+            </View>
+          </View>
+        )}
+      </View>
+      <Text style={styles.tileCaption} numberOfLines={1}>{caption}</Text>
     </View>
   );
 }
@@ -597,68 +625,78 @@ const styles = StyleSheet.create({
   },
   staleBannerText: { ...BODY, color: COLORS.recoveryMed, fontSize: 11, flex: 1 },
   header: {
-    paddingHorizontal: SPACING.xl, paddingTop: 56, paddingBottom: SPACING.lg, gap: SPACING.md,
+    paddingHorizontal: SPACING.xl, paddingTop: 56, paddingBottom: SPACING.xl, gap: SPACING.lg,
   },
   headerTop: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
+  headerTopRight: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
   headerGreeting: {
-    gap: 1,
+    gap: SPACING.sm,
   },
-  // Greeting demoted to a small muted eyebrow so the name — the thing a
-  // person actually scans for — reads as the clear primary line instead
-  // of the two competing at similar visual weight.
-  greeting: { ...EYEBROW, color: COLORS.textMuted, fontSize: 11, letterSpacing: 1 },
-  name: { color: COLORS.text, fontFamily: FONTS.extrabold, fontSize: 26, letterSpacing: -0.3 },
-  // Phase badge is a plain status tag, not a recovery signal — kept
-  // neutral so green stays reserved for actual recovery meaning.
-  phaseBadge: { backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.badge, paddingVertical: 6, paddingHorizontal: SPACING.sm, borderWidth: 1, borderColor: COLORS.cardBorder },
+  // Small live-status eyebrow in brand green — the opening beat of the
+  // page, not a caption. Sets up the big statement line beneath it.
+  greeting: { ...EYEBROW, color: COLORS.primaryGreen, fontSize: 11, letterSpacing: 1.5 },
+  // The greeting is now the actual hero of the header — a real headline,
+  // not metadata. Name breaks to its own line and carries the brand
+  // accent color so the page opens with confidence, matching the scale
+  // a person would expect from Whoop/Nike/Apple Fitness home screens.
+  name: { color: COLORS.text, fontFamily: FONTS.extrabold, fontSize: 34, lineHeight: 38, letterSpacing: -0.6 },
+  nameAccent: { color: COLORS.primaryGreen },
+  subGreeting: { ...BODY, color: COLORS.textSecondary, fontSize: 14, marginTop: SPACING.xs },
+  // Phase badge now carries a live dot so it reads as status ("Phase 1,
+  // active") rather than a static label sitting for no reason.
+  phaseBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.xs,
+    backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.badge,
+    paddingVertical: 6, paddingHorizontal: SPACING.sm,
+    borderWidth: 1, borderColor: COLORS.cardBorder,
+  },
+  phaseDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: COLORS.primaryGreen },
   phaseText: { ...EYEBROW, color: COLORS.textSecondary, fontSize: 10, letterSpacing: 1 },
-  // Hairline seam that anchors the header to the page — the badge/
-  // wordmark/greeting block now reads as one brand header, not a logo
-  // dropped on top of unrelated content.
-  headerDivider: { height: 1, backgroundColor: COLORS.cardBorder, marginHorizontal: SPACING.xl },
 
   // One shared eyebrow style for every small uppercase card/section label —
   // cards differentiate by icon + text color only, never by font treatment.
   eyebrow: { ...EYEBROW, fontSize: 10 },
 
-  // Today's Readiness — Recovery + CNS rings and their caption now live
-  // inside one bordered shell (matching every other card on the screen)
-  // instead of floating loose on the black canvas.
-  readinessCard: {
-    marginHorizontal: SPACING.lg, marginTop: SPACING.lg, marginBottom: SPACING.md,
-    backgroundColor: COLORS.card, borderRadius: RADIUS.card,
-    paddingVertical: SPACING.lg, borderWidth: 1, borderColor: COLORS.cardBorder,
-  },
-  readinessLabel: {
+  // Today's Readiness — four independent tiles (Recovery / CNS Load /
+  // Mission Focus / Coach Insight), each owning its own accent color,
+  // laid out as a 2x2 grid so all four morning signals are visible at
+  // once instead of two rings living inside one green-tinted card.
+  sectionLabelFirst: {
     ...EYEBROW, color: COLORS.textSecondary, fontSize: 11,
-    textAlign: 'center', marginBottom: SPACING.md,
+    marginHorizontal: SPACING.lg, marginBottom: SPACING.sm,
   },
-  ringsRow: {
-    flexDirection: 'row', justifyContent: 'center', gap: SPACING.xl,
-    paddingHorizontal: SPACING.lg,
+  readinessGrid: {
+    flexDirection: 'row', flexWrap: 'wrap',
+    marginHorizontal: SPACING.lg, gap: SPACING.sm, marginBottom: SPACING.sm,
   },
-  ringWrap: { alignItems: 'center' },
-  ringCenter: {
-    ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center',
-    flexDirection: 'row',
+  tile: {
+    width: '48.2%', backgroundColor: COLORS.card, borderRadius: RADIUS.card,
+    padding: SPACING.md, borderWidth: 1,
   },
-  // Number is the whole point of the ring — sized up so it dominates,
-  // with the label/sublabel underneath pulled down in weight to match.
-  ringValue: { fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 38 },
-  ringPercentSign: { ...BODY, color: COLORS.textSecondary, fontSize: 16, fontFamily: FONTS.medium, marginLeft: 2, marginTop: 6 },
-  ringLabel: {
-    ...EYEBROW, color: COLORS.textMuted, fontSize: 10, letterSpacing: 1, marginTop: SPACING.sm,
+  tileHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: SPACING.sm },
+  tileLabel: { ...EYEBROW, fontSize: 9, letterSpacing: 0.8 },
+  tileBody: { alignItems: 'center', justifyContent: 'center', paddingVertical: SPACING.xs },
+  tileRingCenter: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  tileRingValue: { fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 18 },
+  tileTargetOuter: {
+    width: 60, height: 60, borderRadius: 30, borderWidth: 1.5,
+    alignItems: 'center', justifyContent: 'center',
   },
-  ringSublabel: {
-    ...EYEBROW, fontSize: 9, letterSpacing: 0.5, marginTop: 1,
+  tileTargetMid: {
+    width: 38, height: 38, borderRadius: 19, borderWidth: 1.5,
+    alignItems: 'center', justifyContent: 'center',
   },
-  ringCaption: {
-    ...BODY, color: COLORS.textSecondary, fontSize: 12, textAlign: 'center',
-    marginTop: SPACING.md, paddingHorizontal: SPACING.xl, lineHeight: 17,
+  tileTargetDot: { width: 10, height: 10, borderRadius: 5 },
+  tileCaption: {
+    ...BODY, color: COLORS.textSecondary, fontSize: 11, fontFamily: FONTS.medium,
+    textAlign: 'center', marginTop: SPACING.sm,
   },
-
+  readinessCaption: {
+    ...BODY, color: COLORS.textMuted, fontSize: 12, textAlign: 'center',
+    marginHorizontal: SPACING.xl, marginBottom: SPACING.lg, lineHeight: 17,
+  },
   // ── Hero cards ──────────────────────────────────────────────────────
   // Workout Today / Today's Mission / I Noticed Something all share this
   // one card shell. They differentiate purely through icon + label color
