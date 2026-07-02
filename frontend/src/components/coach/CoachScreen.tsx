@@ -16,6 +16,8 @@ import {
   Alert, ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Circle, Path, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { coachApi, dashboardApi, missionApi, describeApiError } from '../../utils/api';
 import { useStore } from '../../store';
@@ -32,6 +34,98 @@ const SUGGESTIONS = [
   { icon: 'medical-outline',    text: "My shoulder is sore" },
   { icon: 'nutrition-outline',  text: "What should I eat to hit protein?" },
 ];
+
+// ─── Exercise thumbnail visual ─────────────────────────────────────────────
+// The coach has no licensed exercise photography to show, and reproducing
+// real photos pulled from other sites isn't something this app can bundle
+// (copyright). Instead each row gets a small original pictogram — hand-
+// drawn here as simple line-art figures in the movement's pose (Olympic-
+// pictogram style), on a two-tone gradient tile — so it reads as an actual
+// demo visual rather than a generic outline icon in a flat box.
+type ExercisePose = 'press' | 'row' | 'lateral' | 'curl' | 'tricep' | 'squat' | 'core';
+const EXERCISE_VISUAL_RULES: Array<{ match: RegExp; pose: ExercisePose; from: string; to: string }> = [
+  { match: /bench|chest|press|push.?up|fly/i,  pose: 'press',   from: COLORS.recoveryHigh, to: '#0B3D02' },
+  { match: /row|pull|lat|back|deadlift/i,       pose: 'row',     from: COLORS.strain,       to: '#04283F' },
+  { match: /shoulder|lateral|delt|overhead/i,   pose: 'lateral', from: COLORS.coachPurple,  to: '#2A1B4D' },
+  { match: /curl|bicep/i,                       pose: 'curl',    from: COLORS.recoveryMed,  to: '#3D3300' },
+  { match: /tricep|pushdown|dip/i,              pose: 'tricep',  from: COLORS.strainGlow,   to: '#043D2C' },
+  { match: /squat|leg|lunge|calf|glute|hip/i,   pose: 'squat',   from: COLORS.recoveryLow,  to: '#3D0410' },
+  { match: /plank|core|ab|crunch/i,             pose: 'core',    from: COLORS.water,        to: '#0B2A3D' },
+];
+function exerciseVisual(name: string) {
+  const found = EXERCISE_VISUAL_RULES.find(r => r.match.test(name || ''));
+  return found || { pose: 'press' as ExercisePose, from: COLORS.recoveryHigh, to: '#0B3D02' };
+}
+
+// Minimal stick-figure pictograms — original line art, one per movement
+// pattern. Deliberately abstract/geometric (Olympic-pictogram style) so it
+// scans as "demo of the movement" without pretending to be a real photo.
+function ExercisePictogram({ pose, color }: { pose: ExercisePose; color: string }) {
+  const stroke = { stroke: color, strokeWidth: 3, strokeLinecap: 'round' as const, fill: 'none' };
+  switch (pose) {
+    case 'press': // lying, arms pressing a bar straight up
+      return (
+        <Svg width={22} height={22} viewBox="0 0 40 40">
+          <Circle cx={10} cy={10} r={4} fill={color} />
+          <Path d="M10 14 L26 22" {...stroke} />
+          <Path d="M14 17 L14 8 M22 20 L22 11" {...stroke} />
+          <Path d="M10 12 L30 4" {...stroke} />
+        </Svg>
+      );
+    case 'row': // bent-over, pulling elbow back
+      return (
+        <Svg width={22} height={22} viewBox="0 0 40 40">
+          <Circle cx={11} cy={9} r={4} fill={color} />
+          <Path d="M11 13 L24 22 L20 33" {...stroke} />
+          <Path d="M18 17 L30 15 L34 22" {...stroke} />
+          <Path d="M24 22 L30 30" {...stroke} />
+        </Svg>
+      );
+    case 'lateral': // standing, arms out horizontal
+      return (
+        <Svg width={22} height={22} viewBox="0 0 40 40">
+          <Circle cx={20} cy={8} r={4} fill={color} />
+          <Path d="M20 12 L20 26" {...stroke} />
+          <Path d="M6 16 L20 16 L34 16" {...stroke} />
+          <Path d="M20 26 L13 36 M20 26 L27 36" {...stroke} />
+        </Svg>
+      );
+    case 'curl': // standing, forearm curled up to shoulder
+      return (
+        <Svg width={22} height={22} viewBox="0 0 40 40">
+          <Circle cx={16} cy={8} r={4} fill={color} />
+          <Path d="M16 12 L16 27 M16 27 L10 36 M16 27 L22 36" {...stroke} />
+          <Path d="M16 16 L26 20 L20 8" {...stroke} />
+        </Svg>
+      );
+    case 'tricep': // arm bent overhead, forearm dropping behind head
+      return (
+        <Svg width={22} height={22} viewBox="0 0 40 40">
+          <Circle cx={18} cy={8} r={4} fill={color} />
+          <Path d="M18 12 L18 27 M18 27 L12 36 M18 27 L24 36" {...stroke} />
+          <Path d="M18 14 L28 10 L26 22" {...stroke} />
+        </Svg>
+      );
+    case 'squat': // bent knees, low hip
+      return (
+        <Svg width={22} height={22} viewBox="0 0 40 40">
+          <Circle cx={20} cy={7} r={4} fill={color} />
+          <Path d="M20 11 L20 22" {...stroke} />
+          <Path d="M20 22 L12 26 L12 36 M20 22 L28 26 L28 36" {...stroke} />
+          <Path d="M8 18 L20 15 L32 18" {...stroke} />
+        </Svg>
+      );
+    case 'core': // knees-up crunch
+    default:
+      return (
+        <Svg width={22} height={22} viewBox="0 0 40 40">
+          <Circle cx={8} cy={22} r={4} fill={color} />
+          <Path d="M12 22 L24 22 L30 14" {...stroke} />
+          <Path d="M24 22 L26 32" {...stroke} />
+        </Svg>
+      );
+  }
+}
 
 // ─── Shared primitives ────────────────────────────────────────────────────────
 function CardShell({
@@ -83,28 +177,41 @@ function WorkoutCard({ sd }: { sd: any }) {
 
   return (
     <CardShell color="#0B120A" icon="barbell-outline" label="TODAY'S WORKOUT" accent={COLORS.recoveryHigh}>
-      {/* Intensity + meta row */}
+      {/* Intensity + meta row — plain icon+text pairs separated by a thin
+          divider line, no filled pill/box backgrounds (matches the
+          reference: label pairs in a row, not colored badges). */}
       <View style={C.wMeta}>
-        <View style={[C.intensityPill, { borderColor: ic }]}>
-          <Text style={[C.intensityText, { color: ic }]}>
+        <View style={C.metaItem}>
+          <Ionicons name="speedometer-outline" size={13} color={ic} />
+          <Text style={[C.metaItemText, { color: ic }]}>
             {summary.intensity?.toUpperCase() || 'PLANNED'}
           </Text>
         </View>
         {summary.estimated_time && (
-          <View style={C.metaChip}>
-            <Ionicons name="time-outline" size={11} color={COLORS.textMuted} />
-            <Text style={C.metaChipText}>{summary.estimated_time}</Text>
-          </View>
+          <>
+            <View style={C.metaDivider} />
+            <View style={C.metaItem}>
+              <Ionicons name="time-outline" size={13} color={COLORS.textMuted} />
+              <Text style={C.metaItemText}>{summary.estimated_time}</Text>
+            </View>
+          </>
         )}
         {sd.recovery != null && (
-          <View style={C.metaChip}>
-            <Ionicons name="pulse-outline" size={11} color={recoveryColor(sd.recovery)} />
-            <Text style={[C.metaChipText, { color: recoveryColor(sd.recovery) }]}>
-              {sd.recovery}%
-            </Text>
-          </View>
+          <>
+            <View style={C.metaDivider} />
+            <View style={C.metaItem}>
+              <Ionicons name="pulse-outline" size={13} color={recoveryColor(sd.recovery)} />
+              <Text style={[C.metaItemText, { color: recoveryColor(sd.recovery) }]}>
+                {sd.recovery}% match
+              </Text>
+            </View>
+          </>
         )}
       </View>
+      {/* No "Est. Calories" chip — the coach's workout-plan response doesn't
+          return a calorie estimate (backend only computes calories_burned
+          after a session is actually logged), so showing one here would be
+          a made-up number rather than a real prediction. */}
 
       {/* Table */}
       <View style={C.tableWrap}>
@@ -115,18 +222,30 @@ function WorkoutCard({ sd }: { sd: any }) {
           <Text style={C.th}>LOAD</Text>
           <Text style={C.th}>REST</Text>
         </View>
-        {exercises.map((ex: any, i: number) => (
-          <View key={i} style={[C.tableRow, i % 2 === 1 && C.tableRowAlt]}>
-            <View style={{ flex: 2.2 }}>
-              <Text style={C.exName}>{ex.name}</Text>
-              {ex.focus ? <Text style={C.exFocus}>{ex.focus}</Text> : null}
+        {exercises.map((ex: any, i: number) => {
+          const visual = exerciseVisual(ex.name);
+          return (
+            <View key={i} style={[C.tableRow, i % 2 === 1 && C.tableRowAlt]}>
+              <View style={{ flex: 2.2, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <LinearGradient
+                  colors={[visual.from + '33', visual.to]}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  style={[C.exThumb, { borderColor: visual.from + '55' }]}
+                >
+                  <ExercisePictogram pose={visual.pose} color={visual.from} />
+                </LinearGradient>
+                <View style={{ flex: 1 }}>
+                  <Text style={C.exName}>{ex.name}</Text>
+                  {ex.focus ? <Text style={C.exFocus}>{ex.focus}</Text> : null}
+                </View>
+              </View>
+              <Text style={C.td}>{ex.sets}</Text>
+              <Text style={C.td}>{ex.reps}</Text>
+              <Text style={C.td}>{ex.weight || '—'}</Text>
+              <Text style={C.td}>{ex.rest   || '—'}</Text>
             </View>
-            <Text style={C.td}>{ex.sets}</Text>
-            <Text style={C.td}>{ex.reps}</Text>
-            <Text style={C.td}>{ex.weight || '—'}</Text>
-            <Text style={C.td}>{ex.rest   || '—'}</Text>
-          </View>
-        ))}
+          );
+        })}
       </View>
 
       {/* Reason */}
@@ -574,11 +693,16 @@ export default function CoachScreen() {
           </View>
         </View>
 
-        {/* Real recovery/CNS briefing — no photo/avatar; the greeting text
-            and the two live numbers carry the "your coach is watching"
-            feeling on their own. */}
+        {/* Recovery/CNS briefing — avatar tile (initials, since there's no
+            uploaded profile photo to show) + greeting + three live signal
+            rings. Readiness is a transparent composite of the two real
+            numbers next to it (not a separate fabricated metric) so all
+            three rings stay honest about what data backs them. */}
         {brief && (
           <View style={S.briefCard}>
+            <View style={S.briefAvatar}>
+              <Text style={S.briefAvatarText}>{firstName.charAt(0).toUpperCase()}</Text>
+            </View>
             <View style={S.briefTextCol}>
               <Text style={S.briefGreeting}>Good morning, {firstName} 👋</Text>
               <Text style={S.briefMessage} numberOfLines={2}>{brief.message}</Text>
@@ -589,6 +713,11 @@ export default function CoachScreen() {
                 label="CNS Load"
                 value={Math.round(brief.cnsFatigue)}
                 color={brief.cnsFatigue <= 30 ? COLORS.recoveryHigh : brief.cnsFatigue <= 60 ? COLORS.recoveryMed : COLORS.recoveryLow}
+              />
+              <MiniStat
+                label="Readiness"
+                value={Math.round((brief.recoveryScore + (100 - brief.cnsFatigue)) / 2)}
+                color={recoveryColor((brief.recoveryScore + (100 - brief.cnsFatigue)) / 2)}
               />
             </View>
           </View>
@@ -676,7 +805,9 @@ export default function CoachScreen() {
 // ─── Card styles (C) ──────────────────────────────────────────────────────────
 const C = StyleSheet.create({
   // Shell
-  shell:       { borderRadius: 16, overflow: 'hidden', marginTop: 12, borderWidth: 1 },
+  shell:       { borderRadius: 22, overflow: 'hidden', marginTop: 12, borderWidth: 1,
+                 shadowColor: COLORS.recoveryHigh, shadowOpacity: 0.10, shadowRadius: 16,
+                 shadowOffset: { width: 0, height: 6 }, elevation: 4 },
   shellHeader: { flexDirection: 'row', alignItems: 'center', gap: 7,
                  paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1 },
   shellLabel:  { fontSize: 10, fontWeight: '700', letterSpacing: 1.6 },
@@ -689,14 +820,11 @@ const C = StyleSheet.create({
   emptyTip:  { color: COLORS.textMuted, fontSize: 12 },
 
   // Workout card
-  wMeta:         { flexDirection: 'row', alignItems: 'center', gap: 8,
+  wMeta:         { flexDirection: 'row', alignItems: 'center', gap: 10,
                    paddingHorizontal: 14, paddingVertical: 10 },
-  intensityPill: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  intensityText: { fontSize: 9, fontWeight: '800', letterSpacing: 1.2 },
-  metaChip:      { flexDirection: 'row', alignItems: 'center', gap: 4,
-                   backgroundColor: COLORS.cardElevated, borderRadius: 8,
-                   paddingHorizontal: 8, paddingVertical: 3 },
-  metaChipText:  { color: COLORS.textMuted, fontSize: 11, fontWeight: '600' },
+  metaItem:      { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  metaItemText:  { color: COLORS.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 0.3 },
+  metaDivider:   { width: 1, height: 12, backgroundColor: 'rgba(255,255,255,0.10)' },
 
   tableWrap:  { borderTopWidth: 1, borderTopColor: '#1A1A1A' },
   tableHead:  { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 6,
@@ -705,6 +833,7 @@ const C = StyleSheet.create({
   tableRow:   { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 11, alignItems: 'flex-start' },
   tableRowAlt:{ backgroundColor: '#0A0A0A' },
   exName:     { color: '#E8E8E8', fontSize: 13, fontWeight: '600' },
+  exThumb:    { width: 44, height: 44, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   exFocus:    { color: COLORS.textMuted, fontSize: 11, marginTop: 2, fontStyle: 'italic' },
   td:         { flex: 1, color: '#AAAAAA', fontSize: 12, fontWeight: '500' },
 
@@ -792,23 +921,31 @@ const S = StyleSheet.create({
     position: 'absolute', top: -1, right: -1, width: 7, height: 7, borderRadius: 4,
     backgroundColor: COLORS.recoveryHigh, borderWidth: 1.5, borderColor: COLORS.background,
   },
-  // Briefing strip — real recovery/CNS numbers, greeting text, no photo.
+  // Briefing strip — avatar + greeting + three live signal rings, all in
+  // one row like the reference. Sizes trimmed slightly from the original
+  // 2-ring version so three rings + avatar + text still fit comfortably
+  // on a standard phone width without wrapping.
   briefCard: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: COLORS.card, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: COLORS.card, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border,
     padding: 14, gap: 10,
   },
-  briefTextCol: { flex: 1, gap: 3 },
+  briefAvatar: {
+    width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.recoveryHigh + '1F', borderWidth: 1.5, borderColor: COLORS.recoveryHigh + '55',
+  },
+  briefAvatarText: { color: COLORS.recoveryHigh, fontSize: 17, fontWeight: '800' },
+  briefTextCol: { flex: 1, minWidth: 0, gap: 3 },
   briefGreeting: { color: COLORS.text, fontSize: 14, fontWeight: '700' },
-  briefMessage: { color: COLORS.textMuted, fontSize: 12, lineHeight: 16 },
-  briefRings: { flexDirection: 'row', gap: 14 },
-  miniStat: { alignItems: 'center', gap: 4 },
+  briefMessage: { color: COLORS.textMuted, fontSize: 11, lineHeight: 15 },
+  briefRings: { flexDirection: 'row', gap: 8 },
+  miniStat: { alignItems: 'center', gap: 3 },
   miniStatRing: {
-    width: 42, height: 42, borderRadius: 21, borderWidth: 2,
+    width: 36, height: 36, borderRadius: 18, borderWidth: 2,
     alignItems: 'center', justifyContent: 'center',
   },
-  miniStatValue: { fontSize: 14, fontWeight: '800' },
-  miniStatLabel: { color: COLORS.textMuted, fontSize: 9, fontWeight: '600' },
+  miniStatValue: { fontSize: 12, fontWeight: '800' },
+  miniStatLabel: { color: COLORS.textMuted, fontSize: 8, fontWeight: '600' },
   offlineBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: '#1A1606', paddingVertical: 8, paddingHorizontal: 16,
@@ -828,7 +965,7 @@ const S = StyleSheet.create({
   emptySubtitle: { color: COLORS.textMuted, fontSize: 14, textAlign: 'center', lineHeight: 20 },
 
   suggestions:    { gap: 8 },
-  suggestion:     { backgroundColor: COLORS.card, borderRadius: 14, padding: 14,
+  suggestion:     { backgroundColor: COLORS.card, borderRadius: 18, padding: 14,
                     borderWidth: 1, borderColor: COLORS.border,
                     flexDirection: 'row', alignItems: 'center', gap: 12 },
   suggestionIcon: { width: 32, height: 32, borderRadius: 10,
@@ -837,7 +974,7 @@ const S = StyleSheet.create({
   suggestionText: { color: COLORS.textSecondary, fontSize: 13, flex: 1 },
 
   messageList: { padding: 16, paddingBottom: 12 },
-  bubble:      { marginBottom: 12, borderRadius: 18, padding: 14, maxWidth: '92%' },
+  bubble:      { marginBottom: 12, borderRadius: 20, padding: 14, maxWidth: '92%' },
   userBubble:  { backgroundColor: COLORS.userBubble, alignSelf: 'flex-end',
                  borderWidth: 1, borderColor: COLORS.strain + '40' },
   aiBubble:    { backgroundColor: COLORS.card, alignSelf: 'flex-start',

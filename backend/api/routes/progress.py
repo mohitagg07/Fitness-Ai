@@ -266,13 +266,14 @@ async def get_weekly_stats(
 
     sessions_res = (
         sb.table("workout_sessions")
-        .select("id, total_volume_kg, completed, session_date")
+        .select("id, total_volume_kg, duration_minutes, completed, session_date")
         .eq("user_id", user_id)
         .gte("session_date", str(week_start))
         .execute()
     )
     sessions = sessions_res.data or []
     completed = [s for s in sessions if s.get("completed")]
+    total_minutes = sum(s.get("duration_minutes") or 0 for s in completed)
 
     logs_res = (
         sb.table("exercise_logs")
@@ -293,6 +294,7 @@ async def get_weekly_stats(
         "sessions_completed": len(completed),
         "total_sessions": len(sessions),
         "total_volume_kg": round(total_volume, 1),
+        "total_minutes": total_minutes,
         "avg_rpe": avg_rpe,
         "logs_count": len(logs),
         "has_data": len(completed) > 0,

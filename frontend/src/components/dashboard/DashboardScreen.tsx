@@ -11,12 +11,13 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  RefreshControl,
+  RefreshControl, Image, Animated, Easing,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop, Text as SvgText } from 'react-native-svg';
 import Logo from '../shared/Logo';
-import Svg, { Circle } from 'react-native-svg';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { dashboardApi, missionApi, progressApi, describeApiError } from '../../utils/api';
@@ -31,6 +32,67 @@ import DashboardSkeleton from './DashboardSkeleton';
 import PatternInsightsCard from './PatternInsightsCard';
 import CoachTimelineCard from './CoachTimelineCard';
 import ProgramEvolutionCard from './ProgramEvolutionCard';
+
+const LOGO_MARK = require('../../../assets/branding/logo-mark.png');
+
+// Animated logo intro — replaces the old static hero photo. Plays once on
+// mount (fade + scale up), then settles into a slow breathing glow loop.
+// A large, mostly-transparent watermark of the brand mark, not a loud
+// centerpiece — it's there to make the header feel alive, not busy.
+function AnimatedLogoIntro() {
+  const scale = useRef(new Animated.Value(0.7)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(opacity, { toValue: 1, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    Animated.spring(scale, { toValue: 1, friction: 6, tension: 40, useNativeDriver: true }).start();
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
+  const pulseScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.logoIntroWrap,
+        { opacity, transform: [{ scale: Animated.multiply(scale, pulseScale) }] },
+      ]}
+    >
+      <Image source={LOGO_MARK} style={styles.logoIntroImg} resizeMode="contain" />
+    </Animated.View>
+  );
+}
+
+// Greeting name rendered as a gradient (lime → cyan) using SVG text, since
+// RN has no native gradient-text support — mirrors the two-tone brand mark.
+function GradientName({ text, fontSize }: { text: string; fontSize: number }) {
+  const w = Math.max(40, text.length * fontSize * 0.62);
+  return (
+    <Svg width={w} height={fontSize * 1.3}>
+      <Defs>
+        <SvgGradient id="nameGrad" x1="0" y1="0" x2="1" y2="0">
+          <Stop offset="0" stopColor={COLORS.primaryGreen} />
+          <Stop offset="1" stopColor={COLORS.recoveryBlue} />
+        </SvgGradient>
+      </Defs>
+      <SvgText
+        x="0" y={fontSize * 0.95}
+        fontSize={fontSize}
+        fontWeight="800"
+        fill="url(#nameGrad)"
+      >
+        {text}
+      </SvgText>
+    </Svg>
+  );
+}
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -116,6 +178,14 @@ function actionLabel(action?: string) {
   return ACTION_LABELS[action] || action.replace(/_/g, ' ').toUpperCase();
 }
 
+// "265" minutes -> "4h 25m" (falls back to "Xm" under an hour)
+function formatTrainingTime(totalMinutes: number) {
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  if (h <= 0) return `${m}m`;
+  return `${h}h ${m}m`;
+}
+
 export default function DashboardScreen() {
   const { user, profile, setCnsFatigue } = useStore();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
@@ -126,6 +196,11 @@ export default function DashboardScreen() {
   // used for the Workouts This Week stat. null while unknown/unavailable
   // so the UI can quietly omit the stat instead of showing a fake number.
   const [weeklySessions, setWeeklySessions] = useState<number | null>(null);
+  // Real total training minutes logged this week from /progress/weekly-stats
+  // (sum of completed sessions' duration_minutes) — used for the Training
+  // Time stat. null while unknown/unavailable so the UI quietly omits it
+  // instead of showing a fake duration.
+  const [weeklyMinutes, setWeeklyMinutes] = useState<number | null>(null);
 
   const loadData = useCallback(async () => {
     setErrorMsg(null);
@@ -149,6 +224,9 @@ export default function DashboardScreen() {
       const weekly = await progressApi.getWeeklyStats();
       if (typeof weekly.data?.sessions_completed === 'number') {
         setWeeklySessions(weekly.data.sessions_completed);
+      }
+      if (typeof weekly.data?.total_minutes === 'number') {
+        setWeeklyMinutes(weekly.data.total_minutes);
       }
     } catch {
       // Non-critical — stat is simply omitted if this fails.
@@ -229,11 +307,13 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* Header — one brand lockup: badge + wordmark read as a unit, a
-          hairline divider anchors it to the page instead of floating in
-          open space, and the greeting sits close underneath so the whole
-          block reads as a single header rather than logo-then-text. */}
-      <View style={styles.header}>
+      {/* Header — the old runner-photo banner is gone; a large, mostly-
+          transparent animated logo mark now lives behind the greeting
+          instead (fades/scales in on open, then breathes gently). Keeps
+          the header feeling alive without fighting the text for
+          contrast the way a busy photo did. */}
+      <View style={styles.heroBanner}>
+        <AnimatedLogoIntro />
         <View style={styles.headerTop}>
           <Logo size="sm" />
           <View style={styles.headerTopRight}>
@@ -245,42 +325,35 @@ export default function DashboardScreen() {
             )}
             <TouchableOpacity hitSlop={10} onPress={() => router.push('/(tabs)/coach')}>
               <View>
-                <Ionicons name="notifications-outline" size={22} color={COLORS.textSecondary} />
+                <Ionicons name="notifications-outline" size={22} color={COLORS.text} />
                 <View style={styles.notifDot} />
               </View>
             </TouchableOpacity>
             <TouchableOpacity hitSlop={10} onPress={() => router.push('/(tabs)/profile')}>
-              <Ionicons name="menu-outline" size={22} color={COLORS.textSecondary} />
+              <Ionicons name="menu-outline" size={22} color={COLORS.text} />
             </TouchableOpacity>
           </View>
         </View>
         <View style={styles.headerGreeting}>
-          <Text style={styles.greetingLine}>
+          <View style={styles.greetingLine}>
             <Text style={styles.greetingAccent}>{greeting}, </Text>
-            <Text style={styles.greetingName}>{firstName} </Text>
-            👋
-          </Text>
-          <Text style={styles.greetingStatus} numberOfLines={2}>
+            <GradientName text={firstName} fontSize={26} />
+            <Text style={styles.greetingWave}> 👋</Text>
+          </View>
+          <Text style={styles.greetingStatus} numberOfLines={3}>
             {summary?.recovery?.message || "Recovery is looking good—today's a great day to train."}
-          </Text>
-          <Text style={styles.name}>
-            Ready to train,{'\n'}
-            <Text style={styles.nameAccent}>{firstName}?</Text>
-          </Text>
-          <Text style={styles.subGreeting}>
-            Let's optimize <Text style={{ color: COLORS.text, fontFamily: FONTS.semibold }}>your performance</Text> today.
           </Text>
         </View>
       </View>
 
       {/* ── Morning-briefing story arc ────────────────────────────────────
           1. How am I today?      → score rings (this section)
-          2. What should I do?    → Workout Today card
-          3. Why?                 → Today's Decision card (confidence,
+          2. Start workout        → CTA button, immediately actionable
+          3. What should I do?    → Workout Today card
+          4. Why?                 → Today's Decision card (confidence,
                                      evidence, expandable reasoning)
-          4. What's changed?      → Since Yesterday card
-          5. What's my mission?   → Today's Mission card
-          6. Start workout        → CTA button
+          5. What's changed?      → Since Yesterday card
+          6. What's my mission?   → Today's Mission card
           Everything below that is supporting detail the user can scroll
           into, not part of the briefing itself. ─────────────────────── */}
 
@@ -333,41 +406,91 @@ export default function DashboardScreen() {
         />
       </View>
 
-      {/* ── 2. What should I do? WORKOUT TODAY — first card after rings so
-          the user immediately knows what to do. Most actionable info. ── */}
-      {summary && (
+      {/* ── Start workout — placed right under the readiness rings so the
+          single primary action is immediately visible above the fold,
+          instead of buried after several supporting cards. ────────────── */}
+      {summary?.workout_today?.type && (
+        <TouchableOpacity
+          style={styles.startWorkoutWrap}
+          activeOpacity={0.9}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+            router.push('/(tabs)/workout');
+          }}
+        >
+          <View style={styles.startWorkoutBtn}>
+            <View style={styles.startWorkoutPlay}>
+              <Ionicons name="play" size={16} color="#000" style={{ marginLeft: 2 }} />
+            </View>
+            <Text style={styles.startWorkoutText}>Start Today's Workout</Text>
+            <Ionicons name="chevron-forward" size={20} color="rgba(0,0,0,0.5)" />
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* Streak / weekly stats — sits directly under the Start Workout CTA. */}
+      {summary && (summary.workout_streak > 0 || weeklySessions !== null || weeklyMinutes !== null) && (
+        <View style={styles.statsBar}>
+          <View style={styles.statItem}>
+            <View style={styles.statTopRow}>
+              <Ionicons name="flame" size={18} color={ZONE_YELLOW} />
+              <Text style={styles.statValue}>{summary.workout_streak}</Text>
+            </View>
+            <Text style={styles.statLabel}>Day Streak</Text>
+          </View>
+          {weeklySessions !== null && (
+            <>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <View style={styles.statTopRow}>
+                  <Ionicons name="barbell" size={16} color={ZONE_GREEN} />
+                  <Text style={styles.statValue}>
+                    {weeklySessions}{profile?.workout_days_per_week ? `/${profile.workout_days_per_week}` : ''}
+                  </Text>
+                </View>
+                <Text style={styles.statLabel}>Workouts This Week</Text>
+              </View>
+            </>
+          )}
+          {weeklyMinutes !== null && (
+            <>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <View style={styles.statTopRow}>
+                  <Ionicons name="time" size={16} color={COLORS.recoveryBlue} />
+                  <Text style={styles.statValue}>{formatTrainingTime(weeklyMinutes)}</Text>
+                </View>
+                <Text style={styles.statLabel}>Training Time</Text>
+              </View>
+            </>
+          )}
+        </View>
+      )}
+
+      {/* ── 2. No plan yet? Show a fallback CTA to build one. Once a plan
+          exists, Today's Decision card below already surfaces the workout
+          type/focus/confidence — a separate "WORKOUT TODAY" card here was
+          just repeating the same info a second time. ─────────────────── */}
+      {summary && !summary.workout_today?.type && (
         <View style={styles.heroCard}>
           <View style={styles.workoutTodayHeader}>
             <View style={styles.workoutTodayLabelRow}>
               <Ionicons name="barbell-outline" size={13} color={COLORS.strain} />
               <Text style={[styles.eyebrow, { color: COLORS.strain }]}>WORKOUT TODAY</Text>
             </View>
-            {summary.workout_today?.rescheduled && (
-              <View style={styles.rescheduledBadge}>
-                <Text style={styles.rescheduledText}>RESCHEDULED</Text>
-              </View>
-            )}
           </View>
-          <Text style={styles.workoutTodayType}>
-            {summary.workout_today?.type ? summary.workout_today.type.toUpperCase() : 'NO PLAN YET'}
-          </Text>
-          {summary.workout_today?.type ? (
-            <Text style={styles.workoutTodayMsg}>{summary.workout_today?.message}</Text>
-          ) : (
-            <>
-              <Text style={styles.workoutTodayMsg}>No plan yet. Ask Coach to generate one based on your recovery.</Text>
-              <TouchableOpacity
-                style={styles.generatePlanBtn}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-                  router.push('/(tabs)/coach');
-                }}
-              >
-                <Ionicons name="flash" size={14} color="#000" />
-                <Text style={styles.generatePlanBtnText}>Build Today's Workout</Text>
-              </TouchableOpacity>
-            </>
-          )}
+          <Text style={styles.workoutTodayType}>NO PLAN YET</Text>
+          <Text style={styles.workoutTodayMsg}>No plan yet. Ask Coach to generate one based on your recovery.</Text>
+          <TouchableOpacity
+            style={styles.generatePlanBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+              router.push('/(tabs)/coach');
+            }}
+          >
+            <Ionicons name="flash" size={14} color="#000" />
+            <Text style={styles.generatePlanBtnText}>Build Today's Workout</Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -397,28 +520,6 @@ export default function DashboardScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* ── 6. Start workout ─────────────────────────────────────────────
-          Closes the briefing loop — everything above built the case,
-          this is the single action it was all leading to. ────────────── */}
-      {summary?.workout_today?.type && (
-        <TouchableOpacity
-          style={styles.startWorkoutWrap}
-          activeOpacity={0.9}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-            router.push('/(tabs)/workout');
-          }}
-        >
-          <View style={styles.startWorkoutBtn}>
-            <View style={styles.startWorkoutPlay}>
-              <Ionicons name="play" size={16} color="#000" style={{ marginLeft: 2 }} />
-            </View>
-            <Text style={styles.startWorkoutText}>Start Today's Workout</Text>
-            <Ionicons name="chevron-forward" size={20} color="rgba(0,0,0,0.5)" />
-          </View>
-        </TouchableOpacity>
-      )}
-
       {/* ── Nutrition rings ──────────────────────────────────────────────── */}
       {summary && (
         <View style={styles.miniRingsRow}>
@@ -446,40 +547,6 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* Stats bar */}
-      {summary && (summary.workout_streak > 0 || summary.protein_streak > 0 || weeklySessions !== null) && (
-        <View style={styles.statsBar}>
-          <View style={styles.statItem}>
-            <View style={styles.statTopRow}>
-              <Ionicons name="flame" size={18} color={ZONE_YELLOW} />
-              <Text style={styles.statValue}>{summary.workout_streak}</Text>
-            </View>
-            <Text style={styles.statLabel}>Day Streak</Text>
-          </View>
-          {weeklySessions !== null && (
-            <>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <View style={styles.statTopRow}>
-                  <Ionicons name="barbell" size={16} color={ZONE_GREEN} />
-                  <Text style={styles.statValue}>
-                    {weeklySessions}{profile?.workout_days_per_week ? `/${profile.workout_days_per_week}` : ''}
-                  </Text>
-                </View>
-                <Text style={styles.statLabel}>Workouts This Week</Text>
-              </View>
-            </>
-          )}
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <View style={styles.statTopRow}>
-              <Ionicons name="nutrition" size={18} color={COLORS.strainGlow} />
-              <Text style={styles.statValue}>{summary.protein_streak}</Text>
-            </View>
-            <Text style={styles.statLabel}>Protein Streak</Text>
-          </View>
-        </View>
-      )}
 
 
 
@@ -661,9 +728,15 @@ const styles = StyleSheet.create({
     backgroundColor: alpha(COLORS.recoveryMed, 0.08), paddingVertical: SPACING.sm, paddingHorizontal: SPACING.lg,
   },
   staleBannerText: { ...BODY, color: COLORS.recoveryMed, fontSize: 11, flex: 1 },
-  header: {
-    paddingHorizontal: SPACING.xl, paddingTop: 56, paddingBottom: SPACING.xl, gap: SPACING.lg,
+  heroBanner: {
+    width: '100%', paddingHorizontal: SPACING.xl, paddingTop: 56,
+    paddingBottom: SPACING.xl, justifyContent: 'space-between', overflow: 'hidden',
+    position: 'relative', backgroundColor: COLORS.background, minHeight: 190,
   },
+  // Large, mostly-transparent watermark of the brand mark, pinned to the
+  // right so it doesn't compete with the greeting text on the left.
+  logoIntroWrap: { position: 'absolute', right: -20, top: 30, opacity: 0.16 },
+  logoIntroImg: { width: 190, height: 190 },
   headerTop: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
@@ -673,22 +746,17 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primaryGreen, borderWidth: 1.5, borderColor: COLORS.background,
   },
   headerGreeting: {
-    gap: SPACING.xs,
+    gap: SPACING.xs, maxWidth: '80%', marginTop: SPACING.lg,
   },
   // Name/status line — "Good Morning, {name} 👋" in sentence case, same
   // body scale as the rest of the app (fontSize 16) rather than a small
-  // eyebrow, so it reads as a real greeting sentence, not a label.
-  greetingLine: { fontFamily: FONTS.bold, fontSize: 16, lineHeight: 22 },
+  // eyebrow, so it reads as a real greeting sentence, not a label. The
+  // name itself renders via <GradientName> (SVG text), so this is now a
+  // row container rather than nested <Text>.
+  greetingLine: { flexDirection: 'row', alignItems: 'center' },
   greetingAccent: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 16 },
-  greetingName: { color: COLORS.text, fontFamily: FONTS.bold, fontSize: 16 },
+  greetingWave: { fontSize: 18 },
   greetingStatus: { ...BODY, color: COLORS.textSecondary, fontSize: 13, lineHeight: 18 },
-  // The greeting is now the actual hero of the header — a real headline,
-  // not metadata. Name breaks to its own line and carries the brand
-  // accent color so the page opens with confidence, matching the scale
-  // a person would expect from Whoop/Nike/Apple Fitness home screens.
-  name: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 34, lineHeight: 38, letterSpacing: -0.6, marginTop: SPACING.sm },
-  nameAccent: { color: COLORS.primaryGreen },
-  subGreeting: { ...BODY, color: COLORS.textSecondary, fontSize: 14, marginTop: SPACING.xs },
   // Phase badge now carries a live dot so it reads as status ("Phase 1,
   // active") rather than a static label sitting for no reason.
   phaseBadge: {
