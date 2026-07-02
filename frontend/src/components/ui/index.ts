@@ -7,6 +7,10 @@ export { default as SectionLabel } from './SectionLabel';
 export { default as Text } from './Text';
 export { default as Input } from './Input';
 export { default as CircularProgress } from './CircularProgress';
+export { default as ProgressBar } from './ProgressBar';
+export { default as Divider } from './Divider';
+export { default as MetricChip } from './MetricChip';
+export { default as GlassCard } from './GlassCard';
 
 export type { CardVariant, CardPadding } from './Card';
 export type { ButtonVariant, ButtonSize } from './Button';

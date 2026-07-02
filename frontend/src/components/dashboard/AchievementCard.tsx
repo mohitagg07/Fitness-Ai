@@ -1,112 +1,125 @@
-// AchievementCard — VYRN
+// VYRN — Achievements
 //
-// "Iron Discipline" streak card from the Home-screen design brief.
 // Built entirely from the real workout_streak the dashboard already
 // pulls from GET /api/dashboard/summary — no invented numbers. XP and
-// the milestone ladder are a client-side gamification layer on top of
-// that real count (streak * 15 XP, milestones every 7 days), not a
-// claim about anything the backend tracked, so it's labeled as what it
-// is rather than presented as an AI-derived metric.
+// the milestone ladder are the same disclosed client-side gamification
+// layer MomentumCard uses (streak * 15 XP, milestones every 7/14/30/60/
+// 100 days), not a claim about anything the backend tracked.
 //
 // Renders nothing below a 1-day streak — an "achievement" card for a
 // streak of zero would just be noise on a fresh account.
 
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
+import { View, StyleSheet, Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { COLORS, alpha } from '../../theme/colors';
-import { FONTS, EYEBROW, BODY } from '../../theme/typography';
 import { SPACING, RADIUS } from '../../theme/spacing';
+import Text from '../ui/Text';
+import SectionLabel from '../ui/SectionLabel';
+import ProgressBar from '../ui/ProgressBar';
 
-const XP_PER_DAY = 15;
-const MILESTONE_STEP = 7; // next milestone is always the next multiple of 7
+const MILESTONES = [
+  { days: 7, title: 'Iron Discipline', xp: 100 },
+  { days: 14, title: 'Unbreakable', xp: 250 },
+  { days: 30, title: 'Forged in Fire', xp: 500 },
+  { days: 60, title: 'Relentless', xp: 1000 },
+  { days: 100, title: 'Legendary', xp: 2000 },
+];
 
-interface Props {
-  streak: number;
+function currentAndNext(streak: number) {
+  let current: typeof MILESTONES[number] | null = null;
+  let next = MILESTONES[0];
+  for (const m of MILESTONES) {
+    if (streak >= m.days) { current = m; } else { next = m; break; }
+  }
+  if (current && streak >= MILESTONES[MILESTONES.length - 1].days) next = current;
+  return { current, next };
 }
 
-export default function AchievementCard({ streak }: Props) {
-  const barWidth = useRef(new Animated.Value(0)).current;
-
-  const nextMilestone = Math.ceil((streak + (streak % MILESTONE_STEP === 0 ? 1 : 0)) / MILESTONE_STEP) * MILESTONE_STEP;
-  const progressIntoStep = streak % MILESTONE_STEP === 0 && streak > 0 ? MILESTONE_STEP : streak % MILESTONE_STEP;
-  const pct = Math.min(1, progressIntoStep / MILESTONE_STEP);
-  const xp = streak * XP_PER_DAY;
+export default function AchievementCard({ workoutStreak }: { workoutStreak: number }) {
+  const sparkle = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.timing(barWidth, {
-      toValue: pct,
-      duration: 900,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-  }, [pct]);
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(sparkle, { toValue: 1, duration: 1400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(sparkle, { toValue: 0, duration: 1400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
 
-  if (!streak || streak < 1) return null;
+  if (workoutStreak < 1) return null;
 
-  const widthPct = barWidth.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
+  const { current, next } = currentAndNext(workoutStreak);
+  const prevThreshold = current?.days ?? 0;
+  const pct = ((workoutStreak - prevThreshold) / Math.max(1, next.days - prevThreshold)) * 100;
+  const unlockedBadges = MILESTONES.filter((m) => workoutStreak >= m.days);
+  const sparkleOpacity = sparkle.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] });
 
   return (
     <View style={styles.card}>
-      <View style={styles.headerRow}>
-        <Ionicons name="trophy" size={13} color={COLORS.gold} />
-        <Text style={styles.eyebrow}>ACHIEVEMENT UNLOCKED</Text>
-      </View>
+      <SectionLabel label="ACHIEVEMENTS" icon="trophy" color={COLORS.gold} />
 
-      <View style={styles.body}>
-        <View style={styles.badge}>
-          <Ionicons name="flame" size={26} color={COLORS.gold} />
+      {current ? (
+        <View style={styles.currentRow}>
+          <Animated.View style={[styles.badgeWrap, { opacity: sparkleOpacity }]}>
+            <Ionicons name="trophy" size={22} color={COLORS.gold} />
+          </Animated.View>
+          <View style={{ flex: 1 }}>
+            <Text variant="cardTitle" color={COLORS.gold}>{current.title}</Text>
+            <Text variant="caption" color={COLORS.textSecondary}>{current.days} Day Workout Streak</Text>
+          </View>
+          <Text variant="body" weight="bold" numeric color={COLORS.gold}>+{current.xp} XP</Text>
         </View>
-        <View style={styles.info}>
-          <Text style={styles.title}>Iron Discipline</Text>
-          <Text style={styles.subtitle}>{streak} Day Workout Streak</Text>
-          <Text style={styles.xp}>+{xp} XP</Text>
-        </View>
-      </View>
+      ) : (
+        <Text variant="body" color={COLORS.textSecondary} style={{ marginBottom: SPACING.sm }}>
+          You're {next.days - workoutStreak} days from your first achievement.
+        </Text>
+      )}
 
       <View style={styles.progressRow}>
-        <Text style={styles.milestoneLabel}>Next Milestone · {nextMilestone} Days</Text>
-        <Text style={styles.milestoneCount}>{streak} / {nextMilestone}</Text>
+        <Text variant="caption" color={COLORS.textMuted}>NEXT · {next.title}</Text>
+        <Text variant="caption" weight="bold" numeric color={COLORS.text}>{workoutStreak}/{next.days}</Text>
       </View>
-      <View style={styles.track}>
-        <Animated.View style={[styles.fill, { width: widthPct }]} />
-      </View>
+      <ProgressBar progress={pct} color={COLORS.gold} />
+
+      {unlockedBadges.length > 0 && (
+        <View style={styles.badgeRow}>
+          {unlockedBadges.map((b) => (
+            <View key={b.days} style={styles.miniBadge}>
+              <Ionicons name="star" size={14} color={COLORS.gold} />
+            </View>
+          ))}
+          <Text
+            variant="caption" color={COLORS.textMuted}
+            onPress={() => router.push('/(tabs)/profile')}
+            style={styles.tapToView}
+          >
+            {unlockedBadges.length} unlocked · Tap to view all
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    marginHorizontal: SPACING.lg,
-    marginBottom: SPACING.md,
-    backgroundColor: COLORS.card,
-    borderRadius: RADIUS.card,
-    borderWidth: 1,
-    borderColor: alpha(COLORS.gold, 0.28),
-    padding: SPACING.lg,
-    // soft gold glow, consistent with how the readiness tiles use
-    // shadowColor for their own accent glow elsewhere in this screen
-    shadowColor: COLORS.gold,
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
+    marginHorizontal: SPACING.lg, marginBottom: SPACING.md,
+    backgroundColor: '#14100A', borderRadius: RADIUS.card,
+    borderWidth: 1, borderColor: alpha(COLORS.gold, 0.25), padding: SPACING.lg,
   },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, marginBottom: SPACING.md },
-  eyebrow: { ...EYEBROW, color: COLORS.gold, fontSize: 11 },
-  body: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, marginBottom: SPACING.lg },
-  badge: {
-    width: 56, height: 56, borderRadius: 16,
+  currentRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.md },
+  badgeWrap: {
+    width: 44, height: 44, borderRadius: 22, backgroundColor: alpha(COLORS.gold, 0.14),
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: alpha(COLORS.gold, 0.12),
-    borderWidth: 1, borderColor: alpha(COLORS.gold, 0.35),
   },
-  info: { flex: 1 },
-  title: { color: COLORS.text, fontFamily: FONTS.bold, fontSize: 18, marginBottom: 2 },
-  subtitle: { ...BODY, color: COLORS.textSecondary, fontSize: 13, marginBottom: 4 },
-  xp: { color: COLORS.gold, fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 13 },
-  progressRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: SPACING.xs },
-  milestoneLabel: { ...BODY, color: COLORS.textSecondary, fontSize: 11 },
-  milestoneCount: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontVariant: ['tabular-nums'], fontSize: 11 },
-  track: { height: 6, borderRadius: 3, backgroundColor: COLORS.cardElevated, overflow: 'hidden' },
-  fill: { height: '100%', borderRadius: 3, backgroundColor: COLORS.gold },
+  progressRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginTop: SPACING.md },
+  miniBadge: {
+    width: 26, height: 26, borderRadius: 13, backgroundColor: alpha(COLORS.gold, 0.12),
+    alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: alpha(COLORS.gold, 0.3),
+  },
+  tapToView: { marginLeft: 'auto', fontSize: 11 },
 });
