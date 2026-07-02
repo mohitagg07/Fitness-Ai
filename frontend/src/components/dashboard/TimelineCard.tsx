@@ -8,7 +8,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../../theme/colors';
+import { COLORS, alpha } from '../../theme/colors';
+import { RADIUS, SPACING } from '../../theme/spacing';
+import { ELEVATION } from '../../theme/layout';
 import api from '../../utils/api';
 
 interface TimelineEvent {
@@ -98,12 +100,13 @@ export default function TimelineCard() {
 
 const styles = StyleSheet.create({
   card: {
-    marginHorizontal: 16, marginBottom: 14,
-    backgroundColor: '#0A0A12', borderRadius: 18,
-    padding: 18, borderWidth: 1, borderColor: COLORS.strainGlow + '25',
+    marginHorizontal: SPACING.lg, marginBottom: SPACING.md,
+    backgroundColor: COLORS.card, borderRadius: RADIUS.card,
+    padding: SPACING.xl, borderWidth: 1, borderColor: COLORS.cardBorder,
+    ...ELEVATION.low,
   },
   header: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16 },
-  label: { color: COLORS.strainGlow, fontSize: 10, fontWeight: '800', letterSpacing: 1.5 },
+  label: { color: COLORS.strainGlow, fontSize: 11, fontWeight: '800', letterSpacing: 2 },
   eventRow: { flexDirection: 'row', gap: 12, marginBottom: 0 },
   lineCol: { alignItems: 'center', width: 14, paddingTop: 2 },
   dot: { width: 8, height: 8, borderRadius: 4, marginBottom: 2 },

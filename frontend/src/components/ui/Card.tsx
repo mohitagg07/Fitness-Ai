@@ -19,7 +19,7 @@ export type CardPadding = 'none' | 'sm' | 'md' | 'lg';
 const PADDING_MAP: Record<CardPadding, number> = {
   none: 0,
   sm: SPACING.md,   // 12 — dense rows (PR list, chip rows)
-  md: SPACING.lg,   // 16 — default for most cards
+  md: SPACING.xl,   // 24 — default for every card, per spec
   lg: SPACING.xl,   // 24 — hero / primary CTA cards
 };
 
@@ -81,7 +81,7 @@ export default function Card({
           borderLeftWidth: 3,
           borderLeftColor: accentColor,
         }
-      : { backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder }; // flat
+      : { backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, ...ELEVATION.low }; // flat
 
   return (
     <Wrapper {...wrapperProps} style={[styles.base, { padding: pad }, variantStyle, style]}>

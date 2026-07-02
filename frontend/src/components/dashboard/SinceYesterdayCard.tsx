@@ -15,6 +15,8 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { decisionsApi } from '../../utils/api';
 import { COLORS } from '../../theme/colors';
+import { RADIUS, SPACING } from '../../theme/spacing';
+import { ELEVATION } from '../../theme/layout';
 
 interface Signal { label: string; value: string; favorable: boolean; }
 interface DecisionRow {
@@ -125,16 +127,17 @@ export default function SinceYesterdayCard({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.card,
-    borderRadius: 16,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    padding: 16,
+    borderRadius: RADIUS.card,
+    marginHorizontal: SPACING.lg,
+    marginBottom: SPACING.md,
+    padding: SPACING.xl,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: 8,
+    borderColor: COLORS.cardBorder,
+    gap: SPACING.sm,
+    ...ELEVATION.low,
   },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  headerLabel: { color: COLORS.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 1.3 },
+  headerLabel: { color: COLORS.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 2 },
   line: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   lineText: { color: COLORS.textSecondary, fontSize: 13, flex: 1 },
 });

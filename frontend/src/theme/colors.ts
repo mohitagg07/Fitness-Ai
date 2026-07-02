@@ -14,13 +14,13 @@
 
 export const COLORS = {
   // ── Canvas ──────────────────────────────────────────────
-  background:     '#000000',   // WHOOP "Cod Gray" / pitch black
-  backgroundTop:  '#101518',   // WHOOP background gradient start
-  backgroundBot:  '#283339',   // WHOOP background gradient end
-  card:           '#0D0D0D',
-  cardElevated:   '#161616',
-  cardBorder:     '#1F1F1F',
-  inputBg:        '#161616',
+  background:     '#000000',   // pitch black canvas
+  backgroundTop:  '#101518',   // background gradient start
+  backgroundBot:  '#283339',   // background gradient end
+  card:           '#0B0B0B',   // premium floating-panel fill
+  cardElevated:   '#141414',
+  cardBorder:     '#222222',
+  inputBg:        '#141414',
 
   // ── Text ────────────────────────────────────────────────
   text:           '#FFFFFF',
@@ -29,8 +29,8 @@ export const COLORS = {
   textDim:        '#3A3A3A',
 
   // ── Borders ─────────────────────────────────────────────
-  border:         '#1F1F1F',
-  borderLight:    '#2A2A2A',
+  border:         '#222222',
+  borderLight:    '#2C2C2C',
 
   // ── WHOOP Recovery vocabulary — exact official hex values ──
   recoveryHigh:   '#16EC06',   // 67-100%  High Recovery (green)

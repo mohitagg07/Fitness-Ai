@@ -24,6 +24,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { decisionsApi } from '../../utils/api';
 import { COLORS } from '../../theme/colors';
+import { RADIUS, SPACING } from '../../theme/spacing';
+import { ELEVATION } from '../../theme/layout';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -180,40 +182,41 @@ export default function TodaysDecisionCard() {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.cardElevated,
-    borderRadius: 18,
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 8,
-    padding: 18,
+    borderRadius: RADIUS.card,
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.sm,
+    padding: SPACING.xl,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: COLORS.cardBorder,
+    ...ELEVATION.low,
   },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  headerLabel: { color: COLORS.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 1.3 },
+  headerLabel: { color: COLORS.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 2 },
   historyLink: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   historyLinkText: { color: COLORS.textMuted, fontSize: 11, fontWeight: '600' },
 
-  mainRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
+  mainRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   decisionText: { color: COLORS.text, fontSize: 24, fontWeight: '800', flex: 1, marginRight: 12 },
   confidenceBadge: { alignItems: 'center' },
-  confidencePct: { fontSize: 24, fontWeight: '800' },
-  confidenceLabel: { color: COLORS.textMuted, fontSize: 8, fontWeight: '700', letterSpacing: 0.5, marginTop: 1 },
+  confidencePct: { fontSize: 22, fontWeight: '800' },
+  confidenceLabel: { color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 0.8, marginTop: 1 },
 
-  signalsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 4 },
+  signalsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
   signalPill: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    borderWidth: 1, borderRadius: 8, paddingVertical: 3, paddingHorizontal: 8,
+    borderWidth: 1, borderRadius: RADIUS.badge, paddingVertical: 5, paddingHorizontal: 10,
     backgroundColor: COLORS.card,
   },
   signalLabel: { color: COLORS.textSecondary, fontSize: 10, fontWeight: '600' },
   signalValue: { fontSize: 10, fontWeight: '700' },
 
-  whyBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', paddingVertical: 6 },
+  whyBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', paddingVertical: 8 },
   whyBtnText: { color: COLORS.strainGlow, fontSize: 12, fontWeight: '700' },
   whyPanel: {
-    marginTop: 6, backgroundColor: COLORS.card, borderRadius: 12,
-    padding: 14, borderWidth: 1, borderColor: COLORS.border, gap: 10,
+    marginTop: 8, backgroundColor: COLORS.card, borderRadius: RADIUS.badge + 4,
+    padding: 16, borderWidth: 1, borderColor: COLORS.cardBorder, gap: 10,
   },
   whyReasoning: { color: COLORS.textSecondary, fontSize: 13, lineHeight: 20 },
   whyRow: { gap: 3 },

@@ -18,7 +18,7 @@ export const SPACING = {
 };
 
 export const RADIUS = {
-  badge: 8,    // small pills/badges (phase badge, rescheduled tag)
-  button: 12,  // buttons and CTAs
-  card: 16,    // all cards — one radius for every card on a screen
+  badge: 10,   // small pills/badges (phase badge, rescheduled tag)
+  button: 18,  // buttons and CTAs
+  card: 28,    // all cards — one radius for every card on a screen, floating-panel feel
 };

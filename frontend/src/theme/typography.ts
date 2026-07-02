@@ -92,7 +92,7 @@ export const EYEBROW = {
   fontFamily: FONTS.bold,
   fontSize: 11,
   fontWeight: '700' as const,
-  letterSpacing: 1.5,
+  letterSpacing: 2,
   textTransform: 'uppercase' as const,
 };
 
@@ -122,6 +122,17 @@ export const TEXT_STYLES = {
   // the same geometric family as the numeric stats — so headings and
   // scores read as one deliberate, futuristic voice. Inter is reserved
   // for anything meant to be read at length (body/caption).
+
+  // Display — the single largest mark on a screen (splash headline,
+  // a hero numeric readout standing alone). Rare; most screens never
+  // need it and reach for `hero` instead.
+  display: {
+    fontFamily: FONTS.numericBold,
+    fontWeight: '700' as const,
+    fontSize: 44,
+    lineHeight: 50,
+    letterSpacing: -0.8,
+  },
   hero: {
     fontFamily: FONTS.numericBold,
     fontWeight: '700' as const,
@@ -146,20 +157,29 @@ export const TEXT_STYLES = {
   cardTitle: {
     fontFamily: FONTS.numericSemibold,
     fontWeight: '600' as const,
-    fontSize: 16,
-    lineHeight: 21,
+    fontSize: 22,
+    lineHeight: 27,
+    letterSpacing: -0.2,
   },
   body: {
     fontFamily: FONTS.regular,
     fontWeight: '400' as const,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 21,
+  },
+  // Small — secondary reading copy that isn't quite a caption (list
+  // sub-lines, helper text under an input).
+  small: {
+    fontFamily: FONTS.regular,
+    fontWeight: '400' as const,
+    fontSize: 13,
+    lineHeight: 18,
   },
   caption: {
     fontFamily: FONTS.medium,
     fontWeight: '500' as const,
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 11,
+    lineHeight: 15,
   },
   // Eyebrow labels ("TODAY'S DECISION") switch to Inter SemiBold, sentence
   // case, no uppercase transform — small-caps eyebrows read dated next to

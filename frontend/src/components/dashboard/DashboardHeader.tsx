@@ -90,8 +90,8 @@ export default function DashboardHeader({ firstName, aiSentence, recoveryScore0t
         <View style={styles.ringCol}>
           <CircularProgress
             progress={score100}
-            size={92}
-            strokeWidth={7}
+            size={80}
+            strokeWidth={5}
             color={ringColor}
             center={
               <View style={{ alignItems: 'center' }}>
@@ -118,8 +118,8 @@ export default function DashboardHeader({ firstName, aiSentence, recoveryScore0t
 }
 
 const styles = StyleSheet.create({
-  wrap: { paddingHorizontal: SPACING.lg, paddingTop: 54, paddingBottom: SPACING.lg },
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.lg },
+  wrap: { paddingHorizontal: SPACING.lg, paddingTop: 48, paddingBottom: SPACING.md },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md },
   left: { flexDirection: 'row', alignItems: 'center' },
   right: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
   iconBtn: { position: 'relative' },

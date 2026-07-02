@@ -29,8 +29,9 @@ export const LAYOUT = {
   // tiles). Tighter than sectionGap on purpose — it reads as one cluster.
   cardGap: SPACING.md, // 12
 
-  // Bottom padding so content never sits under the tab bar (66px + margin).
-  scrollBottomPad: 100,
+  // Bottom padding so content never sits under the floating tab bar
+  // (76px bar + 22px floating offset + margin).
+  scrollBottomPad: 130,
 };
 
 export const ELEVATION = {
@@ -42,9 +43,9 @@ export const ELEVATION = {
   // Slightly raised — used for the header bar and sticky/floating pieces.
   low: {
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 14,
     elevation: 3,
   },
   // Reserved for the single primary CTA per screen (Start Workout, Send).
@@ -52,8 +53,8 @@ export const ELEVATION = {
   glow: (color: string) => ({
     shadowColor: color,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
     elevation: 8,
   }),
 };

@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, alpha } from '../../theme/colors';
 import { FONTS } from '../../theme/typography';
 import { RADIUS, SPACING } from '../../theme/spacing';
-import { ICON_SIZE } from '../../theme/layout';
+import { ICON_SIZE, ELEVATION } from '../../theme/layout';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 export type ButtonSize = 'sm' | 'md' | 'lg';
@@ -33,10 +33,10 @@ interface ButtonProps {
   style?: StyleProp<ViewStyle>;
 }
 
-const SIZE_MAP: Record<ButtonSize, { paddingV: number; paddingH: number; fontSize: number; iconSize: number }> = {
-  sm: { paddingV: 8, paddingH: 14, fontSize: 12, iconSize: ICON_SIZE.xs },
-  md: { paddingV: 13, paddingH: 20, fontSize: 14, iconSize: ICON_SIZE.sm },
-  lg: { paddingV: 17, paddingH: 26, fontSize: 15, iconSize: ICON_SIZE.sm },
+const SIZE_MAP: Record<ButtonSize, { height: number; paddingH: number; fontSize: number; iconSize: number }> = {
+  sm: { height: 38, paddingH: 14, fontSize: 12, iconSize: ICON_SIZE.xs },
+  md: { height: 48, paddingH: 20, fontSize: 14, iconSize: ICON_SIZE.sm },
+  lg: { height: 56, paddingH: 26, fontSize: 15, iconSize: ICON_SIZE.sm },
 };
 
 export default function Button({
@@ -80,7 +80,7 @@ export default function Button({
   );
 
   const shape: ViewStyle = {
-    paddingVertical: s.paddingV,
+    height: s.height,
     paddingHorizontal: s.paddingH,
     borderRadius: RADIUS.button,
     opacity: isDisabled ? 0.5 : 1,
@@ -93,7 +93,7 @@ export default function Button({
         onPress={onPress}
         disabled={isDisabled}
         activeOpacity={0.85}
-        style={[styles.base, shape, style]}
+        style={[styles.base, shape, ELEVATION.glow(accentColor) as any, style]}
       >
         <LinearGradient
           colors={[accentColor, alpha(accentColor, 0.7)]}

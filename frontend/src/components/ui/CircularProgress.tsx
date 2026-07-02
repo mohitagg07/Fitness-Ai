@@ -85,10 +85,10 @@ const styles = StyleSheet.create({
   wrap: { alignItems: 'center', justifyContent: 'center' },
   glow: {
     position: 'absolute',
-    shadowOpacity: 0.45,
-    shadowRadius: 18,
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
     shadowOffset: { width: 0, height: 0 },
-    elevation: 8,
+    elevation: 6,
   },
   center: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
 });

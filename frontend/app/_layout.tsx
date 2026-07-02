@@ -3,7 +3,7 @@ import { Tabs, router } from 'expo-router';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { storage } from '../src/utils/storage';
-import { COLORS } from '../src/theme/colors';
+import { COLORS, alpha } from '../src/theme/colors';
 
 type TabDef = {
   name: string;
@@ -56,14 +56,22 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: COLORS.tabBg,
-          borderTopColor: COLORS.tabBorder,
-          borderTopWidth: 1,
-          paddingBottom: 10,
-          paddingTop: 8,
-          height: 66,
-          elevation: 0,
-          shadowOpacity: 0,
+          position: 'absolute',
+          left: 16,
+          right: 16,
+          bottom: 22,
+          backgroundColor: alpha('#101010', 0.88),
+          borderColor: COLORS.tabBorder,
+          borderWidth: 1,
+          borderRadius: 26,
+          paddingBottom: 12,
+          paddingTop: 12,
+          height: 76,
+          elevation: 12,
+          shadowColor: '#000000',
+          shadowOpacity: 0.35,
+          shadowRadius: 20,
+          shadowOffset: { width: 0, height: 8 },
         },
         tabBarActiveTintColor: COLORS.tabActive,
         tabBarInactiveTintColor: COLORS.tabInactive,
@@ -71,7 +79,7 @@ export default function TabsLayout() {
           fontSize: 9,
           fontWeight: '700',
           letterSpacing: 0.6,
-          marginTop: 2,
+          marginTop: 4,
         },
         tabBarHideOnKeyboard: true,
       }}
@@ -89,6 +97,7 @@ export default function TabsLayout() {
                   size={22}
                   color={color}
                 />
+                {focused && <View style={[styles.indicator, { backgroundColor: color }]} />}
               </View>
             ),
           }}
@@ -113,10 +122,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  iconWrap: { padding: 4 },
+  iconWrap: { padding: 4, alignItems: 'center' },
   activeWrap: {
     padding: 6,
-    backgroundColor: COLORS.primaryGreen + '20',
-    borderRadius: 10,
+    backgroundColor: alpha(COLORS.primaryGreen, 0.14),
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: COLORS.primaryGreen,
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
+  },
+  indicator: {
+    position: 'absolute',
+    bottom: -6,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
   },
 });
