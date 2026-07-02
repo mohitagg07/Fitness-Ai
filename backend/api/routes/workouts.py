@@ -617,19 +617,17 @@ async def log_set(
     data["user_id"] = user_id
     data["set_number"] = set_number
 
-    # ── Strip columns that aren't in the schema cache yet ──────────────────
-    # The Supabase exercise_logs table only has the base columns.
-    # Extended fields (is_dropset, is_warmup, superset_group, tempo, to_failure,
-    # set_notes, equipment_modifiers) will cause PGRST204 until the migration
-    # in MIGRATION_v2.sql is run. Strip them defensively so logging never
-    # fails on a base install, and only include them once the columns exist.
-    EXTENDED_COLUMNS = {
-        "is_dropset", "is_warmup", "superset_group",
-        "tempo", "to_failure", "set_notes", "equipment_modifiers",
-    }
-    safe_data = {k: v for k, v in data.items() if k not in EXTENDED_COLUMNS}
-
-    res = sb.table("exercise_logs").insert(safe_data).execute()
+    # Extended fields (is_dropset, is_warmup, superset_group, tempo,
+    # to_failure, set_notes) are now real columns on exercise_logs — see
+    # MIGRATION_v3_exercise_logs_extended.sql. They used to be stripped
+    # here defensively, which silently discarded warm-up/dropset flags on
+    # every insert (never persisted even though the UI collected them) and
+    # is what caused downstream reads in this file — the workout-history
+    # list and complete_session's volume calc — to 500 with "column
+    # exercise_logs.is_warmup does not exist" once those reads started
+    # selecting the column directly. Run the migration before deploying
+    # this change.
+    res = sb.table("exercise_logs").insert(data).execute()
     if not res.data:
         raise HTTPException(500, "Failed to log set")
     return res.data[0]
