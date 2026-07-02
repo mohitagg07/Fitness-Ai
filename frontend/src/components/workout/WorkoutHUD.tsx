@@ -23,6 +23,7 @@ import { FONTS, EYEBROW, BODY } from '../../theme/typography';
 import { SPACING, RADIUS } from '../../theme/spacing';
 import WorkoutSummaryCard from './WorkoutSummaryCard';
 import WorkoutHistoryModal from './WorkoutHistoryModal';
+import MilestoneCelebration from './MilestoneCelebration';
 
 interface ExerciseCard {
   name: string;
@@ -43,6 +44,58 @@ interface SetLog {
 }
 
 const RPE_LEVELS = [6, 7, 7.5, 8, 8.5, 9, 9.5, 10];
+
+// ─── Milestone detection ────────────────────────────────────────────────────
+// The backend has tracked workout_streak / protein_streak on agent_state for
+// a while (see /sessions/{id}/complete) but nothing on the frontend ever did
+// anything with the numbers it returns — `streakVisible`/`streakData` state
+// existed below and was never set. This turns those two already-shipped
+// numbers into the "milestone" celebration moment.
+const WORKOUT_STREAK_MILESTONES = [3, 7, 14, 21, 30, 50, 75, 100, 150, 200, 365];
+const PROTEIN_STREAK_MILESTONES = [3, 7, 14, 30, 60, 100];
+
+export interface MilestoneInfo {
+  kind: 'workout' | 'protein';
+  streak: number;
+  title: string;
+  message: string;
+}
+
+function computeMilestone(summary: any): MilestoneInfo | null {
+  if (!summary) return null;
+  const w = summary.workout_streak as number | undefined;
+  const p = summary.protein_streak as number | undefined;
+
+  // Workout streak takes priority — it's the harder habit and the one this
+  // screen is already about.
+  if (typeof w === 'number' && WORKOUT_STREAK_MILESTONES.includes(w)) {
+    return {
+      kind: 'workout',
+      streak: w,
+      title: `${w}-Day Streak`,
+      message:
+        w >= 100 ? "That's elite-level consistency. Most people never get here."
+        : w >= 30  ? "A full month straight. This is who you are now."
+        : w >= 14  ? "Two weeks in a row. The habit is locking in."
+        : w >= 7   ? "One full week, every day. Real momentum."
+        : "Three days straight — the hardest part is behind you.",
+    };
+  }
+  if (typeof p === 'number' && PROTEIN_STREAK_MILESTONES.includes(p)) {
+    return {
+      kind: 'protein',
+      streak: p,
+      title: `${p}-Day Protein Streak`,
+      message:
+        p >= 60 ? "Nutrition discipline like this is what separates good results from great ones."
+        : p >= 30 ? "A full month of hitting your protein target. Muscle-building mode: locked."
+        : p >= 14 ? "Two straight weeks on target — this is where gains happen."
+        : p >= 7  ? "A full week hitting your protein goal every day."
+        : "Three days in a row on target. Keep stacking them.",
+    };
+  }
+  return null;
+}
 
 function rpeColor(r: number): string {
   if (r <= 7)   return COLORS.primaryGreen;
@@ -158,7 +211,7 @@ export default function WorkoutHUD() {
   const [isLogging, setIsLogging]       = useState(false);
   const [isFinishing, setIsFinishing]   = useState(false);
   const [streakVisible, setStreakVisible] = useState(false);
-  const [streakData, setStreakData]     = useState<{ workout: number; protein: number } | null>(null);
+  const [streakData, setStreakData]     = useState<MilestoneInfo | null>(null);
 
   // Tick for elapsed time
   useEffect(() => {
@@ -333,27 +386,44 @@ export default function WorkoutHUD() {
         best_set: null,
         session_minutes: Math.round((Date.now() - (activeSession.startedAt || Date.now())) / 60000),
       });
+      // Queue a milestone card (if this session hit a streak milestone) to
+      // show right after the summary card is dismissed, so the two
+      // celebrations don't compete for attention at once.
+      setStreakData(computeMilestone(summary));
       setSummaryVisible(true);
     } catch {
       // Local session state is left untouched here on purpose — the sets
       // already logged during the session live server-side (each logSet
       // call already persisted), so nothing is lost and Retry can safely
       // call the same idempotent endpoint again.
-      Alert.alert('Error', 'Could not complete session. Check your connection and try again.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Retry', style: 'default', onPress: () => completeAndShowSummary() },
-      ]);
+      // BUG FIX: same web/Alert.alert button-array issue as finishWorkout()
+      // above — use confirmAsync so Retry actually fires on web.
+      const retry = await confirmAsync(
+        'Error',
+        'Could not complete session. Check your connection and try again.',
+        'Retry',
+        'Cancel'
+      );
+      if (retry) await completeAndShowSummary();
     } finally {
       setIsFinishing(false);
     }
   };
 
-  const finishWorkout = () => {
+  const finishWorkout = async () => {
     if (!activeSession) return;
-    Alert.alert('Finish Workout?', 'This will end your session and save all sets.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Finish', style: 'default', onPress: () => completeAndShowSummary() },
-    ]);
+    // BUG FIX: this used to call Alert.alert(title, message, [buttons]) directly.
+    // react-native-web renders NOTHING for the multi-button form and never
+    // fires onPress, so on web (this build) tapping "Finish Workout" looked
+    // like the button did nothing at all. confirmAsync() is the cross-platform
+    // helper built for exactly this (see utils/confirm.ts) — use it here too.
+    const ok = await confirmAsync(
+      'Finish Workout?',
+      'This will end your session and save all sets.',
+      'Finish',
+      'Cancel'
+    );
+    if (ok) await completeAndShowSummary();
   };
 
   // Group logs by exercise for display
@@ -376,7 +446,17 @@ export default function WorkoutHUD() {
         <WorkoutSummaryCard
           visible={summaryVisible}
           data={summaryData}
-          onClose={() => setSummaryVisible(false)}
+          onClose={() => {
+            setSummaryVisible(false);
+            // Give the milestone card its own beat instead of stacking two
+            // modals at once — it appears a moment after the summary closes.
+            if (streakData) setTimeout(() => setStreakVisible(true), 300);
+          }}
+        />
+        <MilestoneCelebration
+          visible={streakVisible}
+          data={streakData}
+          onClose={() => setStreakVisible(false)}
         />
         <WorkoutHistoryModal
           visible={historyVisible}
@@ -414,7 +494,15 @@ export default function WorkoutHUD() {
       <WorkoutSummaryCard
         visible={summaryVisible}
         data={summaryData}
-        onClose={() => setSummaryVisible(false)}
+        onClose={() => {
+          setSummaryVisible(false);
+          if (streakData) setTimeout(() => setStreakVisible(true), 300);
+        }}
+      />
+      <MilestoneCelebration
+        visible={streakVisible}
+        data={streakData}
+        onClose={() => setStreakVisible(false)}
       />
 
       {timerRunning && (
