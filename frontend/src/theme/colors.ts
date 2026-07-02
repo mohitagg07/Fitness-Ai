@@ -69,6 +69,11 @@ export const COLORS = {
   // ── Chat ────────────────────────────────────────────────
   userBubble: '#0093E730',
 
+  // ── Achievements ──────────────────────────────────────────────
+  // Reserved for streaks/XP/milestones — trophy-gold, never reused for
+  // Recovery/warning semantics even though it sits near recoveryMed.
+  gold: '#FFB800',
+
   // ── Macros (kept distinct from Recovery vocabulary on purpose) ──
   calories: '#FF6B35',
   protein:  '#FF0026',
