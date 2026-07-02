@@ -5,6 +5,8 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
   withDelay,
+  withRepeat,
+  withSequence,
   Easing,
   runOnJS,
 } from 'react-native-reanimated';
@@ -14,13 +16,15 @@ interface AnimatedSplashProps {
   onFinished: () => void;
 }
 
+const LOGO_MARK = require('../../../assets/branding/logo-mark.png');
+
 /**
  * Animated entrance sequence:
  *  1. Background is true black instantly (-> avoids a white flash on slow devices)
- *  2. Full brand key-art (runner + wordmark + tagline, baked into one image
- *     asset at assets/splash.png) fades in and settles (700ms). This is the
- *     one and only "opening" graphic — no separate logo/tagline composited
- *     on top of it.
+ *  2. Just the brand mark (the gradient "V" logo, transparent PNG) fades in,
+ *     scales up, and settles (700ms), then breathes gently — no baked-in
+ *     photo/key-art asset anymore. This is the one and only "opening"
+ *     graphic — no separate runner photo or tagline composited underneath.
  *  3. Brief hold, then the whole screen fades out and onFinished() fires
  *
  * A previous version chained withDelay(withSequence(...)) with a
@@ -34,7 +38,8 @@ interface AnimatedSplashProps {
  */
 export default function AnimatedSplash({ onFinished }: AnimatedSplashProps) {
   const heroOpacity = useSharedValue(0);
-  const heroScale = useSharedValue(1.04);
+  const heroScale = useSharedValue(0.85);
+  const pulse = useSharedValue(0);
   const screenOpacity = useSharedValue(1);
   const finishedRef = useRef(false);
 
@@ -47,6 +52,20 @@ export default function AnimatedSplash({ onFinished }: AnimatedSplashProps) {
   useEffect(() => {
     heroOpacity.value = withTiming(1, { duration: 700, easing: Easing.out(Easing.cubic) });
     heroScale.value = withTiming(1, { duration: 900, easing: Easing.out(Easing.cubic) });
+    // Slow breathing glow loop once settled — same treatment as the
+    // dashboard's header mark, so the logo feels alive rather than static
+    // during the hold.
+    pulse.value = withDelay(
+      900,
+      withRepeat(
+        withSequence(
+          withTiming(1, { duration: 1000, easing: Easing.inOut(Easing.sin) }),
+          withTiming(0, { duration: 1000, easing: Easing.inOut(Easing.sin) })
+        ),
+        -1,
+        true
+      )
+    );
 
     // Hold on screen, then fade out and hand control back to the navigator.
     screenOpacity.value = withDelay(
@@ -64,10 +83,13 @@ export default function AnimatedSplash({ onFinished }: AnimatedSplashProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const heroStyle = useAnimatedStyle(() => ({
-    opacity: heroOpacity.value,
-    transform: [{ scale: heroScale.value }],
-  }));
+  const heroStyle = useAnimatedStyle(() => {
+    const pulseScale = 1 + pulse.value * 0.06;
+    return {
+      opacity: heroOpacity.value,
+      transform: [{ scale: heroScale.value * pulseScale }],
+    };
+  });
 
   const screenStyle = useAnimatedStyle(() => ({
     opacity: screenOpacity.value,
@@ -76,9 +98,9 @@ export default function AnimatedSplash({ onFinished }: AnimatedSplashProps) {
   return (
     <Animated.View style={[styles.container, screenStyle]}>
       <Animated.Image
-        source={require('../../../assets/splash.png')}
+        source={LOGO_MARK}
         style={[styles.hero, heroStyle]}
-        resizeMode="cover"
+        resizeMode="contain"
       />
     </Animated.View>
   );
@@ -88,10 +110,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background, // #000000 — true black, per WHOOP
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   hero: {
-    ...StyleSheet.absoluteFillObject,
-    width: undefined,
-    height: undefined,
+    width: 150,
+    height: 150,
   },
 });

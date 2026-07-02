@@ -11,12 +11,12 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  RefreshControl, Image, Animated, Easing,
+  RefreshControl, Animated, Easing, useWindowDimensions,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop, Text as SvgText } from 'react-native-svg';
+import Svg, { Path, Circle, Defs, LinearGradient as SvgGradient, RadialGradient, Stop, Text as SvgText } from 'react-native-svg';
 import Logo from '../shared/Logo';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,39 +33,96 @@ import PatternInsightsCard from './PatternInsightsCard';
 import CoachTimelineCard from './CoachTimelineCard';
 import ProgramEvolutionCard from './ProgramEvolutionCard';
 
-const LOGO_MARK = require('../../../assets/branding/logo-mark.png');
+// Athlete graphic — a moody, rim-lit silhouette (bowed head, shoulders and
+// back) in the same visual language as premium fitness-app hero art: the
+// figure sits almost entirely in shadow, with a thin brand-green rim light
+// tracing its right edge and a soft glow behind it, fading to pure black on
+// the left so the greeting text underneath always stays readable. This is
+// original vector art (not a stock photo) so it's safe to ship — no
+// licensing risk, no real identifiable person, and it scales cleanly to any
+// screen size instead of being a fixed-resolution image asset.
+// `width`/`height` are passed in so the header can size this relative to
+// the actual device width (see useWindowDimensions in DashboardScreen).
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-// Animated logo intro — replaces the old static hero photo. Plays once on
-// mount (fade + scale up), then settles into a slow breathing glow loop.
-// A large, mostly-transparent watermark of the brand mark, not a loud
-// centerpiece — it's there to make the header feel alive, not busy.
-function AnimatedLogoIntro() {
-  const scale = useRef(new Animated.Value(0.7)).current;
+function AnimatedAthlete({ width, height }: { width: number; height: number }) {
   const opacity = useRef(new Animated.Value(0)).current;
-  const pulse = useRef(new Animated.Value(0)).current;
+  const glow = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.timing(opacity, { toValue: 1, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
-    Animated.spring(scale, { toValue: 1, friction: 6, tension: 40, useNativeDriver: true }).start();
+    Animated.timing(opacity, { toValue: 1, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(glow, { toValue: 1, duration: 2400, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
+        Animated.timing(glow, { toValue: 0, duration: 2400, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
       ])
     ).start();
   }, []);
 
-  const pulseScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
+  const glowOpacity = glow.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] });
 
   return (
-    <Animated.View
-      pointerEvents="none"
-      style={[
-        styles.logoIntroWrap,
-        { opacity, transform: [{ scale: Animated.multiply(scale, pulseScale) }] },
-      ]}
-    >
-      <Image source={LOGO_MARK} style={styles.logoIntroImg} resizeMode="contain" />
+    <Animated.View pointerEvents="none" style={[styles.athleteWrap, { width, height, opacity }]}>
+      <Svg width={width} height={height} viewBox="0 0 220 280">
+        <Defs>
+          <RadialGradient id="rimGlow" cx="0.78" cy="0.32" r="0.55">
+            <Stop offset="0" stopColor={COLORS.primaryGreen} stopOpacity="0.35" />
+            <Stop offset="1" stopColor={COLORS.primaryGreen} stopOpacity="0" />
+          </RadialGradient>
+          <SvgGradient id="rimStroke" x1="0" y1="0" x2="1" y2="1">
+            <Stop offset="0" stopColor={COLORS.primaryGreen} />
+            <Stop offset="1" stopColor={COLORS.recoveryBlue} />
+          </SvgGradient>
+          <SvgGradient id="fadeLeft" x1="0" y1="0" x2="1" y2="0">
+            <Stop offset="0" stopColor={COLORS.background} stopOpacity="1" />
+            <Stop offset="0.55" stopColor={COLORS.background} stopOpacity="0" />
+          </SvgGradient>
+        </Defs>
+
+        {/* ambient glow behind the figure, upper-right — mimics a single
+            hard key light the way the reference photo is lit, gently
+            pulsing so the header doesn't feel static */}
+        <AnimatedCircle cx="172" cy="90" r="130" fill="url(#rimGlow)" opacity={glowOpacity} />
+
+        {/* silhouette — bowed head, trapezius/shoulder line, back sweeping
+            down into frame. Filled near-black so it reads as shadow, not
+            a flat cutout. */}
+        <Path
+          d="M118,14
+             C132,14 143,25 144,40
+             C145,50 141,58 133,63
+             C160,70 186,86 199,112
+             C210,133 214,158 210,183
+             L210,280 L96,280
+             C88,250 84,222 88,196
+             C74,190 63,178 58,163
+             C50,140 53,116 66,98
+             C75,86 88,78 101,74
+             C93,68 89,58 90,47
+             C91,29 103,14 118,14 Z"
+          fill={COLORS.card}
+        />
+
+        {/* rim light — thin gradient stroke tracing only the right/top
+            contour (head, shoulder, back edge) so light appears to wrap
+            around the figure from the upper right, same as the reference */}
+        <Path
+          d="M118,14
+             C132,14 143,25 144,40
+             C145,50 141,58 133,63
+             C160,70 186,86 199,112
+             C210,133 214,158 210,183
+             L210,240"
+          stroke="url(#rimStroke)"
+          strokeWidth="3"
+          fill="none"
+          strokeLinecap="round"
+        />
+
+        {/* left-edge fade to pure black so the graphic blends into the
+            header background instead of showing a hard rectangular edge */}
+        <Path d="M0,0 L220,0 L220,280 L0,280 Z" fill="url(#fadeLeft)" />
+      </Svg>
     </Animated.View>
   );
 }
@@ -188,6 +245,14 @@ function formatTrainingTime(totalMinutes: number) {
 
 export default function DashboardScreen() {
   const { user, profile, setCnsFatigue } = useStore();
+  const { width: screenWidth } = useWindowDimensions();
+  // Hero region scales with actual device width instead of a fixed pixel
+  // size, so the silhouette looks right on a small phone and a large one
+  // alike, and never overflows/clips on narrow screens. Clamped so it
+  // doesn't blow up on tablets.
+  const heroHeight = Math.min(Math.max(screenWidth * 0.62, 200), 280);
+  const heroImgWidth = Math.min(screenWidth * 0.62, 240);
+  const heroImgHeight = heroImgWidth * (280 / 220);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -307,13 +372,14 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* Header — the old runner-photo banner is gone; a large, mostly-
-          transparent animated logo mark now lives behind the greeting
-          instead (fades/scales in on open, then breathes gently). Keeps
-          the header feeling alive without fighting the text for
-          contrast the way a busy photo did. */}
-      <View style={styles.heroBanner}>
-        <AnimatedLogoIntro />
+      {/* Header — an original vector athlete graphic (not a photo, not
+          the logo) now lives behind the greeting, sized relative to the
+          device width so it never overflows on smaller phones, pinned
+          right and faded into black on the left so it never fights the
+          greeting text for contrast (fades in on open, then breathes
+          gently). */}
+      <View style={[styles.heroBanner, { minHeight: heroHeight }]}>
+        <AnimatedAthlete width={heroImgWidth} height={heroImgHeight} />
         <View style={styles.headerTop}>
           <Logo size="sm" />
           <View style={styles.headerTopRight}>
@@ -425,6 +491,12 @@ export default function DashboardScreen() {
             <Text style={styles.startWorkoutText}>Start Today's Workout</Text>
             <Ionicons name="chevron-forward" size={20} color="rgba(0,0,0,0.5)" />
           </View>
+          {!!summary?.workout_streak && summary.workout_streak > 0 && (
+            <View style={styles.streakBadge}>
+              <Ionicons name="flame" size={13} color={ZONE_YELLOW} />
+              <Text style={styles.streakBadgeText}>{summary.workout_streak}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       )}
 
@@ -731,12 +803,14 @@ const styles = StyleSheet.create({
   heroBanner: {
     width: '100%', paddingHorizontal: SPACING.xl, paddingTop: 56,
     paddingBottom: SPACING.xl, justifyContent: 'space-between', overflow: 'hidden',
-    position: 'relative', backgroundColor: COLORS.background, minHeight: 190,
+    position: 'relative', backgroundColor: COLORS.background,
   },
-  // Large, mostly-transparent watermark of the brand mark, pinned to the
-  // right so it doesn't compete with the greeting text on the left.
-  logoIntroWrap: { position: 'absolute', right: -20, top: 30, opacity: 0.16 },
-  logoIntroImg: { width: 190, height: 190 },
+  // Athlete graphic, pinned to the right so it doesn't compete with the
+  // greeting text on the left. Width/height are set inline per-instance
+  // (see useWindowDimensions in the screen component) so it scales with
+  // the device instead of using a fixed pixel size that could clip on
+  // narrow phones or look tiny on large ones.
+  athleteWrap: { position: 'absolute', right: 0, top: 0, bottom: 0, justifyContent: 'flex-end' },
   headerTop: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
@@ -745,16 +819,19 @@ const styles = StyleSheet.create({
     position: 'absolute', top: -1, right: -1, width: 7, height: 7, borderRadius: 4,
     backgroundColor: COLORS.primaryGreen, borderWidth: 1.5, borderColor: COLORS.background,
   },
+  // maxWidth tightened from 80% to 68% now that the athlete graphic takes
+  // up more of the header on the right — keeps the greeting text (and
+  // longer names) from ever running under the silhouette on narrow phones.
   headerGreeting: {
-    gap: SPACING.xs, maxWidth: '80%', marginTop: SPACING.lg,
+    gap: SPACING.xs, maxWidth: '68%', marginTop: SPACING.lg,
   },
   // Name/status line — "Good Morning, {name} 👋" in sentence case, same
   // body scale as the rest of the app (fontSize 16) rather than a small
   // eyebrow, so it reads as a real greeting sentence, not a label. The
   // name itself renders via <GradientName> (SVG text), so this is now a
   // row container rather than nested <Text>.
-  greetingLine: { flexDirection: 'row', alignItems: 'center' },
-  greetingAccent: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 16 },
+  greetingLine: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
+  greetingAccent: { color: COLORS.text, fontFamily: FONTS.bold, fontSize: 16 },
   greetingWave: { fontSize: 18 },
   greetingStatus: { ...BODY, color: COLORS.textSecondary, fontSize: 13, lineHeight: 18 },
   // Phase badge now carries a live dot so it reads as status ("Phase 1,
@@ -917,6 +994,19 @@ const styles = StyleSheet.create({
   },
   startWorkoutText: {
     color: '#000', fontFamily: FONTS.bold, fontSize: 17,
+  },
+  // Small flame badge pinned to the top-right corner of the CTA, so the
+  // current streak is visible right where the action happens instead of
+  // only living in the stats row beneath it.
+  streakBadge: {
+    position: 'absolute', top: -10, right: -6,
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.badge,
+    paddingVertical: 4, paddingHorizontal: 8,
+    borderWidth: 1, borderColor: COLORS.cardBorder,
+  },
+  streakBadgeText: {
+    color: COLORS.text, fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 12,
   },
 
   // Flat inline stats bar (no card chrome) — icon + number on one line,

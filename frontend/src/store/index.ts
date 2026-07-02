@@ -45,6 +45,15 @@ export const actions = {
     prs.forEach((p: any) => { prMap[p.exercise_name] = p.weight_kg; });
     setState({ profile, injuries, prs: prMap });
   },
+  // Merge-patch the profile in the global store. ProfileScreen previously
+  // kept its own local `profile` state entirely separate from this store —
+  // so uploading a new avatar or editing your name/goal on the Profile tab
+  // never showed up on the Dashboard (or anywhere else reading
+  // useStore().profile) until the next full login. Every profile mutation
+  // in ProfileScreen now calls this so the whole app stays in sync.
+  updateProfile(partial: any) {
+    setState({ profile: { ..._state.profile, ...partial } });
+  },
   setActiveSession(session: any) { setState({ activeSession: session }); },
   addLogToSession(log: any) {
     if (!_state.activeSession) return;

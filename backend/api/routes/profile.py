@@ -43,13 +43,23 @@ async def update_me(
     data = {k: v for k, v in payload.model_dump().items() if v is not None}
     if not data:
         raise HTTPException(400, "No fields to update")
+    if "username" in data:
+        data["username"] = data["username"].strip().lower()
     data["updated_at"] = datetime.now(timezone.utc).isoformat()
-    res = (
-        sb.table("profiles")
-        .update(data)
-        .eq("id", current_user["user_id"])
-        .execute()
-    )
+    try:
+        res = (
+            sb.table("profiles")
+            .update(data)
+            .eq("id", current_user["user_id"])
+            .execute()
+        )
+    except Exception as exc:
+        # Supabase/Postgres raises a unique-violation here if the requested
+        # username is already taken (see profiles_username_unique_idx) —
+        # surface that as a clean 409 instead of a raw 500.
+        if "profiles_username_unique_idx" in str(exc) or "duplicate key" in str(exc).lower():
+            raise HTTPException(409, "That username is already taken")
+        raise
     return res.data[0] if res.data else {}
 
 

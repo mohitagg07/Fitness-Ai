@@ -168,6 +168,7 @@ class OnboardingCreate(BaseModel):
 
 class ProfileCreate(BaseModel):
     full_name: str = Field(min_length=1, max_length=100)
+    username: Optional[str] = Field(None, min_length=3, max_length=30, pattern=r"^[a-zA-Z0-9_.]+$")
     age: int = Field(ge=13, le=80)
     gender: Gender
     height_cm: float = Field(gt=100, lt=250)
@@ -195,6 +196,7 @@ class ProfileCreate(BaseModel):
 class ProfileUpdate(BaseModel):
     """Partial profile update — all fields optional."""
     full_name: Optional[str] = Field(None, min_length=1, max_length=100)
+    username: Optional[str] = Field(None, min_length=3, max_length=30, pattern=r"^[a-zA-Z0-9_.]+$")
     age: Optional[int] = Field(None, ge=13, le=80)
     gender: Optional[Gender] = None
     height_cm: Optional[float] = Field(None, gt=100, lt=250)

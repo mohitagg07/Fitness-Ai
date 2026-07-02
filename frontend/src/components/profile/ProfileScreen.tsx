@@ -22,8 +22,9 @@ import {
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
-import { profileApi, describeApiError } from '../../utils/api';
-import { useStore } from '../../store';
+import Svg, { Circle } from 'react-native-svg';
+import { profileApi, dashboardApi, progressApi, describeApiError } from '../../utils/api';
+import { useStore, actions } from '../../store';
 import { COLORS } from '../../theme/colors';
 import { FONTS } from '../../theme/typography';
 import Logo from '../shared/Logo';
@@ -34,13 +35,30 @@ const GOAL_COLORS: Record<string, string> = {
   bulk: '#4CAF50', cut: '#FF4500', recomp: '#9C27B0', maintain: '#2196F3',
 };
 
+// Small, purely-decorative rotating line under the name — same idea as the
+// "Discipline today, strength forever" tagline in the reference design.
+// Deterministic by day-of-year (not random) so it doesn't flicker between
+// re-renders, and clearly cosmetic copy rather than anything presented as
+// user data.
+const TAGLINES = [
+  'Discipline today, strength forever.',
+  'Small reps. Big changes.',
+  'Consistency beats intensity.',
+  'Show up. That\u2019s the whole plan.',
+  'Built one session at a time.',
+];
+function dailyTagline() {
+  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
+  return TAGLINES[dayOfYear % TAGLINES.length];
+}
+
 const EQUIPMENT_OPTIONS = [
   'Barbell', 'Dumbbells', 'Kettlebells', 'Resistance Bands', 'Pull-up Bar',
   'Cable Machine', 'Squat Rack', 'Bench', 'Smith Machine', 'Bodyweight Only',
 ];
 
 interface Profile {
-  full_name?: string; age?: number; gender?: string;
+  full_name?: string; username?: string; age?: number; gender?: string;
   height_cm?: number; weight_kg?: number; target_weight_kg?: number; body_fat_pct?: number;
   goal?: string; experience_level?: string; activity_level?: string;
   sleep_hours?: number; occupation?: string; daily_steps?: number;
@@ -61,17 +79,37 @@ export default function ProfileScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [editVisible, setEditVisible] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  // Real signals only — no invented lifetime totals. workoutStreak comes
+  // from the same dashboard summary the Home tab uses; sessionsThisWeek
+  // from the real weekly-stats endpoint (already powers AnalyticsScreen).
+  const [workoutStreak, setWorkoutStreak] = useState<number | null>(null);
+  const [sessionsThisWeek, setSessionsThisWeek] = useState<number | null>(null);
 
   const loadAll = useCallback(async () => {
     setErrorMsg(null);
     try {
       const [meRes, prsRes] = await Promise.all([profileApi.getMe(), profileApi.getPRs()]);
-      setProfile(meRes.data?.profile || {});
+      const freshProfile = meRes.data?.profile || {};
+      setProfile(freshProfile);
       setInjuries(meRes.data?.injuries || []);
       setPrs(prsRes.data || []);
+      // Keep the rest of the app (Dashboard header, etc.) in sync with
+      // whatever we just loaded here.
+      actions.updateProfile(freshProfile);
     } catch (err: any) {
       const { message } = describeApiError(err);
       setErrorMsg(message);
+    }
+    // Best-effort — these two are for the achievements strip only, so a
+    // failure here shouldn't block the rest of the profile from loading.
+    try {
+      const [summaryRes, weeklyRes] = await Promise.all([
+        dashboardApi.getSummary(), progressApi.getWeeklyStats(),
+      ]);
+      setWorkoutStreak(summaryRes.data?.workout_streak ?? null);
+      setSessionsThisWeek(weeklyRes.data?.sessions_completed ?? null);
+    } catch {
+      // silently omit the achievements strip's live numbers
     }
   }, []);
 
@@ -109,6 +147,11 @@ export default function ProfileScreen() {
     try {
       const res = await profileApi.uploadAvatar(asset.uri, mimeType);
       setProfile((p) => ({ ...p, avatar_url: res.data.avatar_url }));
+      // This was the actual bug behind "the dashboard never shows my
+      // photo" — ProfileScreen updated its own local state but never told
+      // the global store, so every other screen kept reading the old
+      // (empty) avatar_url until the next full app restart.
+      actions.updateProfile({ avatar_url: res.data.avatar_url });
     } catch (err: any) {
       const { message } = describeApiError(err);
       Alert.alert('Upload failed', message);
