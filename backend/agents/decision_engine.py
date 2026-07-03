@@ -161,7 +161,10 @@ def build_decision_center(
         ),
         EvidenceSignal(
             label="Protein",
-            value=f"{round(protein_today)}g" if protein_today else "Not logged today",
+            # Was "Not logged today" — inconsistent with Sleep's "Not
+            # logged" right next to it, and the extra word is what pushed
+            # this value past MetricChip's single-line width on mobile.
+            value=f"{round(protein_today)}g" if protein_today else "Not logged",
             favorable=protein_today >= protein_target * 0.85,
             weight=1.0,
         ),

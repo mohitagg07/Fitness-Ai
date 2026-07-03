@@ -29,18 +29,50 @@ export default function MetricChip({ icon, label, value, color = COLORS.textSeco
           <Ionicons name={icon} size={ICON_SIZE.sm} color={color} />
         </View>
       )}
-      <Text variant="caption" color={COLORS.textMuted} style={styles.label} numberOfLines={1}>{label}</Text>
-      <Text variant="body" weight="bold" numeric color={COLORS.text} style={styles.value} numberOfLines={1}>{value}</Text>
+      {/* Two lines instead of one — a hard 1-line truncation on a narrow
+          column is what turned "Bench Press Trend" / "Injury Status" into
+          "BENCH PR…" / "INJURY ST…" in a 3-5 column row. Two lines gives
+          almost every real label (Recovery, Sleep, Protein, Bench Press
+          Trend, Injury Status, Shoulder Pain) room to render in full. */}
+      <Text
+        variant="caption"
+        color={COLORS.textMuted}
+        style={styles.label}
+        numberOfLines={2}
+      >
+        {label}
+      </Text>
+      {/* Values can also run long ("Not logged today") — shrink to fit
+          rather than clipping into an ellipsis, so the number/word is
+          always fully readable at a glance. */}
+      <Text
+        variant="body"
+        weight="bold"
+        numeric
+        color={COLORS.text}
+        style={styles.value}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.72}
+      >
+        {value}
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, alignItems: 'center', gap: 4 },
+  wrap: { flexGrow: 1, flexShrink: 1, flexBasis: 0, alignItems: 'center', gap: 4, minWidth: 64 },
   iconWrap: {
     width: 32, height: 32, borderRadius: RADIUS.badge,
     alignItems: 'center', justifyContent: 'center', marginBottom: 2,
   },
-  label: { textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 9 },
-  value: { fontSize: 13 },
+  label: {
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    fontSize: 9,
+    lineHeight: 12,
+    textAlign: 'center',
+  },
+  value: { fontSize: 13, textAlign: 'center' },
 });

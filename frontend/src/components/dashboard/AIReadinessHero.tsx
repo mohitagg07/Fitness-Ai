@@ -175,6 +175,7 @@ export default function AIReadinessHero({ workoutType, workoutStreak, estimatedM
               label={s.label}
               value={s.value}
               color={s.favorable ? COLORS.recoveryHigh : COLORS.recoveryLow}
+              style={styles.metricChip}
             />
           ))}
         </View>
@@ -279,10 +280,16 @@ const styles = StyleSheet.create({
   mainLeft: { flex: 1, paddingRight: SPACING.sm },
   decisionTitle: { fontSize: 30, lineHeight: 34 },
   metricsRow: {
-    flexDirection: 'row', justifyContent: 'space-between',
+    // Was a single unwrapping row forcing 5 columns into the card width,
+    // which is what forced 1-line-ellipsis labels like "BENCH PR…" and
+    // "INJURY ST…". Wrapping to ~3 per row gives each chip roughly 50%
+    // more width, and MetricChip's 2-line label now has room to use it.
+    flexDirection: 'row', flexWrap: 'wrap',
+    rowGap: SPACING.md, columnGap: SPACING.sm,
     paddingVertical: SPACING.md, marginBottom: SPACING.lg,
     borderTopWidth: 1, borderBottomWidth: 1, borderColor: COLORS.cardBorder,
   },
+  metricChip: { flexGrow: 0, flexShrink: 0, flexBasis: '30%' },
   ctaRow: { flexDirection: 'row', marginBottom: SPACING.sm },
   whyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: SPACING.sm },
   whyPanel: {
