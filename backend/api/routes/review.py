@@ -11,16 +11,85 @@ program (triggers run_program_rewriter and returns the resulting diff).
 
 Query params:
   weeks_ago / months_ago: int (default 0 = current period, 1 = previous)
+
+PERF: GET /weekly used to call generate_weekly_review() — a full LLM
+narrative generation — on every single request, including every dashboard
+load that mounts PredictionCard. The nightly scheduler's job_weekly_review()
+already upserts into weekly_reviews_cache and its own docstring says this
+route "falls back to live generation if no cache exists" — but the route
+never actually checked the cache table, so that comment described intended
+behavior that was never wired up. This was the main source of "dashboard
+feels slow": a multi-second synchronous Groq call on every page load, for
+data that only changes once a day at most.
+Fixed with a standard cache-aside read: check weekly_reviews_cache for this
+week_label first; on a hit, return it instantly with no LLM call; on a
+miss, generate live (as before) and warm the cache so the *next* load this
+week is instant too, without waiting for Sunday's scheduled job.
 """
 import asyncio
+from datetime import date, timedelta
 from fastapi import APIRouter, Depends
 from core.security import get_current_user
-from agents.weekly_review_agent import generate_weekly_review
+from agents.weekly_review_agent import generate_weekly_review, _week_range
 from agents.monthly_review_agent import generate_monthly_review
+from db.supabase_client import get_supabase
 import logging
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Review"])
+
+
+def _read_weekly_cache(user_id: str, week_label: str) -> dict | None:
+    try:
+        sb = get_supabase()
+        res = (
+            sb.table("weekly_reviews_cache")
+            .select("payload, generated_at")
+            .eq("user_id", user_id)
+            .eq("week_label", week_label)
+            .limit(1)
+            .execute()
+        )
+        if res.data:
+            row = res.data[0]
+            return {**row["payload"], "week_label": week_label, "generated_at": row["generated_at"]}
+    except Exception as e:
+        # Missing table / connectivity issue — fall through to live generation
+        # rather than failing the whole request over a cache-layer problem.
+        logger.warning(f"weekly_reviews_cache read failed, falling back to live: {e}")
+    return None
+
+
+def _write_weekly_cache(user_id: str, week_label: str, review) -> None:
+    try:
+        sb = get_supabase()
+        sb.table("weekly_reviews_cache").upsert({
+            "user_id": user_id,
+            "week_label": week_label,
+            "payload": {
+                "consistency_pct": review.consistency_pct,
+                "sessions_completed": review.sessions_completed,
+                "sessions_planned": review.sessions_planned,
+                "avg_recovery_score": review.avg_recovery_score,
+                "avg_protein_g": review.avg_protein_g,
+                "protein_target_g": review.protein_target_g,
+                "protein_adherence_pct": review.protein_adherence_pct,
+                "avg_calories": review.avg_calories,
+                "calories_target": review.calories_target,
+                "calories_adherence_pct": review.calories_adherence_pct,
+                "best_lift": review.best_lift,
+                "strength_gains": review.strength_gains,
+                "highlights": review.highlights,
+                "needs_attention": review.needs_attention,
+                "next_week_strategy": review.next_week_strategy,
+                "confidence": review.confidence,
+            },
+            "generated_at": review.generated_at,
+        }, on_conflict="user_id,week_label").execute()
+    except Exception as e:
+        # Cache write failing shouldn't fail a request that already has its
+        # (live-generated) answer — just means the next load pays again.
+        logger.warning(f"weekly_reviews_cache write failed for {user_id}: {e}")
 
 
 @router.get("/weekly")
@@ -34,6 +103,12 @@ async def get_weekly_review(
     or any time to see the current week so far (weeks_ago=0).
     """
     user_id = current_user["user_id"]
+    start, end = _week_range(weeks_ago)
+    week_label = f"{start.strftime('%b %d')} – {end.strftime('%b %d, %Y')}"
+
+    cached = await asyncio.to_thread(_read_weekly_cache, user_id, week_label)
+    if cached is not None:
+        return cached
 
     try:
         review = await asyncio.to_thread(generate_weekly_review, user_id, weeks_ago)
@@ -43,6 +118,8 @@ async def get_weekly_review(
             "error": "Could not generate weekly review",
             "detail": str(e),
         }
+
+    await asyncio.to_thread(_write_weekly_cache, user_id, week_label, review)
 
     return {
         "week_label": review.week_label,

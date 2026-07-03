@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from schemas.models import SetLog
 from core.security import get_current_user
 from db.supabase_client import get_supabase, upsert_agent_state, get_full_user_context
+from services.pr_validator import validate_logged_weight
 from typing import Optional
 from pydantic import BaseModel, Field
 
@@ -342,11 +343,24 @@ async def complete_session(
             old_pr = existing_prs.get(name)
             if old_pr is None or best["weight_kg"] > old_pr:
                 delta = round(best["weight_kg"] - old_pr, 1) if old_pr is not None else None
+
+                # Sanity-check implausible jumps (e.g. a mis-typed weight_kg
+                # like 500 instead of 50) before treating this as a confirmed
+                # PR. This doesn't block the log or the upsert below — the
+                # set was genuinely performed and stays recorded either way
+                # — it just surfaces `needs_review` so the frontend can ask
+                # "log this as-is?" instead of silently celebrating a typo.
+                needs_review = False
+                if old_pr is not None:
+                    check = validate_logged_weight(name, best["weight_kg"], {name: old_pr})
+                    needs_review = not check["valid"]
+
                 new_prs.append({
                     "exercise_name": name,
                     "weight_kg": best["weight_kg"],
                     "previous_pr_kg": old_pr,
                     "delta_kg": delta,
+                    "needs_review": needs_review,
                 })
                 try:
                     sb.table("personal_records").upsert({
@@ -601,6 +615,24 @@ async def log_set(
 ):
     sb = get_supabase()
     user_id = current_user["user_id"]
+
+    # SECURITY: session_id comes from the URL and is otherwise attacker-
+    # controlled — without this check, any authenticated user could pass
+    # someone else's session_id here and insert exercise_logs rows into
+    # a session they don't own (an IDOR write, not just a read leak).
+    # Every other /sessions/{session_id}/... route in this file already
+    # scopes its query with .eq("user_id", user_id); this endpoint was
+    # the one place that didn't, so it's fixed to match.
+    owner_check = (
+        sb.table("workout_sessions")
+        .select("id")
+        .eq("id", session_id)
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
+    )
+    if not owner_check.data:
+        raise HTTPException(404, "Session not found")
 
     # FIX: Auto-compute set_number so the frontend doesn't need to track it.
     existing_res = (

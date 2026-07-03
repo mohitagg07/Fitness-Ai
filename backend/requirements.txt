@@ -10,7 +10,6 @@ pydantic-settings
 
 # Auth & Security
 python-jose[cryptography]
-passlib[bcrypt]
 
 # Database
 supabase
