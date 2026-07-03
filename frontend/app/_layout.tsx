@@ -15,22 +15,30 @@
 // / onboarding" bar. A Stack has no such fallback.
 
 import { Stack } from 'expo-router';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { COLORS } from '../src/theme/colors';
 
 export default function RootLayout() {
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: COLORS.background },
-        animation: 'fade',
-      }}
-    >
-      <Stack.Screen name="index" />
-      <Stack.Screen name="login" />
-      <Stack.Screen name="register" />
-      <Stack.Screen name="onboarding" />
-      <Stack.Screen name="(tabs)" />
-    </Stack>
+    // Required wrapper for useSafeAreaInsets() to work in any screen below —
+    // that's what lets headers ask "how much clearance does THIS phone's
+    // notch/status bar/camera cutout actually need" instead of guessing a
+    // fixed pixel number that's wrong on most devices. See the header
+    // components in src/components/*/ for where insets.top is now used.
+    <SafeAreaProvider>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: COLORS.background },
+          animation: 'fade',
+        }}
+      >
+        <Stack.Screen name="index" />
+        <Stack.Screen name="login" />
+        <Stack.Screen name="register" />
+        <Stack.Screen name="onboarding" />
+        <Stack.Screen name="(tabs)" />
+      </Stack>
+    </SafeAreaProvider>
   );
 }

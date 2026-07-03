@@ -21,6 +21,7 @@ import {
   StyleSheet, ActivityIndicator, Alert, Modal, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nutritionApi, describeApiError } from '../../utils/api';
 import { COLORS } from '../../theme/colors';
 
@@ -48,6 +49,7 @@ export default function NutritionSearchModal({
   onClose: () => void;
   onLogged: () => void; // parent calls loadData() again after a successful log
 }) {
+  const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<FoodResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -156,7 +158,7 @@ export default function NutritionSearchModal({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
           <TouchableOpacity onPress={closeAndReset} style={styles.closeBtn}>
             <Ionicons name="close" size={22} color={COLORS.text} />
           </TouchableOpacity>
@@ -307,7 +309,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingTop: 56, paddingBottom: 14,
+    paddingHorizontal: 16, paddingBottom: 14,
     borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
   closeBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },

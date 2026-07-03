@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Path, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { coachApi, dashboardApi, missionApi, describeApiError } from '../../utils/api';
 import { useStore } from '../../store';
 import { COLORS, alpha, recoveryColor } from '../../theme/colors';
@@ -617,6 +618,7 @@ function MiniStat({ label, value, color }: { label: string; value: number; color
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function CoachScreen() {
+  const insets = useSafeAreaInsets();
   const [input, setInput]   = useState('');
   const [loading, setLoading] = useState(false);
   const [serverStatus, setServerStatus] = useState<'online' | 'offline' | 'unknown'>('unknown');
@@ -717,7 +719,7 @@ export default function CoachScreen() {
       keyboardVerticalOffset={90}
     >
       {/* Header */}
-      <View style={S.header}>
+      <View style={[S.header, { paddingTop: insets.top + 12 }]}>
         <View style={S.headerTopRow}>
           <Logo size="sm" />
           <View style={S.headerTitleCol}>
@@ -960,7 +962,7 @@ const S = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
 
   header: {
-    paddingHorizontal: 20, paddingTop: 56, paddingBottom: 12,
+    paddingHorizontal: 20, paddingBottom: 12,
     borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 12,
   },
   headerTopRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },

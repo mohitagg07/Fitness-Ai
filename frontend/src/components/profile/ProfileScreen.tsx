@@ -21,6 +21,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import { profileApi, dashboardApi, progressApi, describeApiError } from '../../utils/api';
@@ -71,6 +72,7 @@ interface Injury { id: string; body_part: string; issue_type: string; severity: 
 interface PR { id: string; exercise_name: string; weight_kg: number; reps: number; achieved_at?: string; }
 
 export default function ProfileScreen() {
+  const insets = useSafeAreaInsets();
   const { user, logout } = useStore();
   const [profile, setProfile] = useState<Profile>({});
   const [injuries, setInjuries] = useState<Injury[]>([]);
@@ -211,7 +213,7 @@ export default function ProfileScreen() {
       />
 
       <ScrollView style={styles.container}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
           <View style={styles.logoBar}><Logo size="sm" /></View>
 
           <TouchableOpacity style={styles.avatarWrap} onPress={pickAvatar} disabled={uploadingAvatar}>
@@ -513,7 +515,7 @@ function EditProfileModal({
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1, backgroundColor: COLORS.background }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.modalHeader}>
+        <View style={[styles.modalHeader, { paddingTop: insets.top + 14 }]}>
           <TouchableOpacity onPress={onClose}><Text style={styles.modalCancel}>Cancel</Text></TouchableOpacity>
           <Text style={styles.modalTitle}>Edit Profile</Text>
           <TouchableOpacity onPress={save} disabled={saving}>
@@ -640,7 +642,7 @@ function SegmentedRow({ options, value, onChange, wrapLabels }: { options: strin
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   center: { flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' },
-  header: { alignItems: 'center', paddingTop: 56, paddingBottom: 20, paddingHorizontal: 20 },
+  header: { alignItems: 'center', paddingBottom: 20, paddingHorizontal: 20 },
   logoBar: { alignSelf: 'stretch', marginBottom: 20 },
 
   avatarWrap: { width: 88, height: 88, marginBottom: 12 },
@@ -729,7 +731,7 @@ const styles = StyleSheet.create({
   // Modal
   modalHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingTop: 56, paddingBottom: 14, paddingHorizontal: 18,
+    paddingBottom: 14, paddingHorizontal: 18,
     borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
   modalTitle: { color: COLORS.text, fontSize: 16, fontWeight: '700' },

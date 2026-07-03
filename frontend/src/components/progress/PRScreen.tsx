@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { profileApi } from '../../utils/api';
 import { COLORS } from '../../theme/colors';
 import Logo from '../shared/Logo';
@@ -67,6 +68,7 @@ function PRCard({ pr }: { pr: PR }) {
 }
 
 export default function PRScreen() {
+  const insets = useSafeAreaInsets();
   const [prs, setPrs] = useState<PR[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -134,7 +136,7 @@ export default function PRScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <View style={styles.headerTop}>
           <Logo size="sm" />
           <View style={styles.trophyBig}>

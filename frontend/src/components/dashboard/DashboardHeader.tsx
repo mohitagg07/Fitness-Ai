@@ -12,6 +12,7 @@ import React, { useEffect, useState } from 'react';
 import { View, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { decisionsApi } from '../../utils/api';
 import { COLORS, alpha, recoveryColor } from '../../theme/colors';
 import { SPACING, RADIUS } from '../../theme/spacing';
@@ -28,6 +29,7 @@ interface Props {
 }
 
 export default function DashboardHeader({ firstName, aiSentence, recoveryScore0to10, avatarUrl }: Props) {
+  const insets = useSafeAreaInsets();
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   const score100 = Math.round(recoveryScore0to10 * 10);
@@ -56,7 +58,7 @@ export default function DashboardHeader({ firstName, aiSentence, recoveryScore0t
   }, []);
 
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, { paddingTop: insets.top + SPACING.sm }]}>
       <View style={styles.topRow}>
         <View style={styles.left}>
           <Logo size="sm" />
@@ -118,7 +120,7 @@ export default function DashboardHeader({ firstName, aiSentence, recoveryScore0t
 }
 
 const styles = StyleSheet.create({
-  wrap: { paddingHorizontal: SPACING.lg, paddingTop: 48, paddingBottom: SPACING.md },
+  wrap: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md },
   left: { flexDirection: 'row', alignItems: 'center' },
   right: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },

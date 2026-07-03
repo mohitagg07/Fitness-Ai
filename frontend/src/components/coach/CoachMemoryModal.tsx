@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { coachApi, describeApiError } from '../../utils/api';
 import { COLORS } from '../../theme/colors';
 
@@ -35,6 +36,7 @@ function cap(s?: string | null): string {
 }
 
 export default function CoachMemoryModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [data, setData] = useState<MemoryData | null>(null);
@@ -62,7 +64,7 @@ export default function CoachMemoryModal({ visible, onClose }: { visible: boolea
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.root}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
           <View style={{ width: 60 }} />
           <Text style={styles.title}>Coach Memory</Text>
           <TouchableOpacity onPress={onClose} style={{ width: 60, alignItems: 'flex-end' }}>
@@ -170,7 +172,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.background },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingTop: 56, paddingBottom: 14, paddingHorizontal: 16,
+    paddingBottom: 14, paddingHorizontal: 16,
     borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
   title: { color: COLORS.text, fontSize: 16, fontWeight: '700' },
