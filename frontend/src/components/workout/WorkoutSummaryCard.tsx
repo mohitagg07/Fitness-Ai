@@ -1,14 +1,21 @@
 /**
  * WorkoutSummaryCard — the Workout Complete event.
  *
- * Previously this was a plain stats grid. Finishing a workout is the
- * single moment in the app most worth making memorable, so this now:
+ * The single moment in the app most worth making memorable:
  *   - count-up animates every number instead of snapping to a final value
  *   - fires a confetti burst + success haptic when there's a new PR
  *   - shows tomorrow's recovery % as a small ring, not just a word
  *   - surfaces the deterministic coach_message from the backend (see
  *     workouts.py's complete_session — grounded in this session's own
  *     numbers, never invented)
+ *   - the sheet itself rises in, then its sections fade up one after
+ *     another (hero → stats → PRs → recovery/coach → best set → CTA) so
+ *     the reveal reads as a small ceremony instead of a data dump
+ *
+ * Built entirely on the shared design tokens now (COLORS/RADIUS/SPACING/
+ * ELEVATION) instead of one-off hex values, and the PR list uses plain
+ * rows on the card's own elevated surface rather than a bordered pill —
+ * consistent with the rest of the app after the Badge rework.
  *
  * Sound is intentionally not wired in yet — this app has no audio
  * dependency installed (expo-av/expo-audio), and I'm not silently adding
@@ -17,15 +24,19 @@
  */
 import React, { useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Modal, Animated,
+  View, StyleSheet, Modal, Animated, Easing,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import Svg, { Circle } from 'react-native-svg';
-import { COLORS } from '../../theme/colors';
+import { COLORS, alpha } from '../../theme/colors';
+import { RADIUS, SPACING } from '../../theme/spacing';
+import { ELEVATION } from '../../theme/layout';
+import Text from '../ui/Text';
+import Button from '../ui/Button';
 import CountUpNumber from '../shared/CountUpNumber';
 import ConfettiBurst from './ConfettiBurst';
-import Logo from '../shared/Logo';
 
 interface NewPR {
   exercise_name: string;
@@ -76,7 +87,7 @@ function RecoveryRing({ pct }: { pct: number }) {
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
-        <Circle cx={size / 2} cy={size / 2} r={radius} stroke="#222" strokeWidth={stroke} fill="none" />
+        <Circle cx={size / 2} cy={size / 2} r={radius} stroke={COLORS.cardBorder} strokeWidth={stroke} fill="none" />
         <Circle
           cx={size / 2} cy={size / 2} r={radius}
           stroke={color} strokeWidth={stroke} fill="none"
@@ -87,139 +98,189 @@ function RecoveryRing({ pct }: { pct: number }) {
           origin={`${size / 2}, ${size / 2}`}
         />
       </Svg>
-      <Text style={[recStyles.pct, { color }]}>{Math.round(clamped)}%</Text>
+      <Text variant="caption" weight="bold" numeric color={color} style={recStyles.pct}>{Math.round(clamped)}%</Text>
     </View>
   );
 }
 
+// A section that fades + rises in on a stagger, driven by the parent's
+// mount value so every sub-block reveals in sequence rather than at once.
+function Reveal({ mount, delay, children, style }: { mount: Animated.Value; delay: number; children: React.ReactNode; style?: any }) {
+  const opacity = mount.interpolate({
+    inputRange: [delay, Math.min(delay + 0.22, 1)],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+  const translateY = mount.interpolate({
+    inputRange: [delay, Math.min(delay + 0.22, 1)],
+    outputRange: [10, 0],
+    extrapolate: 'clamp',
+  });
+  return <Animated.View style={[{ opacity, transform: [{ translateY }] }, style]}>{children}</Animated.View>;
+}
+
 export default function WorkoutSummaryCard({ visible, data, onClose }: Props) {
   const scaleIn = useRef(new Animated.Value(0.9)).current;
-  // Logo "stamp-in" — starts small + rotated, overshoots past 1 on the way
-  // in so the mark reads as a celebratory stamp rather than a static icon.
-  const logoScale = useRef(new Animated.Value(0)).current;
-  const logoRotate = useRef(new Animated.Value(-1)).current;
+  // Logo/badge "stamp-in" — starts small + rotated, overshoots past 1 on
+  // the way in so the mark reads as a celebratory stamp, not a static icon.
+  const badgeScale = useRef(new Animated.Value(0)).current;
+  const badgeRotate = useRef(new Animated.Value(-1)).current;
+  // Drives the staggered Reveal sections below the hero (0 → 1).
+  const mount = useRef(new Animated.Value(0)).current;
   const [confettiActive, setConfettiActive] = React.useState(false);
 
   useEffect(() => {
     if (!visible || !data) return;
     scaleIn.setValue(0.9);
-    logoScale.setValue(0);
-    logoRotate.setValue(-1);
+    badgeScale.setValue(0);
+    badgeRotate.setValue(-1);
+    mount.setValue(0);
+
     Animated.spring(scaleIn, { toValue: 1, useNativeDriver: true, friction: 7, tension: 70 }).start();
     Animated.sequence([
       Animated.delay(120),
       Animated.parallel([
-        Animated.spring(logoScale, { toValue: 1, useNativeDriver: true, friction: 5, tension: 60 }),
-        Animated.spring(logoRotate, { toValue: 0, useNativeDriver: true, friction: 6, tension: 50 }),
+        Animated.spring(badgeScale, { toValue: 1, useNativeDriver: true, friction: 5, tension: 60 }),
+        Animated.spring(badgeRotate, { toValue: 0, useNativeDriver: true, friction: 6, tension: 50 }),
+        Animated.timing(mount, { toValue: 1, duration: 520, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       ]),
     ]).start();
 
     const hasPRs = (data.new_prs?.length || 0) > 0;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     if (hasPRs) {
-      // Small delay so the burst reads as a reaction to the PR badge appearing,
+      // Small delay so the burst reads as a reaction to the PR row appearing,
       // not a generic "modal opened" flourish.
-      const t = setTimeout(() => setConfettiActive(true), 200);
+      const t = setTimeout(() => setConfettiActive(true), 320);
       return () => clearTimeout(t);
     }
     setConfettiActive(false);
   }, [visible, data]);
 
-  const logoSpin = logoRotate.interpolate({ inputRange: [-1, 0], outputRange: ['-25deg', '0deg'] });
+  const badgeSpin = badgeRotate.interpolate({ inputRange: [-1, 0], outputRange: ['-25deg', '0deg'] });
 
   if (!data) return null;
 
   const prCount = data.new_prs?.length || 0;
+  const badgeColors: [string, string] = prCount > 0
+    ? [COLORS.gold, alpha(COLORS.gold, 0.7)]
+    : [COLORS.primaryGreen, alpha(COLORS.primaryGreen, 0.7)];
 
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.backdrop}>
         <ConfettiBurst active={confettiActive} />
         <Animated.View style={[styles.card, { transform: [{ scale: scaleIn }] }]}>
+          <View style={styles.grabber} />
+
           {/* Header */}
           <View style={styles.header}>
-            <View style={[styles.checkCircle, prCount > 0 && styles.checkCirclePR]}>
-              <Ionicons name={prCount > 0 ? 'trophy' : 'checkmark'} size={28} color="#000" />
-            </View>
-            <Text style={styles.title}>Workout Complete</Text>
-            <Text style={styles.subtitle}>
+            <Animated.View
+              style={[
+                styles.badgeGlow,
+                { shadowColor: prCount > 0 ? COLORS.gold : COLORS.primaryGreen },
+                { transform: [{ scale: badgeScale }, { rotate: badgeSpin }] },
+              ]}
+            >
+              <LinearGradient colors={badgeColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.badgeCircle}>
+                <Ionicons name={prCount > 0 ? 'trophy' : 'checkmark'} size={28} color="#000000" />
+              </LinearGradient>
+            </Animated.View>
+            <Text variant="hero" style={styles.title}>Workout Complete</Text>
+            <Text variant="body" color={COLORS.textSecondary} align="center" numberOfLines={1}>
               {prCount > 0 ? `${prCount} new personal record${prCount !== 1 ? 's' : ''} today.` : 'Great work. Session saved.'}
             </Text>
           </View>
 
-          {/* Stats grid — count-up */}
-          <View style={styles.grid}>
-            {data.session_minutes != null && (
-              <View style={styles.stat}>
-                <CountUpNumber value={data.session_minutes} style={styles.statVal} suffix="m" />
-                <Text style={styles.statLabel}>Duration</Text>
-              </View>
-            )}
-            <View style={styles.stat}>
-              <CountUpNumber value={data.exercise_count} style={styles.statVal} />
-              <Text style={styles.statLabel}>Exercises</Text>
-            </View>
-            <View style={styles.stat}>
-              <CountUpNumber value={Math.round(data.total_volume_kg)} style={styles.statVal} suffix="kg" />
-              <Text style={styles.statLabel}>Total volume</Text>
-            </View>
-            <View style={styles.stat}>
-              <CountUpNumber value={prCount} style={[styles.statVal, prCount > 0 && { color: COLORS.recoveryMed }]} />
-              <Text style={styles.statLabel}>PRs</Text>
-            </View>
-          </View>
-
-          {/* PR badges */}
-          {prCount > 0 && (
-            <View style={styles.prList}>
-              {data.new_prs!.map((pr, i) => (
-                <View key={i} style={styles.prBadge}>
-                  <Ionicons name="trophy" size={13} color={COLORS.recoveryMed} />
-                  <Text style={styles.prText}>
-                    {pr.exercise_name}: {pr.weight_kg}kg
-                    {pr.delta_kg != null ? ` (+${pr.delta_kg}kg)` : ''}
-                  </Text>
+          {/* Stats grid — count-up, number-first */}
+          <Reveal mount={mount} delay={0.05} style={styles.grid}>
+            <>
+              {data.session_minutes != null && (
+                <View style={styles.stat}>
+                  <CountUpNumber value={data.session_minutes} style={styles.statVal as any} suffix="m" />
+                  <Text variant="caption" color={COLORS.textMuted}>Duration</Text>
                 </View>
-              ))}
-            </View>
+              )}
+              <View style={styles.stat}>
+                <CountUpNumber value={data.exercise_count} style={styles.statVal as any} />
+                <Text variant="caption" color={COLORS.textMuted}>Exercises</Text>
+              </View>
+              <View style={styles.stat}>
+                <CountUpNumber value={Math.round(data.total_volume_kg)} style={styles.statVal as any} suffix="kg" />
+                <Text variant="caption" color={COLORS.textMuted}>Total volume</Text>
+              </View>
+              <View style={styles.stat}>
+                <CountUpNumber
+                  value={prCount}
+                  style={[styles.statVal, prCount > 0 && { color: COLORS.gold }] as any}
+                />
+                <Text variant="caption" color={COLORS.textMuted}>PRs</Text>
+              </View>
+            </>
+          </Reveal>
+
+          {/* PR rows — plain rows on the card's elevated surface, no boxed pill */}
+          {prCount > 0 && (
+            <Reveal mount={mount} delay={0.16} style={styles.prList}>
+              <>
+                {data.new_prs!.map((pr, i) => (
+                  <View key={i} style={styles.prRow}>
+                    <Ionicons name="trophy" size={14} color={COLORS.gold} />
+                    <Text variant="body" weight="semibold" color={COLORS.text} numberOfLines={1} style={{ flex: 1 }}>
+                      {pr.exercise_name}: {pr.weight_kg}kg
+                    </Text>
+                    {pr.delta_kg != null && (
+                      <Text variant="caption" weight="bold" numeric color={COLORS.gold}>+{pr.delta_kg}kg</Text>
+                    )}
+                  </View>
+                ))}
+              </>
+            </Reveal>
           )}
 
           {/* Recovery tomorrow + Coach message */}
-          <View style={styles.bottomRow}>
-            {data.recovery_pct != null && (
-              <View style={styles.recoveryBlock}>
-                <RecoveryRing pct={data.recovery_pct} />
-                <Text style={styles.recoveryLabel}>Recovery{'\n'}Tomorrow</Text>
-              </View>
-            )}
-            {!!data.coach_message && (
-              <View style={styles.coachBlock}>
-                <Text style={styles.coachLabel}>COACH</Text>
-                <Text style={styles.coachMessage}>{data.coach_message}</Text>
-              </View>
-            )}
-          </View>
+          <Reveal mount={mount} delay={0.26} style={styles.bottomRow}>
+            <>
+              {data.recovery_pct != null && (
+                <View style={styles.recoveryBlock}>
+                  <RecoveryRing pct={data.recovery_pct} />
+                  <Text variant="caption" color={COLORS.textMuted} align="center" style={{ lineHeight: 13 }}>Recovery{'\n'}Tomorrow</Text>
+                </View>
+              )}
+              {!!data.coach_message && (
+                <View style={styles.coachBlock}>
+                  <Text variant="caption" weight="bold" color={COLORS.textDim} style={{ letterSpacing: 1.2 }}>COACH</Text>
+                  <Text variant="body" color={COLORS.textSecondary} numberOfLines={2} style={{ lineHeight: 19 }}>{data.coach_message}</Text>
+                </View>
+              )}
+            </>
+          </Reveal>
 
           {/* Best set (fallback detail if present) */}
           {data.best_set && (
-            <View style={styles.bestSet}>
-              <Text style={styles.bestSetLabel}>BEST SET</Text>
-              <Text style={styles.bestSetValue}>
-                {data.best_set.exercise}: {data.best_set.weight_kg}kg × {data.best_set.reps} reps
-                {data.best_set.rpe ? ` (RPE ${data.best_set.rpe})` : ''}
-              </Text>
-            </View>
+            <Reveal mount={mount} delay={0.34} style={styles.bestSet}>
+              <>
+                <Text variant="caption" weight="bold" color={COLORS.textDim} style={{ letterSpacing: 1.2, marginBottom: 4 }}>BEST SET</Text>
+                <Text variant="body" weight="semibold" numeric color={COLORS.text} numberOfLines={1}>
+                  {data.best_set.exercise}: {data.best_set.weight_kg}kg × {data.best_set.reps} reps
+                  {data.best_set.rpe ? ` (RPE ${data.best_set.rpe})` : ''}
+                </Text>
+              </>
+            </Reveal>
           )}
 
-          <TouchableOpacity
-            style={styles.closeBtn}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-              onClose();
-            }}
-          >
-            <Text style={styles.closeBtnText}>Done</Text>
-          </TouchableOpacity>
+          <Reveal mount={mount} delay={0.42}>
+            <Button
+              label="Done"
+              size="lg"
+              fullWidth
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                onClose();
+              }}
+              style={{ marginTop: SPACING.xs }}
+            />
+          </Reveal>
         </Animated.View>
       </View>
     </Modal>
@@ -227,64 +288,63 @@ export default function WorkoutSummaryCard({ visible, data, onClose }: Props) {
 }
 
 const recStyles = StyleSheet.create({
-  pct: { position: 'absolute', fontSize: 13, fontWeight: '800' },
+  pct: { position: 'absolute', fontSize: 13 },
 });
 
 const styles = StyleSheet.create({
   backdrop: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.7)',
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.72)',
     justifyContent: 'flex-end',
   },
   card: {
-    backgroundColor: '#1C1C1C', borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: 28, borderTopWidth: 1, borderColor: '#2A2A2A',
+    backgroundColor: COLORS.card,
+    borderTopLeftRadius: RADIUS.card, borderTopRightRadius: RADIUS.card,
+    padding: SPACING.xl, paddingTop: SPACING.md,
+    borderTopWidth: 1, borderColor: COLORS.borderLight,
   },
-  header: { alignItems: 'center', marginBottom: 24 },
-  checkCircle: {
-    width: 60, height: 60, borderRadius: 30, backgroundColor: COLORS.primaryGreen,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 12,
+  grabber: {
+    width: 36, height: 4, borderRadius: 2, backgroundColor: COLORS.border,
+    alignSelf: 'center', marginBottom: SPACING.lg,
   },
-  checkCirclePR: { backgroundColor: COLORS.recoveryMed },
-  title: { color: '#FFF', fontSize: 22, fontWeight: '700', marginBottom: 4 },
-  subtitle: { color: '#888', fontSize: 14, textAlign: 'center' },
+  header: { alignItems: 'center', marginBottom: SPACING.lg },
+  badgeGlow: {
+    marginBottom: SPACING.sm,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 18,
+    elevation: 10,
+  },
+  badgeCircle: {
+    width: 60, height: 60, borderRadius: 30,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  title: { marginBottom: 4 },
+
   grid: {
     flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-around',
-    backgroundColor: '#141414', borderRadius: 12, padding: 16, marginBottom: 16,
-    borderWidth: 1, borderColor: '#222',
+    backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.card - 8, padding: SPACING.lg,
+    marginBottom: SPACING.md, borderWidth: 1, borderColor: COLORS.cardBorder,
   },
-  stat: { alignItems: 'center', minWidth: '40%', marginBottom: 8 },
-  statVal: { color: COLORS.primaryGreen, fontSize: 22, fontWeight: '800' },
-  statLabel: { color: '#666', fontSize: 11, marginTop: 2 },
+  stat: { alignItems: 'center', minWidth: '40%', marginBottom: SPACING.sm, gap: 2 },
+  statVal: { color: COLORS.primaryGreen, fontSize: 24, fontWeight: '800' },
 
-  prList: { gap: 6, marginBottom: 16 },
-  prBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#1A1606', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12,
-    borderWidth: 1, borderColor: COLORS.recoveryMed + '40',
+  prList: { gap: SPACING.xs, marginBottom: SPACING.md },
+  prRow: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.badge + 2,
+    paddingVertical: SPACING.sm, paddingHorizontal: SPACING.md,
   },
-  prText: { color: '#EFE6C0', fontSize: 12, fontWeight: '600', flex: 1 },
 
   bottomRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: '#141414', borderRadius: 12, padding: 14, marginBottom: 16,
-    borderWidth: 1, borderColor: '#222',
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
+    backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.card - 8, padding: SPACING.md,
+    marginBottom: SPACING.md, borderWidth: 1, borderColor: COLORS.cardBorder,
   },
   recoveryBlock: { alignItems: 'center', gap: 6 },
-  recoveryLabel: { color: '#666', fontSize: 9, fontWeight: '700', textAlign: 'center', lineHeight: 12 },
   coachBlock: { flex: 1, gap: 4 },
-  coachLabel: { color: '#555', fontSize: 9, fontWeight: '700', letterSpacing: 1.2 },
-  coachMessage: { color: '#DDD', fontSize: 13, lineHeight: 19 },
 
   bestSet: {
-    backgroundColor: '#141414', borderRadius: 10, padding: 12,
-    marginBottom: 12, borderWidth: 1, borderColor: '#222',
+    backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.badge + 2, padding: SPACING.md,
+    marginBottom: SPACING.md, borderWidth: 1, borderColor: COLORS.cardBorder,
   },
-  bestSetLabel: { color: '#555', fontSize: 10, fontWeight: '700', letterSpacing: 1.2, marginBottom: 4 },
-  bestSetValue: { color: '#DDD', fontSize: 13, fontWeight: '600' },
-
-  closeBtn: {
-    backgroundColor: COLORS.primaryGreen, borderRadius: 14,
-    paddingVertical: 16, alignItems: 'center', marginTop: 4,
-  },
-  closeBtnText: { color: '#000', fontSize: 15, fontWeight: '800', letterSpacing: 0.5 },
 });

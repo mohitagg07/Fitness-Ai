@@ -13,11 +13,13 @@
  * as ConfettiBurst/CountUpNumber (RN's own Animated API only).
  */
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, Modal, Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { COLORS, alpha } from '../../theme/colors';
+import { RADIUS, SPACING } from '../../theme/spacing';
 import { FONTS } from '../../theme/typography';
+import Button from '../ui/Button';
 import CountUpNumber from '../shared/CountUpNumber';
 import ConfettiBurst from './ConfettiBurst';
 import type { MilestoneInfo } from './WorkoutHUD';
@@ -83,17 +85,18 @@ export default function MilestoneCelebration({ visible, data, onClose }: Props) 
             <Text style={[styles.streakUnit, { color: accent }]}>days</Text>
           </View>
           <Text style={styles.title}>{data.title}</Text>
-          <Text style={styles.message}>{data.message}</Text>
+          <Text style={styles.message} numberOfLines={2}>{data.message}</Text>
 
-          <TouchableOpacity
-            style={[styles.closeBtn, { backgroundColor: accent }]}
+          <Button
+            label="Keep Going"
+            size="lg"
+            fullWidth
+            accentColor={accent}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
               onClose();
             }}
-          >
-            <Text style={styles.closeBtnText}>Keep Going</Text>
-          </TouchableOpacity>
+          />
         </Animated.View>
       </View>
     </Modal>
@@ -106,14 +109,14 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', padding: 28,
   },
   card: {
-    width: '100%', maxWidth: 380, backgroundColor: '#141414', borderRadius: 28,
-    borderWidth: 1, borderColor: '#242424', padding: 32, alignItems: 'center',
+    width: '100%', maxWidth: 380, backgroundColor: COLORS.card, borderRadius: RADIUS.card,
+    borderWidth: 1, borderColor: COLORS.borderLight, padding: 32, alignItems: 'center',
   },
   glowWrap: { width: 96, height: 96, alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
   glow: { position: 'absolute', width: 96, height: 96, borderRadius: 48 },
   iconRing: {
     width: 72, height: 72, borderRadius: 36, borderWidth: 2,
-    alignItems: 'center', justifyContent: 'center', backgroundColor: '#0D0D0D',
+    alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.cardElevated,
   },
   eyebrow: {
     color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 11,
@@ -122,8 +125,6 @@ const styles = StyleSheet.create({
   streakRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, marginBottom: 4 },
   streakNum: { fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 52, lineHeight: 56 },
   streakUnit: { fontFamily: FONTS.semibold, fontSize: 16, marginBottom: 8 },
-  title: { color: '#FFF', fontFamily: FONTS.extrabold, fontSize: 20, marginBottom: 10, textAlign: 'center' },
-  message: { color: '#AAA', fontFamily: FONTS.regular, fontSize: 14, lineHeight: 20, textAlign: 'center', marginBottom: 26 },
-  closeBtn: { width: '100%', borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
-  closeBtnText: { color: '#000', fontFamily: FONTS.extrabold, fontSize: 15, letterSpacing: 0.5 },
+  title: { color: COLORS.text, fontFamily: FONTS.extrabold, fontSize: 20, marginBottom: 10, textAlign: 'center' },
+  message: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 14, lineHeight: 20, textAlign: 'center', marginBottom: 26 },
 });

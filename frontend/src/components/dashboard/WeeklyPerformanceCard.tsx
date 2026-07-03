@@ -63,7 +63,7 @@ export default function WeeklyPerformanceCard() {
     return (
       <View style={styles.card}>
         <SectionLabel label="WEEKLY PERFORMANCE" icon="stats-chart" color={COLORS.recoveryBlue} />
-        <Text variant="body" color={COLORS.textMuted} style={{ lineHeight: 19 }}>
+        <Text variant="body" color={COLORS.textMuted} numberOfLines={2} style={{ lineHeight: 19 }}>
           Complete a workout this week to see your volume, training time, and intensity here.
         </Text>
       </View>
@@ -96,8 +96,8 @@ export default function WeeklyPerformanceCard() {
             <Ionicons name="trophy" size={14} color={COLORS.gold} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text variant="caption" color={COLORS.textMuted}>LATEST PR · {latestPR.date}</Text>
-            <Text variant="body" weight="bold" numeric color={COLORS.text}>
+            <Text variant="caption" color={COLORS.textMuted} numberOfLines={1}>LATEST PR · {latestPR.date}</Text>
+            <Text variant="body" weight="bold" numeric color={COLORS.text} numberOfLines={1}>
               {latestPR.lift} — {latestPR.weight_kg}kg × {latestPR.reps}
             </Text>
           </View>
@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
   card: {
     marginHorizontal: SPACING.lg, marginBottom: SPACING.md,
     backgroundColor: COLORS.card, borderRadius: RADIUS.card,
-    borderWidth: 1, borderColor: COLORS.cardBorder, padding: SPACING.lg,
+    borderWidth: 1, borderColor: COLORS.cardBorder, padding: SPACING.xl,
   },
   statsGrid: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   stat: { alignItems: 'center', gap: 3, flex: 1 },

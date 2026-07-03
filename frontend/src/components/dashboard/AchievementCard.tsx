@@ -73,7 +73,7 @@ export default function AchievementCard({ workoutStreak }: { workoutStreak: numb
           <Text variant="body" weight="bold" numeric color={COLORS.gold}>+{current.xp} XP</Text>
         </View>
       ) : (
-        <Text variant="body" color={COLORS.textSecondary} style={{ marginBottom: SPACING.sm }}>
+        <Text variant="body" color={COLORS.textSecondary} numberOfLines={1} style={{ marginBottom: SPACING.sm }}>
           You're {next.days - workoutStreak} days from your first achievement.
         </Text>
       )}
@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
   card: {
     marginHorizontal: SPACING.lg, marginBottom: SPACING.md,
     backgroundColor: '#14100A', borderRadius: RADIUS.card,
-    borderWidth: 1, borderColor: alpha(COLORS.gold, 0.25), padding: SPACING.lg,
+    borderWidth: 1, borderColor: alpha(COLORS.gold, 0.25), padding: SPACING.xl,
   },
   currentRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.md },
   badgeWrap: {

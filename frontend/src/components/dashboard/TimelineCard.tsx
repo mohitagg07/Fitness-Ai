@@ -76,9 +76,9 @@ export default function TimelineCard() {
               <View style={styles.eventContent}>
                 <View style={styles.eventTitleRow}>
                   <Ionicons name={event.icon as IoniconName} size={12} color={event.color} />
-                  <Text style={styles.eventTitle}>{event.title}</Text>
+                  <Text style={styles.eventTitle} numberOfLines={1}>{event.title}</Text>
                 </View>
-                {event.detail ? <Text style={styles.eventDetail}>{event.detail}</Text> : null}
+                {event.detail ? <Text style={styles.eventDetail} numberOfLines={1}>{event.detail}</Text> : null}
                 <Text style={styles.eventDate}>{formatDate(event.date)}</Text>
               </View>
             </View>

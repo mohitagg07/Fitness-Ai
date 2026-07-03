@@ -13,7 +13,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
   StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
-  Alert, ScrollView,
+  Alert, ScrollView, Animated, Easing,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Path, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
@@ -21,18 +21,22 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { coachApi, dashboardApi, missionApi, describeApiError } from '../../utils/api';
 import { useStore } from '../../store';
-import { COLORS, recoveryColor } from '../../theme/colors';
+import { COLORS, alpha, recoveryColor } from '../../theme/colors';
 import Logo from '../shared/Logo';
+import CircularProgress from '../ui/CircularProgress';
 import CoachMemoryModal from './CoachMemoryModal';
 
 // ─── Suggestion chips shown on empty state ────────────────────────────────────
+// Semantic color per topic (🟡 workout, 🔵 AI/logging, 🟢 recovery,
+// 🟣 coach/health) instead of every icon defaulting to green — green
+// should mean "recovery is good," not "this is a button."
 const SUGGESTIONS = [
-  { icon: 'barbell-outline',    text: "What's my workout today?" },
-  { icon: 'flash-outline',      text: "I just did Bench Press 80kg × 5 @ RPE 8" },
-  { icon: 'pulse-outline',      text: "How's my recovery looking?" },
-  { icon: 'time-outline',       text: "I only have 30 minutes today" },
-  { icon: 'medical-outline',    text: "My shoulder is sore" },
-  { icon: 'nutrition-outline',  text: "What should I eat to hit protein?" },
+  { icon: 'barbell-outline',    text: "What's my workout today?",              color: COLORS.gold },
+  { icon: 'flash-outline',      text: "I just did Bench Press 80kg × 5 @ RPE 8", color: COLORS.strain },
+  { icon: 'pulse-outline',      text: "How's my recovery looking?",            color: COLORS.recoveryHigh },
+  { icon: 'time-outline',       text: "I only have 30 minutes today",          color: COLORS.gold },
+  { icon: 'medical-outline',    text: "My shoulder is sore",                   color: COLORS.coachPurple },
+  { icon: 'nutrition-outline',  text: "What should I eat to hit protein?",     color: COLORS.recoveryHigh },
 ];
 
 // ─── Exercise thumbnail visual ─────────────────────────────────────────────
@@ -127,6 +131,41 @@ function ExercisePictogram({ pose, color }: { pose: ExercisePose; color: string 
   }
 }
 
+// Wraps the static pictogram in a slow, continuous breathing loop (scale
+// 1 → 1.08 → 1, ~1.6s) — reads as "this exercise is demonstrating a rep"
+// rather than a frozen icon. This is the honest version of "demo gif" we
+// can ship here: no licensed exercise photography/video exists to bundle
+// (copyright), so the motion itself carries the "this is alive" signal
+// instead of a fake photo would.
+function AnimatedPictogram({ pose, color }: { pose: ExercisePose; color: string }) {
+  const breathe = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(breathe, { toValue: 1, duration: 800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(breathe, { toValue: 0, duration: 800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+  const scale = breathe.interpolate({ inputRange: [0, 1], outputRange: [1, 1.1] });
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <ExercisePictogram pose={pose} color={color} />
+    </Animated.View>
+  );
+}
+
+function ExMetric({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <View style={C.exMetric}>
+      <Text style={C.exMetricValue} numberOfLines={1}>{value}</Text>
+      <Text style={C.exMetricLabel}>{label}</Text>
+    </View>
+  );
+}
+
 // ─── Shared primitives ────────────────────────────────────────────────────────
 function CardShell({
   color,
@@ -213,36 +252,40 @@ function WorkoutCard({ sd }: { sd: any }) {
           after a session is actually logged), so showing one here would be
           a made-up number rather than a real prediction. */}
 
-      {/* Table */}
+      {/* Exercise list — one self-contained row per exercise (big demo
+          tile, name, focus cue) with sets/reps/load/rest as a metric
+          strip underneath. Previously this was a rigid 5-column table;
+          on a 390px screen, a real exercise name + a "controlled descent"
+          cue had nowhere to go and wrapped mid-word right through the
+          numeric columns. Stacking fixes that structurally rather than
+          just shrinking the font. */}
       <View style={C.tableWrap}>
-        <View style={C.tableHead}>
-          <Text style={[C.th, { flex: 2.2 }]}>EXERCISE</Text>
-          <Text style={C.th}>SETS</Text>
-          <Text style={C.th}>REPS</Text>
-          <Text style={C.th}>LOAD</Text>
-          <Text style={C.th}>REST</Text>
-        </View>
         {exercises.map((ex: any, i: number) => {
           const visual = exerciseVisual(ex.name);
           return (
-            <View key={i} style={[C.tableRow, i % 2 === 1 && C.tableRowAlt]}>
-              <View style={{ flex: 2.2, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View key={i} style={[C.exRow, i % 2 === 1 && C.tableRowAlt]}>
+              <View style={C.exHeaderRow}>
                 <LinearGradient
-                  colors={[visual.from + '33', visual.to]}
+                  colors={[alpha(visual.from, 0.35), visual.to]}
                   start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                  style={[C.exThumb, { borderColor: visual.from + '55' }]}
+                  style={[C.exThumb, { borderColor: alpha(visual.from, 0.5) }]}
                 >
-                  <ExercisePictogram pose={visual.pose} color={visual.from} />
+                  <AnimatedPictogram pose={visual.pose} color={visual.from} />
                 </LinearGradient>
-                <View style={{ flex: 1 }}>
-                  <Text style={C.exName}>{ex.name}</Text>
-                  {ex.focus ? <Text style={C.exFocus}>{ex.focus}</Text> : null}
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={C.exName} numberOfLines={2}>{ex.name}</Text>
+                  {ex.focus ? <Text style={C.exFocus} numberOfLines={1}>{ex.focus}</Text> : null}
                 </View>
               </View>
-              <Text style={C.td}>{ex.sets}</Text>
-              <Text style={C.td}>{ex.reps}</Text>
-              <Text style={C.td}>{ex.weight || '—'}</Text>
-              <Text style={C.td}>{ex.rest   || '—'}</Text>
+              <View style={C.exMetricRow}>
+                <ExMetric label="SETS" value={ex.sets} />
+                <View style={C.exMetricDivider} />
+                <ExMetric label="REPS" value={ex.reps} />
+                <View style={C.exMetricDivider} />
+                <ExMetric label="LOAD" value={ex.weight || '—'} />
+                <View style={C.exMetricDivider} />
+                <ExMetric label="REST" value={ex.rest || '—'} />
+              </View>
             </View>
           );
         })}
@@ -560,9 +603,13 @@ function getOfflineFallback(message: string): string {
 function MiniStat({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <View style={S.miniStat}>
-      <View style={[S.miniStatRing, { borderColor: color + '55' }]}>
-        <Text style={[S.miniStatValue, { color }]}>{value}</Text>
-      </View>
+      <CircularProgress
+        progress={Math.max(0, Math.min(100, value))}
+        size={64}
+        strokeWidth={6}
+        color={color}
+        center={<Text style={[S.miniStatValue, { color }]}>{value}</Text>}
+      />
       <Text style={S.miniStatLabel}>{label}</Text>
     </View>
   );
@@ -582,6 +629,8 @@ export default function CoachScreen() {
   const flatListRef = useRef<FlatList>(null);
   const { chatHistory, addChatMessage, setCnsFatigue, activeSession, profile, user } = useStore();
   const firstName = user?.full_name?.split(' ')[0] || profile?.full_name?.split(' ')[0] || 'Athlete';
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   useEffect(() => {
     (async () => {
@@ -700,13 +749,16 @@ export default function CoachScreen() {
             three rings stay honest about what data backs them. */}
         {brief && (
           <View style={S.briefCard}>
-            <View style={S.briefAvatar}>
-              <Text style={S.briefAvatarText}>{firstName.charAt(0).toUpperCase()}</Text>
+            <View style={S.briefTopRow}>
+              <View style={S.briefAvatar}>
+                <Text style={S.briefAvatarText}>{firstName.charAt(0).toUpperCase()}</Text>
+              </View>
+              <View style={S.briefTextCol}>
+                <Text style={S.briefGreeting}>{greeting}, {firstName} 👋</Text>
+                <Text style={S.briefMessage} numberOfLines={2}>{brief.message}</Text>
+              </View>
             </View>
-            <View style={S.briefTextCol}>
-              <Text style={S.briefGreeting}>Good morning, {firstName} 👋</Text>
-              <Text style={S.briefMessage} numberOfLines={2}>{brief.message}</Text>
-            </View>
+            <View style={S.briefDivider} />
             <View style={S.briefRings}>
               <MiniStat label="Recovery" value={Math.round(brief.recoveryScore)} color={recoveryColor(brief.recoveryScore)} />
               <MiniStat
@@ -827,15 +879,20 @@ const C = StyleSheet.create({
   metaDivider:   { width: 1, height: 12, backgroundColor: 'rgba(255,255,255,0.10)' },
 
   tableWrap:  { borderTopWidth: 1, borderTopColor: '#1A1A1A' },
-  tableHead:  { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 6,
-                backgroundColor: '#050505' },
-  th:         { flex: 1, color: COLORS.recoveryHigh, fontSize: 9, fontWeight: '700', letterSpacing: 0.6 },
-  tableRow:   { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 11, alignItems: 'flex-start' },
+  exRow:      { paddingHorizontal: 14, paddingVertical: 12, gap: 10 },
+  exHeaderRow:{ flexDirection: 'row', alignItems: 'center', gap: 12 },
   tableRowAlt:{ backgroundColor: '#0A0A0A' },
-  exName:     { color: '#E8E8E8', fontSize: 13, fontWeight: '600' },
-  exThumb:    { width: 44, height: 44, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  exFocus:    { color: COLORS.textMuted, fontSize: 11, marginTop: 2, fontStyle: 'italic' },
-  td:         { flex: 1, color: '#AAAAAA', fontSize: 12, fontWeight: '500' },
+  exName:     { color: '#E8E8E8', fontSize: 14, fontWeight: '700', lineHeight: 18 },
+  exThumb:    { width: 56, height: 56, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  exFocus:    { color: COLORS.textMuted, fontSize: 11, marginTop: 3, fontStyle: 'italic' },
+  exMetricRow: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 12, paddingVertical: 8,
+  },
+  exMetric: { flex: 1, alignItems: 'center', gap: 2 },
+  exMetricValue: { color: COLORS.text, fontSize: 13, fontWeight: '800' },
+  exMetricLabel: { color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
+  exMetricDivider: { width: 1, height: 20, backgroundColor: 'rgba(255,255,255,0.08)' },
 
   reasonRow:  { paddingHorizontal: 14, paddingVertical: 10,
                 borderTopWidth: 1, borderTopColor: '#1A1A1A' },
@@ -925,27 +982,29 @@ const S = StyleSheet.create({
   // one row like the reference. Sizes trimmed slightly from the original
   // 2-ring version so three rings + avatar + text still fit comfortably
   // on a standard phone width without wrapping.
+  // Briefing strip — greeting row on top (avatar + name + AI message),
+  // then a full-width strip of three real animated rings below. Split
+  // into two rows (rather than cramming avatar+text+3 rings into one
+  // line) so the rings can be large enough to read as an actual score
+  // dial instead of a tiny bordered dot.
   briefCard: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: COLORS.card, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border,
-    padding: 14, gap: 10,
+    backgroundColor: COLORS.card, borderRadius: 24, borderWidth: 1, borderColor: COLORS.border,
+    padding: 16, gap: 14,
   },
+  briefTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   briefAvatar: {
-    width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: COLORS.recoveryHigh + '1F', borderWidth: 1.5, borderColor: COLORS.recoveryHigh + '55',
+    width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: alpha(COLORS.recoveryHigh, 0.12), borderWidth: 1.5, borderColor: alpha(COLORS.recoveryHigh, 0.35),
   },
   briefAvatarText: { color: COLORS.recoveryHigh, fontSize: 17, fontWeight: '800' },
   briefTextCol: { flex: 1, minWidth: 0, gap: 3 },
-  briefGreeting: { color: COLORS.text, fontSize: 14, fontWeight: '700' },
-  briefMessage: { color: COLORS.textMuted, fontSize: 11, lineHeight: 15 },
-  briefRings: { flexDirection: 'row', gap: 8 },
-  miniStat: { alignItems: 'center', gap: 3 },
-  miniStatRing: {
-    width: 36, height: 36, borderRadius: 18, borderWidth: 2,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  miniStatValue: { fontSize: 12, fontWeight: '800' },
-  miniStatLabel: { color: COLORS.textMuted, fontSize: 8, fontWeight: '600' },
+  briefGreeting: { color: COLORS.text, fontSize: 15, fontWeight: '700' },
+  briefMessage: { color: COLORS.textMuted, fontSize: 12, lineHeight: 16 },
+  briefDivider: { height: 1, backgroundColor: COLORS.border },
+  briefRings: { flexDirection: 'row', justifyContent: 'space-around' },
+  miniStat: { alignItems: 'center', gap: 6 },
+  miniStatValue: { fontSize: 15, fontWeight: '800' },
+  miniStatLabel: { color: COLORS.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 0.4 },
   offlineBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: '#1A1606', paddingVertical: 8, paddingHorizontal: 16,

@@ -22,6 +22,9 @@ import Text from '../ui/Text';
 import SectionLabel from '../ui/SectionLabel';
 import ProgressBar from '../ui/ProgressBar';
 import Divider from '../ui/Divider';
+import CountUpNumber from '../shared/CountUpNumber';
+import { ELEVATION } from '../../theme/layout';
+import { TEXT_STYLES } from '../../theme/typography';
 
 interface HeatCell { date: string; sets: number; has_session: boolean; future: boolean; }
 
@@ -131,7 +134,7 @@ function StreakStat({ icon, color, label, value }: { icon: keyof typeof Ionicons
     <View style={styles.streakStat}>
       <View style={styles.streakTopRow}>
         <Ionicons name={icon} size={18} color={color} />
-        <Text variant="h1" numeric color={COLORS.text}>{value}</Text>
+        <CountUpNumber value={value} style={[TEXT_STYLES.h1, { color: COLORS.text }] as any} />
       </View>
       <Text variant="caption" color={COLORS.textSecondary}>{label} Streak</Text>
     </View>
@@ -142,7 +145,8 @@ const styles = StyleSheet.create({
   card: {
     marginHorizontal: SPACING.lg, marginBottom: SPACING.md,
     backgroundColor: COLORS.card, borderRadius: RADIUS.card,
-    borderWidth: 1, borderColor: COLORS.cardBorder, padding: SPACING.lg,
+    borderWidth: 1, borderColor: COLORS.cardBorder, padding: SPACING.xl,
+    ...ELEVATION.low,
   },
   statsRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',

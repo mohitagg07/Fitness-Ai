@@ -1,13 +1,28 @@
-// PatternInsightsCard — VYRN
+// VYRN — Pattern Analysis
 //
-// Displays proactive pattern detection alerts on the dashboard.
-// Each insight has a severity (critical/warning/info) and a recommendation.
-// Users can expand each one to see the full detail and recommendation.
+// Proactive pattern detection (plateau, missed workouts, recovery
+// decline, under-eating, PR opportunities...) from pattern_insights on
+// the mission/today payload — real detections, not decoration.
+//
+// Text-density pass: shows only the top 3 insights by severity as
+// single-line rows (icon + title + severity dot); tapping a row expands
+// it in place for the detail + recommendation. Anything beyond 3 is
+// summarized as "+N more" rather than stacking more rows — the point is
+// to flag that something needs attention, not to read the full report
+// on the dashboard.
 
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, LayoutAnimation, Platform, UIManager } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../../theme/colors';
+import { COLORS, alpha } from '../../theme/colors';
+import { SPACING, RADIUS } from '../../theme/spacing';
+import { ELEVATION, ICON_SIZE } from '../../theme/layout';
+import Text from '../ui/Text';
+import SectionLabel from '../ui/SectionLabel';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 interface PatternInsight {
   category: string;
@@ -39,6 +54,8 @@ const SEVERITY_COLORS: Record<string, string> = {
   info: COLORS.recoveryHigh,
 };
 
+const SEVERITY_RANK: Record<string, number> = { critical: 0, warning: 1, info: 2 };
+
 function InsightRow({ insight }: { insight: PatternInsight }) {
   const [expanded, setExpanded] = useState(false);
   const color = SEVERITY_COLORS[insight.severity] || COLORS.textDim;
@@ -47,33 +64,31 @@ function InsightRow({ insight }: { insight: PatternInsight }) {
   return (
     <TouchableOpacity
       style={[styles.insightRow, { borderLeftColor: color }]}
-      onPress={() => setExpanded(v => !v)}
+      onPress={() => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        setExpanded((v) => !v);
+      }}
       activeOpacity={0.8}
     >
       <View style={styles.insightTop}>
         <Ionicons name={icon as any} size={14} color={color} />
-        <Text style={styles.insightTitle} numberOfLines={expanded ? undefined : 1}>
+        <Text variant="body" weight="semibold" color={COLORS.text} numberOfLines={1} style={{ flex: 1 }}>
           {insight.title}
         </Text>
-        <Ionicons
-          name={expanded ? 'chevron-up' : 'chevron-down'}
-          size={12}
-          color={COLORS.textDim}
-        />
+        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={ICON_SIZE.xs} color={COLORS.textDim} />
       </View>
 
       {expanded && (
         <View style={styles.insightExpanded}>
-          <Text style={styles.insightDetail}>{insight.detail}</Text>
+          <Text variant="caption" color={COLORS.textSecondary} numberOfLines={2} style={{ lineHeight: 17, marginBottom: SPACING.sm }}>
+            {insight.detail}
+          </Text>
           <View style={styles.recommendationBlock}>
-            <Ionicons name="bulb-outline" size={12} color={color} />
-            <Text style={[styles.recommendationText, { color }]}>
+            <Ionicons name="bulb-outline" size={13} color={color} />
+            <Text variant="caption" weight="semibold" color={color} numberOfLines={2} style={{ flex: 1, lineHeight: 17 }}>
               {insight.recommendation}
             </Text>
           </View>
-          <Text style={styles.confidenceTag}>
-            Confidence: {insight.confidence}
-          </Text>
         </View>
       )}
     </TouchableOpacity>
@@ -83,116 +98,79 @@ function InsightRow({ insight }: { insight: PatternInsight }) {
 export default function PatternInsightsCard({ insights }: Props) {
   if (!insights || insights.length === 0) return null;
 
-  const criticalCount = insights.filter(i => i.severity === 'critical').length;
-  const warningCount = insights.filter(i => i.severity === 'warning').length;
+  const sorted = [...insights].sort(
+    (a, b) => (SEVERITY_RANK[a.severity] ?? 3) - (SEVERITY_RANK[b.severity] ?? 3)
+  );
+  const shown = sorted.slice(0, 3);
+  const hiddenCount = sorted.length - shown.length;
+  const criticalCount = insights.filter((i) => i.severity === 'critical').length;
 
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <View style={styles.headerLeft}>
-          <Ionicons name="pulse-outline" size={13} color={COLORS.recoveryMed} />
-          <Text style={styles.cardTitle}>PATTERN ANALYSIS</Text>
-        </View>
-        <View style={styles.badgeRow}>
-          {criticalCount > 0 && (
-            <View style={[styles.badge, { backgroundColor: COLORS.recoveryLow + '30', borderColor: COLORS.recoveryLow + '60' }]}>
-              <Text style={[styles.badgeText, { color: COLORS.recoveryLow }]}>
-                {criticalCount} critical
-              </Text>
-            </View>
-          )}
-          {warningCount > 0 && (
-            <View style={[styles.badge, { backgroundColor: COLORS.recoveryMed + '20', borderColor: COLORS.recoveryMed + '50' }]}>
-              <Text style={[styles.badgeText, { color: COLORS.recoveryMed }]}>
-                {warningCount} warning
-              </Text>
-            </View>
-          )}
-        </View>
+        <SectionLabel label="PATTERN ANALYSIS" icon="pulse-outline" color={COLORS.recoveryMed} />
+        {criticalCount > 0 && (
+          <View style={[styles.badge, { backgroundColor: alpha(COLORS.recoveryLow, 0.16), borderColor: alpha(COLORS.recoveryLow, 0.4) }]}>
+            <Text variant="caption" weight="bold" color={COLORS.recoveryLow}>{criticalCount} critical</Text>
+          </View>
+        )}
       </View>
 
-      {insights.map((insight, i) => (
+      {shown.map((insight, i) => (
         <InsightRow key={i} insight={insight} />
       ))}
+
+      {hiddenCount > 0 && (
+        <Text variant="caption" color={COLORS.textMuted} style={{ marginTop: 2 }}>
+          +{hiddenCount} more insight{hiddenCount === 1 ? '' : 's'}
+        </Text>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#0d0d0d',
-    borderRadius: 14,
-    padding: 14,
-    marginHorizontal: 16,
-    marginBottom: 12,
+    backgroundColor: COLORS.card,
+    borderRadius: RADIUS.card,
+    padding: SPACING.xl,
+    marginHorizontal: SPACING.lg,
+    marginBottom: SPACING.md,
     borderWidth: 1,
-    borderColor: '#1a1a1a',
+    borderColor: COLORS.cardBorder,
+    ...ELEVATION.low,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: SPACING.md,
   },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  cardTitle: {
-    color: COLORS.recoveryMed,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-  badgeRow: { flexDirection: 'row', gap: 6 },
   badge: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: RADIUS.badge,
     borderWidth: 1,
   },
-  badgeText: { fontSize: 10, fontWeight: '600' },
-
   insightRow: {
-    paddingVertical: 8,
-    paddingLeft: 10,
+    paddingVertical: SPACING.sm,
+    paddingLeft: SPACING.sm + 2,
     borderLeftWidth: 2,
-    marginBottom: 6,
+    marginBottom: 4,
     borderRadius: 2,
   },
   insightTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
+    gap: SPACING.sm - 1,
   },
-  insightTitle: {
-    color: '#fff',
-    fontSize: 13,
-    flex: 1,
-    fontWeight: '500',
-  },
-  insightExpanded: { marginTop: 8 },
-  insightDetail: {
-    color: COLORS.textDim,
-    fontSize: 12,
-    lineHeight: 17,
-    marginBottom: 8,
-  },
+  insightExpanded: { marginTop: SPACING.sm },
   recommendationBlock: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 6,
-    backgroundColor: '#111',
-    borderRadius: 6,
-    padding: 8,
-    marginBottom: 6,
-  },
-  recommendationText: {
-    fontSize: 12,
-    flex: 1,
-    lineHeight: 17,
-    fontWeight: '500',
-  },
-  confidenceTag: {
-    color: COLORS.textDim,
-    fontSize: 10,
-    fontStyle: 'italic',
+    gap: SPACING.sm - 1,
+    backgroundColor: COLORS.cardElevated,
+    borderRadius: RADIUS.badge - 2,
+    padding: SPACING.sm,
   },
 });

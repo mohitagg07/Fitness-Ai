@@ -15,9 +15,9 @@
 // If the decision hasn't been computed yet (fresh account, first load),
 // the card fails quiet and simply doesn't render rather than guessing.
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, StyleSheet, TouchableOpacity, ActivityIndicator,
+  View, StyleSheet, TouchableOpacity, ActivityIndicator, Animated, Easing,
   LayoutAnimation, Platform, UIManager,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -31,7 +31,6 @@ import { ICON_SIZE } from '../../theme/layout';
 import Text from '../ui/Text';
 import Button from '../ui/Button';
 import MetricChip from '../ui/MetricChip';
-import Badge from '../ui/Badge';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -94,6 +93,8 @@ export default function AIReadinessHero({ workoutType, workoutStreak, estimatedM
   const [expanded, setExpanded] = useState(false);
   const [failed, setFailed] = useState(false);
 
+  const mount = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -111,6 +112,16 @@ export default function AIReadinessHero({ workoutType, workoutStreak, estimatedM
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    if (loading || failed || !decision) return;
+    Animated.timing(mount, {
+      toValue: 1,
+      duration: 420,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [loading, failed, decision]);
+
   if (loading) {
     return (
       <View style={[styles.card, styles.loadingCard]}>
@@ -124,10 +135,23 @@ export default function AIReadinessHero({ workoutType, workoutStreak, estimatedM
   const cc = confidenceColor(decision.confidence_pct);
 
   return (
+    <Animated.View
+      style={{
+        opacity: mount,
+        transform: [{ translateY: mount.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
+      }}
+    >
     <View style={styles.card}>
       <View style={styles.headerRow}>
         <Text variant="eyebrow" color={COLORS.textSecondary}>TODAY'S AI DECISION</Text>
-        <Badge label={`${decision.confidence_pct}% CONFIDENCE`} color={cc} />
+        <View style={styles.confBlock}>
+          <Text variant="cardTitle" numeric weight="bold" color={cc} style={styles.confValue}>
+            {decision.confidence_pct}%
+          </Text>
+          <Text variant="caption" weight="semibold" color={COLORS.textMuted} style={styles.confLabel}>
+            CONFIDENCE
+          </Text>
+        </View>
       </View>
 
       <View style={styles.mainRow}>
@@ -217,6 +241,7 @@ export default function AIReadinessHero({ workoutType, workoutStreak, estimatedM
         </View>
       )}
     </View>
+    </Animated.View>
   );
 }
 
@@ -236,12 +261,20 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.card,
     borderRadius: RADIUS.card,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
-    padding: SPACING.lg,
+    borderColor: COLORS.borderLight,
+    padding: SPACING.xl,
     minHeight: 300,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.32,
+    shadowRadius: 24,
+    elevation: 10,
   },
   loadingCard: { alignItems: 'center', justifyContent: 'center', minHeight: 200 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: SPACING.md },
+  confBlock: { alignItems: 'flex-end' },
+  confValue: { fontSize: 20, lineHeight: 24 },
+  confLabel: { letterSpacing: 1.2, fontSize: 10, marginTop: 1 },
   mainRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.lg },
   mainLeft: { flex: 1, paddingRight: SPACING.sm },
   decisionTitle: { fontSize: 30, lineHeight: 34 },

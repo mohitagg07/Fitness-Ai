@@ -62,7 +62,7 @@ export default function PredictionCard() {
       {strategy && (
         <View style={styles.strategyBlock}>
           <Text variant="caption" color={COLORS.textMuted} style={{ marginBottom: 4 }}>NEXT WEEK'S STRATEGY</Text>
-          <Text variant="body" color={COLORS.textSecondary} style={{ lineHeight: 20 }}>{strategy}</Text>
+          <Text variant="body" color={COLORS.textSecondary} numberOfLines={2} style={{ lineHeight: 20 }}>{strategy}</Text>
         </View>
       )}
     </View>

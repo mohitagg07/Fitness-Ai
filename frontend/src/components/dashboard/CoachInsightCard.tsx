@@ -54,11 +54,11 @@ export default function CoachInsightCard({ brief }: { brief: ProactiveBrief }) {
         </View>
       </View>
 
-      <Text variant="body" color={COLORS.text} style={styles.coachMessage}>{brief.coach_message}</Text>
+      <Text variant="body" color={COLORS.text} numberOfLines={2} style={styles.coachMessage}>{brief.coach_message}</Text>
 
       <View style={styles.focusRow}>
         <Ionicons name="flag" size={13} color={COLORS.primaryGreen} />
-        <Text variant="body" color={COLORS.textSecondary} style={{ flex: 1 }}>{brief.todays_focus}</Text>
+        <Text variant="body" color={COLORS.textSecondary} numberOfLines={1} style={{ flex: 1 }}>{brief.todays_focus}</Text>
       </View>
 
       {brief.suggested_top_set && (
@@ -76,7 +76,7 @@ export default function CoachInsightCard({ brief }: { brief: ProactiveBrief }) {
           {brief.proactive_notices.slice(0, 2).map((n, i) => (
             <View key={i} style={styles.noticeRow}>
               <View style={styles.noticeDot} />
-              <Text variant="caption" color={COLORS.textMuted} style={{ flex: 1, lineHeight: 17 }}>{n}</Text>
+              <Text variant="caption" color={COLORS.textMuted} numberOfLines={1} style={{ flex: 1, lineHeight: 17 }}>{n}</Text>
             </View>
           ))}
         </View>
@@ -104,13 +104,13 @@ export default function CoachInsightCard({ brief }: { brief: ProactiveBrief }) {
                 <View style={styles.stepNum}><Text variant="caption" color={COLORS.textDim}>{i + 1}</Text></View>
                 <View style={{ flex: 1 }}>
                   <Text variant="caption" weight="bold" color={COLORS.textMuted} style={{ letterSpacing: 0.5 }}>{step.label}</Text>
-                  <Text variant="body" color={COLORS.text}>{step.finding}</Text>
-                  <Text variant="caption" color={COLORS.primaryGreen} style={{ marginTop: 2 }}>→ {step.implication}</Text>
+                  <Text variant="body" color={COLORS.text} numberOfLines={2}>{step.finding}</Text>
+                  <Text variant="caption" color={COLORS.primaryGreen} numberOfLines={1} style={{ marginTop: 2 }}>→ {step.implication}</Text>
                 </View>
               </View>
             ))
           ) : (
-            <Text variant="body" color={COLORS.textSecondary} style={{ lineHeight: 19 }}>{brief.why_summary}</Text>
+            <Text variant="body" color={COLORS.textSecondary} numberOfLines={3} style={{ lineHeight: 19 }}>{brief.why_summary}</Text>
           )}
         </View>
       )}

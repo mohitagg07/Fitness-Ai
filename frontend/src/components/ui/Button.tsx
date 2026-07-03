@@ -4,10 +4,14 @@
 // "Start Push Workout", "Log Set", "Open Coach", "Save Changes", "Log Out"
 // — renders through this component so weight, radius, and label case never
 // drift screen to screen again.
+//
+// Every button gives a small scale-down on press (0.96, spring back on
+// release) on top of the existing opacity dim — the tactile "this is a
+// real button" feedback a premium product needs, not just a color change.
 
-import React from 'react';
+import React, { useRef } from 'react';
 import {
-  TouchableOpacity, Text, StyleSheet, ActivityIndicator, ViewStyle, StyleProp,
+  TouchableOpacity, Animated, Text, StyleSheet, ActivityIndicator, ViewStyle, StyleProp,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -39,6 +43,8 @@ const SIZE_MAP: Record<ButtonSize, { height: number; paddingH: number; fontSize:
   lg: { height: 56, paddingH: 26, fontSize: 15, iconSize: ICON_SIZE.sm },
 };
 
+const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
+
 export default function Button({
   label,
   onPress,
@@ -54,6 +60,14 @@ export default function Button({
 }: ButtonProps) {
   const s = SIZE_MAP[size];
   const isDisabled = disabled || loading;
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const pressIn = () => {
+    Animated.spring(scale, { toValue: 0.96, useNativeDriver: true, speed: 40, bounciness: 4 }).start();
+  };
+  const pressOut = () => {
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 24, bounciness: 6 }).start();
+  };
 
   const textColor =
     variant === 'primary' ? '#000000'
@@ -87,13 +101,17 @@ export default function Button({
     width: fullWidth ? '100%' : undefined,
   };
 
+  const scaleStyle = { transform: [{ scale }] };
+  const pressHandlers = { onPressIn: pressIn, onPressOut: pressOut };
+
   if (variant === 'primary') {
     return (
-      <TouchableOpacity
+      <AnimatedTouchable
         onPress={onPress}
         disabled={isDisabled}
-        activeOpacity={0.85}
-        style={[styles.base, shape, ELEVATION.glow(accentColor) as any, style]}
+        activeOpacity={0.9}
+        {...pressHandlers}
+        style={[styles.base, shape, ELEVATION.glow(accentColor) as any, scaleStyle, style]}
       >
         <LinearGradient
           colors={[accentColor, alpha(accentColor, 0.7)]}
@@ -102,50 +120,54 @@ export default function Button({
           style={StyleSheet.absoluteFill}
         />
         {content}
-      </TouchableOpacity>
+      </AnimatedTouchable>
     );
   }
 
   if (variant === 'danger') {
     return (
-      <TouchableOpacity
+      <AnimatedTouchable
         onPress={onPress}
         disabled={isDisabled}
-        activeOpacity={0.85}
-        style={[styles.base, shape, { backgroundColor: COLORS.recoveryLow }, style]}
+        activeOpacity={0.9}
+        {...pressHandlers}
+        style={[styles.base, shape, { backgroundColor: COLORS.recoveryLow }, scaleStyle, style]}
       >
         {content}
-      </TouchableOpacity>
+      </AnimatedTouchable>
     );
   }
 
   if (variant === 'secondary') {
     return (
-      <TouchableOpacity
+      <AnimatedTouchable
         onPress={onPress}
         disabled={isDisabled}
-        activeOpacity={0.7}
+        activeOpacity={0.85}
+        {...pressHandlers}
         style={[
           styles.base, shape,
           { backgroundColor: 'transparent', borderWidth: 1, borderColor: alpha(accentColor, 0.5) },
+          scaleStyle,
           style,
         ]}
       >
         {content}
-      </TouchableOpacity>
+      </AnimatedTouchable>
     );
   }
 
   // ghost
   return (
-    <TouchableOpacity
+    <AnimatedTouchable
       onPress={onPress}
       disabled={isDisabled}
-      activeOpacity={0.6}
-      style={[styles.base, shape, { backgroundColor: alpha(accentColor, 0.1) }, style]}
+      activeOpacity={0.75}
+      {...pressHandlers}
+      style={[styles.base, shape, { backgroundColor: alpha(accentColor, 0.1) }, scaleStyle, style]}
     >
       {content}
-    </TouchableOpacity>
+    </AnimatedTouchable>
   );
 }
 
