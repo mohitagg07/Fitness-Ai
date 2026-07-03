@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 from schemas.models import MetricsCreate
 from core.security import get_current_user
 from db.supabase_client import get_supabase
+from agents.consistency_agent import run_consistency_agent
 from datetime import date, timedelta
 from collections import defaultdict
 
@@ -249,6 +250,28 @@ async def get_pr_timeline(
         })
 
     return {"has_data": True, "prs": formatted}
+
+
+@router.get("/consistency")
+async def get_consistency(
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Standalone version of the same consistency score shown on the dashboard
+    (see agents/consistency_agent.py) — used by the Progress tab so the
+    number and message stay identical wherever it's shown.
+    """
+    result = run_consistency_agent(current_user["user_id"])
+    return {
+        "status":   result.status,
+        "score":    result.score,
+        "headline": result.headline,
+        "mood":     result.mood_summary,
+        "pillars": [
+            {"label": p.label, "pct": p.pct, "status": p.status, "detail": p.detail}
+            for p in result.pillars
+        ],
+    }
 
 
 @router.get("/weekly-stats")

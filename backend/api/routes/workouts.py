@@ -245,6 +245,7 @@ async def complete_session(
     session_id: str,
     cns_fatigue_after: Optional[int] = None,
     session_notes: Optional[str] = None,
+    mood: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
     sb = get_supabase()
@@ -296,6 +297,13 @@ async def complete_session(
         update_data["cns_fatigue_after"] = cns_fatigue_after
     if session_notes is not None:
         update_data["notes"] = session_notes
+    # Mood was already a schema column (workout_sessions.mood) but had no
+    # writer anywhere in the app — this is the one place a session actually
+    # finishes, so it's the natural point to capture it. Purely optional,
+    # never blocks completion, and only feeds a descriptive summary (see
+    # consistency_agent.py) rather than the consistency score itself.
+    if mood in ("great", "good", "okay", "bad"):
+        update_data["mood"] = mood
     if total_volume_kg:
         update_data["total_volume_kg"] = total_volume_kg
     if duration_minutes:

@@ -45,6 +45,7 @@ from agents.recovery_agent import run_recovery_agent
 from agents.motivation_agent import get_daily_motivation
 from agents.pattern_engine import run_pattern_engine
 from agents.coach_brain import generate_proactive_brief
+from agents.consistency_agent import run_consistency_agent
 import logging
 
 logger = logging.getLogger(__name__)
@@ -197,6 +198,7 @@ async def get_today_mission(
         patterns,
         motivation,
         proactive_brief,
+        consistency,
     ) = await asyncio.gather(
         asyncio.to_thread(
             run_pattern_engine,
@@ -215,6 +217,7 @@ async def get_today_mission(
             consumed=consumed,
             targets=targets,
         ),
+        asyncio.to_thread(run_consistency_agent, user_id, targets.get("protein_g", 160.0)),
     )
 
     # ── Compute remaining macros ──────────────────────────────────────────────
@@ -341,4 +344,23 @@ async def get_today_mission(
 
         # ── Proactive AI Brain ────────────────────────────────────────────────
         "proactive_brief": proactive_brief,
+
+        # ── Consistency Score ─────────────────────────────────────────────────
+        # One number + one sentence instead of another chart to interpret.
+        # See agents/consistency_agent.py for the "why" behind this design.
+        "consistency": {
+            "status":   consistency.status,       # "new" | "scored"
+            "score":    consistency.score,        # 0-100
+            "headline": consistency.headline,
+            "mood":     consistency.mood_summary, # "great" | "good" | "okay" | "bad" | None
+            "pillars": [
+                {
+                    "label":  p.label,
+                    "pct":    p.pct,
+                    "status": p.status,
+                    "detail": p.detail,
+                }
+                for p in consistency.pillars
+            ],
+        },
     }

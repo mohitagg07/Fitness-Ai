@@ -268,7 +268,12 @@ def generate_monthly_review(user_id: str, months_ago: int = 0, trigger_rewrite: 
     if consistency_pct >= 80:
         strengths.append(f"Training consistency: {len(completed)} sessions completed ({consistency_pct}% of expected).")
     elif consistency_pct < 50:
-        weaknesses.append(f"Training consistency dropped to {consistency_pct}% — only {len(completed)} sessions this month.")
+        # Same principle as weekly_review_agent.py: name the gap without
+        # "dropped"/"slipping" framing — a rough month is data, not a verdict.
+        weaknesses.append(
+            f"{len(completed)} sessions this month ({consistency_pct}% of expected) — "
+            f"lower than usual. Worth picking one realistic session count for next month rather than starting over."
+        )
 
     gains_count = len([g for g in strength_gains if g["delta_kg"] > 0])
     if gains_count >= 3:

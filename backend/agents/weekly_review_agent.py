@@ -273,7 +273,15 @@ def generate_weekly_review(user_id: str, weeks_ago: int = 0) -> WeeklyReview:
     if consistency_pct >= 80:
         highlights.append(f"Workout consistency: {consistency_pct}% — excellent discipline this week.")
     elif consistency_pct < 60:
-        needs_attention.append(f"Only {len(completed)}/{planned_count} sessions completed — consistency is slipping.")
+        # Deliberately no "slipping"/"failed" framing here — a couple of
+        # missed sessions is normal, and language that reads as judgment
+        # is exactly what makes people stop opening the app. Name the gap
+        # plainly and point at one next step instead.
+        missed = max(0, planned_count - len(completed))
+        needs_attention.append(
+            f"{len(completed)}/{planned_count} sessions completed — {missed} missed. "
+            f"Not a big deal on its own; worth noticing if it repeats next week."
+        )
 
     if strength_gains:
         top_gain = strength_gains[0]
