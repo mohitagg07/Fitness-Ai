@@ -238,6 +238,13 @@ export const nutritionApi = {
   searchFood: (q: string, maxResults = 8) =>
     api.get('/nutrition/search', { params: { q, max_results: maxResults } }),
 
+  // Meal Generator — ready-to-eat combo sized to today's remaining macros.
+  getMealPlan: (isTrainingDay = true) =>
+    api.get('/nutrition/meal-plan', { params: { is_training_day: isTrainingDay } }),
+
+  // Smart Grocery — weekly shopping quantities from the real weekly protein target.
+  getGroceryList: () => api.get('/nutrition/grocery-list'),
+
   // One-tap log: backend fetches the exact macros for `food_id` itself and
   // scales them to `grams`, so the frontend never has to carry/compute
   // macro numbers for a search result.

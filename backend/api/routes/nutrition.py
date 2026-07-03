@@ -118,6 +118,84 @@ async def get_today_nutrition(
     }
 
 
+# ─── Meal Generator & Smart Grocery ───────────────────────────────────────────
+
+@router.get("/meal-plan")
+async def get_meal_plan(
+    is_training_day: bool = True,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Item #10 — a ready-to-eat combination sized to today's actual
+    remaining macros (reuses the same targets/consumed math as GET
+    /today), not a single-item suggestion. Returns items: [] once
+    remaining need is trivial.
+    """
+    from agents.nutrition_agent import generate_meal_plan
+
+    user_id = current_user["user_id"]
+    sb = get_supabase()
+    today_str = str(date.today())
+    profile, _ = get_full_user_context(user_id)
+    goal_str = profile.get("goal") or "maintain"
+    goal = Goal(goal_str) if goal_str in Goal._value2member_map_ else Goal.maintain
+    targets = calculate_macros(
+        weight_kg=profile.get("weight_kg") or 75,
+        height_cm=profile.get("height_cm") or 175,
+        age=profile.get("age") or 28,
+        gender=profile.get("gender") or "male",
+        goal=goal,
+        is_training_day=is_training_day,
+    )
+    res = (
+        sb.table("nutrition_logs")
+        .select("protein_g, carbs_g, fat_g")
+        .eq("user_id", user_id)
+        .eq("log_date", today_str)
+        .execute()
+    )
+    logs = res.data or []
+    consumed_protein = sum(l.get("protein_g") or 0 for l in logs)
+    consumed_carbs = sum(l.get("carbs_g") or 0 for l in logs)
+    consumed_fat = sum(l.get("fat_g") or 0 for l in logs)
+
+    plans = generate_meal_plan(
+        protein_remaining_g=max(0.0, targets["protein_g"] - consumed_protein),
+        carbs_remaining_g=max(0.0, targets["carbs_g"] - consumed_carbs),
+        fat_remaining_g=max(0.0, targets["fat_g"] - consumed_fat),
+        food_preference=profile.get("food_preference"),
+    )
+    return {"plans": plans}
+
+
+@router.get("/grocery-list")
+async def get_grocery_list(current_user: dict = Depends(get_current_user)):
+    """
+    Item #9 — weekly shopping quantities derived from the user's real
+    weekly protein target (7 × the daily target), split across their
+    usual protein sources for their diet type. See
+    agents.nutrition_agent.generate_grocery_list for why this isn't
+    built from a logged meal plan (the app doesn't have one).
+    """
+    from agents.nutrition_agent import generate_grocery_list
+
+    profile, _ = get_full_user_context(current_user["user_id"])
+    goal_str = profile.get("goal") or "maintain"
+    goal = Goal(goal_str) if goal_str in Goal._value2member_map_ else Goal.maintain
+    targets = calculate_macros(
+        weight_kg=profile.get("weight_kg") or 75,
+        height_cm=profile.get("height_cm") or 175,
+        age=profile.get("age") or 28,
+        gender=profile.get("gender") or "male",
+        goal=goal,
+        is_training_day=True,
+    )
+    return generate_grocery_list(
+        weekly_protein_target_g=targets["protein_g"] * 7,
+        food_preference=profile.get("food_preference"),
+    )
+
+
 # ─── AI Decision ─────────────────────────────────────────────────────────────
 
 @router.get("/decision")

@@ -239,6 +239,92 @@ def compute_weekly_load_ratio(user_id: str) -> dict:
     }
 
 
+# Recovery windows are standard sports-science ballparks for time-to-full-
+# recovery after a hard session, not a per-user measurement (nothing in
+# this schema tracks actual muscle soreness/DOMS) — smaller, faster-
+# recovering groups get shorter windows than large compound-heavy ones.
+RECOVERY_WINDOW_HOURS = {
+    "Chest": 48, "Back": 48, "Shoulders": 48,
+    "Arms": 36, "Core": 24, "Legs": 72,
+}
+
+
+def compute_muscle_recovery_map(user_id: str) -> dict:
+    """
+    For each muscle group: hours since it was last trained (from the most
+    recent exercise_logs row that classify_muscle_group() maps to that
+    group), turned into a 0-100% recovery estimate via a linear ramp
+    across RECOVERY_WINDOW_HOURS, capped at 100. A group with no logged
+    history in the last 21 days is reported as "no_data" rather than a
+    fabricated 100% — a group that's never been trained isn't "recovered,"
+    it's simply unmeasured.
+
+    This is the backing data for the Muscle Recovery Map — colors are a
+    presentation detail the frontend derives from recovery_pct
+    (>=80 green, 40-79 yellow, <40 red), not computed here, so the two
+    stay in sync by construction rather than by convention.
+    """
+    from datetime import datetime, timezone
+
+    sb = get_supabase()
+    cutoff = str(date.today() - timedelta(days=21))
+    res = (
+        sb.table("exercise_logs")
+        .select("exercise_name, logged_at")
+        .eq("user_id", user_id)
+        .gte("logged_at", cutoff)
+        .order("logged_at")
+        .execute()
+    )
+    logs = res.data or []
+
+    last_trained: dict[str, str] = {}
+    for log in logs:
+        group = classify_muscle_group(log.get("exercise_name", ""))
+        if not group:
+            continue
+        logged_at = log.get("logged_at")
+        if not logged_at:
+            continue
+        # logs are ordered ascending, so the last write per group wins —
+        # simplest way to keep "most recent" without a second sort pass.
+        last_trained[group] = logged_at
+
+    now = datetime.now(timezone.utc)
+    groups_out = []
+    for g in ALL_GROUPS:
+        ts = last_trained.get(g)
+        if not ts:
+            groups_out.append({
+                "name": g, "recovery_pct": None, "hours_since_trained": None,
+                "status": "no_data",
+            })
+            continue
+        try:
+            trained_at = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        except Exception:
+            groups_out.append({
+                "name": g, "recovery_pct": None, "hours_since_trained": None,
+                "status": "no_data",
+            })
+            continue
+        hours_since = max(0.0, (now - trained_at).total_seconds() / 3600)
+        window = RECOVERY_WINDOW_HOURS.get(g, 48)
+        recovery_pct = min(100, round((hours_since / window) * 100))
+        status = "green" if recovery_pct >= 80 else "yellow" if recovery_pct >= 40 else "red"
+        groups_out.append({
+            "name": g,
+            "recovery_pct": recovery_pct,
+            "hours_since_trained": round(hours_since, 1),
+            "status": status,
+        })
+
+    return {
+        "muscle_groups": groups_out,
+        "has_data": any(g["status"] != "no_data" for g in groups_out),
+    }
+
+
 def run_training_load_engine(user_id: str) -> dict:
     """Full deterministic training-load report — the aggregate entry point."""
     return {

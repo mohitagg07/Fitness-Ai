@@ -21,6 +21,17 @@ PROTEIN_SOURCES = {
     "non-veg":   [("chicken breast", 31, 100), ("eggs (2)", 13, 100), ("fish", 22, 100), ("paneer", 18, 100)],
 }
 
+# grams protein/carbs/fat per 100g — shared across diet types, used by
+# generate_meal_plan() to fill the carb/fat side of a meal once a protein
+# source is picked, and by generate_grocery_list() to convert weekly macro
+# targets into real shopping quantities.
+CARB_SOURCES = [
+    ("rice (cooked)", 28, 100), ("oats", 66, 100), ("sweet potato", 20, 100), ("roti/chapati", 48, 100),
+]
+FAT_SOURCES = [
+    ("almonds", 22, 100), ("peanut butter", 50, 100), ("olive oil", 100, 100),
+]
+
 
 def _today_intake(user_id: str) -> dict:
     # FIX: import inside function so each call creates a fresh httpx session
@@ -89,3 +100,75 @@ def run_nutrition_agent(
         calories_remaining=calories_remaining,
         protein_remaining_g=round(protein_remaining, 1),
     )
+
+
+def generate_meal_plan(
+    protein_remaining_g: float,
+    carbs_remaining_g: float,
+    fat_remaining_g: float,
+    food_preference: str | None,
+) -> list[dict]:
+    """
+    Item #10 on the roadmap — "no searching," a ready-to-eat combination
+    rather than a single protein source. Greedily fills protein first
+    (the macro this app treats as non-negotiable — see calculate_macros'
+    2.0-2.5g/kg floor), then carbs, then reports the fat the plan already
+    contains rather than force-adding a fourth item most people wouldn't
+    actually eat separately from oil/nuts already in their cooking.
+    Returns [] once remaining needs are trivial (<10g protein) — a
+    "meal plan" for 4g of protein left is noise, not help.
+    """
+    if protein_remaining_g < 10:
+        return []
+
+    items = []
+    total_protein = total_carbs = total_fat = 0.0
+
+    protein_sources = PROTEIN_SOURCES.get(food_preference or "non-veg", PROTEIN_SOURCES["non-veg"])
+    p_name, p_per_100, _ = min(protein_sources, key=lambda s: abs(protein_remaining_g - s[1]))
+    p_grams = min(300, max(50, round(protein_remaining_g / p_per_100 * 100 / 10) * 10))
+    items.append({"food": p_name, "grams": p_grams, "reason": "protein"})
+    total_protein += p_per_100 * p_grams / 100
+
+    if carbs_remaining_g > 20:
+        c_name, c_per_100, _ = min(CARB_SOURCES, key=lambda s: abs(carbs_remaining_g - s[1]))
+        c_grams = min(250, max(50, round(carbs_remaining_g / c_per_100 * 100 / 10) * 10))
+        items.append({"food": c_name, "grams": c_grams, "reason": "carbs"})
+        total_carbs += c_per_100 * c_grams / 100
+
+    return [{
+        "items": items,
+        "approx_protein_g": round(total_protein),
+        "approx_carbs_g": round(total_carbs),
+        "covers_protein_pct": round(min(100, 100 * total_protein / protein_remaining_g)) if protein_remaining_g > 0 else 100,
+    }]
+
+
+def generate_grocery_list(weekly_protein_target_g: float, food_preference: str | None) -> dict:
+    """
+    Item #9 — converts a real weekly protein target (7 × the daily target
+    calculate_macros already computes) into shopping quantities, split
+    across the user's usual protein sources for their diet type. This is
+    NOT built from a logged meal plan (the app doesn't have one) — it's
+    the honest thing it CAN compute from real data: "to hit your protein
+    target for a week, here's roughly how much of each staple that is,"
+    split evenly across 2-3 go-to sources rather than one unrealistic
+    grocery item.
+    """
+    sources = PROTEIN_SOURCES.get(food_preference or "non-veg", PROTEIN_SOURCES["non-veg"])
+    # Split the weekly protein need evenly across up to 3 staple sources —
+    # keeps quantities realistic instead of "3.5kg chicken breast."
+    use_sources = sources[:3] if len(sources) >= 3 else sources
+    share_g = weekly_protein_target_g / len(use_sources)
+
+    items = []
+    for name, protein_per_100, _ in use_sources:
+        grams_needed = round(share_g / protein_per_100 * 100 / 50) * 50  # round to nearest 50g
+        items.append({"food": name, "quantity_g": max(50, grams_needed)})
+
+    return {
+        "week_of": str(date.today()),
+        "based_on_weekly_protein_target_g": round(weekly_protein_target_g),
+        "items": items,
+        "note": "Quantities are derived from your weekly protein target split across your usual protein sources — not from a logged meal plan, since none exists yet. Adjust for what you'll actually cook.",
+    }

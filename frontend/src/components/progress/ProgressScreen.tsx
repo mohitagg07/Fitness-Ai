@@ -22,6 +22,8 @@ import StrengthProgressionChart from './StrengthProgressionChart';
 import Logo from '../shared/Logo';
 import WeeklyReviewScreen from './WeeklyReviewScreen';
 import AnalyticsScreen from './AnalyticsScreen';
+import MuscleRecoveryMap from './MuscleRecoveryMap';
+import TrendProjectionCard from './TrendProjectionCard';
 import { SkeletonCard } from '../shared/LoadingOverlay';
 
 type Tab = 'body' | 'strength' | 'nutrition' | 'recovery' | 'review' | 'analytics';
@@ -492,6 +494,7 @@ export default function ProgressScreen() {
           {/* STRENGTH */}
           {activeTab === 'strength' && (
             <>
+              <TrendProjectionCard />
               <StrengthProgressionChart />
               <PRTable prs={prs} />
             </>
@@ -519,6 +522,7 @@ export default function ProgressScreen() {
           {/* RECOVERY */}
           {activeTab === 'recovery' && (
             <>
+              <MuscleRecoveryMap />
               <RecoveryTrend metrics={metrics} />
               <View style={styles.logCard}>
                 <Text style={styles.sectionLabel}>LOG RECOVERY SCORE</Text>

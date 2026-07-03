@@ -280,6 +280,40 @@ def job_generate_notifications() -> None:
     logger.info(f"[scheduler] generate_notifications: saved {total_saved}, pushed {total_pushed}")
 
 
+# ─── Job 6: Workout Reminders (Calendar Intelligence) ────────────────────────
+def job_workout_reminders() -> None:
+    """
+    Runs frequently (every 15 min, not nightly like the jobs above) because
+    a reminder is only useful delivered close to the actual moment — "train
+    at 6 PM, remind at 5:15 PM" doesn't work on a once-a-night schedule.
+    calendar_intelligence.check_reminder_due() does the real filtering (has
+    this user got an established time pattern for today? are we in their
+    45-minute-before window? have they already trained today?) so most
+    calls here are a fast no-op for most users.
+    """
+    from services.calendar_intelligence import check_reminder_due
+    from services.notifications import save_notifications
+    from services.push import send_push_for_notifications
+    from datetime import datetime
+
+    now = datetime.utcnow()  # scheduler runs in UTC; see note on start_scheduler
+    user_ids = _get_active_user_ids()
+    fired = 0
+    for user_id in user_ids:
+        try:
+            reminder = check_reminder_due(user_id, now.hour, now.minute)
+            if not reminder:
+                continue
+            saved = save_notifications(user_id, [reminder])
+            if saved:
+                send_push_for_notifications(user_id, saved)
+                fired += 1
+        except Exception as e:
+            logger.warning(f"[scheduler] workout_reminders failed for {user_id}: {e}")
+    if fired:
+        logger.info(f"[scheduler] workout_reminders: fired {fired} reminder(s)")
+
+
 # ─── Scheduler bootstrap ──────────────────────────────────────────────────────
 def start_scheduler():
     """
@@ -292,6 +326,7 @@ def start_scheduler():
     """
     from apscheduler.schedulers.background import BackgroundScheduler
     from apscheduler.triggers.cron import CronTrigger
+    from apscheduler.triggers.interval import IntervalTrigger
 
     scheduler = BackgroundScheduler(timezone="UTC")
 
@@ -342,14 +377,25 @@ def start_scheduler():
         misfire_grace_time=3600,
     )
 
+    # Every 15 minutes, all day — Calendar Intelligence reminders. Unlike
+    # the nightly jobs above, this one needs to run close to the actual
+    # moment a reminder is useful, not once at 4:30 AM.
+    scheduler.add_job(
+        job_workout_reminders,
+        IntervalTrigger(minutes=15),
+        id="workout_reminders",
+        replace_existing=True,
+        misfire_grace_time=300,
+    )
+
     scheduler.start()
-    logger.info("[scheduler] started — pattern_detection@02:00, memory_cleanup@02:30, weekly_review@03:00 (Sun only), morning_brief_prep@04:00, generate_notifications@04:30 UTC")
+    logger.info("[scheduler] started — pattern_detection@02:00, memory_cleanup@02:30, weekly_review@03:00 (Sun only), morning_brief_prep@04:00, generate_notifications@04:30 UTC, workout_reminders every 15min")
     return scheduler
 
 
 def run_all_jobs_now() -> dict:
     """
-    Manual trigger for all five jobs in sequence — used by the
+    Manual trigger for all six jobs in sequence — used by the
     /api/admin/run-jobs-now endpoint (and by tests) instead of waiting for
     the nightly cron. Returns a status dict per job so failures in one job
     don't hide failures in another.
@@ -361,6 +407,7 @@ def run_all_jobs_now() -> dict:
         ("weekly_review", job_weekly_review),
         ("morning_brief_prep", job_morning_brief_prep),
         ("generate_notifications", job_generate_notifications),
+        ("workout_reminders", job_workout_reminders),
     ]:
         try:
             fn()

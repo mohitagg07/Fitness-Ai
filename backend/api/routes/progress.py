@@ -124,6 +124,33 @@ async def get_volume_heatmap(
     }
 
 
+@router.get("/predictions/trajectory")
+async def get_trajectory_predictions(current_user: dict = Depends(get_current_user)):
+    """
+    Real trend-regression projections — bodyweight and the user's most-
+    logged lift — computed by services/prediction_engine.py from actual
+    logged history. Every projection ships with n_points, r_squared, and
+    a confidence label so a noisy trend reads as noisy, not as a
+    confident number pulled from nowhere. See that module's docstring for
+    why this is intentionally separate from the Dashboard's Trajectory
+    card, which deliberately avoids ETA-style projections.
+    """
+    from services.prediction_engine import run_prediction_engine
+    return run_prediction_engine(current_user["user_id"])
+
+
+@router.get("/muscle-recovery")
+async def get_muscle_recovery(current_user: dict = Depends(get_current_user)):
+    """
+    Per-muscle-group recovery estimate (0-100%, green/yellow/red) computed
+    from real exercise_logs timestamps — see
+    services/training_load_engine.compute_muscle_recovery_map for the model.
+    Backs the Muscle Recovery Map on the Progress screen.
+    """
+    from services.training_load_engine import compute_muscle_recovery_map
+    return compute_muscle_recovery_map(current_user["user_id"])
+
+
 @router.get("/muscle-balance")
 async def get_muscle_balance(
     weeks: int = 4,

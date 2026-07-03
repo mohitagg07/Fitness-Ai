@@ -1,36 +1,161 @@
-// VYRN — Root layout
-//
-// This is a plain stack, not a tab bar. `app/index.tsx` owns the splash +
-// auth redirect (token found → /(tabs), otherwise → /login), and
-// `app/(tabs)/_layout.tsx` owns the real bottom tab bar for everything
-// inside that group. This file's only job is to stack the top-level
-// routes — index, login, register, onboarding, (tabs) — with no header
-// and no visible chrome of its own.
-//
-// Previously this file rendered its own <Tabs> navigator (a stray copy of
-// (tabs)/_layout.tsx). Because that Tabs instance didn't declare `login`,
-// `register`, `onboarding`, or `(tabs)` as screens, Expo Router fell back
-// to auto-generating a default tab bar entry for every top-level file —
-// which is what showed up as the plain "HOME / (tabs) / login / register
-// / onboarding" bar. A Stack has no such fallback.
+import { useEffect, useState } from 'react';
+import { Tabs, router } from 'expo-router';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { storage } from '../../src/utils/storage';
+import { COLORS, alpha } from '../../src/theme/colors';
+import {
+  registerForPushNotificationsAsync,
+  attachNotificationResponseHandler,
+} from '../../src/utils/pushNotifications';
 
-import { Stack } from 'expo-router';
-import { COLORS } from '../src/theme/colors';
+type TabDef = {
+  name: string;
+  title: string;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  activeIcon: React.ComponentProps<typeof Ionicons>['name'];
+};
 
-export default function RootLayout() {
+// ── 5-tab nav — Decisions, Simulate, Form AI moved to Dashboard cards ──
+// Eight tabs was too many; 4-5 is the mobile-nav sweet spot. The removed
+// tabs are still real screens — they're now reachable via the Quick Start
+// grid and new dashboard feature cards on the Home tab instead of a
+// permanent bottom slot. This frees up visible space and makes the nav
+// instantly scannable.
+const TABS: TabDef[] = [
+  { name: 'index',    title: 'HOME',      icon: 'home-outline',        activeIcon: 'home'        },
+  { name: 'coach',   title: 'COACH',     icon: 'flash-outline',       activeIcon: 'flash'       },
+  { name: 'workout', title: 'WORKOUT',   icon: 'barbell-outline',     activeIcon: 'barbell'     },
+  { name: 'progress', title: 'PROGRESS', icon: 'stats-chart-outline', activeIcon: 'stats-chart' },
+  { name: 'profile', title: 'PROFILE',   icon: 'person-outline',      activeIcon: 'person'      },
+];
+
+// Hidden tabs — still routable via router.push(), just not in the bar
+const HIDDEN_TABS = ['decisions', 'simulate', 'formanalysis', 'prs'];
+
+export default function TabsLayout() {
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const token = await storage.getItem('vyrn_token');
+      if (!token) {
+        router.replace('/login');
+        return;
+      }
+      setAuthChecked(true);
+      // Fire-and-forget: registers this device's Expo push token so the
+      // nightly scheduler job (backend/services/scheduler.py →
+      // job_generate_notifications) can actually push recovery/protein/PR
+      // alerts instead of only writing a row the user has to go find.
+      // Non-fatal if it fails — see pushNotifications.ts.
+      registerForPushNotificationsAsync();
+    })()
+  }, []);
+
+  // Tap-to-deep-link: a pushed notification's `cta` (e.g. "/workout")
+  // routes here on tap, even from a killed/backgrounded app state.
+  useEffect(() => {
+    const cleanup = attachNotificationResponseHandler();
+    return cleanup;
+  }, []);
+
+  if (!authChecked) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator color={COLORS.primaryGreen} size="large" />
+      </View>
+    );
+  }
+
   return (
-    <Stack
+    <Tabs
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: COLORS.background },
-        animation: 'fade',
+        tabBarStyle: {
+          position: 'absolute',
+          left: 16,
+          right: 16,
+          bottom: 22,
+          backgroundColor: alpha('#101010', 0.88),
+          borderColor: COLORS.tabBorder,
+          borderWidth: 1,
+          borderRadius: 26,
+          paddingBottom: 12,
+          paddingTop: 12,
+          height: 76,
+          elevation: 12,
+          shadowColor: '#000000',
+          shadowOpacity: 0.35,
+          shadowRadius: 20,
+          shadowOffset: { width: 0, height: 8 },
+        },
+        tabBarActiveTintColor: COLORS.tabActive,
+        tabBarInactiveTintColor: COLORS.tabInactive,
+        tabBarLabelStyle: {
+          fontSize: 9,
+          fontWeight: '700',
+          letterSpacing: 0.6,
+          marginTop: 4,
+        },
+        tabBarHideOnKeyboard: true,
       }}
     >
-      <Stack.Screen name="index" />
-      <Stack.Screen name="login" />
-      <Stack.Screen name="register" />
-      <Stack.Screen name="onboarding" />
-      <Stack.Screen name="(tabs)" />
-    </Stack>
+      {TABS.map((t) => (
+        <Tabs.Screen
+          key={t.name}
+          name={t.name}
+          options={{
+            title: t.title,
+            tabBarIcon: ({ color, focused }) => (
+              <View style={focused ? styles.activeWrap : styles.iconWrap}>
+                <Ionicons
+                  name={focused ? t.activeIcon : t.icon}
+                  size={22}
+                  color={color}
+                />
+                {focused && <View style={[styles.indicator, { backgroundColor: color }]} />}
+              </View>
+            ),
+          }}
+        />
+      ))}
+      {/* Hidden tabs — routable but not visible in the bottom bar */}
+      {HIDDEN_TABS.map((name) => (
+        <Tabs.Screen
+          key={name}
+          name={name}
+          options={{ href: null }}
+        />
+      ))}
+    </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  loading: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iconWrap: { padding: 4, alignItems: 'center' },
+  activeWrap: {
+    padding: 6,
+    backgroundColor: alpha(COLORS.primaryGreen, 0.14),
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: COLORS.primaryGreen,
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
+  },
+  indicator: {
+    position: 'absolute',
+    bottom: -6,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+  },
+});
