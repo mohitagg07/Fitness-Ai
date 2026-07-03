@@ -4,6 +4,10 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { storage } from '../../src/utils/storage';
 import { COLORS, alpha } from '../../src/theme/colors';
+import {
+  registerForPushNotificationsAsync,
+  attachNotificationResponseHandler,
+} from '../../src/utils/pushNotifications';
 
 type TabDef = {
   name: string;
@@ -40,7 +44,20 @@ export default function TabsLayout() {
         return;
       }
       setAuthChecked(true);
+      // Fire-and-forget: registers this device's Expo push token so the
+      // nightly scheduler job (backend/services/scheduler.py →
+      // job_generate_notifications) can actually push recovery/protein/PR
+      // alerts instead of only writing a row the user has to go find.
+      // Non-fatal if it fails — see pushNotifications.ts.
+      registerForPushNotificationsAsync();
     })()
+  }, []);
+
+  // Tap-to-deep-link: a pushed notification's `cta` (e.g. "/workout")
+  // routes here on tap, even from a killed/backgrounded app state.
+  useEffect(() => {
+    const cleanup = attachNotificationResponseHandler();
+    return cleanup;
   }, []);
 
   if (!authChecked) {

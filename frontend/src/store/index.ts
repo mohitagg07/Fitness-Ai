@@ -32,6 +32,15 @@ export const actions = {
     setState({ user, token });
   },
   async logout() {
+    // Unregister this device's push token BEFORE clearing the auth token —
+    // unregisterPushNotificationsAsync() calls an authenticated endpoint,
+    // so it needs the Authorization header the api.ts interceptor still
+    // attaches at this point. Otherwise a shared/reset device would keep
+    // receiving the previous account's recovery/protein/PR pushes after
+    // someone else logs in on it.
+    const { unregisterPushNotificationsAsync } = await import('../utils/pushNotifications');
+    await unregisterPushNotificationsAsync();
+
     await storage.deleteItem('vyrn_token');
     await storage.deleteItem('vyrn_user');
     setState({

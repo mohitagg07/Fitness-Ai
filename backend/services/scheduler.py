@@ -247,25 +247,37 @@ def job_morning_brief_prep() -> None:
 # ─── Job 5: Notification Generation ──────────────────────────────────────────
 def job_generate_notifications() -> None:
     """
-    Generates and persists intelligent notifications for every active user —
-    recovery-high pushes, missed-workout reschedule prompts, protein gap
-    alerts, PR opportunity nudges. Runs after pattern_detection so it can
-    reuse a warm understanding of what changed, though it calls the pattern
-    engine itself rather than reading the cache to guarantee freshness.
+    Generates, persists, AND PUSHES intelligent notifications for every
+    active user — recovery-high pushes, missed-workout reschedule prompts,
+    protein gap alerts, PR opportunity nudges. Runs after pattern_detection
+    so it can reuse a warm understanding of what changed, though it calls
+    the pattern engine itself rather than reading the cache to guarantee
+    freshness.
+
+    The push step is what makes this genuinely proactive: without it, a
+    notification only exists as a DB row the user might stumble on by
+    opening the app — indistinguishable from the AI not having noticed
+    anything at all. send_push_for_notifications() silently no-ops per
+    user if they have no push_tokens row yet (haven't granted permission
+    on-device), so this is safe to run before every user has opted in.
     """
     from services.notifications import generate_notifications_for_user, save_notifications
+    from services.push import send_push_for_notifications
 
     user_ids = _get_active_user_ids()
     logger.info(f"[scheduler] generate_notifications: {len(user_ids)} active users")
     total_saved = 0
+    total_pushed = 0
     for user_id in user_ids:
         try:
             generated = generate_notifications_for_user(user_id)
             saved = save_notifications(user_id, generated)
             total_saved += len(saved)
+            if saved:
+                total_pushed += send_push_for_notifications(user_id, saved)
         except Exception as e:
             logger.warning(f"[scheduler] generate_notifications failed for {user_id}: {e}")
-    logger.info(f"[scheduler] generate_notifications: saved {total_saved} notifications")
+    logger.info(f"[scheduler] generate_notifications: saved {total_saved}, pushed {total_pushed}")
 
 
 # ─── Scheduler bootstrap ──────────────────────────────────────────────────────

@@ -24,7 +24,8 @@ class PatternInsight:
     category: Literal[
         "plateau", "missed_workout", "recovery_decline",
         "under_eating", "pr_opportunity", "protein_deficit",
-        "great_streak", "volume_increase"
+        "great_streak", "volume_increase",
+        "weekend_nutrition_dip", "workout_time_drift"
     ]
     severity: Literal["info", "warning", "critical"]
     title: str
@@ -231,7 +232,112 @@ def detect_nutrition_patterns(user_id: str, protein_target_g: float) -> list[Pat
     return insights
 
 
-def detect_pr_opportunity(user_id: str) -> list[PatternInsight]:
+def detect_weekend_nutrition_dip(user_id: str) -> list[PatternInsight]:
+    """
+    Habit detector: compares average weekday vs weekend protein/calorie
+    intake over the last 4 weeks. Needs at least 2 weekend days and 4
+    weekday days logged to say anything real — small samples on either
+    side make the average meaningless.
+    """
+    logs = _get_nutrition_recent(user_id, days=28)
+    insights = []
+    if len(logs) < 6:
+        return insights
+
+    by_date: dict[str, dict] = {}
+    for l in logs:
+        d = l.get("log_date", "")
+        if d not in by_date:
+            by_date[d] = {"protein_g": 0.0, "calories": 0}
+        by_date[d]["protein_g"] += l.get("protein_g") or 0
+        by_date[d]["calories"] += l.get("calories") or 0
+
+    weekday_protein, weekend_protein = [], []
+    for d, vals in by_date.items():
+        try:
+            is_weekend = date.fromisoformat(d).weekday() >= 5  # Sat/Sun
+        except Exception:
+            continue
+        (weekend_protein if is_weekend else weekday_protein).append(vals["protein_g"])
+
+    if len(weekday_protein) < 4 or len(weekend_protein) < 2:
+        return insights
+
+    avg_weekday = sum(weekday_protein) / len(weekday_protein)
+    avg_weekend = sum(weekend_protein) / len(weekend_protein)
+    if avg_weekday <= 0:
+        return insights
+
+    drop_pct = round(100 * (avg_weekday - avg_weekend) / avg_weekday)
+    if drop_pct >= 20:
+        insights.append(PatternInsight(
+            category="weekend_nutrition_dip",
+            severity="info",
+            title="Protein drops on weekends",
+            detail=f"Weekday avg {avg_weekday:.0f}g vs weekend avg {avg_weekend:.0f}g — a {drop_pct}% dip.",
+            recommendation="Prep a weekend high-protein staple in advance (e.g. batch-cooked chicken/paneer) so eating out doesn't cost you the day's target.",
+            confidence="Medium",
+            data={"avg_weekday": round(avg_weekday), "avg_weekend": round(avg_weekend), "drop_pct": drop_pct},
+        ))
+    return insights
+
+
+def detect_workout_time_drift(user_id: str) -> list[PatternInsight]:
+    """
+    Habit detector: flags a day-of-week where logged workout times are
+    consistently late (after 8 PM), based on completed session
+    created_at timestamps — the closest real signal to "when did this
+    session actually happen" the schema has (no dedicated start_time
+    column). Feeds the same "recognize the pattern" half of Calendar
+    Intelligence; the "act on it" half (actually sending a reminder
+    before the usual time) lives in services/calendar_intelligence.py.
+    """
+    sb = get_supabase()
+    cutoff = str(date.today() - timedelta(days=28))
+    res = (
+        sb.table("workout_sessions")
+        .select("session_date, created_at, completed")
+        .eq("user_id", user_id)
+        .eq("completed", True)
+        .gte("session_date", cutoff)
+        .execute()
+    )
+    sessions = res.data or []
+    insights = []
+    if len(sessions) < 4:
+        return insights
+
+    by_day: dict[str, list[int]] = {}
+    for s in sessions:
+        created = s.get("created_at")
+        if not created:
+            continue
+        try:
+            hour = int(created[11:13])
+            day_name = date.fromisoformat(s["session_date"]).strftime("%A")
+        except Exception:
+            continue
+        by_day.setdefault(day_name, []).append(hour)
+
+    for day, hours in by_day.items():
+        if len(hours) < 3:
+            continue
+        late_count = sum(1 for h in hours if h >= 20)
+        if late_count / len(hours) >= 0.7:
+            avg_hour = round(sum(hours) / len(hours))
+            insights.append(PatternInsight(
+                category="workout_time_drift",
+                severity="info",
+                title=f"{day} sessions run late",
+                detail=f"{late_count} of {len(hours)} {day} workouts logged after 8 PM, averaging ~{avg_hour}:00.",
+                recommendation=f"A late session eats into sleep before the next day's training. Consider shifting {day} earlier if your schedule allows.",
+                confidence="Medium",
+                data={"day": day, "avg_hour": avg_hour, "late_count": late_count, "total": len(hours)},
+            ))
+    return insights
+
+
+
     """Flag if recovery is high + recent trend is upward = good PR attempt day."""
     agent_state = get_agent_state(user_id)
     cns = agent_state.get("cns_fatigue_score", 0)
@@ -280,6 +386,14 @@ def run_pattern_engine(user_id: str, protein_target_g: float = 160.0) -> list[Pa
         pass
     try:
         all_insights += detect_pr_opportunity(user_id)
+    except Exception:
+        pass
+    try:
+        all_insights += detect_weekend_nutrition_dip(user_id)
+    except Exception:
+        pass
+    try:
+        all_insights += detect_workout_time_drift(user_id)
     except Exception:
         pass
 

@@ -42,7 +42,14 @@
           "photosPermission": "This app needs photo access for form check uploads."
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#16EC06"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

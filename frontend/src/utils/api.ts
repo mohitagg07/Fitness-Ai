@@ -323,6 +323,12 @@ export const notificationsApi = {
   generate: () => api.post('/notifications/generate'),
   markRead: (id: string) => api.patch(`/notifications/${id}/read`),
   markAllRead: () => api.post('/notifications/read-all'),
+  // Device push delivery — registerPushToken is what turns a generated
+  // notification row into an actual push while the app is closed.
+  registerPushToken: (token: string, platform?: string) =>
+    api.post('/notifications/push-token', { token, platform }),
+  unregisterPushToken: (token: string) =>
+    api.delete('/notifications/push-token', { data: { token } }),
 };
 
 // Workout History — Hevy/Strong-style session history + full set detail.
