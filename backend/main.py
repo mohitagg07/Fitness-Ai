@@ -95,15 +95,24 @@ app.include_router(habits_router,   prefix="/api/habits",   tags=["Habit Intelli
 
 
 @app.get("/")
+@app.head("/")  # Render's health-check probe uses HEAD / — this stops the 405
 def root():
     return {
         "app": "VYRN Adaptive Performance System",
         "version": "2.1.0",
         "status": "running",
         "docs": "/docs",
+        # Remind integrators of the correct base URL format. The most common
+        # misconfiguration is setting EXPO_PUBLIC_API_URL to this root URL
+        # (https://app.onrender.com) instead of the correct API prefix
+        # (https://app.onrender.com/api). If you're seeing 404 on
+        # /auth/login, this is the likely cause.
+        "api_base": "/api",
+        "correct_expo_url_format": "https://THIS_DOMAIN/api",
     }
 
 
 @app.get("/health")
+@app.head("/health")
 def health():
     return {"status": "ok"}
