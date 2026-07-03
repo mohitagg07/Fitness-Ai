@@ -31,30 +31,23 @@ from agents.pattern_engine import (
     detect_recovery_decline,
     run_pattern_engine,
 )
+from services.exercise_library import get_substitutes
 
 logger = logging.getLogger(__name__)
 
-# ── Exercise swap dictionary — plateau on A, switch to B ─────────────────────
-EXERCISE_SWAPS: dict[str, list[str]] = {
-    "bench press":       ["incline bench press", "pause bench press", "dumbbell press"],
-    "squat":             ["front squat", "box squat", "leg press"],
-    "deadlift":          ["romanian deadlift", "trap bar deadlift", "sumo deadlift"],
-    "overhead press":    ["push press", "dumbbell shoulder press", "seated overhead press"],
-    "barbell row":       ["pendlay row", "dumbbell row", "cable row"],
-    "incline bench":     ["flat bench press", "dumbbell incline press", "cable fly"],
-    "pull-up":           ["lat pulldown", "assisted pull-up", "cable pullover"],
-}
+# Exercise swap logic now lives in services/exercise_library.py
+# (SUBSTITUTION_CHAINS) so this agent and the substitution-engine endpoints
+# in api/routes/engine.py can never drift apart on what counts as a valid
+# swap. The local EXERCISE_SWAPS dict that used to live here has been
+# removed in favor of that shared source of truth.
 
 
 def _get_swap_for(exercise_name: str) -> Optional[str]:
     """Return the next exercise swap for a plateau, cycling through the list."""
     lower = exercise_name.lower()
-    for key, swaps in EXERCISE_SWAPS.items():
-        if key in lower:
-            # Return the first swap that isn't the current exercise
-            for swap in swaps:
-                if swap.lower() != lower:
-                    return swap.title()
+    for sub in get_substitutes(exercise_name):
+        if sub["name"].lower() != lower:
+            return sub["name"]
     return None
 
 
@@ -211,9 +204,24 @@ def run_program_rewriter(user_id: str, profile: dict) -> dict:
             "version_id": str | None,
         }
     """
-    # 1. Run the full pattern engine to get all current insights
+    # 1. Run the full pattern engine to get all current insights.
+    # run_pattern_engine expects a protein_target_g float (see
+    # training_strategy_engine._get_signals for the same pattern), not the
+    # raw profile dict, so compute the target the same way other callers do.
     try:
-        insights = run_pattern_engine(user_id, profile)
+        from services.nutrition import calculate_macros
+        from schemas.models import Goal as GoalEnum
+        goal = profile.get("goal") or "maintain"
+        goal_enum = GoalEnum(goal) if goal in GoalEnum._value2member_map_ else GoalEnum.maintain
+        targets = calculate_macros(
+            weight_kg=profile.get("weight_kg") or 75,
+            height_cm=profile.get("height_cm") or 175,
+            age=profile.get("age") or 28,
+            gender=profile.get("gender") or "male",
+            goal=goal_enum,
+            is_training_day=True,
+        )
+        insights = run_pattern_engine(user_id, protein_target_g=targets["protein_g"])
     except Exception as e:
         logger.error(f"Pattern engine failed for {user_id}: {e}")
         return {
