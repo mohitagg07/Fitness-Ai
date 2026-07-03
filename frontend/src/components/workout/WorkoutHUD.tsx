@@ -24,6 +24,7 @@ import { SPACING, RADIUS } from '../../theme/spacing';
 import WorkoutSummaryCard from './WorkoutSummaryCard';
 import WorkoutHistoryModal from './WorkoutHistoryModal';
 import MilestoneCelebration from './MilestoneCelebration';
+import MoodPickerModal, { MoodValue } from './MoodPickerModal';
 
 interface ExerciseCard {
   name: string;
@@ -212,6 +213,8 @@ export default function WorkoutHUD() {
   const [isFinishing, setIsFinishing]   = useState(false);
   const [streakVisible, setStreakVisible] = useState(false);
   const [streakData, setStreakData]     = useState<MilestoneInfo | null>(null);
+  const [moodPickerVisible, setMoodPickerVisible] = useState(false);
+  const [pendingMood, setPendingMood]   = useState<MoodValue | undefined>(undefined);
 
   // Tick for elapsed time
   useEffect(() => {
@@ -367,11 +370,16 @@ export default function WorkoutHUD() {
   // The backend PATCH /sessions/{id}/complete recomputes stats from the
   // already-persisted logs and upserts PRs idempotently, so calling it again
   // on the same session id after a failed/lost response is safe.
-  const completeAndShowSummary = async () => {
+  const completeAndShowSummary = async (moodOverride?: MoodValue) => {
     if (!activeSession || isFinishing) return;
     setIsFinishing(true);
+    // moodOverride avoids a stale-closure read of `pendingMood` right after
+    // setPendingMood() — state updates aren't synchronous, so the caller
+    // passes the freshly-picked value directly instead of relying on it
+    // having already landed in state by the time this runs.
+    const moodToSend = moodOverride ?? pendingMood;
     try {
-      const res = await workoutApi.completeSession(activeSession.id);
+      const res = await workoutApi.completeSession(activeSession.id, undefined, moodToSend);
       const summary = res.data;
       setActiveSession(null);
       setExercises([]);
@@ -404,7 +412,7 @@ export default function WorkoutHUD() {
         'Retry',
         'Cancel'
       );
-      if (retry) await completeAndShowSummary();
+      if (retry) await completeAndShowSummary(moodToSend);
     } finally {
       setIsFinishing(false);
     }
@@ -423,7 +431,9 @@ export default function WorkoutHUD() {
       'Finish',
       'Cancel'
     );
-    if (ok) await completeAndShowSummary();
+    // One optional tap before the summary — see MoodPickerModal for why
+    // this is the moment it's asked, and why it's skippable.
+    if (ok) setMoodPickerVisible(true);
   };
 
   // Group logs by exercise for display
@@ -491,6 +501,19 @@ export default function WorkoutHUD() {
   // ── Active session ───────────────────────────────────────────────────────────
   return (
     <View style={S.container}>
+      <MoodPickerModal
+        visible={moodPickerVisible}
+        onSelect={(mood) => {
+          setPendingMood(mood);
+          setMoodPickerVisible(false);
+          completeAndShowSummary(mood);
+        }}
+        onSkip={() => {
+          setPendingMood(undefined);
+          setMoodPickerVisible(false);
+          completeAndShowSummary(undefined);
+        }}
+      />
       <WorkoutSummaryCard
         visible={summaryVisible}
         data={summaryData}

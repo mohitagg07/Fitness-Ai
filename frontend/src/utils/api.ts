@@ -194,9 +194,9 @@ export const coachApi = {
 export const workoutApi = {
   createSession: (data: any) => api.post('/workouts/sessions', data),
   getSessions: (limit = 10) => api.get(`/workouts/sessions?limit=${limit}`),
-  completeSession: (id: string, cns_fatigue?: number) =>
+  completeSession: (id: string, cns_fatigue?: number, mood?: string) =>
     api.patch(`/workouts/sessions/${id}/complete`, null, {
-      params: { cns_fatigue_after: cns_fatigue },
+      params: { cns_fatigue_after: cns_fatigue, mood },
     }),
   logSet: (sessionId: string, data: any) =>
     api.post(`/workouts/sessions/${sessionId}/logs`, data),
@@ -215,6 +215,9 @@ export const workoutApi = {
 export const progressApi = {
   logMetrics: (data: any) => api.post('/progress/metrics', data),
   getMetrics: (limit = 30) => api.get(`/progress/metrics?limit=${limit}`),
+  // Same score/headline shown on the dashboard's ConsistencyScoreCard —
+  // exposed standalone so the Progress tab can show it too without drift.
+  getConsistency: () => api.get('/progress/consistency'),
   logNutrition: (data: any) => api.post('/nutrition/log', data),
   getNutritionTargets: (is_training_day = true) =>
     api.get(`/nutrition/targets?is_training_day=${is_training_day}`),

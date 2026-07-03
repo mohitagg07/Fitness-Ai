@@ -12,6 +12,7 @@
 // Section order mirrors the product brief, one question per section:
 //   1. Am I ready today?          → DashboardHeader
 //   2. What should I do & why?    → AIReadinessHero
+//  2b. Have I been consistent?    → ConsistencyScoreCard
 //   3. What does the coach say?   → CoachInsightCard
 //   4. Am I improving?            → MomentumCard
 //   5. The real numbers           → WeeklyPerformanceCard
@@ -36,6 +37,7 @@ import DashboardSkeleton from './DashboardSkeleton';
 import DashboardHeader from './DashboardHeader';
 import AIReadinessHero from './AIReadinessHero';
 import CoachInsightCard from './CoachInsightCard';
+import ConsistencyScoreCard from './ConsistencyScoreCard';
 import MomentumCard from './MomentumCard';
 import WeeklyPerformanceCard from './WeeklyPerformanceCard';
 import PredictionCard from './PredictionCard';
@@ -204,6 +206,10 @@ export default function DashboardScreen() {
         workoutType={summary?.workout_today?.type ?? null}
         workoutStreak={summary?.workout_streak ?? 0}
       />
+
+      {/* 2b. Have I actually been consistent lately? — one score, one
+          sentence, instead of another chart to interpret. */}
+      <ConsistencyScoreCard data={summary?.consistency} />
 
       {/* 3. What does the coach say? */}
       {summary?.proactive_brief && (
