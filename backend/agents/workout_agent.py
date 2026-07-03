@@ -5,6 +5,12 @@ yesterday's planned session was actually completed, and either confirms
 today's plan or reschedules a missed day.
 
 "You missed leg day yesterday. Rescheduling it for today at 6 PM."
+
+Also reads the cached Habit Intelligence profile (agents/habit_engine.py)
+so a reschedule onto a day the user habitually skips gets an honest heads-
+up instead of silently repeating the same miss next week — this is the
+part of Habit Intelligence that actually changes a decision, not just a
+display card.
 """
 from datetime import date, timedelta
 from schemas.models import WorkoutDecision
@@ -74,6 +80,17 @@ def run_workout_agent(user_id: str, preferred_time: str | None = None) -> Workou
             f"You missed {yesterday_planned.replace('_', ' ').title()} day yesterday. "
             f"Rescheduling it for today{time_str}."
         )
+        today_name = today.strftime("%A")
+        try:
+            from agents.habit_engine import get_cached_habit_profile
+            habits = get_cached_habit_profile(user_id)
+            if habits.get("has_data") and today_name in habits.get("avoided_days", []):
+                message += (
+                    f" Heads up — {today_name}s are usually a day you skip too. "
+                    f"If today's tight, moving this to tomorrow now beats missing it again."
+                )
+        except Exception:
+            pass  # habit profile is a nudge, never a hard dependency for the core reschedule decision
         return WorkoutDecision(
             message=message,
             rescheduled=True,

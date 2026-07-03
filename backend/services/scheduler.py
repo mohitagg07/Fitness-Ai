@@ -11,6 +11,10 @@ Implements the automation layer described in the roadmap:
     ├── Pattern Detection   — run_pattern_engine() for every active user,
     │                          persisted so the morning brief and dashboard
     │                          don't recompute from scratch on every request.
+    ├── Habit Intelligence   — build_habit_profile() for every active user,
+    │                          cached so workout_agent.py can read a live
+    │                          "avoided days / late days / weekend nutrition
+    │                          dip" profile cheaply when rescheduling.
     ├── Weekly Review        — on Sundays, generate_weekly_review() for every
     │                          active user and cache it so the Sunday-morning
     │                          open of the app is instant, not a cold LLM call.
@@ -105,6 +109,31 @@ def job_pattern_detection() -> None:
         except Exception as e:
             logger.warning(f"[scheduler] pattern_detection failed for {user_id}: {e}")
     logger.info(f"[scheduler] pattern_detection: processed {processed}/{len(user_ids)} users")
+
+
+# ─── Job 1b: Habit Intelligence ──────────────────────────────────────────────
+def job_habit_intelligence() -> None:
+    """
+    Computes and caches agents/habit_engine.build_habit_profile() for every
+    active user — the unified "avoided days / late days / weekend nutrition
+    dip / typical schedule" profile that agents/workout_agent.py reads when
+    rescheduling a missed session, so the habit signal actually feeds into
+    a live decision instead of only sitting in a display card. Runs
+    alongside pattern_detection (same 02:xx UTC window) but as its own job
+    so a failure in one never blocks the other.
+    """
+    from agents.habit_engine import cache_habit_profile
+
+    user_ids = _get_active_user_ids()
+    logger.info(f"[scheduler] habit_intelligence: {len(user_ids)} active users")
+    processed = 0
+    for user_id in user_ids:
+        try:
+            cache_habit_profile(user_id)
+            processed += 1
+        except Exception as e:
+            logger.warning(f"[scheduler] habit_intelligence failed for {user_id}: {e}")
+    logger.info(f"[scheduler] habit_intelligence: processed {processed}/{len(user_ids)} users")
 
 
 # ─── Job 2: Weekly Review (Sundays) ──────────────────────────────────────────
@@ -338,6 +367,15 @@ def start_scheduler():
         replace_existing=True,
         misfire_grace_time=3600,
     )
+    # 02:15 UTC nightly — Habit Intelligence (avoided days, late days,
+    # weekend nutrition dip), cached for workout_agent to read live.
+    scheduler.add_job(
+        job_habit_intelligence,
+        CronTrigger(hour=2, minute=15),
+        id="habit_intelligence",
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
     # 02:30 UTC nightly — memory cleanup (cheap, runs every night, no-op
     # past the retention window for most rows)
     scheduler.add_job(
@@ -389,7 +427,7 @@ def start_scheduler():
     )
 
     scheduler.start()
-    logger.info("[scheduler] started — pattern_detection@02:00, memory_cleanup@02:30, weekly_review@03:00 (Sun only), morning_brief_prep@04:00, generate_notifications@04:30 UTC, workout_reminders every 15min")
+    logger.info("[scheduler] started — pattern_detection@02:00, habit_intelligence@02:15, memory_cleanup@02:30, weekly_review@03:00 (Sun only), morning_brief_prep@04:00, generate_notifications@04:30 UTC, workout_reminders every 15min")
     return scheduler
 
 
@@ -403,6 +441,7 @@ def run_all_jobs_now() -> dict:
     results = {}
     for name, fn in [
         ("pattern_detection", job_pattern_detection),
+        ("habit_intelligence", job_habit_intelligence),
         ("memory_cleanup", job_memory_cleanup),
         ("weekly_review", job_weekly_review),
         ("morning_brief_prep", job_morning_brief_prep),

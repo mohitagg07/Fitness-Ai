@@ -22,6 +22,8 @@ from api.routes.bodyweight import router as bodyweight_router
 from api.routes.notifications import router as notifications_router
 from api.routes.admin import router as admin_router
 from api.routes.strategy import router as strategy_router
+from api.routes.simulate import router as simulate_router
+from api.routes.habits import router as habits_router
 from core.config import get_settings
 from db.chroma_client import seed_guardrails
 
@@ -88,6 +90,8 @@ app.include_router(bodyweight_router,    prefix="/api/bodyweight",    tags=["Bod
 app.include_router(notifications_router, prefix="/api/notifications", tags=["Notifications"])
 app.include_router(admin_router,    prefix="/api/admin",    tags=["Admin"])
 app.include_router(strategy_router, prefix="/api/strategy", tags=["Training Strategy"])
+app.include_router(simulate_router, prefix="/api/simulate", tags=["Scenario Simulator"])
+app.include_router(habits_router,   prefix="/api/habits",   tags=["Habit Intelligence"])
 
 
 @app.get("/")
