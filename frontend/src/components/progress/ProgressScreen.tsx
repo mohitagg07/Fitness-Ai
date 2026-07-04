@@ -1,5 +1,5 @@
 // VYRN — Progress Screen v3
-// Tabs: Body | Strength | Nutrition | Recovery | Review | Motivation
+// Tabs: Body | Nutrition | Recovery | Review | Analytics
 // All existing data wiring preserved. Adds:
 //   • Motivation tab: AI quote, streak achievements, PRs, milestone badges
 //   • Nutrition tab: enhanced with FatSecret quick-log, today macros ring row
@@ -18,15 +18,13 @@ import { progressApi, nutritionApi, profileApi, describeApiError } from '../../u
 import { COLORS, recoveryColor } from '../../theme/colors';
 import NutritionSearchModal from './NutritionSearchModal';
 import WeightChart from './WeightChart';
-import StrengthProgressionChart from './StrengthProgressionChart';
 import Logo from '../shared/Logo';
 import WeeklyReviewScreen from './WeeklyReviewScreen';
 import AnalyticsScreen from './AnalyticsScreen';
 import MuscleRecoveryMap from './MuscleRecoveryMap';
-import TrendProjectionCard from './TrendProjectionCard';
 import { SkeletonCard } from '../shared/LoadingOverlay';
 
-type Tab = 'body' | 'strength' | 'nutrition' | 'recovery' | 'review' | 'analytics';
+type Tab = 'body' | 'nutrition' | 'recovery' | 'review' | 'analytics';
 
 // ─── Motivation quotes pool ────────────────────────────────────────────────────
 const MOTIVATION_QUOTES = [
@@ -391,7 +389,6 @@ export default function ProgressScreen() {
 
   const TABS: { key: Tab; label: string; icon: string }[] = [
     { key: 'body',       label: 'Body',       icon: 'body-outline' },
-    { key: 'strength',   label: 'Strength',   icon: 'barbell-outline' },
     { key: 'nutrition',  label: 'Nutrition',  icon: 'nutrition-outline' },
     { key: 'recovery',   label: 'Recovery',   icon: 'pulse-outline' },
     { key: 'review',     label: 'Review',     icon: 'document-text-outline' },
@@ -487,15 +484,6 @@ export default function ProgressScreen() {
                 );
               })()}
               <StreaksRow metrics={metrics} nutrition={nutrition} />
-              <PRTable prs={prs} />
-            </>
-          )}
-
-          {/* STRENGTH */}
-          {activeTab === 'strength' && (
-            <>
-              <TrendProjectionCard />
-              <StrengthProgressionChart />
               <PRTable prs={prs} />
             </>
           )}

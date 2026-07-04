@@ -491,6 +491,31 @@ function WorkoutHUD() {
 
   const ex = exercises[activeIdx];
 
+  // These four callbacks must be declared before any early return below —
+  // hooks can't be conditional, and the pre-session branch used to return
+  // before reaching them, so the hook count differed between the
+  // "no session" and "session started" renders (React's "Rendered more
+  // hooks than during the previous render" error, thrown the instant
+  // startSession() flips sessionStarted from false to true).
+  const handleMoodSelect = useCallback((mood: MoodValue) => {
+    setPendingMood(mood);
+    setMoodPickerVisible(false);
+    completeAndShowSummary(mood);
+  }, [completeAndShowSummary]);
+
+  const handleMoodSkip = useCallback(() => {
+    setPendingMood(undefined);
+    setMoodPickerVisible(false);
+    completeAndShowSummary(undefined);
+  }, [completeAndShowSummary]);
+
+  const handleSummaryClose = useCallback(() => {
+    setSummaryVisible(false);
+    if (streakData) setTimeout(() => setStreakVisible(true), 300);
+  }, [streakData]);
+
+  const handleMilestoneClose = useCallback(() => setStreakVisible(false), []);
+
   // ── Pre-session ─────────────────────────────────────────────────────────────
   if (!sessionStarted) {
     return (
@@ -541,24 +566,6 @@ function WorkoutHUD() {
   }
 
   // ── Active session ───────────────────────────────────────────────────────────
-  const handleMoodSelect = useCallback((mood: MoodValue) => {
-    setPendingMood(mood);
-    setMoodPickerVisible(false);
-    completeAndShowSummary(mood);
-  }, [completeAndShowSummary]);
-
-  const handleMoodSkip = useCallback(() => {
-    setPendingMood(undefined);
-    setMoodPickerVisible(false);
-    completeAndShowSummary(undefined);
-  }, [completeAndShowSummary]);
-
-  const handleSummaryClose = useCallback(() => {
-    setSummaryVisible(false);
-    if (streakData) setTimeout(() => setStreakVisible(true), 300);
-  }, [streakData]);
-
-  const handleMilestoneClose = useCallback(() => setStreakVisible(false), []);
 
   return (
     <View style={S.container}>
