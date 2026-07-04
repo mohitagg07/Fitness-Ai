@@ -27,7 +27,7 @@ import Button from '../ui/Button';
 import SectionLabel from '../ui/SectionLabel';
 import api from '../../utils/api';
 import { useProgramVersions } from '../../hooks/useDashboardQueries';
-import { qk } from '../../hooks/queryKeys';
+import { qk } from '../../lib/queryKeys';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);

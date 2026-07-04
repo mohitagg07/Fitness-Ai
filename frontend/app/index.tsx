@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { storage } from '../src/utils/storage';
 import { profileApi } from '../src/utils/api';
 import { queryClient } from '../src/lib/queryClient';
-import { qk } from '../src/hooks/queryKeys';
+import { qk } from '../src/lib/queryKeys';
 import AnimatedSplash from '../src/components/splash/AnimatedSplash';
 import { COLORS } from '../src/theme/colors';
 
