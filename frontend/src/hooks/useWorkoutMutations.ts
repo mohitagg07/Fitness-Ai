@@ -17,7 +17,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { workoutApi } from '../utils/api';
 import { actions } from '../store';
-import { qk } from './queryKeys';
+import { qk } from '../lib/queryKeys';
 
 export interface SetLogInput {
   sessionId: string;

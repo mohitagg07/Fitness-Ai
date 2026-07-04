@@ -16,7 +16,7 @@ import {
   missionApi, dashboardApi, analyticsApi, reviewApi, programApi,
 } from '../utils/api';
 import api from '../utils/api';
-import { qk, STALE } from './queryKeys';
+import { qk, STALE } from '../lib/queryKeys';
 
 // mission/today is the richer payload (proactive_brief, pattern_insights).
 // dashboard/summary is the older fallback. Same shape-compatible fields

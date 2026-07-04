@@ -12,7 +12,7 @@
 // Profile now share one in-flight request instead of two.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { profileApi } from '../utils/api';
-import { qk, STALE } from './queryKeys';
+import { qk, STALE } from '../lib/queryKeys';
 
 export function useProfileMe() {
   return useQuery({

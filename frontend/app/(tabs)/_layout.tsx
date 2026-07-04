@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { storage } from '../../src/utils/storage';
 import { profileApi } from '../../src/utils/api';
 import { queryClient } from '../../src/lib/queryClient';
-import { qk } from '../../src/hooks/queryKeys';
+import { qk } from '../../src/lib/queryKeys';
 import { usePrefetchDashboard } from '../../src/hooks/useDashboardQueries';
 import { COLORS, alpha } from '../../src/theme/colors';
 import {
