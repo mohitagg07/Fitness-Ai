@@ -9,39 +9,26 @@
 // inventing a timeline client-side would be exactly the kind of
 // fabricated number the rest of this app goes out of its way to avoid.
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { reviewApi } from '../../utils/api';
 import { COLORS, alpha } from '../../theme/colors';
 import { SPACING, RADIUS } from '../../theme/spacing';
 import Text from '../ui/Text';
 import SectionLabel from '../ui/SectionLabel';
+import { useWeeklyReview } from '../../hooks/useDashboardQueries';
 
 interface StrengthGain { exercise: string; prev_kg: number; curr_kg: number; delta_kg: number; }
 
+// PERF: previously a bare useEffect fetch — now shares the app-wide query
+// cache via useWeeklyReview (staleTime: medium, see queryKeys.ts), so a
+// warm return to Home renders instantly from cache instead of blocking on
+// a fresh GET /review/weekly round trip.
 function PredictionCard() {
-  const [gains, setGains] = useState<StrengthGain[]>([]);
-  const [strategy, setStrategy] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await reviewApi.getWeekly();
-        if (!cancelled && !res.data?.error) {
-          setGains(res.data.strength_gains || []);
-          setStrategy(res.data.next_week_strategy || null);
-        }
-      } catch {
-        // Fails quiet.
-      } finally {
-        if (!cancelled) setLoaded(true);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
+  const { data, isPending } = useWeeklyReview();
+  const gains: StrengthGain[] = !data?.error ? (data?.strength_gains || []) : [];
+  const strategy: string | null = !data?.error ? (data?.next_week_strategy || null) : null;
+  const loaded = !isPending;
 
   if (loaded && gains.length === 0 && !strategy) return null;
 

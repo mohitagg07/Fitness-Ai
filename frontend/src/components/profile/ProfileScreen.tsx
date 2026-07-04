@@ -14,7 +14,7 @@
 // global store), and working injury add/delete. Nothing here is a stub —
 // every control on this screen does something against the real backend.
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   Alert, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView, Platform,
@@ -25,11 +25,15 @@ import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
-import { profileApi, dashboardApi, progressApi, describeApiError } from '../../utils/api';
+import { describeApiError } from '../../utils/api';
 import { useStore, actions } from '../../store';
 import { COLORS } from '../../theme/colors';
 import { FONTS } from '../../theme/typography';
 import Logo from '../shared/Logo';
+import { useMissionSummary, useWeeklyStats } from '../../hooks/useDashboardQueries';
+import {
+  useProfileMe, useProfilePRs, useUpdateProfile, useUploadAvatar, useDeleteInjury, useAddInjury,
+} from '../../hooks/useProfileQueries';
 
 const APP_VERSION = '1.0.0';
 
@@ -72,56 +76,47 @@ interface Profile {
 interface Injury { id: string; body_part: string; issue_type: string; severity: number; notes?: string; doctor_restriction?: boolean; }
 interface PR { id: string; exercise_name: string; weight_kg: number; reps: number; achieved_at?: string; }
 
+// PERF: previously a hand-rolled useEffect fetch of four endpoints in
+// sequence/parallel with no cache — every visit to this tab re-fetched
+// everything from zero. useProfileMe/useProfilePRs now share the app-wide
+// query cache (staleTime: medium), and workoutStreak/sessionsThisWeek
+// reuse the exact same useMissionSummary/useWeeklyStats queries Home
+// already fires, so Profile and Home de-dupe into one request instead of
+// two, and a warm return to this tab renders instantly from cache.
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   // Selector form — see src/store/index.ts. Profile only cares about
   // `user` and the stable `logout` action, so it no longer re-renders on
   // chat/workout/CNS-fatigue updates from other tabs.
   const { user, logout } = useStore((s) => ({ user: s.user, logout: s.logout }));
-  const [profile, setProfile] = useState<Profile>({});
-  const [injuries, setInjuries] = useState<Injury[]>([]);
-  const [prs, setPrs] = useState<PR[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [editVisible, setEditVisible] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  const {
+    data: meData, isPending: loading, error: meError, refetch: refetchMe,
+  } = useProfileMe() as { data?: { profile?: Profile; injuries?: Injury[] }; isPending: boolean; error: unknown; refetch: () => void };
+  const profile: Profile = meData?.profile || {};
+  const injuries: Injury[] = meData?.injuries || [];
+  const errorMsg = meError ? describeApiError(meError).message : null;
+
+  const { data: prs = [] } = useProfilePRs() as { data?: PR[] };
+
   // Real signals only — no invented lifetime totals. workoutStreak comes
   // from the same dashboard summary the Home tab uses; sessionsThisWeek
   // from the real weekly-stats endpoint (already powers AnalyticsScreen).
-  const [workoutStreak, setWorkoutStreak] = useState<number | null>(null);
-  const [sessionsThisWeek, setSessionsThisWeek] = useState<number | null>(null);
+  const { data: summary } = useMissionSummary() as { data?: { workout_streak?: number } };
+  const { data: weeklyStats } = useWeeklyStats() as { data?: { sessions_completed?: number } };
+  const workoutStreak = summary?.workout_streak ?? null;
+  const sessionsThisWeek = weeklyStats?.sessions_completed ?? null;
 
-  const loadAll = useCallback(async () => {
-    setErrorMsg(null);
-    try {
-      const [meRes, prsRes] = await Promise.all([profileApi.getMe(), profileApi.getPRs()]);
-      const freshProfile = meRes.data?.profile || {};
-      setProfile(freshProfile);
-      setInjuries(meRes.data?.injuries || []);
-      setPrs(prsRes.data || []);
-      // Keep the rest of the app (Dashboard header, etc.) in sync with
-      // whatever we just loaded here.
-      actions.updateProfile(freshProfile);
-    } catch (err: any) {
-      const { message } = describeApiError(err);
-      setErrorMsg(message);
-    }
-    // Best-effort — these two are for the achievements strip only, so a
-    // failure here shouldn't block the rest of the profile from loading.
-    try {
-      const [summaryRes, weeklyRes] = await Promise.all([
-        dashboardApi.getSummary(), progressApi.getWeeklyStats(),
-      ]);
-      setWorkoutStreak(summaryRes.data?.workout_streak ?? null);
-      setSessionsThisWeek(weeklyRes.data?.sessions_completed ?? null);
-    } catch {
-      // silently omit the achievements strip's live numbers
-    }
-  }, []);
-
+  // Keep the rest of the app (Dashboard header, etc.) in sync whenever
+  // the profile query resolves with fresh data.
   useEffect(() => {
-    (async () => { setLoading(true); await loadAll(); setLoading(false); })();
-  }, [loadAll]);
+    if (meData?.profile) actions.updateProfile(meData.profile);
+  }, [meData?.profile]);
+
+  const uploadAvatarMutation = useUploadAvatar();
+  const deleteInjuryMutation = useDeleteInjury();
 
   const handleLogout = () => {
     Alert.alert('Log Out', 'Are you sure you want to log out?', [
@@ -151,8 +146,7 @@ export default function ProfileScreen() {
     const mimeType = asset.mimeType || 'image/jpeg';
     setUploadingAvatar(true);
     try {
-      const res = await profileApi.uploadAvatar(asset.uri, mimeType);
-      setProfile((p) => ({ ...p, avatar_url: res.data.avatar_url }));
+      const res = await uploadAvatarMutation.mutateAsync({ uri: asset.uri, mimeType });
       // This was the actual bug behind "the dashboard never shows my
       // photo" — ProfileScreen updated its own local state but never told
       // the global store, so every other screen kept reading the old
@@ -173,8 +167,7 @@ export default function ProfileScreen() {
         text: 'Remove', style: 'destructive',
         onPress: async () => {
           try {
-            await profileApi.deleteInjury(id);
-            setInjuries((list) => list.filter((i) => i.id !== id));
+            await deleteInjuryMutation.mutateAsync(id);
           } catch {
             Alert.alert('Error', 'Could not remove injury.');
           }
@@ -196,7 +189,7 @@ export default function ProfileScreen() {
       <View style={[styles.center, { padding: 32 }]}>
         <Ionicons name="cloud-offline-outline" size={32} color={COLORS.textMuted} />
         <Text style={{ color: COLORS.textSecondary, fontSize: 13, textAlign: 'center', marginTop: 12 }}>{errorMsg}</Text>
-        <TouchableOpacity style={styles.retryBtn} onPress={() => { setLoading(true); loadAll().finally(() => setLoading(false)); }}>
+        <TouchableOpacity style={styles.retryBtn} onPress={() => refetchMe()}>
           <Text style={{ color: COLORS.primaryGreen, fontSize: 13, fontWeight: '700' }}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -213,7 +206,7 @@ export default function ProfileScreen() {
         visible={editVisible}
         profile={profile}
         onClose={() => setEditVisible(false)}
-        onSaved={(updated) => { setProfile(updated); setEditVisible(false); }}
+        onSaved={() => setEditVisible(false)}
       />
 
       <ScrollView style={styles.container}>
@@ -259,6 +252,23 @@ export default function ProfileScreen() {
             <Ionicons name="create-outline" size={14} color={COLORS.primaryGreen} />
             <Text style={styles.editBtnText}>Edit Profile</Text>
           </TouchableOpacity>
+
+          {(workoutStreak != null || sessionsThisWeek != null) && (
+            <View style={styles.streakStrip}>
+              {workoutStreak != null && (
+                <View style={styles.streakChip}>
+                  <Ionicons name="flame" size={12} color="#FF4500" />
+                  <Text style={styles.streakChipText}>{workoutStreak} day streak</Text>
+                </View>
+              )}
+              {sessionsThisWeek != null && (
+                <View style={styles.streakChip}>
+                  <Ionicons name="checkmark-done" size={12} color={COLORS.primaryGreen} />
+                  <Text style={styles.streakChipText}>{sessionsThisWeek} this week</Text>
+                </View>
+              )}
+            </View>
+          )}
         </View>
 
         {/* Body stats */}
@@ -343,7 +353,7 @@ export default function ProfileScreen() {
           ) : (
             <Text style={styles.emptyHint}>No injuries on file. Your coach will avoid risky movements once you add one.</Text>
           )}
-          <AddInjuryRow onAdded={(inj) => setInjuries((list) => [...list, inj])} />
+          <AddInjuryRow />
         </View>
 
         {/* Nutrition preferences */}
@@ -407,12 +417,13 @@ function DetailRow({ label, value, last }: { label: string; value: string; last?
 }
 
 // ─── Add Injury inline form ──────────────────────────────────────────────────
-function AddInjuryRow({ onAdded }: { onAdded: (i: Injury) => void }) {
+function AddInjuryRow() {
   const [open, setOpen] = useState(false);
   const [bodyPart, setBodyPart] = useState('');
   const [issueType, setIssueType] = useState('');
   const [severity, setSeverity] = useState('5');
-  const [saving, setSaving] = useState(false);
+  const addInjuryMutation = useAddInjury();
+  const saving = addInjuryMutation.isPending;
 
   const save = async () => {
     if (!bodyPart.trim() || !issueType.trim()) {
@@ -420,20 +431,16 @@ function AddInjuryRow({ onAdded }: { onAdded: (i: Injury) => void }) {
       return;
     }
     const sev = Math.min(10, Math.max(1, parseInt(severity, 10) || 5));
-    setSaving(true);
     try {
-      const res = await profileApi.addInjury({
+      await addInjuryMutation.mutateAsync({
         body_part: bodyPart.trim().toLowerCase().replace(/\s+/g, '_'),
         issue_type: issueType.trim(),
         severity: sev,
         doctor_restriction: false,
       });
-      onAdded(res.data);
       setBodyPart(''); setIssueType(''); setSeverity('5'); setOpen(false);
     } catch {
       Alert.alert('Error', 'Could not add injury.');
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -478,8 +485,10 @@ const GENDERS = ['male', 'female', 'other'];
 function EditProfileModal({
   visible, profile, onClose, onSaved,
 }: { visible: boolean; profile: Profile; onClose: () => void; onSaved: (p: Profile) => void }) {
+  const insets = useSafeAreaInsets();
   const [form, setForm] = useState<Profile>(profile);
-  const [saving, setSaving] = useState(false);
+  const updateProfileMutation = useUpdateProfile();
+  const saving = updateProfileMutation.isPending;
 
   useEffect(() => { if (visible) setForm(profile); }, [visible, profile]);
 
@@ -497,7 +506,6 @@ function EditProfileModal({
     if (form.weight_kg != null && (form.weight_kg < 30 || form.weight_kg > 300)) {
       Alert.alert('Check weight', 'Weight should be between 30–300 kg.'); return;
     }
-    setSaving(true);
     try {
       const payload: any = {
         full_name: form.full_name, age: form.age, gender: form.gender,
@@ -511,13 +519,11 @@ function EditProfileModal({
         wake_time: form.wake_time, sleep_time: form.sleep_time,
         workout_time_preference: form.workout_time_preference,
       };
-      const res = await profileApi.updateMe(payload);
+      const res = await updateProfileMutation.mutateAsync(payload);
       onSaved(res.data);
     } catch (err: any) {
       const { message } = describeApiError(err);
       Alert.alert('Could not save', message);
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -676,6 +682,14 @@ const styles = StyleSheet.create({
 
   editBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: COLORS.primaryGreen + '50', borderRadius: 10, paddingHorizontal: 16, paddingVertical: 9, backgroundColor: COLORS.primaryGreen + '12' },
   editBtnText: { color: COLORS.primaryGreen, fontSize: 13, fontWeight: '700' },
+
+  streakStrip: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  streakChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
+    backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.border,
+  },
+  streakChipText: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '600' },
 
   statsRow: {
     flexDirection: 'row', justifyContent: 'space-around',

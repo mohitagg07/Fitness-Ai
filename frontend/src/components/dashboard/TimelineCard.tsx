@@ -5,13 +5,13 @@
 // DB rows, zero mock content). Renamed from the original Coach Timeline
 // card onto the new Home layout; the data source is unchanged.
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, alpha } from '../../theme/colors';
 import { RADIUS, SPACING } from '../../theme/spacing';
 import { ELEVATION } from '../../theme/layout';
-import api from '../../utils/api';
+import { useCoachTimeline } from '../../hooks/useDashboardQueries';
 
 interface TimelineEvent {
   type: string;
@@ -35,20 +35,15 @@ function formatDate(iso: string) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+// PERF: previously a bare useEffect fetch — now shares the app-wide query
+// cache via useCoachTimeline (staleTime: short, see queryKeys.ts), so a
+// warm return to Home renders the timeline instantly from cache instead
+// of blocking on a fresh GET /coach/coach-timeline round trip.
 function TimelineCard() {
-  const [events, setEvents] = useState<TimelineEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data, isPending } = useCoachTimeline(15);
+  const events: TimelineEvent[] = data?.timeline || [];
+  const loading = isPending && events.length === 0;
   const [collapsed, setCollapsed] = useState(true);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await api.get('/coach/coach-timeline');
-        setEvents(res.data.timeline || []);
-      } catch {}
-      setLoading(false);
-    })();
-  }, []);
 
   const visibleEvents = collapsed ? events.slice(0, 4) : events.slice(0, 12);
 

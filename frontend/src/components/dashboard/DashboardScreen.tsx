@@ -23,12 +23,11 @@
 //  10. Anything the coach caught? → PatternInsightsCard
 //  11. Where else can I go?       → QuickToolsCard
 
-import React, { useCallback, useEffect, useState, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { ScrollView, StyleSheet, View, TouchableOpacity, RefreshControl } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import { dashboardApi, missionApi, analyticsApi, describeApiError } from '../../utils/api';
+import { describeApiError } from '../../utils/api';
 import { useStore } from '../../store';
 import { COLORS } from '../../theme/colors';
 import { SPACING } from '../../theme/spacing';
@@ -47,6 +46,7 @@ import ProgramHealthCard from './ProgramHealthCard';
 import TimelineCard from './TimelineCard';
 import PatternInsightsCard from './PatternInsightsCard';
 import QuickToolsCard from './QuickToolsCard';
+import { useMissionSummary, useWeeklyStats, useRefreshDashboard } from '../../hooks/useDashboardQueries';
 
 interface DashboardSummary {
   greeting: string;
@@ -79,6 +79,14 @@ interface DashboardSummary {
   };
 }
 
+// PERF: previously a hand-rolled useEffect+useFocusEffect fetch behind a
+// single `loading` boolean — every focus re-fetched both endpoints from
+// zero and the whole screen unmounted to a skeleton on any refresh.
+// useMissionSummary/useWeeklyStats share the app-wide query cache
+// (staleTime: short — see queryKeys.ts) with automatic refetch-on-focus
+// wired once in lib/queryClient.ts, so a warm return to this tab renders
+// instantly from cache while a background refetch quietly confirms it's
+// current — no manual focus-tracking needed here anymore.
 export default function DashboardScreen() {
   // Selector form: this screen only re-renders on a store update when
   // user/profile/setCnsFatigue actually change — not on every chat
@@ -87,71 +95,32 @@ export default function DashboardScreen() {
   const { user, profile, setCnsFatigue } = useStore((s) => ({
     user: s.user, profile: s.profile, setCnsFatigue: s.setCnsFatigue,
   }));
-  const [summary, setSummary] = useState<DashboardSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const { data: summary, isPending: loading, error, isRefetching } = useMissionSummary() as {
+    data?: DashboardSummary; isPending: boolean; error: unknown; isRefetching: boolean;
+  };
   // Real "sessions completed this week" count from /progress/weekly-stats,
   // shared with MomentumCard's weekly-consistency bar. null while
   // unknown/unavailable so the UI quietly omits it instead of a fake number.
-  const [weeklySessions, setWeeklySessions] = useState<number | null>(null);
+  const { data: weeklyStats } = useWeeklyStats();
+  const weeklySessions: number | null =
+    typeof weeklyStats?.sessions_completed === 'number' ? weeklyStats.sessions_completed : null;
 
-  const loadData = useCallback(async () => {
-    setErrorMsg(null);
-    try {
-      // Try mission endpoint first (has proactive_brief + pattern_insights)
-      let res;
-      try {
-        res = await missionApi.getToday();
-      } catch {
-        res = await dashboardApi.getSummary();
-      }
-      setSummary(res.data);
-      if (typeof res.data.cns_fatigue === 'number') {
-        setCnsFatigue(res.data.cns_fatigue);
-      }
-    } catch (err: any) {
-      const { message } = describeApiError(err);
-      setErrorMsg(message);
-    }
-    try {
-      const weekly = await analyticsApi.getWeeklyStats();
-      if (typeof weekly.data?.sessions_completed === 'number') {
-        setWeeklySessions(weekly.data.sessions_completed);
-      }
-    } catch {
-      // Non-critical — stat is simply omitted if this fails.
-    }
-  }, [setCnsFatigue]);
+  const errorMsg = error ? describeApiError(error).message : null;
+
+  const refreshDashboard = useRefreshDashboard();
 
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      await loadData();
-      setLoading(false);
-    })();
-  }, [loadData]);
+    if (typeof summary?.cns_fatigue === 'number') {
+      setCnsFatigue(summary.cns_fatigue);
+    }
+  }, [summary?.cns_fatigue, setCnsFatigue]);
 
-  // Refetch whenever this tab regains focus (e.g. returning from a just-
-  // completed workout) so the readiness ring, AI decision, and streaks
-  // never show stale pre-session data. Skips the very first focus since
-  // the mount effect above already covers it.
-  const hasFocusedOnce = useRef(false);
-  useFocusEffect(
-    useCallback(() => {
-      if (!hasFocusedOnce.current) {
-        hasFocusedOnce.current = true;
-        return;
-      }
-      loadData();
-    }, [loadData])
-  );
-
+  // Invalidates every card's query at once so pull-to-refresh updates the
+  // whole page in parallel without unmounting any card back to a skeleton.
   const onRefresh = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    setRefreshing(true);
-    await loadData();
-    setRefreshing(false);
+    await refreshDashboard();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
   };
 
@@ -190,7 +159,7 @@ export default function DashboardScreen() {
       <ScrollView
         style={styles.container}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.recoveryHigh} />
+          <RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={COLORS.recoveryHigh} />
         }
       >
       {errorMsg && summary && (
@@ -218,7 +187,7 @@ export default function DashboardScreen() {
 
       {/* 2b. Have I actually been consistent lately? — one score, one
           sentence, instead of another chart to interpret. */}
-      <ConsistencyScoreCard data={summary?.consistency} />
+      <ConsistencyScoreCard />
 
       {/* 3. What does the coach say? */}
       {summary?.proactive_brief && (

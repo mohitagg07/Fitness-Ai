@@ -8,19 +8,24 @@
 //
 // Backed by backend/agents/consistency_agent.py. Missing a day or two
 // never reads as "failure" here on purpose — see that file's docstring
-// for the reasoning. `data` comes from mission/today's `consistency`
-// block when available; falls back to its own fetch (same shape) so the
-// card still works on the older dashboard/summary fallback path.
-import React, { useEffect, useState } from 'react';
+// for the reasoning.
+//
+// PERF: this card now owns its own independent query (useConsistency,
+// GET /progress/consistency) instead of depending on DashboardScreen's
+// summary fetch to hand it a `data` prop. That means it renders the
+// instant its own cached/fresh data is ready rather than waiting on the
+// slowest sibling query on the page — the same "independent queries in
+// parallel" pattern as every other card in this stack.
+import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { progressApi } from '../../utils/api';
 import { COLORS } from '../../theme/colors';
 import { RADIUS, SPACING } from '../../theme/spacing';
 import { ELEVATION } from '../../theme/layout';
 import Text from '../ui/Text';
 import SectionLabel from '../ui/SectionLabel';
 import ProgressBar from '../ui/ProgressBar';
+import { useConsistency } from '../../hooks/useDashboardQueries';
 
 interface Pillar {
   label: string;
@@ -35,10 +40,6 @@ interface ConsistencyData {
   headline: string;
   mood?: string | null;
   pillars: Pillar[];
-}
-
-interface Props {
-  data?: ConsistencyData | null;
 }
 
 const MOOD_EMOJI: Record<string, string> = {
@@ -57,32 +58,12 @@ function pillarColor(status: Pillar['status']) {
   return COLORS.recoveryLow;
 }
 
-function ConsistencyScoreCard({ data: initialData }: Props) {
-  const [data, setData] = useState<ConsistencyData | null | undefined>(initialData);
-  const [loading, setLoading] = useState(!initialData);
+function ConsistencyScoreCard() {
+  const { data, isPending } = useConsistency() as { data?: ConsistencyData; isPending: boolean };
 
-  useEffect(() => {
-    if (initialData) {
-      setData(initialData);
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await progressApi.getConsistency();
-        if (!cancelled) setData(res.data);
-      } catch {
-        // Fails quiet — this card just doesn't render rather than showing
-        // a broken/zeroed score.
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [initialData]);
-
-  if (loading || !data) return null;
+  // Fails quiet — this card just doesn't render rather than showing a
+  // broken/zeroed score, matching the prior fallback-fetch behavior.
+  if (isPending || !data) return null;
 
   if (data.status === 'new') {
     return (
