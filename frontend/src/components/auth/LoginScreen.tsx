@@ -94,7 +94,14 @@ export default function AuthScreen() {
         { id: user_id, email: regEmail.trim(), full_name: regName.trim() },
         access_token
       );
-      router.replace('/(tabs)');
+      // BUG FIX: previously went straight to /(tabs), skipping onboarding
+      // entirely. New users landed on an unconfigured dashboard — no goal,
+      // no weight, no equipment, no coach style. The coach_agent and all
+      // five decision agents need these fields to produce meaningful output;
+      // without them they all fall back to defaults that produce generic
+      // (and often wrong) advice. Route to /onboarding instead so the
+      // profile is populated before the first dashboard load.
+      router.replace('/onboarding');
     } catch (err: any) {
       Alert.alert(
         'Registration Failed',
