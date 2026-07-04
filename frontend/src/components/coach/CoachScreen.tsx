@@ -22,7 +22,9 @@ import Svg, { Circle, Path, Defs, LinearGradient as SvgGradient, Stop } from 're
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { coachApi, dashboardApi, missionApi, describeApiError } from '../../utils/api';
+import { coachApi, describeApiError } from '../../utils/api';
+import { useCoachChatStream } from '../../hooks/useCoachChatStream';
+import { useMissionSummary } from '../../hooks/useDashboardQueries';
 import { useStore } from '../../store';
 import { COLORS, alpha, recoveryColor } from '../../theme/colors';
 import Logo from '../shared/Logo';
@@ -631,7 +633,6 @@ const MiniStat = React.memo(MiniStatBase);
 export default function CoachScreen() {
   const insets = useSafeAreaInsets();
   const [input, setInput]   = useState('');
-  const [loading, setLoading] = useState(false);
   const [serverStatus, setServerStatus] = useState<'online' | 'offline' | 'unknown'>('unknown');
   const [memoryVisible, setMemoryVisible] = useState(false);
   // Real recovery/CNS numbers for the header briefing strip — reuses the
@@ -657,60 +658,83 @@ export default function CoachScreen() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
+  // PERF: previously an independent useEffect fetch of the exact same
+  // mission/dashboard summary DashboardScreen also fetches — meaning
+  // switching Home -> Coach fired a second identical network request for
+  // data that had usually just loaded seconds earlier. Sharing the query
+  // key (qk.dashboard.mission()) means whichever tab loads first
+  // populates the cache for both, and the other reads it instantly with
+  // no request at all when still fresh (staleTime: 60s).
+  const { data: missionSummary } = useMissionSummary();
   useEffect(() => {
-    (async () => {
-      try {
-        let res;
-        try { res = await missionApi.getToday(); } catch { res = await dashboardApi.getSummary(); }
-        const d = res.data;
-        setBrief({
-          recoveryScore: (d.recovery?.score ?? 0) * 10,
-          cnsFatigue: (d.cns_fatigue ?? 0) * 10,
-          message: d.recovery?.message || "Recovery data will show up here once you've logged a session.",
-        });
-      } catch {
-        // Non-critical — header simply omits the briefing strip.
-      }
-    })();
-  }, []);
+    if (!missionSummary) return;
+    setBrief({
+      recoveryScore: (missionSummary.recovery?.score ?? 0) * 10,
+      cnsFatigue: (missionSummary.cns_fatigue ?? 0) * 10,
+      message: missionSummary.recovery?.message || "Recovery data will show up here once you've logged a session.",
+    });
+  }, [missionSummary]);
 
-  const sendMessage = async (text?: string) => {
-    const message = text || input.trim();
-    if (!message || loading) return;
-
-    setInput('');
-    addChatMessage('user', message);
-    setLoading(true);
-
-    try {
-      const res  = await coachApi.chat(message, activeSession?.id);
-      const data = res.data;
-
+  // Streaming reply: chunks arrive over SSE and accumulate in
+  // `streamingText`, rendered as a live "still typing" bubble (see
+  // renderMessage below) instead of one big text block appearing after
+  // the full round trip. The final `done` event carries the exact same
+  // payload shape /chat used to return, so cns_fatigue/emergency/new_prs
+  // handling below is unchanged from the non-streaming version.
+  const pendingUserMessageRef = useRef<string | null>(null);
+  const { send: sendStream, isStreaming, streamingText } = useCoachChatStream({
+    onDone: (data) => {
       setServerStatus('online');
       addChatMessage('assistant', data.reply, data.structured_decision);
-
       if (data.cns_fatigue_score != null) setCnsFatigue(data.cns_fatigue_score);
-
       if (data.emergency) {
         Alert.alert('⚠️ Training Stopped', 'Injury signal detected. See the message below.', [
           { text: 'Understood', style: 'default' },
         ]);
       }
-      if (data.new_prs?.length > 0) {
-        Alert.alert('🏆 New PR!', data.new_prs.map((p: any) => p.message).join('\n'));
-      }
+    },
+    onError: (message) => {
+      setServerStatus('offline');
+      const fallback = pendingUserMessageRef.current
+        ? getOfflineFallback(pendingUserMessageRef.current)
+        : message;
+      addChatMessage('assistant', fallback);
+    },
+  });
+  // Kept as an escape hatch: if the streaming endpoint is ever
+  // unreachable (older backend deploy, proxy stripping SSE), sendMessage
+  // falls back to the original single-shot /chat request rather than the
+  // user being stuck with no way to send a message at all.
+  const sendNonStreaming = async (message: string) => {
+    try {
+      const res = await coachApi.chat(message, activeSession?.id);
+      const data = res.data;
+      setServerStatus('online');
+      addChatMessage('assistant', data.reply, data.structured_decision);
+      if (data.cns_fatigue_score != null) setCnsFatigue(data.cns_fatigue_score);
     } catch (err: any) {
       const { kind, message: errMsg } = describeApiError(err);
       setServerStatus('offline');
-      // For network/server errors, give a helpful fallback instead of raw error
       if (kind === 'network' || kind === 'server' || kind === 'timeout') {
-        const fallback = getOfflineFallback(message);
-        addChatMessage('assistant', fallback);
+        addChatMessage('assistant', getOfflineFallback(message));
       } else {
         addChatMessage('assistant', errMsg);
       }
-    } finally {
-      setLoading(false);
+    }
+  };
+
+  const sendMessage = (text?: string) => {
+    const message = text || input.trim();
+    if (!message || isStreaming) return;
+
+    setInput('');
+    addChatMessage('user', message);
+    pendingUserMessageRef.current = message;
+
+    try {
+      sendStream(message, activeSession?.id);
+    } catch {
+      sendNonStreaming(message);
     }
   };
 
@@ -855,8 +879,24 @@ export default function CoachScreen() {
         />
       )}
 
-      {/* Thinking indicator */}
-      {loading && <ThinkingDots />}
+      {/* Streaming reply — grows chunk-by-chunk as SSE events arrive (see
+          useCoachChatStream). Before the first chunk lands this shows the
+          same dot-typing indicator as before; once text starts arriving
+          it's replaced by the live-growing bubble so the user is reading
+          the reply well before the full response has finished. */}
+      {isStreaming && (
+        streamingText ? (
+          <View style={[S.bubble, S.aiBubble]}>
+            <View style={S.roleLabelRow}>
+              <Ionicons name="flash" size={10} color={COLORS.recoveryHigh} />
+              <Text style={S.roleLabel}>COACH</Text>
+            </View>
+            <Text style={[S.messageText]}>{streamingText}</Text>
+          </View>
+        ) : (
+          <ThinkingDots />
+        )
+      )}
 
       {/* Input row */}
       <View style={S.inputRow}>
@@ -872,14 +912,14 @@ export default function CoachScreen() {
           blurOnSubmit={false}
         />
         <TouchableOpacity
-          style={[S.sendBtn, (!input.trim() || loading) && S.sendBtnOff]}
+          style={[S.sendBtn, (!input.trim() || isStreaming) && S.sendBtnOff]}
           onPress={() => sendMessage()}
-          disabled={!input.trim() || loading}
+          disabled={!input.trim() || isStreaming}
         >
           <Ionicons
             name="arrow-up"
             size={18}
-            color={input.trim() && !loading ? COLORS.background : COLORS.textDim}
+            color={input.trim() && !isStreaming ? COLORS.background : COLORS.textDim}
           />
         </TouchableOpacity>
       </View>

@@ -4,6 +4,9 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { storage } from '../../src/utils/storage';
 import { profileApi } from '../../src/utils/api';
+import { queryClient } from '../../src/lib/queryClient';
+import { qk } from '../../src/hooks/queryKeys';
+import { usePrefetchDashboard } from '../../src/hooks/useDashboardQueries';
 import { COLORS, alpha } from '../../src/theme/colors';
 import {
   registerForPushNotificationsAsync,
@@ -36,6 +39,7 @@ const HIDDEN_TABS = ['decisions', 'simulate', 'formanalysis', 'prs'];
 
 export default function TabsLayout() {
   const [authChecked, setAuthChecked] = useState(false);
+  const prefetchDashboard = usePrefetchDashboard();
 
   useEffect(() => {
     (async () => {
@@ -50,9 +54,18 @@ export default function TabsLayout() {
       // through index.tsx first. Re-checking here means an
       // incomplete-onboarding user can't land on a tab screen that way
       // either.
+      //
+      // Routed through the same query cache/key as index.tsx's check —
+      // if that request already resolved (the common path, since this
+      // mounts right after it), this reads straight from cache instead
+      // of firing a second identical /profile/me request back-to-back.
       try {
-        const res = await profileApi.getMe();
-        if (res.data && res.data.onboarding_complete === false) {
+        const data = await queryClient.fetchQuery({
+          queryKey: qk.profile.me(),
+          queryFn: async () => (await profileApi.getMe()).data,
+          staleTime: 60_000,
+        });
+        if (data && data.onboarding_complete === false) {
           router.replace('/onboarding');
           return;
         }
@@ -67,7 +80,14 @@ export default function TabsLayout() {
       // alerts instead of only writing a row the user has to go find.
       // Non-fatal if it fails — see pushNotifications.ts.
       registerForPushNotificationsAsync();
+      // PERF: warm the Home tab's queries the instant the tab bar is
+      // ready, rather than waiting for the user to actually tap Home and
+      // pay for that round trip on first paint. Cheap and idempotent —
+      // React Query de-dupes this against whatever DashboardScreen fires
+      // on its own mount a moment later.
+      prefetchDashboard();
     })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Tap-to-deep-link: a pushed notification's `cta` (e.g. "/workout")

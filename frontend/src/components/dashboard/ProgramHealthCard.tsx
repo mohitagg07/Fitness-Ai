@@ -18,6 +18,7 @@ import {
   View, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, LayoutAnimation, Platform, UIManager,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { COLORS, alpha } from '../../theme/colors';
 import { SPACING, RADIUS } from '../../theme/spacing';
 import { ELEVATION, ICON_SIZE } from '../../theme/layout';
@@ -25,6 +26,8 @@ import Text from '../ui/Text';
 import Button from '../ui/Button';
 import SectionLabel from '../ui/SectionLabel';
 import api from '../../utils/api';
+import { useProgramVersions } from '../../hooks/useDashboardQueries';
+import { qk } from '../../hooks/queryKeys';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -78,31 +81,30 @@ function formatDate(iso: string) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+// PERF: versions list is now a cached query (useProgramVersions) instead
+// of an ad-hoc fetch-on-mount — instant render from cache on a warm
+// return to Home. The rewrite action is a mutation whose onSuccess
+// invalidates that same query key, so the version list/chips update
+// automatically without a manual reload() call wiring the two together.
 function ProgramHealthCard() {
-  const [versions, setVersions] = useState<ProgramVersion[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [rewriting, setRewriting] = useState(false);
+  const { data, isPending } = useProgramVersions(10);
+  const versions = data?.versions || [];
+  const loading = isPending && versions.length === 0;
   const [selectedVersion, setSelectedVersion] = useState<number>(0);
   const [showDiff, setShowDiff] = useState(false);
+  const queryClient = useQueryClient();
 
-  const load = async () => {
-    try {
-      const res = await api.get('/program/versions');
-      const v = res.data.versions || [];
-      setVersions(v);
-      if (v.length > 0) setSelectedVersion(v[0].version_number);
-    } catch {}
-    setLoading(false);
-  };
+  useEffect(() => {
+    if (versions.length > 0 && selectedVersion === 0) {
+      setSelectedVersion(versions[0].version_number);
+    }
+  }, [versions, selectedVersion]);
 
-  useEffect(() => { load(); }, []);
-
-  const handleRewrite = async () => {
-    setRewriting(true);
-    try {
-      const res = await api.post('/program/rewrite');
+  const rewriteMutation = useMutation({
+    mutationFn: () => api.post('/program/rewrite'),
+    onSuccess: (res) => {
       if (res.data.rewrite_triggered) {
-        await load();
+        queryClient.invalidateQueries({ queryKey: qk.program.all });
         Alert.alert(
           `Program v${res.data.version_number} Ready`,
           res.data.explanation,
@@ -111,11 +113,11 @@ function ProgramHealthCard() {
       } else {
         Alert.alert('No Rewrite Needed', res.data.explanation || 'All patterns are within normal range.');
       }
-    } catch {
-      Alert.alert('Error', 'Could not run program rewriter. Try again shortly.');
-    }
-    setRewriting(false);
-  };
+    },
+    onError: () => Alert.alert('Error', 'Could not run program rewriter. Try again shortly.'),
+  });
+  const rewriting = rewriteMutation.isPending;
+  const handleRewrite = () => rewriteMutation.mutate();
 
   const toggleDiff = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);

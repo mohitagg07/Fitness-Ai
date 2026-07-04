@@ -73,6 +73,22 @@ export const actions = {
       },
     });
   },
+  // Rollback path for useLogSet's optimistic update (see
+  // hooks/useWorkoutMutations.ts) — removes exactly the one optimistic
+  // entry a failed request added, identified by exercise+set_number
+  // rather than array index, since other logs may have been appended
+  // (by other in-flight taps) between the optimistic add and the failure.
+  removeLogFromSession(log: any) {
+    if (!_state.activeSession || !log) return;
+    const logs = _state.activeSession.logs || [];
+    const idx = logs.findIndex(
+      (l: any) => l.exercise_name === log.exercise_name && l.set_number === log.set_number
+    );
+    if (idx === -1) return;
+    const next = [...logs];
+    next.splice(idx, 1);
+    setState({ activeSession: { ..._state.activeSession, logs: next } });
+  },
   setCnsFatigue(score: number) { setState({ cnsFatigue: score }); },
   addChatMessage(role: 'user' | 'assistant', content: string, structured_decision?: any) {
     setState({

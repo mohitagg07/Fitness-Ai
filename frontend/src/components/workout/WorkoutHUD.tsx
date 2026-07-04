@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { workoutApi, coachApi } from '../../utils/api';
 import { confirmAsync } from '../../utils/confirm';
 import { useStore } from '../../store';
+import { useLogSet } from '../../hooks/useWorkoutMutations';
 import { COLORS, alpha } from '../../theme/colors';
 import { FONTS, EYEBROW, BODY } from '../../theme/typography';
 import { SPACING, RADIUS } from '../../theme/spacing';
@@ -314,7 +315,20 @@ function WorkoutHUD() {
     }
   };
 
-  const logSet = async () => {
+  const logSetMutation = useLogSet();
+
+  // PERF: this used to be `await workoutApi.logSet(...)` gating
+  // *everything* — the haptic, the rest timer starting, the set counter
+  // advancing all waited on a network round trip before the user saw any
+  // reaction to their tap. Now the store update, haptic, timer, and set
+  // counter all run synchronously, in the same tick as the tap — the
+  // mutation is fired with `.mutate()` (not awaited) and runs in the
+  // background. useLogSet's onMutate has already optimistically appended
+  // the log to the session before this function returns; if the request
+  // later fails, its onError rolls that entry back out and the `onError`
+  // callback passed here surfaces the alert — the failure path is a beat
+  // later, not the success path.
+  const logSet = () => {
     if (!activeSession) return;
     // Guards against a fast double-tap firing two requests before the store
     // updates — without this, both calls read the same currentSetNum and
@@ -333,33 +347,37 @@ function WorkoutHUD() {
     const setNum = currentSetNum;
     const logData = { exercise_name: name, set_number: setNum, weight_kg: w, reps: r, rpe };
 
+    // Brief re-entrancy guard only — cleared on the next tick rather than
+    // held until the network settles, since there's no longer anything
+    // to wait on before the UI is ready for the next tap.
     setIsLogging(true);
-    try {
-      await workoutApi.logSet(activeSession.id, logData);
-      addLogToSession(logData);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setTimeout(() => setIsLogging(false), 250);
 
-      // Start rest timer (parse from exercise card or default 90s)
-      const ex = exercises[activeIdx];
-      const restStr = ex?.rest || '';
-      const parsed = parseInt(restStr.replace(/[^0-9]/g, ''));
-      const restSec = (!isNaN(parsed) && parsed > 0) ? parsed : 90;
-      setRestTotal(restSec);
-      setRestTimer(restSec);
-      setTimerRunning(true);
-
-      // Pre-fill next set with same weight
-      setReps('');
-      // Advance exercise card completed_sets
-      if (exercises.length > 0) {
-        setExercises(prev => prev.map((e, i) =>
-          i === activeIdx ? { ...e, completed_sets: e.completed_sets + 1 } : e
-        ));
+    logSetMutation.mutate(
+      { sessionId: activeSession.id, ...logData },
+      {
+        onError: () => Alert.alert('Error', 'Could not log set. It has been removed from your session.'),
       }
-    } catch {
-      Alert.alert('Error', 'Could not log set.');
-    } finally {
-      setIsLogging(false);
+    );
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    // Start rest timer (parse from exercise card or default 90s)
+    const ex = exercises[activeIdx];
+    const restStr = ex?.rest || '';
+    const parsed = parseInt(restStr.replace(/[^0-9]/g, ''));
+    const restSec = (!isNaN(parsed) && parsed > 0) ? parsed : 90;
+    setRestTotal(restSec);
+    setRestTimer(restSec);
+    setTimerRunning(true);
+
+    // Pre-fill next set with same weight
+    setReps('');
+    // Advance exercise card completed_sets
+    if (exercises.length > 0) {
+      setExercises(prev => prev.map((e, i) =>
+        i === activeIdx ? { ...e, completed_sets: e.completed_sets + 1 } : e
+      ));
     }
   };
 

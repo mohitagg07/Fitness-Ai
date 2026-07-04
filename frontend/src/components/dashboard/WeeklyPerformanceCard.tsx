@@ -8,25 +8,17 @@
 // math or invented trend lines — if there's no data yet, the card shows
 // an honest empty state instead of a fabricated graph.
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { analyticsApi } from '../../utils/api';
 import { COLORS } from '../../theme/colors';
 import { SPACING, RADIUS } from '../../theme/spacing';
 import Text from '../ui/Text';
 import SectionLabel from '../ui/SectionLabel';
 import Divider from '../ui/Divider';
+import { useWeeklyStats, usePrTimeline } from '../../hooks/useDashboardQueries';
 
-interface WeeklyStats {
-  sessions_completed: number;
-  total_sessions: number;
-  total_volume_kg: number;
-  total_minutes: number;
-  avg_rpe: number | null;
-  has_data: boolean;
-}
 interface PR { date: string; lift: string; weight_kg: number; reps: number; }
 
 function formatTime(totalMinutes: number) {
@@ -36,28 +28,18 @@ function formatTime(totalMinutes: number) {
   return `${h}h ${m}m`;
 }
 
+// PERF: previously a bare useEffect fetch that ran once per mount, with
+// no cache — every time this card remounted (e.g. React Navigation
+// dropping the Home tab's screen from memory and rebuilding it) it
+// re-fetched both endpoints from zero, and there was no way for it to
+// show anything until that finished. useWeeklyStats/usePrTimeline share
+// the app-wide query cache: on a warm return to this tab the numbers
+// render immediately from cache while a background refetch quietly
+// confirms they're still current (staleTime: 60s — see queryKeys.ts).
 function WeeklyPerformanceCard() {
-  const [stats, setStats] = useState<WeeklyStats | null>(null);
-  const [latestPR, setLatestPR] = useState<PR | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [statsRes, prRes] = await Promise.all([
-          analyticsApi.getWeeklyStats(),
-          analyticsApi.getPRTimeline(1),
-        ]);
-        if (!cancelled) {
-          setStats(statsRes.data);
-          if (prRes.data?.has_data) setLatestPR(prRes.data.prs[0]);
-        }
-      } catch {
-        // Fails quiet — card renders its empty state below.
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
+  const { data: stats } = useWeeklyStats();
+  const { data: prData } = usePrTimeline(1);
+  const latestPR: PR | null = prData?.has_data ? prData.prs[0] : null;
 
   if (!stats || !stats.has_data) {
     return (

@@ -6,9 +6,10 @@ CHANGE: Injects prior_messages from conversation history into run_coach()
 so the LLM has genuine session continuity without the user re-explaining context.
 """
 import asyncio
+import json
 import logging
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from schemas.models import ChatMessage, ChatResponse
 
 logger = logging.getLogger(__name__)
@@ -143,6 +144,117 @@ async def chat(
         new_prs=[],
         motivation_message=None,
         structured_decision=result.get("structured_decision"),
+    )
+
+
+# ─── Streaming variant ───────────────────────────────────────────────────────
+# PERF: /chat above is a single request/response round trip — the client
+# waits for the *entire* LangGraph pipeline (parse → guardrails → build
+# workout → persist) to finish before it can render a single character of
+# the reply. On a slow connection or a cold Groq call that's 2-4s of a
+# blank "thinking" bubble.
+#
+# This endpoint runs the exact same run_coach() pipeline (so the
+# deterministic-first decision engine and guardrails are untouched — the
+# LLM still only phrases the rationale, nothing here changes *what* gets
+# decided) but streams the resulting `reply` text back over SSE in small
+# chunks as soon as it's computed, followed by one final `event: done`
+# frame carrying the rest of the structured payload (workout_blocks,
+# structured_decision, cns_fatigue_score, guardrails). The frontend can
+# then render the reply progressively (a typing effect) instead of one
+# flash-in of the full paragraph, and — just as importantly — the
+# connection's headers/first bytes arrive immediately, so slow/lossy
+# mobile networks show *something* moving right away instead of a
+# frozen spinner that looks identical to "the request died".
+#
+# NOTE: this is chunk-level (post-hoc) streaming — the full reply string
+# is already known before the first chunk is sent, since it comes out of
+# one LangGraph invocation rather than a token-by-token generator. True
+# token streaming would mean refactoring the graph's final node to call
+# ChatGroq(streaming=True) and yielding tokens through the graph, which
+# is a larger change to agents/coach_agent.py than this pass covers. This
+# still gives the real, measurable perceived-latency win described above.
+def _sse_event(event: str, data: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+
+
+async def _stream_coach_reply(payload: ChatMessage, user_id: str):
+    try:
+        profile, agent_state = await asyncio.to_thread(get_full_user_context, user_id)
+        prior_messages = await asyncio.to_thread(_load_prior_messages, user_id, 10)
+
+        try:
+            result = await run_coach(
+                user_message=payload.content,
+                user_id=user_id,
+                user_profile=profile,
+                agent_state=agent_state,
+                prior_messages=prior_messages,
+            )
+        except Exception as e:
+            logger.exception(f"run_coach failed for user {user_id}: {e}")
+            yield _sse_event("error", {
+                "detail": "VYRN couldn't process that right now. Please try again.",
+            })
+            return
+
+        reply_text: str = result.get("reply") or ""
+
+        # Chunk on word boundaries so partial words never render mid-token.
+        # ~4 words/chunk reads at a natural "typing" cadence without making
+        # the client re-render on every single word.
+        words = reply_text.split(" ")
+        chunk_size = 4
+        for i in range(0, len(words), chunk_size):
+            chunk = " ".join(words[i:i + chunk_size])
+            if i + chunk_size < len(words):
+                chunk += " "
+            yield _sse_event("chunk", {"text": chunk})
+            # Yield control back to the event loop between chunks so this
+            # generator doesn't monopolize it — keeps other in-flight
+            # requests (and the ASGI server's socket writes) responsive.
+            await asyncio.sleep(0.02)
+
+        try:
+            await asyncio.to_thread(save_conversation_message, user_id, payload.session_id, "user", payload.content)
+            await asyncio.to_thread(upsert_agent_state, user_id, result["updated_agent_state"])
+            await asyncio.to_thread(save_conversation_message, user_id, payload.session_id, "assistant", reply_text)
+
+            blocks = result.get("workout_blocks")
+            if blocks:
+                await asyncio.to_thread(_persist_coach_plan, user_id, blocks)
+        except Exception as e:
+            logger.error(f"Failed to persist coach conversation for user {user_id}: {e}")
+
+        yield _sse_event("done", {
+            "reply": reply_text,
+            "guardrails_triggered": result["guardrails_triggered"],
+            "emergency": result["emergency"],
+            "cns_fatigue_score": result["cns_fatigue_score"],
+            "workout_blocks": result["workout_blocks"],
+            "structured_decision": result.get("structured_decision"),
+        })
+    except Exception as e:
+        logger.exception(f"Streaming coach chat failed for user {user_id}: {e}")
+        yield _sse_event("error", {"detail": "Something went wrong. Please try again."})
+
+
+@router.post("/chat/stream")
+async def chat_stream(
+    payload: ChatMessage,
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = current_user["user_id"]
+    return StreamingResponse(
+        _stream_coach_reply(payload, user_id),
+        media_type="text/event-stream",
+        headers={
+            # Disables buffering on nginx-style proxies so chunks flush
+            # immediately instead of being held until the response closes.
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
     )
 
 
