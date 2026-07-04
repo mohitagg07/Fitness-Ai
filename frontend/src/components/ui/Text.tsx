@@ -24,7 +24,14 @@ interface TextProps extends RNTextProps {
   children: React.ReactNode;
 }
 
-export default function Text({
+// The single most-instantiated component in the app (every label, number,
+// and value renders through here — often hundreds of instances per
+// screen). React.memo's default shallow comparison works well for it
+// specifically because `children` is almost always a string/number
+// literal (a primitive, compared by value) rather than nested JSX, so
+// this reliably skips re-render work when an unrelated sibling or parent
+// state change doesn't actually touch this particular label's props.
+function Text({
   variant = 'body',
   color = COLORS.text,
   numeric = false,
@@ -65,3 +72,5 @@ function numericFamilyFor(variant: TextVariant) {
       return FONTS.numericMedium;
   }
 }
+
+export default React.memo(Text);

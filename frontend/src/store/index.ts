@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { storage } from '../utils/storage';
 
 let _state = {
@@ -85,12 +85,65 @@ export const actions = {
   clearChat() { setState({ chatHistory: [] }); },
 };
 
-export function useStore() {
+export function useStore(): State & typeof actions;
+export function useStore<T>(selector: (s: State & typeof actions) => T): T;
+export function useStore(selector?: (s: State & typeof actions) => any) {
+  // PERFORMANCE: previously this hook had no selector support — every one
+  // of its ~5 call sites (Dashboard, Profile, Coach, Workout, Register)
+  // subscribed to the ENTIRE store and force-rendered on every single
+  // setState call anywhere in the app, regardless of whether the fields
+  // that screen actually reads changed. Concretely: sending a chat message
+  // on the Coach tab calls addChatMessage → setState → every listener
+  // fires, so DashboardScreen and ProfileScreen (if still mounted by the
+  // tab navigator) re-rendered too, even though neither reads chatHistory.
+  // Same story for every set logged during a workout (addLogToSession)
+  // and every CNS-fatigue update (setCnsFatigue) — all app-wide broadcasts
+  // no matter how narrowly a given screen was actually interested.
+  //
+  // Callers that pass a selector (e.g. `useStore(s => s.profile)`) now only
+  // re-render when that selected value actually changes (shallow compare).
+  // Callers with no selector keep the old whole-store behavior for
+  // backward compatibility, so nothing breaks if a new call site doesn't
+  // bother with one — but the four hot-path screens below have been
+  // updated to select just what they use.
+  const getSnapshot = () => ({ ..._state, ...actions });
   const [, rerender] = useState(0);
+  const lastValue = useRef<any>(selector ? selector(getSnapshot()) : undefined);
+
   useEffect(() => {
-    const fn = () => rerender(n => n + 1);
+    const fn = () => {
+      if (!selector) {
+        rerender((n) => n + 1);
+        return;
+      }
+      const next = selector(getSnapshot());
+      if (!shallowEqual(next, lastValue.current)) {
+        lastValue.current = next;
+        rerender((n) => n + 1);
+      }
+    };
     _listeners.add(fn);
     return () => { _listeners.delete(fn); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  return { ..._state, ...actions };
+
+  if (selector) {
+    // Keep the memoized value fresh for renders triggered by *this*
+    // component's own state/props rather than a store update.
+    lastValue.current = selector(getSnapshot());
+    return lastValue.current;
+  }
+  return getSnapshot();
+}
+
+function shallowEqual(a: any, b: any): boolean {
+  if (Object.is(a, b)) return true;
+  if (typeof a !== 'object' || a === null || typeof b !== 'object' || b === null) return false;
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+  for (const key of keysA) {
+    if (!Object.is(a[key], b[key])) return false;
+  }
+  return true;
 }

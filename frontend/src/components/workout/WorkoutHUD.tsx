@@ -193,9 +193,18 @@ function PrevSetGhost({ log }: { log: SetLog | null }) {
 
 // ─── Main HUD ────────────────────────────────────────────────────────────────
 function WorkoutHUD() {
+  // Selector form — see src/store/index.ts. This screen already re-renders
+  // every second for the live clock/rest timer; without a selector it was
+  // ALSO re-rendering on every chat message and CNS-fatigue update fired
+  // from the Coach/Dashboard tabs in the background.
   const {
     activeSession, setActiveSession, addLogToSession, setCnsFatigue,
-  } = useStore();
+  } = useStore((s) => ({
+    activeSession: s.activeSession,
+    setActiveSession: s.setActiveSession,
+    addLogToSession: s.addLogToSession,
+    setCnsFatigue: s.setCnsFatigue,
+  }));
 
   const [exercises, setExercises]       = useState<ExerciseCard[]>([]);
   const [activeIdx, setActiveIdx]       = useState(0);
@@ -445,8 +454,14 @@ function WorkoutHUD() {
     if (ok) setMoodPickerVisible(true);
   };
 
-  // Group logs by exercise for display
-  const groupedLogs = (): Array<[string, SetLog[]]> => {
+  // Group logs by exercise for display. This screen re-renders every
+  // second (live workout clock) — groupedLogs() was previously a plain
+  // function called twice per render (once to check .length, once to
+  // .map()), each call reversing and regrouping the *entire* logs array
+  // from scratch even though logs only actually change when a set is
+  // completed, not every tick. useMemo keyed on the logs array means the
+  // regroup only runs when a set is actually logged.
+  const groupedLogs = React.useMemo((): Array<[string, SetLog[]]> => {
     const logs: SetLog[] = activeSession?.logs || [];
     const groups: Record<string, SetLog[]> = {};
     [...logs].reverse().forEach(log => {
@@ -454,7 +469,7 @@ function WorkoutHUD() {
       groups[log.exercise_name].push(log);
     });
     return Object.entries(groups);
-  };
+  }, [activeSession?.logs]);
 
   const ex = exercises[activeIdx];
 
@@ -701,10 +716,10 @@ function WorkoutHUD() {
       {/* Sets logged */}
       <ScrollView style={S.logsScroll} showsVerticalScrollIndicator={false}>
         <Text style={S.logsLabel}>SETS LOGGED</Text>
-        {groupedLogs().length === 0 ? (
+        {groupedLogs.length === 0 ? (
           <Text style={S.noLogs}>No sets yet — log your first set above</Text>
         ) : (
-          groupedLogs().map(([name, logs], gi) => (
+          groupedLogs.map(([name, logs], gi) => (
             <View key={gi} style={S.exerciseGroup}>
               <Text style={S.groupExerciseName}>{name}</Text>
               {logs.map((log, i) => (

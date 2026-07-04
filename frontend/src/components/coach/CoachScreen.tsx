@@ -640,7 +640,19 @@ export default function CoachScreen() {
   // here since the backend doesn't return those as distinct scores.
   const [brief, setBrief] = useState<{ recoveryScore: number; cnsFatigue: number; message: string } | null>(null);
   const flatListRef = useRef<FlashListRef<any>>(null);
-  const { chatHistory, addChatMessage, setCnsFatigue, activeSession, profile, user } = useStore();
+  // Selector form — see src/store/index.ts. CoachScreen needs chatHistory/
+  // activeSession/profile/user, but previously re-rendered on every store
+  // update including ones it never reads (e.g. Dashboard calling
+  // setCnsFatigue, or ProfileScreen editing injuries) since useStore()
+  // subscribed to the whole store unconditionally.
+  const { chatHistory, addChatMessage, setCnsFatigue, activeSession, profile, user } = useStore((s) => ({
+    chatHistory: s.chatHistory,
+    addChatMessage: s.addChatMessage,
+    setCnsFatigue: s.setCnsFatigue,
+    activeSession: s.activeSession,
+    profile: s.profile,
+    user: s.user,
+  }));
   const firstName = user?.full_name?.split(' ')[0] || profile?.full_name?.split(' ')[0] || 'Athlete';
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';

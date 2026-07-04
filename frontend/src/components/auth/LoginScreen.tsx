@@ -2,9 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   Alert, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
-  Image, Animated,
+  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { authApi, profileApi } from '../../utils/api';
 import { actions } from '../../store';
@@ -117,7 +118,13 @@ export default function AuthScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <Image source={{ uri: HERO_IMAGE_URL }} style={styles.heroImage} resizeMode="cover" />
+      <Image
+        source={{ uri: HERO_IMAGE_URL }}
+        style={styles.heroImage}
+        contentFit="cover"
+        cachePolicy="disk"
+        transition={200}
+      />
       <LinearGradient
         colors={[COLORS.background + 'F2', COLORS.background + 'E6', COLORS.background]}
         style={styles.heroOverlay}

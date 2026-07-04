@@ -9,7 +9,8 @@
 // no new network calls of its own except the optional trend delta.
 
 import React, { useEffect, useState } from 'react';
-import { View, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -70,7 +71,12 @@ function DashboardHeader({ firstName, aiSentence, recoveryScore0to10, avatarUrl 
           </TouchableOpacity>
           <TouchableOpacity hitSlop={10} onPress={() => router.push('/(tabs)/profile')}>
             {avatarUrl ? (
-              <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+              <Image
+                source={{ uri: avatarUrl }}
+                style={styles.avatar}
+                cachePolicy="memory-disk"
+                transition={100}
+              />
             ) : (
               <View style={styles.avatarFallback}>
                 <Ionicons name="person" size={16} color={COLORS.textSecondary} />

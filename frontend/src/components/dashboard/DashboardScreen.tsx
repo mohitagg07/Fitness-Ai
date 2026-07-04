@@ -80,7 +80,13 @@ interface DashboardSummary {
 }
 
 export default function DashboardScreen() {
-  const { user, profile, setCnsFatigue } = useStore();
+  // Selector form: this screen only re-renders on a store update when
+  // user/profile/setCnsFatigue actually change — not on every chat
+  // message or workout set logged elsewhere in the app while this tab
+  // stays mounted in the background. See src/store/index.ts.
+  const { user, profile, setCnsFatigue } = useStore((s) => ({
+    user: s.user, profile: s.profile, setCnsFatigue: s.setCnsFatigue,
+  }));
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

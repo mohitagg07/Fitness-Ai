@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -214,11 +214,17 @@ export default function OnboardingScreen() {
     };
   }, [form.username, retryTick]);
 
-  const retryUsernameCheck = () => setRetryTick((t) => t + 1);
+  // useCallback here (and on handleNext/handleBack below) isn't just
+  // tidiness — SlideWelcome is now wrapped in React.memo, and a stable
+  // function reference is required for that memo to actually hold. Passing
+  // a freshly-created arrow function on every OnboardingScreen render would
+  // silently defeat the memo (props "change" every render even though
+  // nothing meaningful did) and put us right back to all-slides-re-render.
+  const retryUsernameCheck = useCallback(() => setRetryTick((t) => t + 1), []);
 
   const pagerFadeStyle = useAnimatedStyle(() => ({ opacity: pagerOpacity.value }));
 
-  const goToSlide = (index: number) => {
+  const goToSlide = useCallback((index: number) => {
     setSlide(index);
     pagerOpacity.value = withSequence(
       withTiming(0.35, { duration: 120, easing: Easing.out(Easing.cubic) }),
@@ -226,9 +232,9 @@ export default function OnboardingScreen() {
     );
     scrollRef.current?.scrollTo({ x: index * SCREEN_W, animated: true });
     ringProgress.value = withTiming((index + 1) / SLIDE_COUNT, { duration: 450 });
-  };
+  }, [pagerOpacity, ringProgress]);
 
-  const handleNext = async () => {
+  const handleNext = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (!isSlideValid(slide, form, usernameStatus)) {
       setError(
@@ -287,12 +293,12 @@ export default function OnboardingScreen() {
       );
       setSubmitting(false);
     }
-  };
+  }, [slide, form, usernameStatus, goToSlide]);
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     if (slide === 0) return;
     goToSlide(slide - 1);
-  };
+  }, [slide, goToSlide]);
 
   const isCheckingUsername = slide === 0 && usernameStatus === 'checking';
   // What the footer caption says beneath the ring button — premium apps
@@ -520,7 +526,14 @@ const USERNAME_STATUS_COPY: Record<UsernameStatus, { text: string; color: keyof 
 };
 
 // ─── Slide 1: Identity (name, username, date of birth, gender) ─────────────
-function SlideWelcome({
+// All four slides live in the DOM at once (horizontal pager, scrollEnabled
+// false — see the render below), so without memoization every keystroke
+// on ANY slide re-rendered all four, including three the user can't even
+// see. Each slide is wrapped in React.memo with a comparator that only
+// looks at the specific `form` fields that slide actually reads — typing
+// in the body-metrics slide no longer touches the identity/training/coach
+// slides at all.
+const SlideWelcome = React.memo(function SlideWelcome({
   form,
   setForm,
   usernameStatus,
@@ -711,10 +724,18 @@ function SlideWelcome({
       />
     </View>
   );
-}
+}, (prev, next) =>
+  prev.form.full_name === next.form.full_name &&
+  prev.form.username === next.form.username &&
+  prev.form.dob === next.form.dob &&
+  prev.form.gender === next.form.gender &&
+  prev.usernameStatus === next.usernameStatus &&
+  prev.setForm === next.setForm &&
+  prev.onRetryUsernameCheck === next.onRetryUsernameCheck &&
+  prev.onSubmitLast === next.onSubmitLast);
 
 // ─── Slide 2: Body metrics + goal ──────────────────────────────────────────
-function SlideBody({
+const SlideBody = React.memo(function SlideBody({
   form,
   setForm,
 }: {
@@ -775,10 +796,15 @@ function SlideBody({
       />
     </View>
   );
-}
+}, (prev, next) =>
+  prev.form.height_cm === next.form.height_cm &&
+  prev.form.weight_kg === next.form.weight_kg &&
+  prev.form.target_weight_kg === next.form.target_weight_kg &&
+  prev.form.goal === next.form.goal &&
+  prev.setForm === next.setForm);
 
 // ─── Slide 3: Training setup ────────────────────────────────────────────
-function SlideTraining({
+const SlideTraining = React.memo(function SlideTraining({
   form,
   setForm,
 }: {
@@ -835,10 +861,14 @@ function SlideTraining({
       </View>
     </View>
   );
-}
+}, (prev, next) =>
+  prev.form.experience_level === next.form.experience_level &&
+  prev.form.gym_or_home === next.form.gym_or_home &&
+  prev.form.workout_days_per_week === next.form.workout_days_per_week &&
+  prev.setForm === next.setForm);
 
 // ─── Slide 4: Diet preference + coach style ─────────────────────────────
-function SlideCoach({
+const SlideCoach = React.memo(function SlideCoach({
   form,
   setForm,
 }: {
@@ -875,10 +905,14 @@ function SlideCoach({
       />
     </View>
   );
-}
+}, (prev, next) =>
+  prev.form.food_preference === next.form.food_preference &&
+  prev.form.coach_style === next.form.coach_style &&
+  prev.setForm === next.setForm);
 
-// ─── Shared pill-select control ─────────────────────────────────────────
-function SelectRow({
+// ─── Shared pill-select control (memoized: each renders on every keystroke
+// of its slide otherwise, even though its own props rarely change) ───────
+const SelectRow = React.memo(function SelectRow({
   options,
   selected,
   onSelect,
@@ -904,7 +938,7 @@ function SelectRow({
       ))}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   bg: { flex: 1, backgroundColor: '#111111' },

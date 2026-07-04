@@ -17,8 +17,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  Alert, ActivityIndicator, Modal, TextInput, Image, KeyboardAvoidingView, Platform,
+  Alert, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -73,7 +74,10 @@ interface PR { id: string; exercise_name: string; weight_kg: number; reps: numbe
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { user, logout } = useStore();
+  // Selector form — see src/store/index.ts. Profile only cares about
+  // `user` and the stable `logout` action, so it no longer re-renders on
+  // chat/workout/CNS-fatigue updates from other tabs.
+  const { user, logout } = useStore((s) => ({ user: s.user, logout: s.logout }));
   const [profile, setProfile] = useState<Profile>({});
   const [injuries, setInjuries] = useState<Injury[]>([]);
   const [prs, setPrs] = useState<PR[]>([]);
@@ -218,7 +222,12 @@ export default function ProfileScreen() {
 
           <TouchableOpacity style={styles.avatarWrap} onPress={pickAvatar} disabled={uploadingAvatar}>
             {profile.avatar_url ? (
-              <Image source={{ uri: profile.avatar_url }} style={styles.avatarImg} />
+              <Image
+                source={{ uri: profile.avatar_url }}
+                style={styles.avatarImg}
+                cachePolicy="disk"
+                transition={150}
+              />
             ) : (
               <View style={styles.avatarFallback}>
                 <Text style={styles.avatarText}>

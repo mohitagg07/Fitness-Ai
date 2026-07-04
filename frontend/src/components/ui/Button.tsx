@@ -45,7 +45,14 @@ const SIZE_MAP: Record<ButtonSize, { height: number; paddingH: number; fontSize:
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
-export default function Button({
+// Rendered dozens of times per screen (every CTA, card action, and form
+// control in the app goes through this one component), so a plain
+// function export meant every parent re-render reconciled every Button
+// on that screen even when none of its own props changed. React.memo
+// with the default shallow-prop check is enough here since all props are
+// primitives/callbacks passed directly by callers, not derived inline
+// objects that would break the comparison.
+function Button({
   label,
   onPress,
   variant = 'primary',
@@ -184,3 +191,5 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 });
+
+export default React.memo(Button);
