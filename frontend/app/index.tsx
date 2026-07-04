@@ -1,67 +1,114 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { storage } from '../src/utils/storage';
-import { profileApi } from '../src/utils/api';
-import { queryClient } from '../src/lib/queryClient';
+import { profileApi, describeApiError } from '../src/utils/api';
+import { clearAuthData } from '../src/utils/auth';
+import { queryClient, hydrated } from '../src/lib/queryClient';
 import { qk } from '../src/lib/queryKeys';
 import AnimatedSplash from '../src/components/splash/AnimatedSplash';
 import { COLORS } from '../src/theme/colors';
 
-// PERF (startup time): this used to await the token read, then await
-// GET /profile/me, and only *after both finished* start the splash-exit
-// navigation — and the splash animation itself didn't even start that
-// chain until it finished playing (`if (!splashDone) return`). That's
-// two serialized delays stacked on top of each other: the full splash
-// animation duration, then a full network round trip, before the very
-// first real screen appears.
-//
-// Now the auth/profile check kicks off immediately on mount, in parallel
-// with the splash animation — by the time the animation finishes, the
-// network call has usually already resolved (or resolved from the
-// persisted React Query cache instantly on a warm start), so navigation
-// fires the instant both are ready instead of one after the other.
+// ── Boot state machine ───────────────────────────────────────────────────
+// Every branch below ends in exactly one of two outcomes:
+//   1. `destination` gets set to a route, which navigates once the splash
+//      animation has also finished (see maybeNavigate), or
+//   2. `phase` becomes 'error', which renders a Retry button instead of an
+//      indeterminate spinner.
+// There is no branch that falls through without doing one of these two
+// things, so the app can never be left sitting on the loading indicator
+// forever — a bug in the previous version, which caught a failed
+// /profile/me call (including a genuinely expired/invalid token) and
+// silently sent the user into /(tabs) anyway, deferring the problem to
+// (tabs)/_layout.tsx's own separate re-check.
+type Phase =
+  | 'hydrating'   // waiting for PersistQueryClientProvider to restore its cache
+  | 'validating'  // token found, confirming it against /profile/me
+  | 'error';      // network/server error — can't confirm identity right now
+
 export default function Index() {
   const [splashDone, setSplashDone] = useState(false);
+  const [phase, setPhase] = useState<Phase>('hydrating');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const destinationRef = useRef<string | null>(null);
   const navigatedRef = useRef(false);
+  const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
-    (async () => {
+    let cancelled = false;
+
+    async function runBootstrap() {
+      setPhase('hydrating');
+      setErrorMessage(null);
+      destinationRef.current = null;
+
+      // Step 1 — wait for the persisted query cache to finish restoring.
+      // Reading/fetchQuery-ing before this resolves races the restore (see
+      // the comment on `hydrated` in src/lib/queryClient.ts). This runs in
+      // parallel with the splash animation, not after it, so a warm start
+      // is still fast.
+      await hydrated;
+      if (cancelled) return;
+
+      // Step 2 — is there a token at all?
+      let token: string | null;
       try {
-        const token = await storage.getItem('vyrn_token');
-        if (!token) {
+        token = await storage.getItem('vyrn_token');
+      } catch {
+        // Can't read secure storage — safest default is "logged out"
+        // rather than guessing.
+        token = null;
+      }
+      if (cancelled) return;
+
+      if (!token) {
+        destinationRef.current = '/login';
+        maybeNavigate();
+        return;
+      }
+
+      // Step 3 — validate the token against the real backend. This is the
+      // only source of truth for "is this session still good" — a token
+      // existing in storage doesn't mean the server still honors it.
+      setPhase('validating');
+      try {
+        const data = await queryClient.fetchQuery({
+          queryKey: qk.profile.me(),
+          queryFn: async () => (await profileApi.getMe()).data,
+          staleTime: 60_000,
+        });
+        if (cancelled) return;
+        // Step 4 — validation succeeded: route on onboarding status.
+        destinationRef.current = data?.onboarding_complete ? '/(tabs)' : '/onboarding';
+        maybeNavigate();
+      } catch (err: any) {
+        if (cancelled) return;
+        const status = err?.response?.status;
+        if (status === 401 || status === 403) {
+          // Token is real but no longer valid (expired, revoked, signing
+          // key rotated, account deleted, ...). Wipe it so the person
+          // isn't stuck in a loop of being silently bounced back here.
+          await clearAuthData();
+          if (cancelled) return;
           destinationRef.current = '/login';
           maybeNavigate();
           return;
         }
-        try {
-          // Routed through the query cache (not a bare axios call) so a
-          // warm relaunch can resolve this from the persisted cache
-          // written by the last session — often before the splash
-          // animation even finishes — while still revalidating in the
-          // background for the next screen to read fresh data from.
-          const data = await queryClient.fetchQuery({
-            queryKey: qk.profile.me(),
-            queryFn: async () => (await profileApi.getMe()).data,
-            staleTime: 60_000,
-          });
-          destinationRef.current = data?.onboarding_complete ? '/(tabs)' : '/onboarding';
-        } catch {
-          // Profile fetch failed (offline, expired token, etc.) — fall
-          // back to tabs rather than forcing onboarding on a returning
-          // user just because one request failed. (tabs)/_layout.tsx
-          // still re-checks the token itself and will bounce to /login
-          // if it's actually invalid.
-          destinationRef.current = '/(tabs)';
-        }
-      } catch {
-        destinationRef.current = '/login';
+        // Network/timeout/server error — we genuinely don't know whether
+        // this session is valid. Don't guess (old behavior defaulted to
+        // /(tabs), which could show an authenticated shell for a token
+        // that was actually dead). Surface a retry instead.
+        setErrorMessage(describeApiError(err).message);
+        setPhase('error');
       }
-      maybeNavigate();
-    })();
+    }
+
+    runBootstrap();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [retryTick]);
 
   function maybeNavigate() {
     if (navigatedRef.current) return;
@@ -75,18 +122,28 @@ export default function Index() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [splashDone]);
 
+  function handleRetry() {
+    navigatedRef.current = false;
+    setRetryTick((n) => n + 1);
+  }
+
   return (
     <View style={styles.container}>
       {!splashDone ? (
         <AnimatedSplash onFinished={() => setSplashDone(true)} />
+      ) : phase === 'error' ? (
+        <View style={styles.errorWrap}>
+          <Text style={styles.errorTitle}>Couldn't connect</Text>
+          <Text style={styles.errorMessage}>{errorMessage}</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={handleRetry}>
+            <Text style={styles.retryText}>RETRY</Text>
+          </TouchableOpacity>
+        </View>
       ) : (
-        // The splash animation fades itself out on a fixed ~2.6s timer,
-        // independent of whether the token/profile check below has
-        // actually resolved. On a cold Render/Railway free-tier backend,
-        // that check can take 20-50s to wake the server up — without
-        // this, the screen would go blank (bare background, no logo, no
-        // navigation yet) for that entire wait. This keeps something
-        // visibly alive on screen until maybeNavigate() actually fires.
+        // Splash's own exit timer is independent of how long token/profile
+        // validation takes (a cold free-tier backend can take 20-50s to
+        // wake up) — this keeps something visibly alive on screen for that
+        // entire wait instead of a blank frame.
         <ActivityIndicator color={COLORS.primaryGreen} size="large" />
       )}
     </View>
@@ -94,17 +151,15 @@ export default function Index() {
 }
 
 const styles = StyleSheet.create({
-  // Was: flex:1 + alignItems/justifyContent:'center'. Setting alignItems
-  // on a column flex container switches its child's cross-axis sizing
-  // from the default 'stretch' to content-sized-and-centered — so the
-  // flex:1 <AnimatedSplash> below was shrinking to a narrow centered
-  // column instead of filling the screen width. AnimatedSplash already
-  // centers its own content internally, so this wrapper just needs to
-  // be a plain full-bleed flex:1 box.
-  //
-  // Background was also '#121212' (dark gray) while AnimatedSplash uses
-  // true black (#000000) — the mismatch is what made the collapsed box's
-  // edges visible as a seam. Matching COLORS.background removes that
-  // regardless of the sizing fix, so there's no flash either way.
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' },
+  errorWrap: { alignItems: 'center', paddingHorizontal: 32 },
+  errorTitle: { color: COLORS.text, fontSize: 18, fontWeight: '800', marginBottom: 10 },
+  errorMessage: { color: COLORS.textSecondary, fontSize: 14, textAlign: 'center', marginBottom: 24, lineHeight: 20 },
+  retryBtn: {
+    backgroundColor: COLORS.recoveryHigh,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 36,
+  },
+  retryText: { color: COLORS.background, fontSize: 14, fontWeight: '800', letterSpacing: 1 },
 });

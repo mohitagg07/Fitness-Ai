@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { storage } from '../utils/storage';
+import { clearAuthData } from '../utils/auth';
 
 let _state = {
   user: null as any,
@@ -41,8 +42,7 @@ export const actions = {
     const { unregisterPushNotificationsAsync } = await import('../utils/pushNotifications');
     await unregisterPushNotificationsAsync();
 
-    await storage.deleteItem('vyrn_token');
-    await storage.deleteItem('vyrn_user');
+    await clearAuthData();
     setState({
       user: null, token: null, profile: null,
       injuries: [], prs: {}, chatHistory: [],

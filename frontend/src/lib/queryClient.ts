@@ -91,3 +91,42 @@ export const asyncStoragePersister = createAsyncStoragePersister({
   // JS thread on every single cache update.
   throttleTime: 1000,
 });
+
+// ── Hydration signal ─────────────────────────────────────────────────────
+// PersistQueryClientProvider restores the persisted cache asynchronously,
+// *after* the component tree (including app/index.tsx's boot effect) has
+// already mounted. Calling queryClient.fetchQuery() before that restore
+// finishes is a race: fetchQuery() sees an empty in-memory cache, ignores
+// staleTime (there's nothing to consider stale yet), and always fires a
+// network request — silently defeating the whole warm-start point of
+// persistence — and on a slower device can even have its result
+// overwritten a moment later when the restore replays an older persisted
+// entry on top of it.
+//
+// app/_layout.tsx passes `markHydrationComplete` as the PersistQueryClient-
+// Provider's `onSuccess` (and `onError`, since a failed restore still means
+// "nothing left to wait for") callback. Anything that needs to read from
+// the query cache during boot should `await hydrated` first.
+//
+// SAFETY NET: on web, the localStorage-backed restore path doesn't always
+// invoke onSuccess/onError as reliably as native does — if neither ever
+// fires, `hydrated` would never resolve and every boot flow awaiting it
+// would spin on a loading indicator forever. A 4s hard timeout guarantees
+// this promise always settles one way or another, so nothing downstream
+// can hang indefinitely on a callback that never comes.
+const HYDRATION_TIMEOUT_MS = 4000;
+let signalHydrated: () => void;
+const hydrationSignal: Promise<void> = new Promise((resolve) => {
+  signalHydrated = resolve;
+});
+const hydrationTimeout: Promise<void> = new Promise((resolve) => {
+  setTimeout(resolve, HYDRATION_TIMEOUT_MS);
+});
+export const hydrated: Promise<void> = Promise.race([hydrationSignal, hydrationTimeout]);
+
+let hydrationSignaled = false;
+export function markHydrationComplete() {
+  if (hydrationSignaled) return; // idempotent — onSuccess/onError both call this
+  hydrationSignaled = true;
+  signalHydrated();
+}

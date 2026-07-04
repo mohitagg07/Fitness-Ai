@@ -4,8 +4,7 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { storage } from '../../src/utils/storage';
 import { profileApi } from '../../src/utils/api';
-import { queryClient } from '../../src/lib/queryClient';
-import { qk } from '../../src/lib/queryKeys';
+import { clearAuthData } from '../../src/utils/auth';
 import { usePrefetchDashboard } from '../../src/hooks/useDashboardQueries';
 import { COLORS, alpha } from '../../src/theme/colors';
 import {
@@ -42,40 +41,58 @@ export default function TabsLayout() {
   const prefetchDashboard = usePrefetchDashboard();
 
   useEffect(() => {
+    let cancelled = false;
+
     (async () => {
+      // This is a defensive re-check, not the primary auth gate — the
+      // authoritative validation against /profile/me happens once in
+      // app/index.tsx's boot state machine. This exists only because this
+      // route is reachable *without* passing through index.tsx first: a
+      // deep link from a push notification (see attachNotificationResponseHandler
+      // below) or a restored native navigation state can land here
+      // directly. Every branch here still resolves to a single outcome —
+      // it never leaves `authChecked` false forever.
       const token = await storage.getItem('vyrn_token');
+      if (cancelled) return;
       if (!token) {
         router.replace('/login');
         return;
       }
-      // Guard against a stale/invalid token that somehow passed index.tsx
-      // (e.g. deep-link from a push notification bypasses index.tsx entirely).
-      // Use a plain profileApi call — not queryClient.fetchQuery — to avoid
-      // the same PersistQueryClientProvider hydration race that caused the
-      // blank screen in index.tsx.
+
       try {
         const res = await profileApi.getMe();
+        if (cancelled) return;
         if (res.data && res.data.onboarding_complete === false) {
           router.replace('/onboarding');
           return;
         }
       } catch (err: any) {
+        if (cancelled) return;
         const status = err?.response?.status;
         if (status === 401 || status === 403) {
-          // Token invalid — clear and redirect to login
-          await storage.deleteItem('vyrn_token');
-          await storage.deleteItem('vyrn_user');
+          // Token invalid — clear it (token + user + cached profile data)
+          // and redirect to login rather than letting a dead session sit
+          // behind the tab bar.
+          await clearAuthData();
+          if (cancelled) return;
           router.replace('/login');
           return;
         }
-        // Network error / slow backend — let them through, don't block the UI
+        // Network error / slow backend — we already have a token and no
+        // proof it's invalid, so let them through rather than blocking the
+        // UI on a flaky connection. The global 401 interceptor in api.ts
+        // will still catch a genuinely dead token the moment any other
+        // authenticated call on this screen fails.
       }
+
       setAuthChecked(true);
       registerForPushNotificationsAsync();
       prefetchDashboard();
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

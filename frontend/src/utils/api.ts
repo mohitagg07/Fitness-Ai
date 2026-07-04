@@ -2,6 +2,7 @@ import axios from 'axios';
 import { router } from 'expo-router';
 import { Platform } from 'react-native';
 import { storage } from './storage';
+import { clearAuthData } from './auth';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/api';
 
@@ -72,8 +73,7 @@ api.interceptors.response.use(
         console.warn(`[Auth] Forced logout — server returned 401: ${reason}`);
       }
       isRedirectingToLogin = true;
-      await storage.deleteItem('vyrn_token');
-      await storage.deleteItem('vyrn_user');
+      await clearAuthData();
       router.replace('/login');
       // Reset the guard on the next tick so a later, legitimate 401
       // (e.g. after a fresh login that itself expires) isn't ignored.
