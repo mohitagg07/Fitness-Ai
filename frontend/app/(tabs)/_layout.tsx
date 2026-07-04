@@ -48,45 +48,34 @@ export default function TabsLayout() {
         router.replace('/login');
         return;
       }
-      // Second layer of defense: app/index.tsx already checks
-      // onboarding_complete on cold launch, but a push notification can
-      // deep-link straight into a route under (tabs) without passing
-      // through index.tsx first. Re-checking here means an
-      // incomplete-onboarding user can't land on a tab screen that way
-      // either.
-      //
-      // Routed through the same query cache/key as index.tsx's check —
-      // if that request already resolved (the common path, since this
-      // mounts right after it), this reads straight from cache instead
-      // of firing a second identical /profile/me request back-to-back.
+      // Guard against a stale/invalid token that somehow passed index.tsx
+      // (e.g. deep-link from a push notification bypasses index.tsx entirely).
+      // Use a plain profileApi call — not queryClient.fetchQuery — to avoid
+      // the same PersistQueryClientProvider hydration race that caused the
+      // blank screen in index.tsx.
       try {
-        const data = await queryClient.fetchQuery({
-          queryKey: qk.profile.me(),
-          queryFn: async () => (await profileApi.getMe()).data,
-          staleTime: 60_000,
-        });
-        if (data && data.onboarding_complete === false) {
+        const res = await profileApi.getMe();
+        if (res.data && res.data.onboarding_complete === false) {
           router.replace('/onboarding');
           return;
         }
-      } catch {
-        // Profile check failing shouldn't block a returning user from
-        // their dashboard — fail open here, same as index.tsx.
+      } catch (err: any) {
+        const status = err?.response?.status;
+        if (status === 401 || status === 403) {
+          // Token invalid — clear and redirect to login
+          await storage.deleteItem('vyrn_token');
+          await storage.deleteItem('vyrn_user');
+          router.replace('/login');
+          return;
+        }
+        // Network error / slow backend — let them through, don't block the UI
       }
       setAuthChecked(true);
-      // Fire-and-forget: registers this device's Expo push token so the
-      // nightly scheduler job (backend/services/scheduler.py →
-      // job_generate_notifications) can actually push recovery/protein/PR
-      // alerts instead of only writing a row the user has to go find.
-      // Non-fatal if it fails — see pushNotifications.ts.
       registerForPushNotificationsAsync();
-      // PERF: warm the Home tab's queries the instant the tab bar is
-      // ready, rather than waiting for the user to actually tap Home and
-      // pay for that round trip on first paint. Cheap and idempotent —
-      // React Query de-dupes this against whatever DashboardScreen fires
-      // on its own mount a moment later.
       prefetchDashboard();
-    })()
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
