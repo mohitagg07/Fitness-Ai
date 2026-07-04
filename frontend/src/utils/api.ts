@@ -136,6 +136,10 @@ export const profileApi = {
   getMe: () => api.get('/profile/me'),
   updateMe: (data: any) => api.put('/profile/me', data),
   onboard: (data: any) => api.post('/profile/onboard', data),
+  // Live check backing the identity screen's "✓ Available" indicator.
+  // Debounce the caller side — this fires one request per call.
+  checkUsername: (username: string) =>
+    api.get('/profile/username-available', { params: { username } }),
   addInjury: (data: any) => api.post('/profile/injuries', data),
   deleteInjury: (id: string) => api.delete(`/profile/injuries/${id}`),
   upsertPR: (data: any) => api.post('/profile/prs', data),

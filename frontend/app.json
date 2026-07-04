@@ -54,7 +54,12 @@
     "experiments": {
       "typedRoutes": true
     },
-    
-    "owner": "mohitagg07"
+    "owner": "mohitagg07",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "0d5798a4-5950-4f07-926e-afcd78ae936a"
+      }
+    }
   }
 }

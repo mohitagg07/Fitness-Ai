@@ -8,6 +8,7 @@ from schemas.models import ProfileCreate, ProfileUpdate, InjuryCreate, PRCreate
 from core.security import get_current_user
 from db.supabase_client import get_supabase
 from typing import List
+import re
 import uuid
 
 # ✅ NO prefix here — main.py sets prefix="/api/profile"
@@ -108,6 +109,33 @@ async def upload_avatar(
     return {"avatar_url": public_url, "profile": res.data[0] if res.data else {}}
 
 
+@router.get("/username-available")
+async def username_available(
+    username: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Live availability check for the onboarding/identity screen's username
+    field. Normalizes the same way onboard()/update_me() do (trim + lower)
+    so a check for "Mohit" and a later save of "mohit" agree with each
+    other — without this, the UI could show "Available" for a name that
+    then 409s on submit because the stored, lowercased value collides.
+    """
+    normalized = username.strip().lower()
+    if len(normalized) < 3 or len(normalized) > 30 or not re.match(r"^[a-zA-Z0-9_.]+$", normalized):
+        return {"available": False, "reason": "invalid_format"}
+
+    sb = get_supabase()
+    res = (
+        sb.table("profiles")
+        .select("id")
+        .eq("username", normalized)
+        .neq("id", current_user["user_id"])
+        .execute()
+    )
+    return {"available": len(res.data or []) == 0, "reason": None}
+
+
 @router.post("/onboard", status_code=201)
 async def onboard(
     payload: ProfileCreate,
@@ -117,10 +145,22 @@ async def onboard(
     sb = get_supabase()
     user_id = current_user["user_id"]
     data = payload.model_dump()
+    # Same normalization as update_me() — without this, "Mohit" and "mohit"
+    # would be treated as different usernames here but collide against the
+    # profiles_username_unique_idx, and the raw Postgres unique-violation
+    # was never caught below, so a taken username during onboarding
+    # previously surfaced as a raw 500 instead of a clean 409.
+    if data.get("username"):
+        data["username"] = data["username"].strip().lower()
     data["id"] = user_id
     data["onboarding_complete"] = True
     data["updated_at"] = datetime.now(timezone.utc).isoformat()
-    res = sb.table("profiles").upsert(data, on_conflict="id").execute()
+    try:
+        res = sb.table("profiles").upsert(data, on_conflict="id").execute()
+    except Exception as exc:
+        if "profiles_username_unique_idx" in str(exc) or "duplicate key" in str(exc).lower():
+            raise HTTPException(409, "That username is already taken")
+        raise
     return res.data[0] if res.data else {}
 
 
