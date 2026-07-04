@@ -3,6 +3,7 @@ import { Tabs, router } from 'expo-router';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { storage } from '../../src/utils/storage';
+import { profileApi } from '../../src/utils/api';
 import { COLORS, alpha } from '../../src/theme/colors';
 import {
   registerForPushNotificationsAsync,
@@ -42,6 +43,22 @@ export default function TabsLayout() {
       if (!token) {
         router.replace('/login');
         return;
+      }
+      // Second layer of defense: app/index.tsx already checks
+      // onboarding_complete on cold launch, but a push notification can
+      // deep-link straight into a route under (tabs) without passing
+      // through index.tsx first. Re-checking here means an
+      // incomplete-onboarding user can't land on a tab screen that way
+      // either.
+      try {
+        const res = await profileApi.getMe();
+        if (res.data && res.data.onboarding_complete === false) {
+          router.replace('/onboarding');
+          return;
+        }
+      } catch {
+        // Profile check failing shouldn't block a returning user from
+        // their dashboard — fail open here, same as index.tsx.
       }
       setAuthChecked(true);
       // Fire-and-forget: registers this device's Expo push token so the

@@ -34,7 +34,13 @@ export default function RegisterScreen() {
       });
       const { access_token, user_id } = res.data;
       await setAuth({ id: user_id, email: email.trim(), full_name: fullName.trim() }, access_token);
-      router.replace('/(tabs)');
+      // A brand-new registration always creates a fresh profile row with
+      // onboarding_complete: False (see backend api/routes/auth.py) — so a
+      // new account should never land straight on the dashboard. This
+      // used to router.replace('/(tabs)') unconditionally, meaning every
+      // new user skipped onboarding entirely and got dropped into an
+      // unconfigured app (no goal, no equipment, no experience level set).
+      router.replace('/onboarding');
     } catch (err: any) {
       const msg = err?.response?.data?.detail || 'Registration failed.';
       Alert.alert('Error', msg);

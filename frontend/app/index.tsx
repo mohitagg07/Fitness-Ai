@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { storage } from '../src/utils/storage';
+import { profileApi } from '../src/utils/api';
 import AnimatedSplash from '../src/components/splash/AnimatedSplash';
 import { COLORS } from '../src/theme/colors';
 
@@ -13,7 +14,27 @@ export default function Index() {
     (async () => {
       try {
         const token = await storage.getItem('vyrn_token');
-        router.replace(token ? '/(tabs)' : '/login');
+        if (!token) {
+          router.replace('/login');
+          return;
+        }
+        // A valid token alone doesn't mean onboarding is done — a user
+        // can close the app mid-onboarding, or log into the same account
+        // on a second device, and still have onboarding_complete: false
+        // on their profile. Previously this only checked for a token and
+        // always sent straight to /(tabs), so those users landed on an
+        // unconfigured dashboard instead of finishing onboarding.
+        try {
+          const res = await profileApi.getMe();
+          router.replace(res.data?.onboarding_complete ? '/(tabs)' : '/onboarding');
+        } catch {
+          // Profile fetch failed (offline, expired token, etc.) — fall
+          // back to tabs rather than forcing onboarding on a returning
+          // user just because one request failed. (tabs)/_layout.tsx
+          // still re-checks the token itself and will bounce to /login
+          // if it's actually invalid.
+          router.replace('/(tabs)');
+        }
       } catch {
         router.replace('/login');
       }
