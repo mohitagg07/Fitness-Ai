@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { storage } from '../src/utils/storage';
 import { profileApi } from '../src/utils/api';
@@ -77,7 +77,18 @@ export default function Index() {
 
   return (
     <View style={styles.container}>
-      <AnimatedSplash onFinished={() => setSplashDone(true)} />
+      {!splashDone ? (
+        <AnimatedSplash onFinished={() => setSplashDone(true)} />
+      ) : (
+        // The splash animation fades itself out on a fixed ~2.6s timer,
+        // independent of whether the token/profile check below has
+        // actually resolved. On a cold Render/Railway free-tier backend,
+        // that check can take 20-50s to wake the server up — without
+        // this, the screen would go blank (bare background, no logo, no
+        // navigation yet) for that entire wait. This keeps something
+        // visibly alive on screen until maybeNavigate() actually fires.
+        <ActivityIndicator color={COLORS.primaryGreen} size="large" />
+      )}
     </View>
   );
 }
