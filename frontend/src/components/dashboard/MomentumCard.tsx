@@ -51,7 +51,7 @@ function heatColor(cell: HeatCell) {
   return alpha(COLORS.primaryGreen, 0.35);
 }
 
-export default function MomentumCard({ workoutStreak, proteinStreak, weeklySessions }: Props) {
+function MomentumCard({ workoutStreak, proteinStreak, weeklySessions }: Props) {
   const [heatmap, setHeatmap] = useState<HeatCell[][] | null>(null);
 
   useEffect(() => {
@@ -162,3 +162,5 @@ const styles = StyleSheet.create({
   heatmapCol: { gap: 3 },
   heatCell: { width: 12, height: 12, borderRadius: 3 },
 });
+
+export default React.memo(MomentumCard);

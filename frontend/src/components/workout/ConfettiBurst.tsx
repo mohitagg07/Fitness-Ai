@@ -21,7 +21,7 @@ interface Particle {
   rotateDir: number;
   driftX: number;
 }
-export default function ConfettiBurst({ active }: { active: boolean }) {
+function ConfettiBurst({ active }: { active: boolean }) {
   const anims = useRef<Animated.Value[]>([]).current;
   const particles: Particle[] = useMemo(() => {
     return Array.from({ length: PARTICLE_COUNT }).map((_, i) => ({
@@ -80,3 +80,5 @@ export default function ConfettiBurst({ active }: { active: boolean }) {
     </View>
   );
 }
+
+export default React.memo(ConfettiBurst);

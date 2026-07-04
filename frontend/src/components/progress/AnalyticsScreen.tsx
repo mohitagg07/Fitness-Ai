@@ -14,6 +14,7 @@ import Svg, {
   Text as SvgText,
 } from 'react-native-svg';
 import { analyticsApi, describeApiError } from '../../utils/api';
+import AmbientGrid from '../shared/AmbientGrid';
 import { COLORS } from '../../theme/colors';
 import { FONTS } from '../../theme/typography';
 
@@ -343,15 +344,19 @@ export default function AnalyticsScreen({ embedded = false }: { embedded?: boole
 
   if (embedded) return content;
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      {content}
-    </ScrollView>
+    <View style={styles.root}>
+      <AmbientGrid />
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        {content}
+      </ScrollView>
+    </View>
   );
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   root:    { flex: 1, backgroundColor: COLORS.background },
+  scroll:  { flex: 1, backgroundColor: 'transparent' },
   content: { padding: 16, paddingBottom: 40 },
 
   title: {

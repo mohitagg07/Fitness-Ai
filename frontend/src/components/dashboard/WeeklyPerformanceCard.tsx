@@ -36,7 +36,7 @@ function formatTime(totalMinutes: number) {
   return `${h}h ${m}m`;
 }
 
-export default function WeeklyPerformanceCard() {
+function WeeklyPerformanceCard() {
   const [stats, setStats] = useState<WeeklyStats | null>(null);
   const [latestPR, setLatestPR] = useState<PR | null>(null);
 
@@ -134,3 +134,5 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
 });
+
+export default React.memo(WeeklyPerformanceCard);

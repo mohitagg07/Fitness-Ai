@@ -49,7 +49,7 @@ function changeTypeColor(type: string) {
   return '#AEAEB2';
 }
 
-export default function ProgramEvolutionCard() {
+function ProgramEvolutionCard() {
   const [versions, setVersions] = useState<ProgramVersion[]>([]);
   const [loading, setLoading] = useState(true);
   const [rewriting, setRewriting] = useState(false);
@@ -211,3 +211,5 @@ const styles = StyleSheet.create({
   },
   rewriteBtnText: { color: '#000', fontSize: 12, fontWeight: '800' },
 });
+
+export default React.memo(ProgramEvolutionCard);

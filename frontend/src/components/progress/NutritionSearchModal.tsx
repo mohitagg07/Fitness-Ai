@@ -16,8 +16,9 @@
 //      form if FatSecret is down (backend returns 502/503) or the user
 //      just can't find what they ate.
 import React, { useState, useRef, useCallback } from 'react';
+import { FlashList } from '@shopify/flash-list';
 import {
-  View, Text, TextInput, TouchableOpacity, FlatList,
+  View, Text, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, Alert, Modal, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -151,6 +152,28 @@ export default function NutritionSearchModal({
     };
   })();
 
+  // Stable across renders (deps: []) since it only touches item + the
+  // two setters below, which are already stable — otherwise typing in
+  // the search box (every keystroke re-renders this modal) would hand
+  // FlashList a "new" renderItem on every character.
+  const renderResultItem = useCallback(({ item }: { item: FoodResult }) => (
+    <TouchableOpacity
+      style={styles.resultRow}
+      onPress={() => { setSelected(item); setGrams('100'); }}
+    >
+      <View style={{ flex: 1 }}>
+        <Text style={styles.resultName} numberOfLines={1}>{item.name}</Text>
+        {item.brand ? (
+          <Text style={styles.resultBrand} numberOfLines={1}>{item.brand}</Text>
+        ) : null}
+        <Text style={styles.resultMacros}>
+          {item.calories} kcal · P{item.protein_g}g · C{item.carbs_g}g · F{item.fat_g}g
+        </Text>
+      </View>
+      <Ionicons name="add-circle" size={26} color={COLORS.primaryGreen} />
+    </TouchableOpacity>
+  ), []);
+
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={closeAndReset}>
       <KeyboardAvoidingView
@@ -203,28 +226,13 @@ export default function NutritionSearchModal({
                 <Text style={styles.hintText}>No results for "{query.trim()}".</Text>
               </View>
             ) : (
-              <FlatList
+              <FlashList
                 data={results}
                 keyExtractor={(item) => item.food_id}
                 keyboardShouldPersistTaps="handled"
+                estimatedItemSize={64}
                 contentContainerStyle={styles.resultsList}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.resultRow}
-                    onPress={() => { setSelected(item); setGrams('100'); }}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.resultName} numberOfLines={1}>{item.name}</Text>
-                      {item.brand ? (
-                        <Text style={styles.resultBrand} numberOfLines={1}>{item.brand}</Text>
-                      ) : null}
-                      <Text style={styles.resultMacros}>
-                        {item.calories} kcal · P{item.protein_g}g · C{item.carbs_g}g · F{item.fat_g}g
-                      </Text>
-                    </View>
-                    <Ionicons name="add-circle" size={26} color={COLORS.primaryGreen} />
-                  </TouchableOpacity>
-                )}
+                renderItem={renderResultItem}
               />
             )}
           </>

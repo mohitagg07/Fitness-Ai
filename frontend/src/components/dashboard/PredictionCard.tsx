@@ -20,7 +20,7 @@ import SectionLabel from '../ui/SectionLabel';
 
 interface StrengthGain { exercise: string; prev_kg: number; curr_kg: number; delta_kg: number; }
 
-export default function PredictionCard() {
+function PredictionCard() {
   const [gains, setGains] = useState<StrengthGain[]>([]);
   const [strategy, setStrategy] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -85,3 +85,5 @@ const styles = StyleSheet.create({
     borderTopWidth: 1, borderTopColor: COLORS.cardBorder,
   },
 });
+
+export default React.memo(PredictionCard);

@@ -62,7 +62,7 @@ interface HeroDecisionCardProps {
   onWhyThisPlan?: () => void;
 }
 
-export default function HeroDecisionCard({
+function HeroDecisionCard({
   missionTitle,
   confidenceLabel,
   confidencePct,
@@ -143,3 +143,5 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 14 },
   statCaption: { fontSize: 10, marginTop: 2 },
 });
+
+export default React.memo(HeroDecisionCard);

@@ -1,44 +1,91 @@
-// VYRN — Root layout
-//
-// This is a plain stack, not a tab bar. `app/index.tsx` owns the splash +
-// auth redirect (token found → /(tabs), otherwise → /login), and
-// `app/(tabs)/_layout.tsx` owns the real bottom tab bar for everything
-// inside that group. This file's only job is to stack the top-level
-// routes — index, login, register, onboarding, (tabs) — with no header
-// and no visible chrome of its own.
-//
-// Previously this file rendered its own <Tabs> navigator (a stray copy of
-// (tabs)/_layout.tsx). Because that Tabs instance didn't declare `login`,
-// `register`, `onboarding`, or `(tabs)` as screens, Expo Router fell back
-// to auto-generating a default tab bar entry for every top-level file —
-// which is what showed up as the plain "HOME / (tabs) / login / register
-// / onboarding" bar. A Stack has no such fallback.
+import { useEffect, useState } from 'react';
+import { Tabs, router } from 'expo-router';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { storage } from '../src/utils/storage';
+import { COLORS, alpha } from '../src/theme/colors';
+import {
+  registerForPushNotificationsAsync,
+  attachNotificationResponseHandler,
+} from '../src/utils/pushNotifications';
 
-import { Stack } from 'expo-router';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { COLORS } from '../src/theme/colors';
+// ── All tabs hidden from the bottom bar ──
+// Every screen below is still a real route reachable via router.push()
+// (e.g. from the Quick Start grid, dashboard cards, or notification
+// deep links) — it's just not shown as a persistent bottom-nav item.
+const ALL_TABS = [
+  'index',
+  'coach',
+  'workout',
+  'progress',
+  'profile',
+  'decisions',
+  'simulate',
+  'formanalysis',
+  'prs',
+];
 
-export default function RootLayout() {
+export default function TabsLayout() {
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const token = await storage.getItem('vyrn_token');
+      if (!token) {
+        router.replace('/login');
+        return;
+      }
+      setAuthChecked(true);
+      // Fire-and-forget: registers this device's Expo push token so the
+      // nightly scheduler job (backend/services/scheduler.py →
+      // job_generate_notifications) can actually push recovery/protein/PR
+      // alerts instead of only writing a row the user has to go find.
+      // Non-fatal if it fails — see pushNotifications.ts.
+      registerForPushNotificationsAsync();
+    })()
+  }, []);
+
+  // Tap-to-deep-link: a pushed notification's `cta` (e.g. "/workout")
+  // routes here on tap, even from a killed/backgrounded app state.
+  useEffect(() => {
+    const cleanup = attachNotificationResponseHandler();
+    return cleanup;
+  }, []);
+
+  if (!authChecked) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator color={COLORS.primaryGreen} size="large" />
+      </View>
+    );
+  }
+
   return (
-    // Required wrapper for useSafeAreaInsets() to work in any screen below —
-    // that's what lets headers ask "how much clearance does THIS phone's
-    // notch/status bar/camera cutout actually need" instead of guessing a
-    // fixed pixel number that's wrong on most devices. See the header
-    // components in src/components/*/ for where insets.top is now used.
-    <SafeAreaProvider>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: COLORS.background },
-          animation: 'fade',
-        }}
-      >
-        <Stack.Screen name="index" />
-        <Stack.Screen name="login" />
-        <Stack.Screen name="register" />
-        <Stack.Screen name="onboarding" />
-        <Stack.Screen name="(tabs)" />
-      </Stack>
-    </SafeAreaProvider>
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        // Tab bar has no visible items (all screens use href: null below),
+        // so nothing is rendered here. Kept in case a tab is ever
+        // un-hidden later.
+        tabBarStyle: { display: 'none' },
+      }}
+    >
+      {ALL_TABS.map((name) => (
+        <Tabs.Screen
+          key={name}
+          name={name}
+          options={{ href: null }}
+        />
+      ))}
+    </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  loading: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});

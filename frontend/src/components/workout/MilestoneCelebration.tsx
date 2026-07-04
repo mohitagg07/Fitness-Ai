@@ -30,7 +30,7 @@ interface Props {
   onClose: () => void;
 }
 
-export default function MilestoneCelebration({ visible, data, onClose }: Props) {
+function MilestoneCelebration({ visible, data, onClose }: Props) {
   const scaleIn = useRef(new Animated.Value(0.85)).current;
   const glowPulse = useRef(new Animated.Value(0)).current;
   const [confettiActive, setConfettiActive] = React.useState(false);
@@ -128,3 +128,5 @@ const styles = StyleSheet.create({
   title: { color: COLORS.text, fontFamily: FONTS.extrabold, fontSize: 20, marginBottom: 10, textAlign: 'center' },
   message: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 14, lineHeight: 20, textAlign: 'center', marginBottom: 26 },
 });
+
+export default React.memo(MilestoneCelebration);

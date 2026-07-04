@@ -30,7 +30,7 @@ function hexPoints(size: number) {
   return pts.join(' ');
 }
 
-export default function AchievementBadge({
+function AchievementBadge({
   icon = 'flame',
   color = COLORS.gold,
   size = 72,
@@ -53,3 +53,5 @@ export default function AchievementBadge({
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', justifyContent: 'center' },
 });
+
+export default React.memo(AchievementBadge);

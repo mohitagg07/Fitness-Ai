@@ -50,7 +50,7 @@ function diffSignals(today: Signal[], yesterday: Signal[]): ChangeLine[] {
   return lines.slice(0, 3);
 }
 
-export default function SinceYesterdayCard({
+function SinceYesterdayCard({
   workoutStreak, proteinStreak,
 }: { workoutStreak?: number; proteinStreak?: number }) {
   const [loading, setLoading] = useState(true);
@@ -141,3 +141,5 @@ const styles = StyleSheet.create({
   line: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   lineText: { color: COLORS.textSecondary, fontSize: 13, flex: 1 },
 });
+
+export default React.memo(SinceYesterdayCard);

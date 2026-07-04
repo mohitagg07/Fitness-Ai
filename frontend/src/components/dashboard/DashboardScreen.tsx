@@ -33,6 +33,7 @@ import { useStore } from '../../store';
 import { COLORS } from '../../theme/colors';
 import { SPACING } from '../../theme/spacing';
 import Text from '../ui/Text';
+import AmbientGlow from '../shared/AmbientGlow';
 import DashboardSkeleton from './DashboardSkeleton';
 import DashboardHeader from './DashboardHeader';
 import AIReadinessHero from './AIReadinessHero';
@@ -178,12 +179,14 @@ export default function DashboardScreen() {
     "Recovery is looking good—today's a great day to train.";
 
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.recoveryHigh} />
-      }
-    >
+    <View style={styles.root}>
+      <AmbientGlow variant="recovery" recoveryScore0to100={(summary?.recovery?.score ?? 7) * 10} />
+      <ScrollView
+        style={styles.container}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.recoveryHigh} />
+        }
+      >
       {errorMsg && summary && (
         <View style={styles.staleBanner}>
           <Ionicons name="warning-outline" size={14} color={COLORS.recoveryMed} />
@@ -247,12 +250,14 @@ export default function DashboardScreen() {
       <QuickToolsCard />
 
       <View style={{ height: 24 }} />
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  root: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1, backgroundColor: 'transparent' },
   centerContainer: {
     flex: 1, backgroundColor: COLORS.background,
     justifyContent: 'center', alignItems: 'center', padding: SPACING.xxl,

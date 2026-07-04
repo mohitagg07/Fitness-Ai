@@ -35,7 +35,7 @@ function formatDate(iso: string) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export default function TimelineCard() {
+function TimelineCard() {
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(true);
@@ -122,3 +122,5 @@ const styles = StyleSheet.create({
   },
   showMoreText: { color: COLORS.strainGlow, fontSize: 11, fontWeight: '600' },
 });
+
+export default React.memo(TimelineCard);

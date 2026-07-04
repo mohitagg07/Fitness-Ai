@@ -33,7 +33,7 @@ interface ProactiveBrief {
   reasoning_steps?: ReasoningStep[];
 }
 
-export default function CoachInsightCard({ brief }: { brief: ProactiveBrief }) {
+function CoachInsightCard({ brief }: { brief: ProactiveBrief }) {
   const [showReasoning, setShowReasoning] = useState(false);
   const confidenceColor =
     brief.confidence === 'High' ? COLORS.recoveryHigh :
@@ -161,3 +161,5 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', marginTop: 1,
   },
 });
+
+export default React.memo(CoachInsightCard);

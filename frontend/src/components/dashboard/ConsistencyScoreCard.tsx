@@ -57,7 +57,7 @@ function pillarColor(status: Pillar['status']) {
   return COLORS.recoveryLow;
 }
 
-export default function ConsistencyScoreCard({ data: initialData }: Props) {
+function ConsistencyScoreCard({ data: initialData }: Props) {
   const [data, setData] = useState<ConsistencyData | null | undefined>(initialData);
   const [loading, setLoading] = useState(!initialData);
 
@@ -156,3 +156,5 @@ const styles = StyleSheet.create({
   pillarLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   bar: { height: 6, borderRadius: 3 },
 });
+
+export default React.memo(ConsistencyScoreCard);

@@ -9,13 +9,15 @@
 //   chat          → ChatBubble   (plain text + optional tips)
 // The LLM returns structured JSON; the frontend picks the card.
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, FlatList,
+  View, Text, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
   Alert, ScrollView, Animated, Easing,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { FlashList, FlashListRef } from '@shopify/flash-list';
+import AmbientGlow from '../shared/AmbientGlow';
 import Svg, { Circle, Path, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -523,7 +525,12 @@ function ChatTipsCard({ tips }: { tips: string[] }) {
 }
 
 // ─── Message renderer — picks the right card ──────────────────────────────────
-function CoachMessage({ item }: { item: any }) {
+// Memoized deliberately at this level rather than on each of the 7 card
+// types below it — CoachMessage is the actual per-row render FlashList
+// calls, so gating re-renders here means WorkoutCard/LiveSetCard/etc.
+// never re-render on a screen-level state change (e.g. typing in the
+// input box) unless the message item itself is new.
+const CoachMessage = React.memo(function CoachMessage({ item }: { item: any }) {
   const sd        = item.structured_decision;
   const coachText = sd?.coach_message || item.content || '';
 
@@ -547,7 +554,7 @@ function CoachMessage({ item }: { item: any }) {
       {renderCard()}
     </>
   );
-}
+});
 
 // ─── Loading animation dots ───────────────────────────────────────────────────
 function ThinkingDots() {
@@ -601,7 +608,7 @@ function getOfflineFallback(message: string): string {
 }
 
 // ─── Small numeric badge used in the header briefing strip ───────────────────
-function MiniStat({ label, value, color }: { label: string; value: number; color: string }) {
+function MiniStatBase({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <View style={S.miniStat}>
       <CircularProgress
@@ -615,6 +622,10 @@ function MiniStat({ label, value, color }: { label: string; value: number; color
     </View>
   );
 }
+// Rebinding the name (rather than exporting a differently-named
+// version) so every existing <MiniStat .../> usage further down this
+// file picks up the memoized version automatically.
+const MiniStat = React.memo(MiniStatBase);
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function CoachScreen() {
@@ -628,7 +639,7 @@ export default function CoachScreen() {
   // disagree about "how am I today". No fabricated Sleep/Readiness rings
   // here since the backend doesn't return those as distinct scores.
   const [brief, setBrief] = useState<{ recoveryScore: number; cnsFatigue: number; message: string } | null>(null);
-  const flatListRef = useRef<FlatList>(null);
+  const flatListRef = useRef<FlashListRef<any>>(null);
   const { chatHistory, addChatMessage, setCnsFatigue, activeSession, profile, user } = useStore();
   const firstName = user?.full_name?.split(' ')[0] || profile?.full_name?.split(' ')[0] || 'Athlete';
   const hour = new Date().getHours();
@@ -697,7 +708,13 @@ export default function CoachScreen() {
     }
   }, [chatHistory.length]);
 
-  const renderMessage = ({ item }: { item: any }) => (
+  // useCallback with an empty dep array: this closes over nothing but
+  // `item`, which arrives as an argument. Previously it was redefined
+  // inline every render — including every keystroke in the message
+  // input below, which re-renders this whole screen — so FlashList was
+  // getting handed a "new" renderItem on every keystroke while chatting,
+  // not just when a message actually arrived.
+  const renderMessage = useCallback(({ item }: { item: any }) => (
     <View style={[S.bubble, item.role === 'user' ? S.userBubble : S.aiBubble]}>
       {item.role === 'assistant' && (
         <View style={S.roleLabelRow}>
@@ -710,7 +727,7 @@ export default function CoachScreen() {
         : <Text style={[S.messageText, S.userText]}>{item.content}</Text>
       }
     </View>
-  );
+  ), []);
 
   return (
     <KeyboardAvoidingView
@@ -718,6 +735,7 @@ export default function CoachScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={90}
     >
+      <AmbientGlow variant="coach" />
       {/* Header */}
       <View style={[S.header, { paddingTop: insets.top + 12 }]}>
         <View style={S.headerTopRow}>
@@ -814,11 +832,12 @@ export default function CoachScreen() {
           </View>
         </ScrollView>
       ) : (
-        <FlatList
+        <FlashList
           ref={flatListRef}
           data={chatHistory}
           keyExtractor={(_: unknown, i: number) => String(i)}
           renderItem={renderMessage}
+          estimatedItemSize={140}
           contentContainerStyle={S.messageList}
           showsVerticalScrollIndicator={false}
         />

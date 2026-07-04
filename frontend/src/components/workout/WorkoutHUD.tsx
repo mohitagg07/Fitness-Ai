@@ -21,6 +21,7 @@ import { useStore } from '../../store';
 import { COLORS, alpha } from '../../theme/colors';
 import { FONTS, EYEBROW, BODY } from '../../theme/typography';
 import { SPACING, RADIUS } from '../../theme/spacing';
+import AmbientGlow from '../shared/AmbientGlow';
 import WorkoutSummaryCard from './WorkoutSummaryCard';
 import WorkoutHistoryModal from './WorkoutHistoryModal';
 import MilestoneCelebration from './MilestoneCelebration';
@@ -191,7 +192,7 @@ function PrevSetGhost({ log }: { log: SetLog | null }) {
 }
 
 // ─── Main HUD ────────────────────────────────────────────────────────────────
-export default function WorkoutHUD() {
+function WorkoutHUD() {
   const {
     activeSession, setActiveSession, addLogToSession, setCnsFatigue,
   } = useStore();
@@ -370,7 +371,15 @@ export default function WorkoutHUD() {
   // The backend PATCH /sessions/{id}/complete recomputes stats from the
   // already-persisted logs and upserts PRs idempotently, so calling it again
   // on the same session id after a failed/lost response is safe.
-  const completeAndShowSummary = async (moodOverride?: MoodValue) => {
+  // useCallback here matters for a reason that isn't about this function
+  // itself: it's passed down (indirectly, via the handlers below) into
+  // MoodPickerModal/WorkoutSummaryCard/MilestoneCelebration, all three
+  // of which are now React.memo'd. WorkoutHUD re-renders every second
+  // (the forceTick interval below, plus the rest-timer countdown) — if
+  // this were redefined every render, the memo on those three would be
+  // silently defeated the entire time a workout is active, which is
+  // exactly when it matters most.
+  const completeAndShowSummary = useCallback(async (moodOverride?: MoodValue) => {
     if (!activeSession || isFinishing) return;
     setIsFinishing(true);
     // moodOverride avoids a stale-closure read of `pendingMood` right after
@@ -416,7 +425,7 @@ export default function WorkoutHUD() {
     } finally {
       setIsFinishing(false);
     }
-  };
+  }, [activeSession, isFinishing, pendingMood, totalVolume, totalSets]);
 
   const finishWorkout = async () => {
     if (!activeSession) return;
@@ -499,33 +508,42 @@ export default function WorkoutHUD() {
   }
 
   // ── Active session ───────────────────────────────────────────────────────────
+  const handleMoodSelect = useCallback((mood: MoodValue) => {
+    setPendingMood(mood);
+    setMoodPickerVisible(false);
+    completeAndShowSummary(mood);
+  }, [completeAndShowSummary]);
+
+  const handleMoodSkip = useCallback(() => {
+    setPendingMood(undefined);
+    setMoodPickerVisible(false);
+    completeAndShowSummary(undefined);
+  }, [completeAndShowSummary]);
+
+  const handleSummaryClose = useCallback(() => {
+    setSummaryVisible(false);
+    if (streakData) setTimeout(() => setStreakVisible(true), 300);
+  }, [streakData]);
+
+  const handleMilestoneClose = useCallback(() => setStreakVisible(false), []);
+
   return (
     <View style={S.container}>
+      <AmbientGlow variant="workout" />
       <MoodPickerModal
         visible={moodPickerVisible}
-        onSelect={(mood) => {
-          setPendingMood(mood);
-          setMoodPickerVisible(false);
-          completeAndShowSummary(mood);
-        }}
-        onSkip={() => {
-          setPendingMood(undefined);
-          setMoodPickerVisible(false);
-          completeAndShowSummary(undefined);
-        }}
+        onSelect={handleMoodSelect}
+        onSkip={handleMoodSkip}
       />
       <WorkoutSummaryCard
         visible={summaryVisible}
         data={summaryData}
-        onClose={() => {
-          setSummaryVisible(false);
-          if (streakData) setTimeout(() => setStreakVisible(true), 300);
-        }}
+        onClose={handleSummaryClose}
       />
       <MilestoneCelebration
         visible={streakVisible}
         data={streakData}
-        onClose={() => setStreakVisible(false)}
+        onClose={handleMilestoneClose}
       />
 
       {timerRunning && (
@@ -887,3 +905,5 @@ const S = StyleSheet.create({
   // in the app. Now the same primaryGreen used everywhere else.
   finishBtnText: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 14, letterSpacing: 0.5 },
 });
+
+export default React.memo(WorkoutHUD);

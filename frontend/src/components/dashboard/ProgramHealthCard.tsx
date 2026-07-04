@@ -78,7 +78,7 @@ function formatDate(iso: string) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export default function ProgramHealthCard() {
+function ProgramHealthCard() {
   const [versions, setVersions] = useState<ProgramVersion[]>([]);
   const [loading, setLoading] = useState(true);
   const [rewriting, setRewriting] = useState(false);
@@ -254,3 +254,5 @@ const styles = StyleSheet.create({
   },
   adjustmentText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
 });
+
+export default React.memo(ProgramHealthCard);

@@ -28,7 +28,7 @@ interface Props {
   avatarUrl?: string | null;
 }
 
-export default function DashboardHeader({ firstName, aiSentence, recoveryScore0to10, avatarUrl }: Props) {
+function DashboardHeader({ firstName, aiSentence, recoveryScore0to10, avatarUrl }: Props) {
   const insets = useSafeAreaInsets();
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -142,3 +142,5 @@ const styles = StyleSheet.create({
   statusText: { marginTop: SPACING.sm, letterSpacing: 0.5, fontSize: 10 },
   deltaRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4 },
 });
+
+export default React.memo(DashboardHeader);

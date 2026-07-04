@@ -37,7 +37,7 @@ function currentAndNext(streak: number) {
   return { current, next };
 }
 
-export default function AchievementCard({ workoutStreak }: { workoutStreak: number }) {
+function AchievementCard({ workoutStreak }: { workoutStreak: number }) {
   const sparkle = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -123,3 +123,5 @@ const styles = StyleSheet.create({
   },
   tapToView: { marginLeft: 'auto', fontSize: 11 },
 });
+
+export default React.memo(AchievementCard);

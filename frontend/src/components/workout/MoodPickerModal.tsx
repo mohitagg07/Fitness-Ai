@@ -31,7 +31,7 @@ interface Props {
   onSkip: () => void;
 }
 
-export default function MoodPickerModal({ visible, onSelect, onSkip }: Props) {
+function MoodPickerModal({ visible, onSelect, onSkip }: Props) {
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.backdrop}>
@@ -85,3 +85,5 @@ const styles = StyleSheet.create({
   emoji: { fontSize: 26 },
   skip: { alignSelf: 'center', marginTop: SPACING.lg, padding: SPACING.xs },
 });
+
+export default React.memo(MoodPickerModal);

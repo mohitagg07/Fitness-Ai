@@ -26,7 +26,7 @@ interface AchievementCelebrationProps {
   ctaLabel?: string;
 }
 
-export default function AchievementCelebration({
+function AchievementCelebration({
   visible,
   title,
   subtitle,
@@ -97,3 +97,5 @@ const styles = StyleSheet.create({
   },
   confetti: { textAlign: 'center' },
 });
+
+export default React.memo(AchievementCelebration);

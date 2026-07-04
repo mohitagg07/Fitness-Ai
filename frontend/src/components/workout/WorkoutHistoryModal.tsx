@@ -34,7 +34,7 @@ function formatDate(iso: string): string {
   }
 }
 
-export default function WorkoutHistoryModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+function WorkoutHistoryModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
@@ -238,3 +238,5 @@ const styles = StyleSheet.create({
   setLabel: { color: COLORS.textMuted, fontSize: 12 },
   setValue: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '600' },
 });
+
+export default React.memo(WorkoutHistoryModal);

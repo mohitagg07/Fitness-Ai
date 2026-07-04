@@ -95,7 +95,7 @@ function InsightRow({ insight }: { insight: PatternInsight }) {
   );
 }
 
-export default function PatternInsightsCard({ insights }: Props) {
+function PatternInsightsCard({ insights }: Props) {
   if (!insights || insights.length === 0) return null;
 
   const sorted = [...insights].sort(
@@ -174,3 +174,5 @@ const styles = StyleSheet.create({
     padding: SPACING.sm,
   },
 });
+
+export default React.memo(PatternInsightsCard);

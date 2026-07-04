@@ -30,7 +30,7 @@ const TOOLS: Array<{
   { icon: 'body-outline', label: 'Form Check', sub: 'Camera feedback', color: COLORS.recoveryLow, route: '/(tabs)/formanalysis' },
 ];
 
-export default function QuickToolsCard() {
+function QuickToolsCard() {
   return (
     <View style={styles.wrap}>
       <SectionLabel label="MORE TOOLS" style={{ marginHorizontal: SPACING.lg }} />
@@ -59,3 +59,5 @@ const styles = StyleSheet.create({
   },
   sub: { textAlign: 'center', marginTop: 2, fontSize: 10, lineHeight: 13 },
 });
+
+export default React.memo(QuickToolsCard);

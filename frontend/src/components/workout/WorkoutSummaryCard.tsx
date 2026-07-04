@@ -119,7 +119,7 @@ function Reveal({ mount, delay, children, style }: { mount: Animated.Value; dela
   return <Animated.View style={[{ opacity, transform: [{ translateY }] }, style]}>{children}</Animated.View>;
 }
 
-export default function WorkoutSummaryCard({ visible, data, onClose }: Props) {
+function WorkoutSummaryCard({ visible, data, onClose }: Props) {
   const scaleIn = useRef(new Animated.Value(0.9)).current;
   // Logo/badge "stamp-in" — starts small + rotated, overshoots past 1 on
   // the way in so the mark reads as a celebratory stamp, not a static icon.
@@ -162,6 +162,14 @@ export default function WorkoutSummaryCard({ visible, data, onClose }: Props) {
   if (!data) return null;
 
   const prCount = data.new_prs?.length || 0;
+  // "Great work. Session saved." told the user nothing they didn't
+  // already know — every non-PR session was getting the exact same line.
+  // Lead with the best set if we have one (it's the single most
+  // motivating real number from the session); otherwise fall back to
+  // total volume, which is still a specific, earned stat rather than praise.
+  const fallbackSubtitle = data.best_set
+    ? `Best set: ${data.best_set.exercise} — ${data.best_set.weight_kg}kg × ${data.best_set.reps}.`
+    : `${Math.round(data.total_volume_kg).toLocaleString()}kg moved across ${data.sets_logged} set${data.sets_logged !== 1 ? 's' : ''}.`;
   const badgeColors: [string, string] = prCount > 0
     ? [COLORS.gold, alpha(COLORS.gold, 0.7)]
     : [COLORS.primaryGreen, alpha(COLORS.primaryGreen, 0.7)];
@@ -188,7 +196,7 @@ export default function WorkoutSummaryCard({ visible, data, onClose }: Props) {
             </Animated.View>
             <Text variant="hero" style={styles.title}>Workout Complete</Text>
             <Text variant="body" color={COLORS.textSecondary} align="center" numberOfLines={1}>
-              {prCount > 0 ? `${prCount} new personal record${prCount !== 1 ? 's' : ''} today.` : 'Great work. Session saved.'}
+              {prCount > 0 ? `${prCount} new personal record${prCount !== 1 ? 's' : ''} today.` : fallbackSubtitle}
             </Text>
           </View>
 
@@ -348,3 +356,5 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md, borderWidth: 1, borderColor: COLORS.cardBorder,
   },
 });
+
+export default React.memo(WorkoutSummaryCard);

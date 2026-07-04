@@ -87,7 +87,7 @@ function confidenceColor(pct: number) {
   return COLORS.recoveryLow;
 }
 
-export default function AIReadinessHero({ workoutType, workoutStreak, estimatedMinutes = 55 }: Props) {
+function AIReadinessHero({ workoutType, workoutStreak, estimatedMinutes = 55 }: Props) {
   const [loading, setLoading] = useState(true);
   const [decision, setDecision] = useState<TodayDecision | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -305,3 +305,5 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: COLORS.cardBorder,
   },
 });
+
+export default React.memo(AIReadinessHero);

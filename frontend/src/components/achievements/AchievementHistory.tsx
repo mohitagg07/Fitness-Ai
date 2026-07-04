@@ -6,7 +6,8 @@
 // that lives permanently on Home.
 
 import React from 'react';
-import { View, FlatList, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, alpha } from '../../theme/colors';
 import { Text, Card } from '../ui';
@@ -23,7 +24,7 @@ export interface AchievementRecord {
   unlockedAt: string; // ISO date
 }
 
-export default function AchievementHistory({ items }: { items: AchievementRecord[] }) {
+function AchievementHistory({ items }: { items: AchievementRecord[] }) {
   if (!items.length) {
     return (
       <View style={styles.empty}>
@@ -36,10 +37,15 @@ export default function AchievementHistory({ items }: { items: AchievementRecord
   }
 
   return (
-    <FlatList
+    <FlashList
       data={items}
       keyExtractor={(item) => item.id}
-      contentContainerStyle={{ gap: SPACING.sm, padding: SPACING.lg }}
+      estimatedItemSize={72}
+      contentContainerStyle={{ padding: SPACING.lg }}
+      // FlashList's virtualized layout doesn't honor flexbox `gap` on the
+      // container the way a plain FlatList did — a real separator keeps
+      // the same spacing without silently collapsing it.
+      ItemSeparatorComponent={() => <View style={{ height: SPACING.sm }} />}
       renderItem={({ item }) => (
         <Card variant="outlined" padding="sm" style={styles.row}>
           <AchievementBadge icon={item.icon} color={item.color || COLORS.gold} size={44} />
@@ -58,3 +64,5 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
   empty: { alignItems: 'center', justifyContent: 'center', padding: SPACING.xxl },
 });
+
+export default React.memo(AchievementHistory);

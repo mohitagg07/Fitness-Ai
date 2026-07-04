@@ -37,7 +37,7 @@ interface Props {
   firstName?: string;
 }
 
-export default function ProactiveBriefCard({ brief, firstName }: Props) {
+function ProactiveBriefCard({ brief, firstName }: Props) {
   const [showReasoning, setShowReasoning] = useState(false);
 
   const confidenceColor =
@@ -267,3 +267,5 @@ const styles = StyleSheet.create({
   stepImpl: { color: COLORS.recoveryHigh + 'CC', fontSize: 12, marginTop: 2 },
   whySummary: { color: COLORS.textMuted, fontSize: 13, lineHeight: 19 },
 });
+
+export default React.memo(ProactiveBriefCard);

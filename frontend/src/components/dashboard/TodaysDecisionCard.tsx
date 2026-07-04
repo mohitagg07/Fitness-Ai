@@ -50,7 +50,7 @@ function confidenceColor(pct: number) {
   return COLORS.recoveryLow;
 }
 
-export default function TodaysDecisionCard() {
+function TodaysDecisionCard() {
   const [loading, setLoading] = useState(true);
   const [decision, setDecision] = useState<TodayDecision | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -224,3 +224,5 @@ const styles = StyleSheet.create({
   whyRowText: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 18, marginBottom: 4 },
   whyNotOption: { color: COLORS.text, fontWeight: '700' },
 });
+
+export default React.memo(TodaysDecisionCard);
