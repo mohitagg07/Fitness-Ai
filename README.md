@@ -388,137 +388,163 @@ Both use `LocalHashEmbeddingFunction` (256-dim deterministic hash — no ONNX mo
 
 ## 4. Database Schema
 
-Run `CRITICAL_RUN_THIS_SQL_FIRST.sql` in Supabase SQL editor once. Tables:
+The database is created in Supabase. Run **all five SQL files below in order**, once per Supabase project, from the Supabase Dashboard → SQL Editor. Run each file completely before moving to the next:
+
+1. `CRITICAL_RUN_THIS_SQL_FIRST.sql` — base tables and row-level security policies.
+2. `MIGRATION_v2.sql` — training-strategy persistence and notification fields.
+3. `MIGRATION_avatar_url.sql` — profile avatar column, storage bucket, and storage policies.
+4. `MIGRATION_v4_push_tokens.sql` — device push-token storage.
+5. `MIGRATION_v5_username.sql` — profile usernames and uniqueness constraint.
+
+These scripts are designed to be safe to re-run. **Do not drop existing tables or reset a database containing real user data.** If a script reports an error, stop and resolve that error before continuing.
+
+The base schema includes:
 
 | Table | Key columns | Notes |
 |---|---|---|
-| `profiles` | `id` (FK → auth.users), `full_name`, `goal`, `weight_kg`, `height_cm`, `equipment[]`, `coach_style`, `onboarding_complete` | Auto-created on first login if missing |
-| `injury_profiles` | `user_id`, `body_part`, `issue_type`, `severity`, `doctor_restriction` | Many per user, fed to guardrails query |
-| `workout_plans` | `user_id`, `schedule` (JSONB), `is_active` | AI-generated training splits |
-| `workout_sessions` | `user_id`, `session_date`, `day_label`, `completed`, `total_volume_kg` | One per training day |
-| `exercise_logs` | `session_id`, `exercise_name`, `set_number` (auto), `weight_kg`, `reps`, `rpe` | Many per session |
-| `personal_records` | `user_id`, `exercise_name`, `weight_kg` | Upserted, one per exercise |
-| `progress_metrics` | `user_id`, `recorded_date`, `weight_kg`, `recovery_score`, `body_fat_pct` | Daily check-ins |
-| `nutrition_logs` | `user_id`, `log_date`, `food_name`, `calories`, `protein_g`, `water_ml` | Multiple per day |
-| `ai_conversations` | `user_id`, `session_id`, `role`, `content` | Full chat history |
-| `agent_states` | `user_id`, `cns_fatigue_score`, `workout_streak`, `protein_streak`, `total_workouts` | Single row per user, upserted |
-| `ai_timeline_events` | `user_id`, `event_type`, `message` | Append-only coach event feed |
+| `profiles` | `id` (FK → auth.users), `full_name`, `goal`, `weight_kg`, `height_cm`, `equipment[]`, `coach_style`, `onboarding_complete` | Athlete profile and training preferences |
+| `injury_profiles` | `user_id`, `body_part`, `issue_type`, `severity`, `doctor_restriction` | Injury constraints used by the coach |
+| `workout_plans` | `user_id`, `schedule` (JSONB), `is_active` | Training schedule |
+| `workout_sessions` | `user_id`, `session_date`, `day_label`, `completed`, `total_volume_kg` | Workout sessions |
+| `exercise_logs` | `session_id`, `exercise_name`, `set_number`, `weight_kg`, `reps`, `rpe` | Set-by-set training log; 0 kg is valid for bodyweight exercises |
+| `personal_records` | `user_id`, `exercise_name`, `weight_kg` | Verified strength records |
+| `progress_metrics` | `user_id`, `recorded_date`, `weight_kg`, `recovery_score`, `body_fat_pct` | Progress check-ins |
+| `nutrition_logs` | `user_id`, `log_date`, `food_name`, `calories`, `protein_g`, `water_ml` | Nutrition entries |
+| `ai_conversations` | `user_id`, `session_id`, `role`, `content` | Coach conversation history |
+| `agent_states` | `user_id`, `cns_fatigue_score`, `workout_streak`, `protein_streak`, `total_workouts` | Persisted coach state |
+| `ai_timeline_events` | `user_id`, `event_type`, `message` | Append-only decision timeline |
 
-Row Level Security is enabled on all tables — `auth.uid() = user_id` on every policy.
+The SQL migrations also add the training-strategy, AI decision, program-version, notification, push-token, avatar, and username structures. Row Level Security is enabled for user-owned data.
 
 ---
 
 ## 5. Backend — Setup & Running
 
-### First time
+Use Python 3.11 and a virtual environment. Do not install backend dependencies into your system Python.
+
+### Windows PowerShell
+
+```powershell
+cd backend
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+Copy-Item .env.example .env
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+### macOS / Linux
 
 ```bash
 cd backend
-
-# Create .env (see Section 7)
+python3.11 -m venv .venv
+source .venv/bin/activate
 cp .env.example .env
-# Fill in GROQ_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY, SECRET_KEY
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
 
-# Install dependencies (pin matters — unpinned FastAPI drops routes silently)
-pip install -r requirements.txt --break-system-packages
+Edit `backend/.env` and provide the real `GROQ_API_KEY`, `SUPABASE_URL`, and `SUPABASE_SERVICE_KEY`. Generate a unique JWT secret with:
 
-# Run the Supabase SQL schema (Supabase dashboard → SQL editor)
-# File: CRITICAL_RUN_THIS_SQL_FIRST.sql
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
 
-# Start dev server
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+Put that value in `SECRET_KEY` and keep it stable. Never commit `.env`, expose the Supabase service-role key in the mobile app, or deploy with the development JWT secret.
+
+Run the five Supabase SQL files in the exact order in Section 4 before trying registration, onboarding, or authenticated API features.
+
+Start the backend from the `backend` directory:
+
+```bash
+python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### Verify
 
-```
-http://localhost:8000/        → { "app": "VYRN Adaptive Performance System", "status": "running" }
-http://localhost:8000/health  → { "status": "ok" }
-http://localhost:8000/docs    → Swagger UI with all endpoints
-```
+- `http://localhost:8000/` — VYRN service information.
+- `http://localhost:8000/health` — `{"status":"ok"}`.
+- `http://localhost:8000/docs` — interactive API documentation.
+
+A healthy `/health` response proves the API process is reachable; it does not prove Supabase or Groq credentials are valid. Test registration/login and a real profile read only after configuring those services.
 
 ### ChromaDB
 
-Stored locally in `./chroma_store/`. On first run, `seed_guardrails()` populates 12 biomechanical safety rules. If the server is wiped (Render free tier), guardrails are automatically re-seeded on next startup. User memories are lost — see Section 14 for options.
+Stored locally in `./chroma_store/`. On first startup, `seed_guardrails()` populates biomechanical safety rules. Ephemeral hosting storage can erase user memories after a redeploy; use persistent storage for production memory retention.
 
 ---
 
 ## 6. Frontend — Setup & Running
 
-### First time
+Use Node.js **20.19.4** (the version pinned in `.nvmrc`).
+
+### Windows PowerShell
+
+```powershell
+cd frontend
+npm ci
+Copy-Item .env.example .env
+```
+
+### macOS / Linux
 
 ```bash
 cd frontend
-npm install
-
-# Create .env
-echo "EXPO_PUBLIC_API_URL=http://localhost:8000/api" > .env
+npm ci
+cp .env.example .env
 ```
 
-### Development
+Set `EXPO_PUBLIC_API_URL` in `frontend/.env`:
+
+- iOS Simulator / local web: `http://localhost:8000/api`
+- Android Emulator: `http://10.0.2.2:8000/api`
+- Physical phone: `http://YOUR_LAPTOP_LAN_IP:8000/api` (phone and laptop must be on the same Wi-Fi; allow the backend through the laptop firewall).
+
+Start Expo only after the backend is configured and running:
 
 ```bash
-# Expo dev server (scan QR with Expo Go)
-npx expo start
-
-# Physical device or Android Emulator — localhost won't work
-# Use your machine's LAN IP:
-EXPO_PUBLIC_API_URL=http://192.168.1.5:8000/api npx expo start
+npx expo start --clear
 ```
 
-### Build (EAS)
+Scan the QR code with Expo Go for supported development testing, or press the relevant terminal shortcut for an installed emulator. A physical phone cannot use the laptop's `localhost` address.
+
+### Native builds (EAS)
+
+The `preview` profile is configured to produce an internal Android APK. The `ios-simulator` profile is for the iOS simulator. The `production` profile produces an Android App Bundle for store distribution.
 
 ```bash
 npm install -g eas-cli
 eas login
-
-# APK for testing
 eas build --platform android --profile preview
-
-# Production
-eas build --platform android --profile production
 ```
+
+Do not create a store release until the backend HTTPS URL is verified, a native build has succeeded, and the app has been tested on real devices. A JavaScript export in CI is not a native build.
 
 ---
 
 ## 7. Environment Variables
 
+The repository contains templates at `backend/.env.example` and `frontend/.env.example`. Copy each template to `.env` in its respective folder and fill in the local values.
+
 ### Backend (`backend/.env`)
 
-```env
-# LLM
-GROQ_API_KEY=gsk_...
-GROQ_MODEL=llama-3.3-70b-versatile          # optional, this is the default
+Required external service values:
 
-# Supabase
-SUPABASE_URL=https://xxxx.supabase.co
-SUPABASE_SERVICE_KEY=eyJ...                 # service role key — backend only, bypasses RLS
+- `GROQ_API_KEY` — Groq inference key.
+- `SUPABASE_URL` — Supabase project URL.
+- `SUPABASE_SERVICE_KEY` — Supabase service-role key; backend only.
+- `SECRET_KEY` — unique 32-byte-or-greater random JWT signing secret; keep stable across deployments.
+- `ALLOWED_ORIGINS` — comma-separated browser origins when using the web app.
 
-# JWT
-SECRET_KEY=                                 # python3 -c "import secrets; print(secrets.token_hex(32))"
-# Rotating this key invalidates ALL existing sessions
-
-# CORS
-ALLOWED_ORIGINS=http://localhost:8081,https://your-prod-frontend.com
-
-# ChromaDB
-CHROMA_PERSIST_DIR=./chroma_store
-CHROMA_COLLECTION_NAME=vyrn_guardrails
-```
+ChromaDB settings are optional and default to `./chroma_store` and `vyrn_guardrails`.
 
 ### Frontend (`frontend/.env`)
 
-```env
-EXPO_PUBLIC_API_URL=https://your-backend.onrender.com/api
+- `EXPO_PUBLIC_API_URL` — API root ending in `/api`. Example: `http://localhost:8000/api`.
 
-# Local dev on physical device:
-# EXPO_PUBLIC_API_URL=http://192.168.1.XXX:8000/api
+Only public, non-secret values belong in `EXPO_PUBLIC_*` variables. Never put Groq keys, Supabase service-role keys, or JWT secrets in frontend environment variables.
 
-# Android Emulator:
-# EXPO_PUBLIC_API_URL=http://10.0.2.2:8000/api
-```
-
-> **Warning:** If `EXPO_PUBLIC_API_URL` is not set, the app falls back to `http://localhost:8000/api` and logs a loud console warning. This only works in the iOS Simulator running on the same machine as the backend — not on any physical device.
+> **Important:** the fallback `http://localhost:8000/api` is for local development only. It will not reach your laptop from a physical phone or from an installed build. Installed builds must be configured with a reachable HTTPS backend URL.
 
 ---
 
