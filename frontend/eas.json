@@ -4,13 +4,6 @@
     "appVersionSource": "remote"
   },
   "build": {
-    "development": {
-      "developmentClient": true,
-      "distribution": "internal",
-      "env": {
-        "EXPO_PUBLIC_API_URL": "https://neurofit-ai-backend.onrender.com/api"
-      }
-    },
     "preview": {
       "distribution": "internal",
       "android": {
@@ -20,10 +13,16 @@
         "EXPO_PUBLIC_API_URL": "https://neurofit-ai-backend.onrender.com/api"
       }
     },
+    "ios-simulator": {
+      "extends": "preview",
+      "ios": {
+        "simulator": true
+      }
+    },
     "production": {
       "autoIncrement": true,
       "android": {
-        "buildType": "apk"
+        "buildType": "app-bundle"
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://neurofit-ai-backend.onrender.com/api"

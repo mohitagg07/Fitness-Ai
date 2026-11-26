@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.card, borderRadius: RADIUS.card,
     borderWidth: 1, borderColor: COLORS.cardBorder,
     padding: SPACING.lg, marginBottom: SPACING.md,
-    ...ELEVATION.card,
+    ...ELEVATION.low,
   },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   moodEmoji: { fontSize: 18 },

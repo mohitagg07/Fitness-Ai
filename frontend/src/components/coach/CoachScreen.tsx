@@ -873,7 +873,6 @@ export default function CoachScreen() {
           data={chatHistory}
           keyExtractor={(_: unknown, i: number) => String(i)}
           renderItem={renderMessage}
-          estimatedItemSize={140}
           contentContainerStyle={S.messageList}
           showsVerticalScrollIndicator={false}
         />

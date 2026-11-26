@@ -230,7 +230,6 @@ export default function NutritionSearchModal({
                 data={results}
                 keyExtractor={(item) => item.food_id}
                 keyboardShouldPersistTaps="handled"
-                estimatedItemSize={64}
                 contentContainerStyle={styles.resultsList}
                 renderItem={renderResultItem}
               />

@@ -40,7 +40,6 @@ function AchievementHistory({ items }: { items: AchievementRecord[] }) {
     <FlashList
       data={items}
       keyExtractor={(item) => item.id}
-      estimatedItemSize={72}
       contentContainerStyle={{ padding: SPACING.lg }}
       // FlashList's virtualized layout doesn't honor flexbox `gap` on the
       // container the way a plain FlatList did — a real separator keeps

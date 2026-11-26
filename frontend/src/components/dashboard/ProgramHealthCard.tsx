@@ -88,7 +88,7 @@ function formatDate(iso: string) {
 // automatically without a manual reload() call wiring the two together.
 function ProgramHealthCard() {
   const { data, isPending } = useProgramVersions(10);
-  const versions = data?.versions || [];
+  const versions: ProgramVersion[] = (data?.versions ?? []) as ProgramVersion[];
   const loading = isPending && versions.length === 0;
   const [selectedVersion, setSelectedVersion] = useState<number>(0);
   const [showDiff, setShowDiff] = useState(false);

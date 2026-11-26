@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
   },
   block: { marginTop: SPACING.md },
   blockHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  confBadge: { borderWidth: 1, borderRadius: RADIUS.pill ?? 999, paddingHorizontal: 8, paddingVertical: 2 },
+  confBadge: { borderWidth: 1, borderRadius: RADIUS.badge, paddingHorizontal: 8, paddingVertical: 2 },
   projRow: { flexDirection: 'row', gap: SPACING.lg, marginTop: SPACING.sm },
   projItem: { alignItems: 'center' },
 });
