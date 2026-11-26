@@ -41,7 +41,12 @@ alter table public.agent_states
 -- The API reads this flag to exclude warm-up sets from training volume,
 -- personal records, and muscle recovery calculations.
 alter table public.exercise_logs
-    add column if not exists is_warmup boolean not null default false;
+    add column if not exists is_warmup boolean not null default false,
+    add column if not exists is_dropset boolean not null default false,
+    add column if not exists superset_group text,
+    add column if not exists tempo text,
+    add column if not exists to_failure boolean not null default false,
+    add column if not exists set_notes text;
 
 -- Weekly review cache used by /api/review/weekly and the Sunday scheduler.
 create table if not exists public.weekly_reviews_cache (
