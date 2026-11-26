@@ -31,7 +31,7 @@ const Input = forwardRef<TextInput, InputProps>(function Input(
         selectionColor={COLORS.primaryGreen}
         keyboardAppearance="dark"
         style={[styles.input, error ? styles.inputError : null, style]}
-        accessibilityState={{ invalid: Boolean(error) }}
+        accessibilityHint={error || props.accessibilityHint}
         {...props}
       />
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
