@@ -1126,10 +1126,14 @@ print(m.count(), 'memory facts')
 </div>
 
 
-## Admin role setup (v6)
+## Admin role setup (v6 + v11)
 
 Global job execution is restricted to profiles with `app_role = 'admin'`.
-After deploying the backend code, run `MIGRATION_v6_security_roles.sql` in
-the Supabase SQL Editor. Then promote the intended administrator explicitly
-using the commented SQL statement in that migration. Existing users remain
-ordinary users by default; no account is promoted automatically.
+Apply the complete Supabase migration sequence in Section 4, including
+`MIGRATION_v11_protect_admin_role.sql`, before enabling the admin endpoint.
+The v11 trigger prevents authenticated users from changing their own role
+through the profile RLS policy. After v11 is applied, promote the intended
+administrator explicitly by running the commented SQL statement in
+`MIGRATION_v6_security_roles.sql` from the Supabase SQL Editor as a database
+owner. Existing users remain ordinary users by default; no account is
+promoted automatically.
