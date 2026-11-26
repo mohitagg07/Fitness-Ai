@@ -8,6 +8,7 @@ import { queryClient, hydrated } from '../src/lib/queryClient';
 import { qk } from '../src/lib/queryKeys';
 import AnimatedSplash from '../src/components/splash/AnimatedSplash';
 import { COLORS } from '../src/theme/colors';
+import { actions } from '../src/store';
 
 // ── Boot state machine ───────────────────────────────────────────────────
 // Every branch below ends in exactly one of two outcomes:
@@ -72,14 +73,43 @@ export default function Index() {
       // existing in storage doesn't mean the server still honors it.
       setPhase('validating');
       try {
-        const data = await queryClient.fetchQuery({
+        const payload = await queryClient.fetchQuery({
           queryKey: qk.profile.me(),
           queryFn: async () => (await profileApi.getMe()).data,
           staleTime: 60_000,
         });
         if (cancelled) return;
-        // Step 4 — validation succeeded: route on onboarding status.
-        destinationRef.current = data?.onboarding_complete ? '/(tabs)' : '/onboarding';
+
+        // /profile/me returns { profile, injuries, personal_records }; the
+        // onboarding flag lives on payload.profile, not at the top level.
+        const profile = payload?.profile ?? payload ?? {};
+        const injuries = Array.isArray(payload?.injuries) ? payload.injuries : [];
+        const personalRecords = Array.isArray(payload?.personal_records)
+          ? payload.personal_records
+          : [];
+
+        // The app's lightweight store is memory-only. Restore the identity
+        // and profile as well as the secure token so Dashboard/Coach/Profile
+        // have the correct user immediately after a cold launch.
+        let savedUser: any = null;
+        try {
+          const rawUser = await storage.getItem('vyrn_user');
+          savedUser = rawUser ? JSON.parse(rawUser) : null;
+        } catch {
+          savedUser = null;
+        }
+        if (cancelled) return;
+        actions.hydrateAuth(
+          savedUser && typeof savedUser === 'object'
+            ? savedUser
+            : { id: profile?.id ?? null, full_name: profile?.full_name ?? null },
+          token
+        );
+        actions.setProfile(profile, injuries, personalRecords);
+
+        // Step 4 — route using the actual nested profile response.
+        destinationRef.current =
+          profile?.onboarding_complete === true ? '/(tabs)' : '/onboarding';
         maybeNavigate();
       } catch (err: any) {
         if (cancelled) return;
