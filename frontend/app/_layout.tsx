@@ -1,6 +1,7 @@
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useFonts } from 'expo-font';
 
 import {
   asyncStoragePersister,
@@ -8,6 +9,7 @@ import {
   queryClient,
 } from '../src/lib/queryClient';
 import { COLORS } from '../src/theme/colors';
+import { FONT_ASSETS } from '../src/theme/typography';
 import { ErrorBoundary } from '../src/components/system/ErrorBoundary';
 
 const QUERY_CACHE_MAX_AGE = 24 * 60 * 60 * 1000;
@@ -21,6 +23,17 @@ const QUERY_CACHE_MAX_AGE = 24 * 60 * 60 * 1000;
  * and workout hooks call useQuery/useQueryClient during navigation.
  */
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts(FONT_ASSETS);
+
+  // Keep the native splash visible until typography is ready. If a font
+  // asset fails to load, render with the platform fallback instead of
+  // blocking the app from starting.
+  if (!fontsLoaded && !fontError) return null;
+
+  if (fontError && __DEV__) {
+    console.warn('[VYRN] Custom fonts failed to load; using platform fonts.', fontError);
+  }
+
   return (
     <PersistQueryClientProvider
       client={queryClient}
