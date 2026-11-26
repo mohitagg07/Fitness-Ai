@@ -3,14 +3,15 @@
 // with confidence scores, timelines, and VYRN's recommendation.
 // Uses a custom slider (no external dependency).
 
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  ActivityIndicator, PanResponder, GestureResponderEvent,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../theme/colors';
 import { FONTS } from '../../theme/typography';
+import { simulationApi, describeApiError } from '../../utils/api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type ScenarioId = 'protein' | 'missWorkouts' | 'sleep' | 'calSurplus';
@@ -33,6 +34,9 @@ interface SimResult {
   confidence: number;
   timeline: string;
   recommendation: string;
+  has_data?: boolean;
+  data_note?: string;
+  n_points?: number;
 }
 
 // ── Data ──────────────────────────────────────────────────────────────────────
@@ -42,60 +46,6 @@ const SCENARIOS: Scenario[] = [
   { id: 'sleep',        icon: 'moon-outline',       label: 'Sleep +1 hr/night' },
   { id: 'calSurplus',   icon: 'flame-outline',      label: 'Calorie surplus +300' },
 ];
-
-function runSimulation(id: ScenarioId, weeks: number): SimResult {
-  const results: Record<ScenarioId, SimResult> = {
-    protein: {
-      headline: 'Accelerated muscle synthesis',
-      metrics: [
-        { label: 'Lean Mass Gain',       value: `+${(weeks * 0.18).toFixed(1)} kg`, positive: true  },
-        { label: 'Strength Progression', value: `+${(weeks * 2.1).toFixed(0)}%`,    positive: true  },
-        { label: 'Recovery Rate',        value: '+12% faster',                       positive: true  },
-        { label: 'Calorie Cost',         value: `+${weeks * 30 * 4} kcal total`,    positive: null  },
-      ],
-      confidence: 83,
-      timeline: `Noticeable difference in ~${Math.ceil(weeks / 2)} weeks`,
-      recommendation: 'Optimal. Distribute across 4+ meals. Prioritize post-workout window.',
-    },
-    missWorkouts: {
-      headline: 'Moderate strength retention loss',
-      metrics: [
-        { label: 'Strength Retention', value: `${100 - weeks * 3}%`,             positive: null  },
-        { label: 'Muscle Loss Risk',   value: weeks > 2 ? 'Elevated' : 'Low',    positive: false },
-        { label: 'Recovery Bounce',    value: 'Full in ~3 sessions',              positive: true  },
-        { label: 'Volume Deficit',     value: `-${weeks * 2} sets/muscle group`,  positive: false },
-      ],
-      confidence: 76,
-      timeline: `Regression begins after day ${5 + weeks * 2}`,
-      recommendation: 'Add an extra set to surrounding sessions. Protein ≥2 g/kg prevents catabolism.',
-    },
-    sleep: {
-      headline: 'Significant recovery & hormonal gains',
-      metrics: [
-        { label: 'HRV Improvement',    value: `+${(weeks * 3.2).toFixed(0)} ms`, positive: true },
-        { label: 'Testosterone Boost', value: '+8-15% in 2 weeks',               positive: true },
-        { label: 'Recovery Score',     value: `+${(weeks * 1.4).toFixed(1)} pts`,positive: true },
-        { label: 'Performance Output', value: '+6% peak power',                   positive: true },
-      ],
-      confidence: 91,
-      timeline: 'Day 4-7 for measurable HRV change',
-      recommendation: 'Highest ROI change available. Prioritize above any supplement stack.',
-    },
-    calSurplus: {
-      headline: 'Lean mass gain with moderate fat increase',
-      metrics: [
-        { label: 'Lean Mass Gain',       value: `+${(weeks * 0.12).toFixed(1)} kg`, positive: true  },
-        { label: 'Fat Mass Gain',        value: `+${(weeks * 0.08).toFixed(1)} kg`, positive: false },
-        { label: 'Strength Progression', value: `+${(weeks * 1.8).toFixed(0)}%`,    positive: true  },
-        { label: 'Weekly Weight Gain',   value: '+0.2 kg/week target',              positive: null  },
-      ],
-      confidence: 71,
-      timeline: `Measurable body composition shift in ${weeks + 1} weeks`,
-      recommendation: 'Acceptable surplus. Monitor weekly. Reduce to +150 if fat gain exceeds 0.1 kg/week.',
-    },
-  };
-  return results[id];
-}
 
 // ── Custom Slider ─────────────────────────────────────────────────────────────
 function WeeksSlider({ value, onChange }: { value: number; onChange: (v: number) => void }) {
@@ -142,12 +92,20 @@ export default function SimulationScreen() {
   const [result,   setResult]   = useState<SimResult | null>(null);
   const [loading,  setLoading]  = useState(false);
 
+  const [error, setError] = useState<string | null>(null);
+
   const simulate = async () => {
     setLoading(true);
     setResult(null);
-    await new Promise((r) => setTimeout(r, 1200));
-    setResult(runSimulation(selected, weeks));
-    setLoading(false);
+    setError(null);
+    try {
+      const response = await simulationApi.runScenario(selected, weeks);
+      setResult(response.data as SimResult);
+    } catch (err) {
+      setError(describeApiError(err).message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -215,6 +173,13 @@ export default function SimulationScreen() {
         </View>
       )}
 
+      {error && !loading && (
+        <View style={styles.errorCard} accessibilityRole="alert">
+          <Ionicons name="alert-circle-outline" size={20} color={COLORS.recoveryLow} />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
+
       {/* Result */}
       {result && !loading && (
         <View style={styles.resultCard}>
@@ -228,6 +193,20 @@ export default function SimulationScreen() {
               <Text style={styles.confValue}>{result.confidence}%</Text>
             </View>
           </View>
+
+          {result.data_note && (
+            <View style={[
+              styles.dataNote,
+              { borderColor: result.has_data ? COLORS.cardBorder : COLORS.recoveryMed },
+            ]}>
+              <Ionicons
+                name={result.has_data ? 'analytics-outline' : 'information-circle-outline'}
+                size={16}
+                color={result.has_data ? COLORS.strain : COLORS.recoveryMed}
+              />
+              <Text style={styles.dataNoteText}>{result.data_note}</Text>
+            </View>
+          )}
 
           <View style={styles.metricsGrid}>
             {result.metrics.map((m, i) => (
@@ -315,7 +294,25 @@ const styles = StyleSheet.create({
 
   resultCard: {
     backgroundColor: COLORS.card, borderRadius: 12,
-    borderWidth: 1, borderColor: '#00F19F30', padding: 14,
+    borderWidth: 1, borderColor: COLORS.cardBorder, padding: 14,
+  },
+  dataNote: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    borderWidth: 1, borderRadius: 9, padding: 10, marginBottom: 12,
+    backgroundColor: COLORS.cardElevated,
+  },
+  dataNoteText: {
+    flex: 1, fontFamily: FONTS.regular, fontSize: 11,
+    color: COLORS.textSecondary, lineHeight: 16,
+  },
+  errorCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: COLORS.card, borderColor: COLORS.recoveryLow,
+    borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 14,
+  },
+  errorText: {
+    flex: 1, fontFamily: FONTS.regular, fontSize: 12,
+    color: COLORS.textSecondary, lineHeight: 17,
   },
   resultHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
   resultEyebrow: {
