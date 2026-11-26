@@ -59,14 +59,14 @@ def _get_exercise_bests(user_id: str, exercise: str, weeks: int) -> list[dict]:
     cutoff = str(date.today() - timedelta(weeks=weeks))
     res = (
         sb.table("exercise_logs")
-        .select("weight_kg, reps, logged_at")
+        .select("weight_kg, reps, logged_at, is_warmup")
         .eq("user_id", user_id)
-        .ilike("exercise_name", f"%{exercise}%")
+        .eq("exercise_name", exercise)
         .gte("logged_at", cutoff)
         .order("logged_at")
         .execute()
     )
-    return res.data or []
+    return [row for row in (res.data or []) if not row.get("is_warmup")]
 
 
 def _get_nutrition_recent(user_id: str, days: int) -> list[dict]:
