@@ -54,6 +54,8 @@ const EQUIPMENT_OPTIONS = [
   { value: 'pull_up_bar', label: 'Pull-up bar' },
   { value: 'cable', label: 'Cable' },
   { value: 'machine', label: 'Machines' },
+  { value: 'squat_rack', label: 'Squat rack' },
+  { value: 'smith_machine', label: 'Smith machine' },
 ];
 
 interface FormState {
