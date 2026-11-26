@@ -60,9 +60,13 @@ async def log_weight(
             sb.table("progress_metrics")
             .update({"weight_kg": payload.weight_kg, "notes": payload.notes})
             .eq("id", row_id)
+            .eq("user_id", user_id)
+            .select("id, weight_kg, recorded_date, notes")
             .execute()
         )
-        return {"updated": True, "entry": res.data[0] if res.data else None}
+        if not res.data:
+            raise HTTPException(404, "Weight entry not found")
+        return {"updated": True, "entry": res.data[0]}
 
     data = {
         "user_id": user_id,
@@ -130,9 +134,16 @@ async def delete_weight_entry(
 ):
     sb = get_supabase()
     try:
-        sb.table("progress_metrics").delete().eq("id", entry_id).eq(
-            "user_id", current_user["user_id"]
-        ).execute()
+        res = (
+            sb.table("progress_metrics")
+            .delete()
+            .eq("id", entry_id)
+            .eq("user_id", current_user["user_id"])
+            .select("id")
+            .execute()
+        )
+        if not res.data:
+            raise HTTPException(404, "Weight entry not found")
         return {"deleted": True}
     except Exception as e:
         raise HTTPException(500, f"Failed to delete entry: {e}")
