@@ -50,7 +50,7 @@ jobs:
       # Commit regenerated lockfiles on the working branch so npm ci is reproducible.
       # Pull-request CI checks the same updates in its ephemeral workspace.
       - name: Save generated package lockfile
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/fix/reliability-and-home-workouts')
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feat/'))
         run: |
           git -C .. config user.name "github-actions[bot]"
           git -C .. config user.email "41898282+github-actions[bot]@users.noreply.github.com"
