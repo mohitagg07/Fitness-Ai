@@ -27,6 +27,8 @@ import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { profileApi } from '../../utils/api';
 import { actions } from '../../store';
+import { queryClient } from '../../lib/queryClient';
+import { qk } from '../../lib/queryKeys';
 import { COLORS, alpha } from '../../theme/colors';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -293,7 +295,17 @@ export default function OnboardingScreen() {
       // after onboarding until some other screen happened to call
       // profileApi.getMe(). The /onboard endpoint already returns the
       // saved row — use it directly instead of waiting on a second round trip.
-      actions.setProfile(res.data || {}, [], []);
+      const savedProfile = res.data || {};
+      actions.setProfile(savedProfile, [], []);
+      queryClient.setQueryData(qk.profile.me(), {
+        profile: savedProfile,
+        injuries: [],
+        personal_records: [],
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: qk.dashboard.all }),
+        queryClient.invalidateQueries({ queryKey: qk.nutrition.all }),
+      ]);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setSubmitting(false);
       setShowSuccess(true);
