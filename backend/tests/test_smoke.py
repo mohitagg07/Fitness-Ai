@@ -391,3 +391,51 @@ def test_weekly_review_cache_requires_recent_timestamp() -> None:
     assert not _is_weekly_cache_fresh((now - timedelta(minutes=20)).isoformat(), now)
     assert not _is_weekly_cache_fresh((now + timedelta(minutes=10)).isoformat(), now)
     assert not _is_weekly_cache_fresh(None, now)
+
+
+@pytest.mark.asyncio
+async def test_missing_owned_mutations_return_404(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from fastapi import HTTPException
+    from api.routes import bodyweight, decisions, notifications, profile
+
+    class EmptyMutationQuery:
+        def delete(self):
+            return self
+
+        def update(self, _data):
+            return self
+
+        def eq(self, *_args):
+            return self
+
+        def select(self, _fields):
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data=[])
+
+    class Supabase:
+        def table(self, _table):
+            return EmptyMutationQuery()
+
+    fake_supabase = Supabase()
+    monkeypatch.setattr(bodyweight, "get_supabase", lambda: fake_supabase)
+    monkeypatch.setattr(profile, "get_supabase", lambda: fake_supabase)
+    monkeypatch.setattr(decisions, "get_supabase", lambda: fake_supabase)
+    monkeypatch.setattr(notifications, "get_supabase", lambda: fake_supabase)
+
+    cases = [
+        bodyweight.delete_weight_entry("missing-weight", {"user_id": "u1"}),
+        profile.delete_injury("missing-injury", {"user_id": "u1"}),
+        decisions.update_outcome(
+            "missing-decision",
+            decisions.OutcomeUpdate(outcome="correct"),
+            {"user_id": "u1"},
+        ),
+        notifications.mark_read("missing-notification", {"user_id": "u1"}),
+    ]
+    for case in cases:
+        with pytest.raises(HTTPException) as exc:
+            await case
+        assert exc.value.status_code == 404
