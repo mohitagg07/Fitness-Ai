@@ -59,6 +59,7 @@ interface PREntryResponse {
 }
 interface PRTimelineResponse { has_data: boolean; prs: PREntryResponse[]; empty_state?: string; }
 
+// Keep range values constrained to the windows supported by the analytics API.
 export type AnalyticsRangeOption = 4 | 8 | 12;
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const RANGE_OPTIONS: AnalyticsRangeOption[] = [4, 8, 12];
