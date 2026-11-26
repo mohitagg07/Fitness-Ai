@@ -134,6 +134,8 @@ async def mark_read(
         if not res.data:
             raise HTTPException(404, "Notification not found")
         return {"updated": True, "notification": res.data[0]}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, f"Failed to mark notification read: {e}")
 
