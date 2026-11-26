@@ -27,6 +27,7 @@ import { useCoachChatStream } from '../../hooks/useCoachChatStream';
 import { useMissionSummary } from '../../hooks/useDashboardQueries';
 import { useStore } from '../../store';
 import { COLORS, alpha, recoveryColor } from '../../theme/colors';
+import { RADIUS } from '../../theme/spacing';
 import Logo from '../shared/Logo';
 import CircularProgress from '../ui/CircularProgress';
 import CoachMemoryModal from './CoachMemoryModal';
