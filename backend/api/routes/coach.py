@@ -25,15 +25,26 @@ from agents.coach_agent import run_coach
 router = APIRouter(tags=["AI Coach"])
 
 
-def _load_prior_messages(user_id: str, limit: int = 10) -> list:
-    """Load recent conversation turns to inject as context for the LLM."""
+def _load_prior_messages(
+    user_id: str,
+    limit: int = 10,
+    session_id: str | None = None,
+) -> list:
+    """Load recent conversation turns within one user-owned chat session."""
     try:
         sb = get_supabase()
-        res = (
+        query = (
             sb.table("ai_conversations")
-            .select("role,content")
+            .select("role,content,metadata")
             .eq("user_id", user_id)
-            .order("created_at", desc=True)
+        )
+        query = (
+            query.eq("session_id", session_id)
+            if session_id is not None
+            else query.is_("session_id", "null")
+        )
+        res = (
+            query.order("created_at", desc=True)
             .limit(limit)
             .execute()
         )
@@ -44,50 +55,39 @@ def _load_prior_messages(user_id: str, limit: int = 10) -> list:
 
 
 def _persist_coach_plan(user_id: str, blocks: dict) -> None:
-    """
-    Write a one-day workout_plans row so the dashboard shows the coach-
-    generated workout type instead of "NO PLAN TODAY".
+    """Merge today's coach recommendation into the user's existing active plan.
 
-    The plan uses today's weekday key only — schedule = { "mon": type } etc.
-    is_active is set to True and any previous row is deactivated first so
-    the workout_agent always picks the most recent coach decision.
+    The database RPC takes an advisory transaction lock per user, preserves
+    every other weekday, and creates an active plan only when none exists.
+    This prevents a single-day AI recommendation from replacing a full weekly
+    split and prevents concurrent coach calls from losing schedule updates.
     """
     from datetime import date as _date
     from db.supabase_client import get_supabase as _get_sb
 
-    DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-    today_key = DAY_KEYS[_date.today().weekday()]
+    day_keys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    today_key = day_keys[_date.today().weekday()]
+    workout_type = str(
+        blocks.get("type") or blocks.get("workout_type") or "full_body"
+    ).strip().lower().replace(" ", "_").replace("-", "_")
 
-    # Derive a human-readable workout type from the blocks payload.
-    # WorkoutCard has { type, intensity, duration_min, exercises: [...] }
-    workout_type: str = (
-        blocks.get("type")
-        or blocks.get("workout_type")
-        or "Training"
-    )
+    allowed_types = {
+        "push", "pull", "legs", "upper", "lower",
+        "full_body", "cardio", "rest",
+    }
+    if workout_type not in allowed_types:
+        raise ValueError(f"Unsupported coach workout type: {workout_type!r}")
 
-    sb = _get_sb()
-    # Deactivate any existing active plan for this user
-    sb.table("workout_plans")       .update({"is_active": False})       .eq("user_id", user_id)       .eq("is_active", True)       .execute()
-
-    # FIX: this insert was previously guaranteed to fail on every call —
-    # it wrote a "source" column that doesn't exist in workout_plans, and
-    # never provided "name", which the table defines as NOT NULL with no
-    # default. Both problems caused Postgrest to reject the insert. Because
-    # the caller (coach.py chat()/regenerate_workout()) wraps this in a
-    # broad try/except that only logs, the failure was invisible — the
-    # coach would generate a full workout plan, the chat card would show
-    # it correctly, and the dashboard would still say "NO PLAN YET" because
-    # workout_plans was never actually written. Now matches the real schema:
-    # name (required), schedule, is_active. created_at has a DB default,
-    # so it isn't set explicitly here either.
-    display_name = workout_type.replace("_", " ").title()
-    sb.table("workout_plans").insert({
-        "user_id": user_id,
-        "name": f"{display_name} — Coach Generated",
-        "is_active": True,
-        "schedule": {today_key: workout_type},
-    }).execute()
+    response = _get_sb().rpc(
+        "merge_coach_workout_day",
+        {
+            "p_user_id": user_id,
+            "p_day_key": today_key,
+            "p_workout_type": workout_type,
+        },
+    ).execute()
+    if not response.data:
+        raise RuntimeError("Workout plan merge returned no persisted plan")
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -100,7 +100,9 @@ async def chat(
     profile, agent_state = await asyncio.to_thread(get_full_user_context, user_id)
 
     # Load prior conversation for context injection
-    prior_messages = await asyncio.to_thread(_load_prior_messages, user_id, 10)
+    prior_messages = await asyncio.to_thread(
+        _load_prior_messages, user_id, 10, payload.session_id
+    )
 
     try:
         result = await run_coach(
@@ -120,7 +122,14 @@ async def chat(
     try:
         await asyncio.to_thread(save_conversation_message, user_id, payload.session_id, "user", payload.content)
         await asyncio.to_thread(upsert_agent_state, user_id, result["updated_agent_state"])
-        await asyncio.to_thread(save_conversation_message, user_id, payload.session_id, "assistant", result["reply"])
+        await asyncio.to_thread(
+            save_conversation_message,
+            user_id,
+            payload.session_id,
+            "assistant",
+            result["reply"],
+            {"structured_decision": result.get("structured_decision")},
+        )
 
         # ── Persist generated workout to workout_plans so the dashboard
         # shows the type instead of "NO PLAN TODAY" ─────────────────────
@@ -181,7 +190,9 @@ def _sse_event(event: str, data: dict) -> str:
 async def _stream_coach_reply(payload: ChatMessage, user_id: str):
     try:
         profile, agent_state = await asyncio.to_thread(get_full_user_context, user_id)
-        prior_messages = await asyncio.to_thread(_load_prior_messages, user_id, 10)
+        prior_messages = await asyncio.to_thread(
+            _load_prior_messages, user_id, 10, payload.session_id
+        )
 
         try:
             result = await run_coach(
@@ -218,7 +229,14 @@ async def _stream_coach_reply(payload: ChatMessage, user_id: str):
         try:
             await asyncio.to_thread(save_conversation_message, user_id, payload.session_id, "user", payload.content)
             await asyncio.to_thread(upsert_agent_state, user_id, result["updated_agent_state"])
-            await asyncio.to_thread(save_conversation_message, user_id, payload.session_id, "assistant", reply_text)
+            await asyncio.to_thread(
+                save_conversation_message,
+                user_id,
+                payload.session_id,
+                "assistant",
+                reply_text,
+                {"structured_decision": result.get("structured_decision")},
+            )
 
             blocks = result.get("workout_blocks")
             if blocks:
@@ -261,16 +279,24 @@ async def chat_stream(
 @router.get("/history")
 async def get_history(
     limit: int = 20,
-    current_user: dict = Depends(get_current_user)
+    session_id: str | None = None,
+    current_user: dict = Depends(get_current_user),
 ):
     try:
         sb = get_supabase()
-        res = (
+        query = (
             sb.table("ai_conversations")
-            .select("*")
+            .select("id,session_id,role,content,metadata,created_at")
             .eq("user_id", current_user["user_id"])
-            .order("created_at", desc=True)
-            .limit(limit)
+        )
+        query = (
+            query.eq("session_id", session_id)
+            if session_id is not None
+            else query.is_("session_id", "null")
+        )
+        res = (
+            query.order("created_at", desc=True)
+            .limit(max(1, min(limit, 100)))
             .execute()
         )
         return list(reversed(res.data or []))
