@@ -34,8 +34,8 @@ export function useLogSet() {
   return useMutation({
     mutationFn: async (log: SetLogInput) => {
       const { sessionId, ...data } = log;
-      await workoutApi.logSet(sessionId, data);
-      return log;
+      const response = await workoutApi.logSet(sessionId, data);
+      return { optimistic: log, persisted: response.data };
     },
     // Runs synchronously before the network call — this is the entire
     // optimistic-update contract: the store already reflects the logged
@@ -47,6 +47,12 @@ export function useLogSet() {
       // entry (not just "the last one", in case of rapid double-taps
       // across different sets before either request settles).
       return { loggedData: data };
+    },
+    onSuccess: (result) => {
+      // The database is authoritative for set_number. Reconcile the
+      // optimistic row with the inserted row so responses arriving out
+      // of order cannot leave local history different from persisted data.
+      actions.replaceLogInSession(result.optimistic, result.persisted);
     },
     onError: (_err, _log, context) => {
       // Roll back only the optimistic entry this mutation added — a
