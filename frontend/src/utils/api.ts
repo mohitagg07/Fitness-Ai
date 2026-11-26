@@ -108,10 +108,12 @@ export function describeApiError(err: any): { kind: ApiErrorKind; message: strin
 }
 
 export const authApi = {
+  // Auth can be the first request after a sleeping Render instance wakes up.
+  // Give signup enough time to receive the email-confirmation response.
   register: (data: { email: string; password: string; full_name: string }) =>
-    api.post('/auth/register', data),
+    api.post('/auth/register', data, { timeout: 90000 }),
   login: (data: { email: string; password: string }) =>
-    api.post('/auth/login', data),
+    api.post('/auth/login', data, { timeout: 60000 }),
 };
 
 export const profileApi = {

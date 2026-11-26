@@ -21,6 +21,8 @@ class Settings(BaseSettings):
         default="",
         validation_alias=AliasChoices("SUPABASE_SERVICE_KEY", "SUPABASE_KEY"),
     )
+    # Deep link registered in frontend/app.json for email confirmations.
+    auth_email_redirect_url: str = "vyrn://auth/callback"
 
     # FatSecret (food search + macro lookup)
     fatsecret_client_id: str = ""

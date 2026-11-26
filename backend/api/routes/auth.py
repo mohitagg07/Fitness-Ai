@@ -1,134 +1,186 @@
 """
-backend/api/routes/auth.py
-VYRN — Authentication routes
+VYRN — Authentication routes.
 
-Fix applied: sb.auth calls now run inside asyncio.wait_for() so a Supabase
-network hang surfaces as a clean 503 instead of a raw timeout traceback that
-was being caught by the broad `except Exception` and re-raised as a
-confusing 400 "Registration failed: The read operation timed out".
+Email confirmation is enforced by Supabase. When Supabase returns a user
+without a session, the account exists but is not yet allowed into VYRN:
+the app receives a verification-pending response and no VYRN access token.
 """
 import asyncio
 import logging
-from fastapi import APIRouter, HTTPException, status
-from schemas.models import RegisterRequest, LoginRequest, TokenResponse
+
+from fastapi import APIRouter, HTTPException, Response, status
+
+from schemas.models import (
+    RegisterRequest,
+    RegisterResponse,
+    LoginRequest,
+    TokenResponse,
+)
+from core.config import get_settings
 from core.security import create_access_token
 from db.supabase_client import get_supabase
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Authentication"])
 
-# Seconds to wait for Supabase before giving up cleanly
-_SUPABASE_TIMEOUT = 10
+# Keep this below the mobile auth request timeout. A timeout in run_in_executor
+# cannot stop the underlying network thread, so avoid an unnecessarily short
+# limit that can make a successful signup look like a failed one.
+_SUPABASE_TIMEOUT = 25
+_settings = get_settings()
 
 
 def _check_supabase_env():
-    """Raise a clear 503 if .env vars are missing."""
+    """Raise a clear 503 if required Supabase environment variables are missing."""
     try:
         return get_supabase()
-    except RuntimeError as e:
+    except RuntimeError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Auth service not configured. Contact support.",
-        ) from e
+        ) from exc
 
 
 @router.post(
     "/register",
-    response_model=TokenResponse,
+    response_model=RegisterResponse,
     status_code=status.HTTP_201_CREATED,
 )
-async def register(payload: RegisterRequest):
+async def register(payload: RegisterRequest, response: Response):
     sb = _check_supabase_env()
+    email = payload.email.strip().lower()
+    full_name = payload.full_name.strip()
 
-    # Run blocking Supabase call in thread pool with a timeout
     try:
         res = await asyncio.wait_for(
             asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: sb.auth.sign_up(
-                    {"email": payload.email, "password": payload.password}
+                    {
+                        "email": email,
+                        "password": payload.password,
+                        "options": {
+                            "email_redirect_to": _settings.auth_email_redirect_url,
+                            "data": {"full_name": full_name},
+                        },
+                    }
                 ),
             ),
             timeout=_SUPABASE_TIMEOUT,
         )
-    except asyncio.TimeoutError:
+    except asyncio.TimeoutError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Auth service timed out. Check your Supabase project is active and SUPABASE_URL is reachable.",
-        )
-    except Exception as e:
-        err = str(e).lower()
-        if "already registered" in err or "already exists" in err:
-            raise HTTPException(400, "Email already registered. Please log in.")
-        raise HTTPException(400, f"Registration failed: {e}")
+            detail=(
+                "Supabase signup timed out. Your account may still have been created; "
+                "check your inbox before trying again."
+            ),
+        ) from exc
+    except Exception as exc:
+        message = str(exc).lower()
+        if "already registered" in message or "already exists" in message:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "This email is already registered. Sign in, or check your inbox "
+                    "for an earlier confirmation email."
+                ),
+            ) from exc
+        logger.exception("Supabase signup failed")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Registration could not be completed. Please check your details and try again.",
+        ) from exc
 
-    user = res.user
+    user = getattr(res, "user", None)
     if not user:
-        raise HTTPException(400, "Registration failed — no user returned from Supabase.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Registration could not be completed. Supabase returned no user.",
+        )
 
-    # Create/update profile stub — also wrapped so a DB timeout is surfaced cleanly.
-    #
-    # Was a plain .insert(): if a profiles row for this id already existed
-    # (e.g. auto-created by get_full_user_context()'s FK-safety fallback,
-    # which inserts {"id": user_id, "onboarding_complete": False} with no
-    # full_name — see db/supabase_client.py), this insert fails on the
-    # primary key conflict. The bare `except Exception: pass` below then
-    # swallowed that failure completely and silently, so full_name was
-    # never saved and nothing ever retried it — the user's name was gone
-    # for good, and every AI Coach prompt fell back to the literal word
-    # "Athlete" (see agents/coach_agent.py's `profile.get('full_name') or
-    # 'Athlete'`). Using upsert on the primary key means this always sets
-    # full_name, whether the row is being created here for the first time
-    # or already exists from that fallback path.
+    # Create the profile row now so FK-backed app features have a profile as
+    # soon as the user verifies and signs in. This uses the backend service key.
     try:
         await asyncio.wait_for(
             asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: sb.table("profiles")
-                .upsert({"id": user.id, "full_name": payload.full_name}, on_conflict="id")
+                .upsert(
+                    {"id": user.id, "full_name": full_name},
+                    on_conflict="id",
+                )
                 .execute(),
             ),
             timeout=_SUPABASE_TIMEOUT,
         )
     except asyncio.TimeoutError:
-        # Auth succeeded — don't block the user, profile can be created on first login
-        logger.warning(f"Profile upsert timed out for new user {user.id}")
-    except Exception as e:
-        # Still non-fatal (auth already succeeded), but now visible in logs
-        # instead of silently disappearing.
-        logger.warning(f"Profile upsert failed for new user {user.id}: {e}")
+        logger.warning("Profile upsert timed out for new user %s", user.id)
+    except Exception:
+        logger.exception("Profile upsert failed for new user %s", user.id)
 
-    token = create_access_token({"sub": user.id, "email": user.email})
-    return TokenResponse(access_token=token, user_id=user.id)
+    # Supabase returns a user but NO session when Confirm email is enabled.
+    # Never mint our own API token in that state: doing so would bypass the
+    # email-verification requirement enforced by Supabase's password login.
+    if getattr(res, "session", None) is None:
+        response.status_code = status.HTTP_202_ACCEPTED
+        return RegisterResponse(
+            verification_required=True,
+            message=(
+                "We sent a confirmation link to your email. Open it on the phone "
+                "where VYRN is installed. Once VYRN opens and confirms your address, "
+                "return here and sign in."
+            ),
+            user_id=str(user.id),
+        )
+
+    token = create_access_token({"sub": user.id, "email": email})
+    return RegisterResponse(
+        verification_required=False,
+        message="Your account is ready.",
+        access_token=token,
+        user_id=str(user.id),
+    )
 
 
 @router.post("/login", response_model=TokenResponse)
 async def login(payload: LoginRequest):
     sb = _check_supabase_env()
+    email = payload.email.strip().lower()
 
     try:
         res = await asyncio.wait_for(
             asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: sb.auth.sign_in_with_password(
-                    {"email": payload.email, "password": payload.password}
+                    {"email": email, "password": payload.password}
                 ),
             ),
             timeout=_SUPABASE_TIMEOUT,
         )
-    except asyncio.TimeoutError:
+    except asyncio.TimeoutError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Auth service timed out. Check your network or Supabase project status.",
-        )
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(401, "Invalid email or password.")
+            detail="Authentication timed out. Please try again.",
+        ) from exc
+    except Exception as exc:
+        message = str(exc).lower().replace("_", " ")
+        if "email not confirmed" in message or "email is not confirmed" in message:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Please confirm your email address using the link we sent before signing in.",
+            ) from exc
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password.",
+        ) from exc
 
-    user = res.user
+    user = getattr(res, "user", None)
     if not user:
-        raise HTTPException(401, "Invalid credentials.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password.",
+        )
 
-    token = create_access_token({"sub": user.id, "email": user.email})
-    return TokenResponse(access_token=token, user_id=user.id)
+    token = create_access_token({"sub": user.id, "email": user.email or email})
+    return TokenResponse(access_token=token, user_id=str(user.id))

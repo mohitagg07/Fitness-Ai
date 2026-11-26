@@ -90,7 +90,19 @@ export default function AuthScreen() {
         email: regEmail.trim(),
         password: regPassword,
       });
+      if (res.data?.verification_required) {
+        setLoginEmail(regEmail.trim());
+        setMode('login');
+        Alert.alert(
+          'Verify your email',
+          res.data.message || 'Check your inbox and confirm your email before signing in.'
+        );
+        return;
+      }
       const { access_token, user_id } = res.data;
+      if (!access_token || !user_id) {
+        throw new Error('Registration did not return a sign-in session. Please try logging in.');
+      }
       await actions.setAuth(
         { id: user_id, email: regEmail.trim(), full_name: regName.trim() },
         access_token
@@ -106,7 +118,9 @@ export default function AuthScreen() {
     } catch (err: any) {
       Alert.alert(
         'Registration Failed',
-        err?.response?.data?.detail || err?.message || 'Cannot connect to server. Check backend is running.'
+        err?.code === 'ECONNABORTED'
+          ? 'The signup request timed out. Your account may still have been created; check your inbox before trying again.'
+          : err?.response?.data?.detail || err?.message || 'Cannot connect to server. Check your network and try again.'
       );
     } finally {
       setLoading(false);

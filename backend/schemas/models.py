@@ -124,6 +124,14 @@ class RegisterRequest(BaseModel):
         return v
 
 
+class RegisterResponse(BaseModel):
+    verification_required: bool
+    message: str
+    access_token: Optional[str] = None
+    token_type: str = "bearer"
+    user_id: str
+
+
 class LoginRequest(BaseModel):
     email: str
     password: str

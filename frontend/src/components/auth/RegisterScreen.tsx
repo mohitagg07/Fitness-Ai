@@ -32,7 +32,18 @@ export default function RegisterScreen() {
         email: email.trim(),
         password,
       });
+      if (res.data?.verification_required) {
+        Alert.alert(
+          'Verify your email',
+          res.data.message || 'Check your inbox and confirm your email before signing in.'
+        );
+        router.replace('/login');
+        return;
+      }
       const { access_token, user_id } = res.data;
+      if (!access_token || !user_id) {
+        throw new Error('Registration did not return a sign-in session. Please try logging in.');
+      }
       await setAuth({ id: user_id, email: email.trim(), full_name: fullName.trim() }, access_token);
       // A brand-new registration always creates a fresh profile row with
       // onboarding_complete: False (see backend api/routes/auth.py) — so a
@@ -42,8 +53,10 @@ export default function RegisterScreen() {
       // unconfigured app (no goal, no equipment, no experience level set).
       router.replace('/onboarding');
     } catch (err: any) {
-      const msg = err?.response?.data?.detail || 'Registration failed.';
-      Alert.alert('Error', msg);
+      const msg = err?.code === 'ECONNABORTED'
+        ? 'The signup request timed out. Your account may still have been created; check your inbox before trying again.'
+        : err?.response?.data?.detail || err?.message || 'Registration failed.';
+      Alert.alert('Registration error', msg);
     } finally {
       setLoading(false);
     }
