@@ -706,3 +706,65 @@ async def test_complete_session_returns_404_for_missing_or_unowned_session(monke
             current_user={"user_id": "user-123"},
         )
     assert exc.value.status_code == 404
+
+
+def test_program_version_writer_uses_atomic_idempotent_database_rpc(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from agents import program_rewriter
+
+    captured = {}
+
+    class Supabase:
+        def rpc(self, name, params):
+            captured["name"] = name
+            captured["params"] = params
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data=[{
+                "version_id": "version-123",
+                "version_number": 7,
+                "changes": [{"type": "deload"}],
+                "explanation": "Recent deload already recorded.",
+                "already_applied": True,
+            }])
+
+    monkeypatch.setattr(program_rewriter, "get_supabase", lambda: Supabase())
+
+    saved = program_rewriter._save_program_version(
+        user_id="user-123",
+        trigger="recovery_decline",
+        changes=[{"type": "deload"}],
+        explanation="Deload the current block.",
+        plan_id="plan-123",
+    )
+
+    assert captured["name"] == "save_program_version_idempotent"
+    assert captured["params"] == {
+        "p_user_id": "user-123",
+        "p_trigger": "recovery_decline",
+        "p_changes": [{"type": "deload"}],
+        "p_explanation": "Deload the current block.",
+        "p_plan_id": "plan-123",
+    }
+    assert saved["version_id"] == "version-123"
+    assert saved["version_number"] == 7
+    assert saved["already_applied"] is True
+
+
+def test_program_version_writer_fails_closed_when_rpc_write_fails(monkeypatch) -> None:
+    from agents import program_rewriter
+
+    class Supabase:
+        def rpc(self, *_args, **_kwargs):
+            raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr(program_rewriter, "get_supabase", lambda: Supabase())
+
+    assert program_rewriter._save_program_version(
+        "user-123",
+        "plateau on bench",
+        [{"type": "volume_reduction"}],
+        "Reduce volume.",
+        None,
+    ) is None
