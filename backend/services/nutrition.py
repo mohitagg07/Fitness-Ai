@@ -2,7 +2,85 @@
 Nutrition Service — AI-calculated macros that adjust weekly
 based on user goal, body weight, training intensity, and progress.
 """
+from __future__ import annotations
+
+import logging
+from datetime import date
+
+from db.supabase_client import get_supabase
 from schemas.models import Goal
+
+logger = logging.getLogger(__name__)
+
+
+def resolve_training_day_from_schedule(
+    schedule: dict | None,
+    target_date: date,
+) -> bool | None:
+    """Resolve a calendar day from a workout-plan schedule.
+
+    Returns None when the schedule does not explicitly describe that weekday;
+    callers can then apply a documented fallback instead of inventing a split.
+    """
+    if not isinstance(schedule, dict):
+        return None
+
+    weekday_keys = (
+        ("mon", "monday"),
+        ("tue", "tuesday"),
+        ("wed", "wednesday"),
+        ("thu", "thursday"),
+        ("fri", "friday"),
+        ("sat", "saturday"),
+        ("sun", "sunday"),
+    )
+    short_key, full_key = weekday_keys[target_date.weekday()]
+    if short_key in schedule:
+        value = schedule[short_key]
+    elif full_key in schedule:
+        value = schedule[full_key]
+    else:
+        return None
+
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, dict):
+        value = value.get("workout_type") or value.get("type") or value.get("name")
+    normalized = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+    return normalized not in {"", "rest", "rest_day", "off", "recovery", "false", "none"}
+
+
+def is_training_day_for_user(
+    user_id: str,
+    target_date: date | None = None,
+    default: bool = True,
+) -> bool:
+    """Use the latest active plan's weekday schedule when one is available.
+
+    Older accounts may not have an active plan or a complete schedule. In that
+    case preserve the previous default (training day) rather than infer days
+    from a weekly frequency count that has no weekday placement.
+    """
+    target_date = target_date or date.today()
+    try:
+        result = (
+            get_supabase()
+            .table("workout_plans")
+            .select("schedule")
+            .eq("user_id", user_id)
+            .eq("is_active", True)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        plans = result.data or []
+        if not plans:
+            return default
+        resolved = resolve_training_day_from_schedule(plans[0].get("schedule"), target_date)
+        return default if resolved is None else resolved
+    except Exception:
+        logger.exception("Could not resolve training schedule for user %s", user_id)
+        return default
 
 
 def calculate_tdee(weight_kg: float, height_cm: float, age: int, gender: str, activity_level: str = "very_active") -> int:
