@@ -170,7 +170,10 @@ export const profileApi = {
 export const coachApi = {
   chat: (content: string, session_id?: string) =>
     api.post('/coach/chat', { content, session_id }),
-  getHistory: (limit = 20) => api.get(`/coach/history?limit=${limit}`),
+  getHistory: (limit = 20, sessionId?: string) =>
+    api.get('/coach/history', {
+      params: { limit, ...(sessionId ? { session_id: sessionId } : {}) },
+    }),
   regenerateWorkout: () => api.post('/coach/regenerate-workout'),
   // Coach Memory panel — real profile/injury/freeform-memory data the
   // coach actually uses on every turn (see GET /coach/memory docstring).
