@@ -64,6 +64,14 @@ class SetLogRequest(BaseModel):
     to_failure: bool = False
     set_notes: Optional[str] = Field(None, max_length=300)
 
+    @field_validator("exercise_name")
+    @classmethod
+    def normalize_exercise_name(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Exercise name cannot be blank")
+        return normalized
+
 
 class SessionCompleteRequest(BaseModel):
     """Optional finish-summary payload — personal notes entered at the end of a session."""
@@ -72,6 +80,22 @@ class SessionCompleteRequest(BaseModel):
 
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
+
+def build_log_set_rpc_params(
+    session_id: str,
+    user_id: str,
+    payload: SetLogRequest,
+) -> dict:
+    """Build validated parameters for the transaction-safe set logger."""
+    data = payload.model_dump()
+    exercise_name = data.pop("exercise_name")
+    return {
+        "p_session_id": session_id,
+        "p_user_id": user_id,
+        "p_exercise_name": exercise_name,
+        "p_set": data,
+    }
+
 
 @router.post("/sessions", status_code=201)
 async def create_session(
@@ -632,53 +656,32 @@ async def log_set(
     sb = get_supabase()
     user_id = current_user["user_id"]
 
-    # SECURITY: session_id comes from the URL and is otherwise attacker-
-    # controlled — without this check, any authenticated user could pass
-    # someone else's session_id here and insert exercise_logs rows into
-    # a session they don't own (an IDOR write, not just a read leak).
-    # Every other /sessions/{session_id}/... route in this file already
-    # scopes its query with .eq("user_id", user_id); this endpoint was
-    # the one place that didn't, so it's fixed to match.
-    owner_check = (
-        sb.table("workout_sessions")
-        .select("id")
-        .eq("id", session_id)
-        .eq("user_id", user_id)
-        .limit(1)
-        .execute()
-    )
-    if not owner_check.data:
-        raise HTTPException(404, "Session not found")
+    # Set numbers must be allocated inside one database transaction.
+    # A client-side count followed by an insert races when two requests for
+    # the same exercise arrive concurrently. The RPC takes a per-session /
+    # per-exercise advisory lock, checks ownership again, and inserts the
+    # next number atomically.
+    params = build_log_set_rpc_params(session_id, user_id, payload)
+    try:
+        res = sb.rpc("log_workout_set", params).execute()
+    except Exception as exc:
+        error_code = getattr(exc, "code", None)
+        error_text = str(exc).upper()
+        if error_code == "P0002" or "SESSION_NOT_FOUND" in error_text:
+            raise HTTPException(404, "Session not found") from exc
+        import logging
+        logging.getLogger(__name__).exception(
+            "Atomic set logging failed for user %s, session %s",
+            user_id,
+            session_id,
+        )
+        raise HTTPException(
+            500,
+            "The set could not be saved. Please check your workout and try again.",
+        ) from exc
 
-    # FIX: Auto-compute set_number so the frontend doesn't need to track it.
-    existing_res = (
-        sb.table("exercise_logs")
-        .select("id", count="exact")
-        .eq("session_id", session_id)
-        .eq("user_id", user_id)
-        .eq("exercise_name", payload.exercise_name)
-        .execute()
-    )
-    set_number = (existing_res.count or 0) + 1
-
-    data = payload.model_dump()
-    data["session_id"] = session_id
-    data["user_id"] = user_id
-    data["set_number"] = set_number
-
-    # Extended fields (is_dropset, is_warmup, superset_group, tempo,
-    # to_failure, set_notes) are now real columns on exercise_logs — see
-    # MIGRATION_v3_exercise_logs_extended.sql. They used to be stripped
-    # here defensively, which silently discarded warm-up/dropset flags on
-    # every insert (never persisted even though the UI collected them) and
-    # is what caused downstream reads in this file — the workout-history
-    # list and complete_session's volume calc — to 500 with "column
-    # exercise_logs.is_warmup does not exist" once those reads started
-    # selecting the column directly. Run the migration before deploying
-    # this change.
-    res = sb.table("exercise_logs").insert(data).execute()
     if not res.data:
-        raise HTTPException(500, "Failed to log set")
+        raise HTTPException(500, "The set could not be saved")
     return res.data[0]
 
 
