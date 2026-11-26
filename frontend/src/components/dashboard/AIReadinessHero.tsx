@@ -1,17 +1,13 @@
 // VYRN — AI Readiness Hero
 //
-// Answers questions 2, 3 and 4 of the brief in one card: "What exactly
-// should I do? Why? What result can I expect?" This is the biggest,
-// highest-hierarchy surface on the screen, as required.
+// A restrained, evidence-led training recommendation. This card prioritizes
+// the actual decision and the signals behind it over decorative illustration.
 //
 // Every number here is real:
-//   - decision / confidence_pct / signals / reasoning / expected_outcome
-//     come from the deterministic Decision Center (decision_engine.py) —
-//     confidence is never asked of an LLM, it's a weighted average of
-//     real logged signals (recovery, sleep, protein, strength trend,
-//     injury status). See decisionsApi below.
-//   - estimated session length and workout type come from the same
-//     dashboard summary the rest of the screen already uses.
+//   - The decision and supporting signals come from the deterministic
+//     Decision Center. The displayed percentage is signal alignment, not
+//     a probability that the recommendation is correct.
+//   - The workout label comes from the dashboard's actual session type.
 // If the decision hasn't been computed yet (fresh account, first load),
 // the card fails quiet and simply doesn't render rather than guessing.
 
@@ -23,9 +19,8 @@ import {
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import Svg, { Path, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { decisionsApi } from '../../utils/api';
-import { COLORS, alpha } from '../../theme/colors';
+import { COLORS } from '../../theme/colors';
 import { SPACING, RADIUS } from '../../theme/spacing';
 import { ICON_SIZE } from '../../theme/layout';
 import Text from '../ui/Text';
@@ -52,34 +47,8 @@ interface TodayDecision {
 interface Props {
   workoutType: string | null;
   workoutStreak: number;
-  estimatedMinutes?: number;
 }
 
-// Original vector figure — a simple glowing chest/shoulders silhouette,
-// not a stock photo, so it scales cleanly and carries no licensing risk.
-function MissionFigure({ color, size = 130 }: { color: string; size?: number }) {
-  return (
-    <Svg width={size} height={size * 1.2} viewBox="0 0 140 168">
-      <Defs>
-        <RadialGradient id="missionGlow" cx="0.5" cy="0.42" r="0.6">
-          <Stop offset="0" stopColor={color} stopOpacity="0.5" />
-          <Stop offset="1" stopColor={color} stopOpacity="0" />
-        </RadialGradient>
-      </Defs>
-      <Path d="M70,10 a95,95 0 1,1 -0.1,0 Z" fill="url(#missionGlow)" />
-      {/* head */}
-      <Path d="M70,20 a16,16 0 1,1 -0.1,0 Z" fill={alpha(color, 0.9)} />
-      {/* shoulders/chest */}
-      <Path
-        d="M35,88 C35,60 50,44 70,44 C90,44 105,60 105,88 L108,120 C90,132 50,132 32,120 Z"
-        fill={alpha(color, 0.75)}
-      />
-      {/* chest definition lines */}
-      <Path d="M70,50 L70,110" stroke={COLORS.background} strokeWidth={2} opacity={0.5} />
-      <Path d="M45,70 Q70,80 95,70" stroke={COLORS.background} strokeWidth={2} opacity={0.4} fill="none" />
-    </Svg>
-  );
-}
 
 function confidenceColor(pct: number) {
   if (pct >= 80) return COLORS.recoveryHigh;
@@ -87,7 +56,7 @@ function confidenceColor(pct: number) {
   return COLORS.recoveryLow;
 }
 
-function AIReadinessHero({ workoutType, workoutStreak, estimatedMinutes = 55 }: Props) {
+function AIReadinessHero({ workoutType, workoutStreak }: Props) {
   const [loading, setLoading] = useState(true);
   const [decision, setDecision] = useState<TodayDecision | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -143,27 +112,32 @@ function AIReadinessHero({ workoutType, workoutStreak, estimatedMinutes = 55 }: 
     >
     <View style={styles.card}>
       <View style={styles.headerRow}>
-        <Text variant="eyebrow" color={COLORS.textSecondary}>TODAY'S TRAINING CALL</Text>
+        <Text variant="eyebrow" color={COLORS.textSecondary}>TODAY'S TRAINING</Text>
         <View style={styles.confBlock}>
           <Text variant="cardTitle" numeric weight="bold" color={cc} style={styles.confValue}>
             {decision.confidence_pct}%
           </Text>
           <Text variant="caption" weight="semibold" color={COLORS.textMuted} style={styles.confLabel}>
-            DECISION CONFIDENCE
+            SIGNAL ALIGNMENT
+          </Text>
+          <Text variant="caption" color={COLORS.textDim} style={styles.confHint}>
+            tracked inputs supporting this call
           </Text>
         </View>
       </View>
 
       <View style={styles.mainRow}>
         <View style={styles.mainLeft}>
-          <Text variant="hero" numberOfLines={2} style={styles.decisionTitle}>{decision.decision}</Text>
           {!!workoutType && (
-            <Text variant="caption" color={COLORS.textMuted} style={{ marginTop: 4 }}>
-              Estimated {estimatedMinutes} minutes
+            <Text variant="caption" weight="semibold" color={COLORS.textMuted} style={styles.workoutType}>
+              {workoutType}
             </Text>
           )}
+          <Text variant="hero" numberOfLines={2} style={styles.decisionTitle}>{decision.decision}</Text>
         </View>
-        <MissionFigure color={cc} size={88} />
+        <View style={styles.decisionMarker}>
+          <Ionicons name="barbell-outline" size={22} color={COLORS.primaryGreen} />
+        </View>
       </View>
 
       {decision.signals?.length > 0 && (
@@ -273,12 +247,20 @@ const styles = StyleSheet.create({
   },
   loadingCard: { alignItems: 'center', justifyContent: 'center', minHeight: 200 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: SPACING.md },
-  confBlock: { alignItems: 'flex-end' },
-  confValue: { fontSize: 20, lineHeight: 24 },
-  confLabel: { letterSpacing: 1.2, fontSize: 10, marginTop: 1 },
+  confBlock: { alignItems: 'flex-end', maxWidth: 132, gap: 1 },
+  confValue: { fontSize: 18, lineHeight: 22 },
+  confLabel: { letterSpacing: 1, fontSize: 9, marginTop: 1 },
+  confHint: { fontSize: 9, textAlign: 'right', lineHeight: 12 },
   mainRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.lg },
-  mainLeft: { flex: 1, paddingRight: SPACING.sm },
+  mainLeft: { flex: 1, paddingRight: SPACING.md, gap: 4 },
+  workoutType: { textTransform: 'uppercase', letterSpacing: 1, fontSize: 10 },
   decisionTitle: { fontSize: 27, lineHeight: 32 },
+  decisionMarker: {
+    width: 46, height: 46, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.cardElevated,
+    borderWidth: 1, borderColor: COLORS.cardBorder,
+  },
   metricsRow: {
     // Was a single unwrapping row forcing 5 columns into the card width,
     // which is what forced 1-line-ellipsis labels like "BENCH PR…" and
