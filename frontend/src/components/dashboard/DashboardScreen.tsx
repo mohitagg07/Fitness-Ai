@@ -194,19 +194,6 @@ export default function DashboardScreen() {
 
       <QuickToolsCard />
 
-      <View style={styles.progressSection}>
-        <Text variant="h2" color={COLORS.text}>Your momentum</Text>
-        <Text variant="small" color={COLORS.textMuted} style={styles.sectionDescription}>
-          Small, repeatable signals that keep your training moving.
-        </Text>
-        <ConsistencyScoreCard />
-        <MomentumCard
-          workoutStreak={summary?.workout_streak ?? 0}
-          proteinStreak={summary?.protein_streak ?? 0}
-          weeklySessions={weeklySessions}
-        />
-      </View>
-
       <TouchableOpacity
         accessibilityRole="button"
         accessibilityState={{ expanded: showFullReport }}
@@ -233,6 +220,12 @@ export default function DashboardScreen() {
 
       {showFullReport && (
         <View style={styles.fullReport}>
+          <ConsistencyScoreCard />
+          <MomentumCard
+            workoutStreak={summary?.workout_streak ?? 0}
+            proteinStreak={summary?.protein_streak ?? 0}
+            weeklySessions={weeklySessions}
+          />
           <WeeklyPerformanceCard />
           <PredictionCard />
           <AchievementCard workoutStreak={summary?.workout_streak ?? 0} />
