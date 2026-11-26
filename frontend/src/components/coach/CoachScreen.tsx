@@ -670,7 +670,7 @@ export default function CoachScreen() {
     historyRequestedRef.current = true;
     let cancelled = false;
 
-    coachApi.getHistory(50)
+    coachApi.getHistory(50, activeSession?.id)
       .then((res) => {
         if (cancelled || !Array.isArray(res.data)) return;
         const restored = res.data
@@ -682,7 +682,7 @@ export default function CoachScreen() {
             role: row.role as 'user' | 'assistant',
             content: row.content,
             timestamp: row.created_at ? new Date(row.created_at) : new Date(),
-            structured_decision: null,
+            structured_decision: row.metadata?.structured_decision ?? null,
           }));
         hydrateChatHistory(restored);
       })
@@ -691,7 +691,7 @@ export default function CoachScreen() {
       });
 
     return () => { cancelled = true; };
-  }, [hydrateChatHistory]);
+  }, [hydrateChatHistory, activeSession?.id]);
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   // PERF: previously an independent useEffect fetch of the exact same
