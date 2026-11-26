@@ -483,7 +483,7 @@ const GOALS = ['cut', 'bulk', 'maintain', 'recomp'];
 const EXPERIENCE = ['beginner', 'intermediate', 'advanced', 'elite'];
 const ACTIVITY = ['sedentary', 'light', 'moderate', 'very_active', 'extra_active'];
 const LOCATIONS = ['home', 'gym', 'hybrid'];
-const COACH_STYLES = ['friendly', 'strict', 'military'];
+const COACH_STYLES = ['friendly', 'supportive', 'scientific', 'strict', 'military'];
 const TIME_PREFS = ['morning', 'afternoon', 'evening'];
 const GENDERS = ['male', 'female', 'other'];
 
@@ -576,7 +576,7 @@ function EditProfileModal({
             <FieldLabel text="Trains at" />
             <SegmentedRow options={LOCATIONS} value={form.gym_or_home} onChange={(v) => set('gym_or_home', v)} />
             <FieldLabel text="Coach style" />
-            <SegmentedRow options={COACH_STYLES} value={form.coach_style} onChange={(v) => set('coach_style', v)} />
+            <SegmentedRow options={COACH_STYLES} value={form.coach_style} onChange={(v) => set('coach_style', v)} wrapLabels />
             <FieldLabel text="Preferred workout time" />
             <SegmentedRow options={TIME_PREFS} value={form.workout_time_preference} onChange={(v) => set('workout_time_preference', v)} />
 
