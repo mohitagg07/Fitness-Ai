@@ -381,7 +381,7 @@ async def complete_session(
                         "exercise_name": name,
                         "weight_kg": best["weight_kg"],
                         "reps": best.get("reps"),
-                    }, on_conflict="user_id,exercise_name").execute()
+                    }, on_conflict="user_id,exercise_name,reps").execute()
                 except Exception as e:
                     import logging
                     logging.getLogger(__name__).warning(f"PR upsert failed for {name}: {e}")
