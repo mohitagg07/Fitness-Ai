@@ -67,11 +67,12 @@ def _build_volume_heatmap(
         grid.append(week)
 
     total_sessions = sum(session_counts.values())
+    has_logged_sets = any(count > 0 for count in set_counts.values())
     return {
         "weeks": grid,
         "total_sessions": total_sessions,
-        "has_data": total_sessions > 0,
-        "empty_state": "Complete and save a workout to see your training activity.",
+        "has_data": total_sessions > 0 or has_logged_sets,
+        "empty_state": "Log working sets or complete a workout to see your training activity.",
     }
 
 

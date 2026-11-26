@@ -41,3 +41,26 @@ def test_progress_heatmap_has_empty_state_and_marks_future_cells():
     assert result["weeks"][0][0]["future"] is False
     assert result["weeks"][0][1]["future"] is True
     assert result["weeks"][0][1]["sets"] == 0
+
+
+
+def test_progress_heatmap_shows_logged_sets_even_before_session_completion():
+    result = _build_volume_heatmap(
+        weeks=1,
+        today=date(2026, 11, 23),  # Monday
+        sessions=[
+            {"session_date": "2026-11-23", "total_volume_kg": 0, "completed": False},
+        ],
+        logs=[
+            {"logged_at": "2026-11-23T08:00:00Z", "is_warmup": False},
+            {"logged_at": "2026-11-23T08:02:00Z", "is_warmup": True},
+        ],
+    )
+
+    monday = result["weeks"][0][0]
+    assert result["has_data"] is True
+    assert result["total_sessions"] == 0
+    assert monday["sets"] == 1
+    assert monday["has_session"] is False
+    assert monday["session_count"] == 0
+    assert monday["volume_kg"] == 0
