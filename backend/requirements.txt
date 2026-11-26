@@ -1,46 +1,39 @@
-# Core
+# Core API runtime — versions verified by the Python 3.11 CI job
 fastapi==0.115.6
 starlette==0.41.3
 uvicorn[standard]==0.34.0
-python-multipart
+python-multipart==0.0.34
 
 # Settings & Env
-pydantic
-pydantic-settings
+pydantic==2.14.4
+pydantic-settings==2.16.3
 
 # Auth & Security
-python-jose[cryptography]
+python-jose[cryptography]==3.5.0
 
 # Database
-supabase
-# websockets.asyncio (used internally by supabase's `realtime` dependency,
-# in realtime/_async/client.py) was only introduced in websockets 13.0.
-# The previous pin here (>=11,<13) actively excludes every version that
-# has that module, so a fresh install crashes at import time with:
-#   ModuleNotFoundError: No module named 'websockets.asyncio'
-# `realtime` is a hard transitive dependency of `supabase` (it's imported
-# unconditionally in supabase/__init__.py, even though this project never
-# uses Supabase's realtime subscriptions) — so the floor must be >=13, not
-# capped below it. No upper bound: websockets has been stable here through
-# 16.x and capping it again is what caused this exact bug.
-websockets>=13
+supabase==2.34.1
 
-# AI / LLM (Groq only — removed openai and google-genai)
-langchain
-langchain-groq
-langgraph
+# websockets.asyncio (used internally by Supabase realtime) was added in
+# websockets 13.0. Keep this floor; an older upper cap caused import crashes.
+websockets==15.0.1
+
+# AI / LLM — direct runtime versions validated by CI imports
+langchain==1.5.2
+langchain-groq==1.2.1
+langgraph==1.2.24
 
 # Vector DB
-chromadb
+chromadb==1.5.9
 
 # HTTP
-httpx
+httpx==0.28.1
 
 # Background job scheduling (nightly automation: pattern detection,
 # weekly review caching, memory cleanup, morning brief prep)
-apscheduler>=3.10,<4
+apscheduler==3.11.3
 
 # Testing
-pytest>=8.0
-pytest-asyncio>=0.24
-httpx[testing]
+pytest==9.2.0
+pytest-asyncio==1.5.0
+httpx[testing]==0.28.1
