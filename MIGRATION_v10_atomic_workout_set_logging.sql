@@ -61,7 +61,7 @@ begin
       from public.exercise_logs l
      where l.session_id = p_session_id
        and l.user_id = p_user_id
-       and l.exercise_name = v_exercise_name;
+       and lower(l.exercise_name) = lower(v_exercise_name);
 
     return query
     insert into public.exercise_logs (
