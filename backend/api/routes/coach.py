@@ -30,7 +30,12 @@ def _load_prior_messages(
     limit: int = 10,
     session_id: str | None = None,
 ) -> list:
-    """Load recent conversation turns within one user-owned chat session."""
+    """Load recent user-owned coach turns, optionally scoped to an explicit chat session.
+
+    The main Coach screen uses one persistent thread (session_id=None). The
+    optional filter is retained for future explicitly separate conversations.
+    It must never be inferred from a workout session identifier.
+    """
     try:
         sb = get_supabase()
         query = (
@@ -38,11 +43,8 @@ def _load_prior_messages(
             .select("role,content,metadata")
             .eq("user_id", user_id)
         )
-        query = (
-            query.eq("session_id", session_id)
-            if session_id is not None
-            else query.is_("session_id", "null")
-        )
+        if session_id is not None:
+            query = query.eq("session_id", session_id)
         res = (
             query.order("created_at", desc=True)
             .limit(limit)
@@ -289,11 +291,8 @@ async def get_history(
             .select("id,session_id,role,content,metadata,created_at")
             .eq("user_id", current_user["user_id"])
         )
-        query = (
-            query.eq("session_id", session_id)
-            if session_id is not None
-            else query.is_("session_id", "null")
-        )
+        if session_id is not None:
+            query = query.eq("session_id", session_id)
         res = (
             query.order("created_at", desc=True)
             .limit(max(1, min(limit, 100)))
