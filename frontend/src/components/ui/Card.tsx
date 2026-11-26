@@ -11,10 +11,9 @@
 // gets a slightly brighter border and a deeper, softer shadow so it reads
 // as "the main thing" without needing a louder color or a bigger badge.
 //
-// Every card also fades + rises into place on mount (250–400ms, eased) —
-// subtle enough to disappear on repeat visits, present enough that the
-// screen never just "pops" into existence. Pass animate={false} to opt
-// out (e.g. a card inside a frequently-re-rendering list row).
+// Entrance motion is opt-in. Most cards render immediately so screen
+// transitions stay responsive and data-heavy dashboards do not animate
+// every surface at once. Use animate only for a deliberate hero moment.
 
 import React, { useEffect, useRef } from 'react';
 import { Animated, TouchableOpacity, StyleSheet, ViewStyle, StyleProp, Easing } from 'react-native';
@@ -45,7 +44,7 @@ interface CardProps {
   accentColorTo?: string;
   onPress?: () => void;
   disabled?: boolean;
-  /** Fade + rise on mount. Default true; set false inside fast-refreshing lists. */
+  /** Fade + rise on mount. Opt in only for a deliberate hero surface. */
   animate?: boolean;
   /** Stagger multiple cards fading in one after another (ms). */
   animationDelay?: number;
@@ -62,7 +61,7 @@ export default function Card({
   accentColorTo,
   onPress,
   disabled,
-  animate = true,
+  animate = false,
   animationDelay = 0,
   style,
   children,

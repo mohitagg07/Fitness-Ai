@@ -111,15 +111,39 @@ function rpeColor(r: number): string {
 
 // ─── Rest Timer ───────────────────────────────────────────────────────────────
 function RestTimerBar({
-  seconds,
+  startedAt,
   total,
   onSkip,
+  onComplete,
 }: {
-  seconds: number;
+  startedAt: number;
   total: number;
   onSkip: () => void;
+  onComplete: () => void;
 }) {
-  const pct = total > 0 ? (seconds / total) : 0;
+  const [seconds, setSeconds] = useState(total);
+
+  // Derive remaining time from an absolute deadline. This avoids countdown
+  // drift if the JS thread is busy or the app briefly moves to the background.
+  // The timer owns its state, so the workout screen does not re-render each tick.
+  useEffect(() => {
+    let completed = false;
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((startedAt + total * 1000 - Date.now()) / 1000));
+      setSeconds((current) => current === remaining ? current : remaining);
+      if (remaining === 0 && !completed) {
+        completed = true;
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+        onComplete();
+      }
+    };
+
+    tick();
+    const id = setInterval(tick, 250);
+    return () => clearInterval(id);
+  }, [startedAt, total, onComplete]);
+
+  const pct = total > 0 ? seconds / total : 0;
   const urgent = seconds <= 10;
   const barColor = urgent ? COLORS.recoveryLow : COLORS.primaryGreen;
 
@@ -131,11 +155,10 @@ function RestTimerBar({
           <Text style={[T.timerLabel, { color: barColor }]}>REST</Text>
           <Text style={[T.timerSeconds, { color: barColor }]}>{seconds}s</Text>
         </View>
-        {/* Progress track */}
         <View style={T.timerTrack}>
           <View style={[T.timerFill, { width: `${pct * 100}%` as any, backgroundColor: barColor }]} />
         </View>
-        <TouchableOpacity onPress={onSkip} style={T.skipBtn}>
+        <TouchableOpacity onPress={onSkip} style={T.skipBtn} accessibilityRole="button" accessibilityLabel="Skip rest timer">
           <Text style={T.skipText}>SKIP</Text>
         </TouchableOpacity>
       </View>
@@ -145,14 +168,26 @@ function RestTimerBar({
 
 // ─── Volume bar ───────────────────────────────────────────────────────────────
 function SessionHeader({
-  elapsed,
+  startedAt,
   totalVolume,
   setCount,
 }: {
-  elapsed: string;
+  startedAt: number;
   totalVolume: number;
   setCount: number;
 }) {
+  const [now, setNow] = useState(() => Date.now());
+
+  // Keep the live clock inside this small component. A one-second clock tick
+  // must not re-render exercise inputs, logged sets, or the rest of the HUD.
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [startedAt]);
+
+  const elapsedSeconds = Math.max(0, Math.floor((now - startedAt) / 1000));
+  const elapsed = `${Math.floor(elapsedSeconds / 60)}:${(elapsedSeconds % 60).toString().padStart(2, '0')}`;
+
   return (
     <View style={H.row}>
       <View style={H.pill}>
@@ -160,7 +195,7 @@ function SessionHeader({
         <Text style={H.pillText}>ACTIVE</Text>
       </View>
       <View style={H.stat}>
-        <Text style={H.statVal}>{elapsed || '0:00'}</Text>
+        <Text style={H.statVal}>{elapsed}</Text>
         <Text style={H.statLabel}>TIME</Text>
       </View>
       <View style={H.divider} />
@@ -213,9 +248,9 @@ function WorkoutHUD() {
 
   const [exercises, setExercises]       = useState<ExerciseCard[]>([]);
   const [activeIdx, setActiveIdx]       = useState(0);
-  const [restTimer, setRestTimer]       = useState(0);
-  const [restTotal, setRestTotal]       = useState(90);
-  const [timerRunning, setTimerRunning] = useState(false);
+  const [restStartedAt, setRestStartedAt] = useState<number | null>(null);
+  const [restTotal, setRestTotal] = useState(90);
+  const clearRestTimer = useCallback(() => setRestStartedAt(null), []);
   const [rpe, setRpe]                   = useState(8);
   const [weight, setWeight]             = useState('');
   const [reps, setReps]                 = useState('');
@@ -223,7 +258,6 @@ function WorkoutHUD() {
   const [summaryVisible, setSummaryVisible] = useState(false);
   const [summaryData, setSummaryData]       = useState<any>(null);
   const [historyVisible, setHistoryVisible] = useState(false);
-  const [, forceTick]                   = useState(0);
   const [isLogging, setIsLogging]       = useState(false);
   const [isFinishing, setIsFinishing]   = useState(false);
   const [streakVisible, setStreakVisible] = useState(false);
@@ -297,33 +331,9 @@ function WorkoutHUD() {
     return () => { alive = false; };
   }, []);
 
-  // Tick for elapsed time
-  useEffect(() => {
-    if (!activeSession?.startedAt) return;
-    const id = setInterval(() => forceTick(n => n + 1), 1000);
-    return () => clearInterval(id);
-  }, [activeSession?.startedAt]);
-
-  // Rest timer countdown
-  useEffect(() => {
-    if (!timerRunning || restTimer <= 0) {
-      if (restTimer === 0 && timerRunning) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setTimerRunning(false);
-      }
-      return;
-    }
-    const id = setInterval(() => setRestTimer(t => t - 1), 1000);
-    return () => clearInterval(id);
-  }, [timerRunning, restTimer]);
+  // The elapsed clock and rest countdown update inside isolated child components.
 
   const sessionStarted = !!activeSession;
-
-  const elapsedLabel = (() => {
-    if (!activeSession?.startedAt) return '';
-    const s = Math.max(0, Math.floor((Date.now() - activeSession.startedAt) / 1000));
-    return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
-  })();
 
   // Derive set counts from store logs (never goes stale on re-mount)
   const setCountByExercise = (() => {
@@ -458,8 +468,7 @@ function WorkoutHUD() {
     const parsed = parseInt(restStr.replace(/[^0-9]/g, ''));
     const restSec = (!isNaN(parsed) && parsed > 0) ? parsed : 90;
     setRestTotal(restSec);
-    setRestTimer(restSec);
-    setTimerRunning(true);
+    setRestStartedAt(Date.now());
 
     // Pre-fill next set with same weight
     setReps('');
@@ -475,8 +484,7 @@ function WorkoutHUD() {
     setWeight('');
     setReps('');
     setExerciseName('');
-    setTimerRunning(false);
-    setRestTimer(0);
+    setRestStartedAt(null);
     if (activeIdx < exercises.length - 1) {
       setActiveIdx(i => i + 1);
     }
@@ -492,8 +500,8 @@ function WorkoutHUD() {
   // itself: it's passed down (indirectly, via the handlers below) into
   // MoodPickerModal/WorkoutSummaryCard/MilestoneCelebration, all three
   // of which are now React.memo'd. WorkoutHUD re-renders every second
-  // (the forceTick interval below, plus the rest-timer countdown) — if
-  // this were redefined every render, the memo on those three would be
+  // (the session clock and rest timer now update inside isolated children) — if
+  // this were redefined on workout state changes, the memo on those three would
   // silently defeated the entire time a workout is active, which is
   // exactly when it matters most.
   const completeAndShowSummary = useCallback(async (moodOverride?: MoodValue) => {
@@ -513,8 +521,7 @@ function WorkoutHUD() {
       setActiveSession(null);
       setExercises([]);
       setActiveIdx(0);
-      setTimerRunning(false);
-      setRestTimer(0);
+      setRestStartedAt(null);
       setSummaryData(summary || {
         total_volume_kg: Math.round(totalVolume),
         sets_logged: totalSets,
@@ -679,16 +686,18 @@ function WorkoutHUD() {
         onClose={handleMilestoneClose}
       />
 
-      {timerRunning && (
+      {restStartedAt !== null && (
         <RestTimerBar
-          seconds={restTimer}
+          key={restStartedAt}
+          startedAt={restStartedAt}
           total={restTotal}
-          onSkip={() => { setTimerRunning(false); setRestTimer(0); }}
+          onSkip={clearRestTimer}
+          onComplete={clearRestTimer}
         />
       )}
 
       <SessionHeader
-        elapsed={elapsedLabel}
+        startedAt={Number(activeSession?.startedAt) || Date.now()}
         totalVolume={Math.round(totalVolume)}
         setCount={totalSets}
       />

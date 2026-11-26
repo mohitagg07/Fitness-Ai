@@ -449,16 +449,26 @@ export default function ProgressScreen() {
       </View>
 
       {/* Scrollable tab bar */}
-      <View style={[styles.tabBarScroll, { width: '100%', maxWidth: responsive.pageMaxWidth, alignSelf: 'center' }]}>
-        <View style={[styles.tabBar, responsive.isTablet && styles.tabBarWide]}>
-          {TABS.map(t => (
-            <TouchableOpacity key={t.key} style={[styles.tab, responsive.isTablet && styles.tabWide, activeTab === t.key && styles.tabActive]} onPress={() => setActiveTab(t.key)}>
-              <Ionicons name={t.icon as any} size={13} color={activeTab === t.key ? COLORS.primaryGreen : COLORS.textMuted} />
-              <Text style={[styles.tabText, activeTab === t.key && styles.tabTextActive]}>{t.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={[styles.tabBarScroll, { width: '100%', maxWidth: responsive.pageMaxWidth, alignSelf: 'center' }]}
+        contentContainerStyle={[styles.tabBar, responsive.isTablet && styles.tabBarWide]}
+        keyboardShouldPersistTaps="handled"
+      >
+        {TABS.map(t => (
+          <TouchableOpacity
+            key={t.key}
+            style={[styles.tab, responsive.isTablet && styles.tabWide, activeTab === t.key && styles.tabActive]}
+            onPress={() => setActiveTab(t.key)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeTab === t.key }}
+          >
+            <Ionicons name={t.icon as any} size={13} color={activeTab === t.key ? COLORS.primaryGreen : COLORS.textMuted} />
+            <Text style={[styles.tabText, activeTab === t.key && styles.tabTextActive]}>{t.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
       {/* Body content */}
       {activeTab === 'review' ? (
@@ -579,10 +589,10 @@ const styles = StyleSheet.create({
   headerSub: { color: COLORS.text, fontSize: 23, fontWeight: '700', letterSpacing: -0.4 },
 
   tabBarScroll: { borderBottomWidth: 1, borderBottomColor: COLORS.inputBg },
-  tabBar: { paddingHorizontal: 12, paddingVertical: 10, gap: 6, flexDirection: 'row', flexWrap: 'wrap' },
-  tabBarWide: { flexWrap: 'nowrap' },
-  tab: { flexGrow: 1, flexBasis: '30%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 5, paddingVertical: 7, paddingHorizontal: 8, borderRadius: 10, backgroundColor: COLORS.backgroundTop, borderWidth: 1, borderColor: COLORS.border },
-  tabWide: { flexBasis: 0 },
+  tabBar: { paddingHorizontal: 12, paddingVertical: 10, gap: 8, flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center' },
+  tabBarWide: { justifyContent: 'center' },
+  tab: { flexGrow: 0, flexShrink: 0, minWidth: 104, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, paddingVertical: 9, paddingHorizontal: 12, borderRadius: 10, backgroundColor: COLORS.backgroundTop, borderWidth: 1, borderColor: COLORS.border },
+  tabWide: { minWidth: 120 },
   tabActive: { backgroundColor: COLORS.card, borderColor: COLORS.primaryGreen + '50' },
   tabText: { color: COLORS.textMuted, fontSize: 11, fontWeight: '600' },
   tabTextActive: { color: COLORS.primaryGreen },

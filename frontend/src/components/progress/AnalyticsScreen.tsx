@@ -4,18 +4,20 @@
 // /api/progress/muscle-balance and /api/progress/pr-timeline — nothing here is
 // generated or hardcoded. Each chart has its own empty state for new accounts.
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import Svg, {
   Polygon, Circle as SvgCircle, Line as SvgLine,
   Text as SvgText,
 } from 'react-native-svg';
 import { analyticsApi, describeApiError } from '../../utils/api';
 import AmbientGrid from '../shared/AmbientGrid';
-import { COLORS } from '../../theme/colors';
+import { COLORS, alpha } from '../../theme/colors';
+import { qk, STALE } from '../../lib/queryKeys';
 import { FONTS } from '../../theme/typography';
 
 // ── Types (mirror backend responses exactly) ────────────────────────────────────
@@ -45,12 +47,12 @@ function EmptyState({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text
 
 // ── Volume Heatmap ─────────────────────────────────────────────────────────────
 function volumeColor(sets: number): string {
-  if (sets === 0)  return '#0D0D0D';
-  if (sets < 4)    return '#16EC0628';
-  if (sets < 8)    return '#16EC0655';
-  if (sets < 14)   return '#16EC0685';
-  if (sets < 20)   return '#16EC06B8';
-  return COLORS.recoveryHigh;
+  if (sets === 0) return COLORS.cardElevated;
+  if (sets < 4) return alpha(COLORS.primaryGreen, 0.10);
+  if (sets < 8) return alpha(COLORS.primaryGreen, 0.22);
+  if (sets < 14) return alpha(COLORS.primaryGreen, 0.38);
+  if (sets < 20) return alpha(COLORS.primaryGreen, 0.60);
+  return COLORS.primaryGreen;
 }
 
 function VolumeHeatmap({ data }: { data: HeatmapResponse }) {
@@ -134,13 +136,13 @@ function RadarChart({ groups }: { groups: MuscleGroupStat[] }) {
           const p = radarXY(lvl, a);
           return `${p.x},${p.y}`;
         }).join(' ');
-        return <Polygon key={lvl} points={pts} fill="none" stroke="#1F1F1F" strokeWidth={1} />;
+        return <Polygon key={lvl} points={pts} fill="none" stroke={COLORS.border} strokeWidth={1} />;
       })}
       {angles.map((angle, i) => {
         const end = radarXY(100, angle);
-        return <SvgLine key={i} x1={CR} y1={CR} x2={end.x} y2={end.y} stroke="#1F1F1F" strokeWidth={1} />;
+        return <SvgLine key={i} x1={CR} y1={CR} x2={end.x} y2={end.y} stroke={COLORS.border} strokeWidth={1} />;
       })}
-      <Polygon points={polyPts} fill="#16EC0618" stroke={COLORS.recoveryHigh} strokeWidth={1.5} />
+      <Polygon points={polyPts} fill={alpha(COLORS.primaryGreen, 0.12)} stroke={COLORS.recoveryHigh} strokeWidth={1.5} />
       {dataPoints.map((p, i) => (
         <SvgCircle key={i} cx={p.x} cy={p.y} r={3} fill={COLORS.recoveryHigh} />
       ))}
@@ -215,33 +217,40 @@ const CHART_TABS: { id: ChartTab; label: string }[] = [
 
 export default function AnalyticsScreen({ embedded = false }: { embedded?: boolean }) {
   const [activeChart, setActiveChart] = useState<ChartTab>('heatmap');
-  const [loading, setLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [heatmap, setHeatmap] = useState<HeatmapResponse | null>(null);
-  const [balance, setBalance] = useState<MuscleBalanceResponse | null>(null);
-  const [prTimeline, setPrTimeline] = useState<PRTimelineResponse | null>(null);
 
-  const loadData = useCallback(async () => {
-    setErrorMsg(null);
-    try {
-      const [hRes, bRes, pRes] = await Promise.all([
-        analyticsApi.getHeatmap(8),
-        analyticsApi.getMuscleBalance(4),
-        analyticsApi.getPRTimeline(20),
-      ]);
-      setHeatmap(hRes.data);
-      setBalance(bRes.data);
-      setPrTimeline(pRes.data);
-    } catch (err: any) {
-      const { message } = describeApiError(err);
-      setErrorMsg(message);
-    }
-  }, []);
+  // Fetch only the chart currently in view. React Query retains the result
+  // when the athlete switches tabs or leaves and returns to Analytics.
+  const heatmapQuery = useQuery({
+    queryKey: qk.analytics.heatmap(8),
+    queryFn: async () => (await analyticsApi.getHeatmap(8)).data as HeatmapResponse,
+    staleTime: STALE.medium,
+    enabled: activeChart === 'heatmap',
+  });
+  const balanceQuery = useQuery({
+    queryKey: qk.analytics.muscleBalance(4),
+    queryFn: async () => (await analyticsApi.getMuscleBalance(4)).data as MuscleBalanceResponse,
+    staleTime: STALE.medium,
+    enabled: activeChart === 'radar',
+  });
+  const prTimelineQuery = useQuery({
+    queryKey: qk.analytics.prTimeline(20),
+    queryFn: async () => (await analyticsApi.getPRTimeline(20)).data as PRTimelineResponse,
+    staleTime: STALE.medium,
+    enabled: activeChart === 'prs',
+  });
 
-  useEffect(() => {
-    (async () => { setLoading(true); await loadData(); setLoading(false); })();
-  }, [loadData]);
-
+  const currentQuery = activeChart === 'heatmap'
+    ? heatmapQuery
+    : activeChart === 'radar'
+      ? balanceQuery
+      : prTimelineQuery;
+  const loading = currentQuery.isPending;
+  const errorMsg = !currentQuery.data && currentQuery.error
+    ? describeApiError(currentQuery.error).message
+    : null;
+  const heatmap = heatmapQuery.data;
+  const balance = balanceQuery.data;
+  const prTimeline = prTimelineQuery.data;
   const lagging = balance?.lagging || [];
 
   const content = (
@@ -270,7 +279,7 @@ export default function AnalyticsScreen({ embedded = false }: { embedded?: boole
       ) : errorMsg ? (
         <View style={styles.card}>
           <EmptyState icon="cloud-offline-outline" text={errorMsg} />
-          <TouchableOpacity style={styles.retryBtn} onPress={() => { setLoading(true); loadData().finally(() => setLoading(false)); }}>
+          <TouchableOpacity style={styles.retryBtn} onPress={() => { void currentQuery.refetch(); }}>
             <Text style={styles.retryText}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -314,9 +323,9 @@ export default function AnalyticsScreen({ embedded = false }: { embedded?: boole
                   </View>
                   {lagging.length > 0 && (
                     <View style={styles.alertBox}>
-                      <Text style={styles.alertTitle}>BALANCE ALERT</Text>
+                      <Text style={styles.alertTitle}>LOWER LOGGED EXPOSURE</Text>
                       <Text style={styles.alertText}>
-                        {lagging.join(', ')} volume lagging relative to your other muscle groups. Add 2 sets per session for 3 weeks.
+                        {lagging.join(', ')} account for a smaller share of classified working sets in this period. This describes logged training distribution; it is not a measure of muscle growth or a standalone reason to add volume.
                       </Text>
                     </View>
                   )}
@@ -386,7 +395,7 @@ const styles = StyleSheet.create({
   },
   tabBtnActive: {
     borderColor: COLORS.recoveryHigh,
-    backgroundColor: '#16EC0610',
+    backgroundColor: alpha(COLORS.primaryGreen, 0.10),
   },
   tabBtnText: {
     fontFamily: FONTS.semibold,
@@ -504,10 +513,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   alertBox: {
-    backgroundColor: '#FFDE0010',
+    backgroundColor: alpha(COLORS.recoveryMed, 0.08),
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#FFDE0030',
+    borderColor: alpha(COLORS.recoveryMed, 0.22),
     padding: 10,
   },
   alertTitle: {
@@ -587,10 +596,10 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   prBadge: {
-    backgroundColor: '#16EC0618',
+    backgroundColor: alpha(COLORS.primaryGreen, 0.10),
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: '#16EC0630',
+    borderColor: alpha(COLORS.primaryGreen, 0.22),
     paddingHorizontal: 6,
     paddingVertical: 2,
     marginTop: 4,

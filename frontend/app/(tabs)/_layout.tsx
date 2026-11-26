@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Tabs, router } from 'expo-router';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { storage } from '../../src/utils/storage';
 import { profileApi } from '../../src/utils/api';
@@ -40,6 +41,7 @@ const TABS: TabDef[] = [
 const HIDDEN_TABS = ['decisions', 'simulate', 'formanalysis', 'prs'];
 
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
   const [authChecked, setAuthChecked] = useState(false);
   const prefetchDashboard = usePrefetchDashboard();
 
@@ -162,9 +164,9 @@ export default function TabsLayout() {
           borderColor: COLORS.tabBorder,
           borderWidth: 1,
           borderRadius: 22,
-          paddingBottom: 8,
+          paddingBottom: Math.max(insets.bottom, 8),
           paddingTop: 8,
-          height: 70,
+          height: 62 + Math.max(insets.bottom, 8),
           elevation: 8,
           shadowColor: '#000000',
           shadowOpacity: 0.24,
