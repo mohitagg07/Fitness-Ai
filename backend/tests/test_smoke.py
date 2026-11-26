@@ -506,3 +506,15 @@ def test_log_set_rejects_blank_exercise_name() -> None:
 
     with pytest.raises(ValidationError):
         SetLogRequest(exercise_name="   ", weight_kg=40, reps=8)
+
+
+def test_scenario_request_enforces_supported_time_horizon() -> None:
+    from pydantic import ValidationError
+    from api.routes.simulate import ScenarioRequest
+
+    assert ScenarioRequest(scenario_id="protein", weeks=1).weeks == 1
+    assert ScenarioRequest(scenario_id="sleep", weeks=12).weeks == 12
+    with pytest.raises(ValidationError):
+        ScenarioRequest(scenario_id="protein", weeks=0)
+    with pytest.raises(ValidationError):
+        ScenarioRequest(scenario_id="protein", weeks=13)
