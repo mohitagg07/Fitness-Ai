@@ -230,9 +230,9 @@ export default function ProfileScreen() {
             )}
             <View style={styles.avatarEditBadge}>
               {uploadingAvatar ? (
-                <ActivityIndicator size="small" color="#000" />
+                <ActivityIndicator size="small" color={COLORS.background} />
               ) : (
-                <Ionicons name="camera" size={14} color="#000" />
+                <Ionicons name="camera" size={14} color={COLORS.background} />
               )}
             </View>
           </TouchableOpacity>
@@ -241,8 +241,8 @@ export default function ProfileScreen() {
           <Text style={styles.email}>{user?.email}</Text>
 
           {profile?.goal && (
-            <View style={[styles.goalBadge, { backgroundColor: (GOAL_COLORS[profile.goal] || '#555') + '22' }]}>
-              <Text style={[styles.goalText, { color: GOAL_COLORS[profile.goal] || '#888' }]}>
+            <View style={[styles.goalBadge, { backgroundColor: (GOAL_COLORS[profile.goal] || COLORS.textMuted) + '22' }]}>
+              <Text style={[styles.goalText, { color: GOAL_COLORS[profile.goal] || COLORS.textMuted }]}>
                 {profile.goal.toUpperCase()} PHASE · {(profile.experience_level || '—').toUpperCase()}
               </Text>
             </View>
@@ -340,7 +340,7 @@ export default function ProfileScreen() {
                   <Text style={styles.injuryPart}>{cap(inj.body_part?.replace(/_/g, ' '))}</Text>
                   <Text style={styles.injuryType}>{cap(inj.issue_type)}{inj.doctor_restriction ? ' · Doctor restricted' : ''}</Text>
                 </View>
-                <View style={[styles.severityBadge, { backgroundColor: inj.severity >= 7 ? '#3A1A1A' : '#2A2A1A' }]}>
+                <View style={[styles.severityBadge, { backgroundColor: inj.severity >= 7 ? alpha(COLORS.recoveryLow, 0.16) : alpha(COLORS.recoveryMed, 0.13) }]}>
                   <Text style={[styles.severityText, { color: inj.severity >= 7 ? COLORS.recoveryLow : COLORS.primaryGreen }]}>
                     {inj.severity}/10
                   </Text>
@@ -466,7 +466,7 @@ function AddInjuryRow() {
           <Text style={styles.cancelBtnText}>Cancel</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.saveSmallBtn} onPress={save} disabled={saving}>
-          {saving ? <ActivityIndicator size="small" color="#000" /> : <Text style={styles.saveSmallBtnText}>Save</Text>}
+          {saving ? <ActivityIndicator size="small" color={COLORS.background} /> : <Text style={styles.saveSmallBtnText}>Save</Text>}
         </TouchableOpacity>
       </View>
     </View>
@@ -732,7 +732,7 @@ const styles = StyleSheet.create({
   cancelBtn: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border },
   cancelBtnText: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '600' },
   saveSmallBtn: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 10, backgroundColor: COLORS.primaryGreen },
-  saveSmallBtnText: { color: '#000', fontSize: 13, fontWeight: '700' },
+  saveSmallBtnText: { color: COLORS.background, fontSize: 13, fontWeight: '700' },
 
   tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tag: { backgroundColor: COLORS.card, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
