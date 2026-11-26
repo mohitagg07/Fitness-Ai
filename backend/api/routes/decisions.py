@@ -151,6 +151,8 @@ async def update_outcome(
         if not res.data:
             raise HTTPException(404, "Decision not found")
         return {"updated": True, "decision": res.data[0]}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, f"Failed to update outcome: {e}")
 
