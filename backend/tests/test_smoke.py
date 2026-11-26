@@ -357,3 +357,26 @@ def test_training_load_excludes_warmup_sets(monkeypatch) -> None:
 
     assert len(logs) == 1
     assert logs[0]["weight_kg"] == 100
+
+
+def test_training_day_resolver_uses_explicit_plan_days() -> None:
+    from datetime import date
+    from services.nutrition import resolve_training_day_from_schedule
+
+    schedule = {
+        "mon": "push",
+        "tue": "REST",
+        "wed": "legs",
+        "thu": None,
+    }
+    assert resolve_training_day_from_schedule(schedule, date(2026, 11, 23)) is True
+    assert resolve_training_day_from_schedule(schedule, date(2026, 11, 24)) is False
+    assert resolve_training_day_from_schedule(schedule, date(2026, 11, 25)) is True
+    assert resolve_training_day_from_schedule(schedule, date(2026, 11, 26)) is False
+
+
+def test_training_day_resolver_returns_none_when_schedule_does_not_define_day() -> None:
+    from datetime import date
+    from services.nutrition import resolve_training_day_from_schedule
+
+    assert resolve_training_day_from_schedule({"mon": "push"}, date(2026, 11, 24)) is None
