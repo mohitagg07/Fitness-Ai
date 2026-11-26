@@ -56,10 +56,10 @@ function getMilestones(metrics: any[], prs: any[], nutrition: any[]): Badge[] {
   return [
     { icon: '🔥', label: 'First Workout', desc: 'Complete your first session', earned: sessions >= 1, color: COLORS.recoveryMed },
     { icon: '💪', label: '10 Sessions', desc: 'Complete 10 workouts', earned: sessions >= 10, color: COLORS.strain },
-    { icon: '🏆', label: 'PR Setter', desc: 'Set your first PR', earned: prCount >= 1, color: 'COLORS.gold' },
+    { icon: '🏆', label: 'PR Setter', desc: 'Set your first PR', earned: prCount >= 1, color: COLORS.gold },
     { icon: '🥩', label: 'Protein Pro', desc: 'Hit protein target 7 days', earned: proteinDays >= 7, color: COLORS.recoveryHigh },
     { icon: '⚡', label: '25 Sessions', desc: 'Complete 25 workouts', earned: sessions >= 25, color: COLORS.strainGlow },
-    { icon: '🌟', label: '5 PRs', desc: 'Set 5 personal records', earned: prCount >= 5, color: 'COLORS.gold' },
+    { icon: '🌟', label: '5 PRs', desc: 'Set 5 personal records', earned: prCount >= 5, color: COLORS.gold },
     { icon: '💎', label: '50 Sessions', desc: 'Complete 50 workouts', earned: sessions >= 50, color: COLORS.recoveryHigh },
     { icon: '🎯', label: 'Consistent', desc: 'Hit protein 30 days', earned: proteinDays >= 30, color: COLORS.strainGlow },
   ];
@@ -92,7 +92,7 @@ function ProteinAdherenceBar({ history }: { history: any[] }) {
               <View style={P.barTrack}>
                 <View style={[P.barFill, {
                   height: `${Math.max(4, ratio * 100)}%` as any,
-                  backgroundColor: metDay ? COLORS.recoveryHigh : ratio > 0.7 ? COLORS.recoveryMed : 'COLORS.border',
+                  backgroundColor: metDay ? COLORS.recoveryHigh : ratio > 0.7 ? COLORS.recoveryMed : COLORS.border,
                 }]} />
               </View>
               <Text style={P.dayLabel}>{DAY_LABELS[i % 7]}</Text>
@@ -104,17 +104,17 @@ function ProteinAdherenceBar({ history }: { history: any[] }) {
   );
 }
 const P = StyleSheet.create({
-  container:  { backgroundColor: 'COLORS.cardElevated', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: 'COLORS.border', marginBottom: 16 },
+  container:  { backgroundColor: COLORS.cardElevated, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
   headerRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  label:      { color: 'COLORS.textMuted', fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
+  label:      { color: COLORS.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
   pct:        { fontSize: 13, fontWeight: '700' },
   bars:       { flexDirection: 'row', alignItems: 'flex-end', gap: 6, height: 60 },
   barCol:     { flex: 1, alignItems: 'center', gap: 4 },
-  barTrack:   { flex: 1, width: '100%', backgroundColor: 'COLORS.border', borderRadius: 4, justifyContent: 'flex-end', overflow: 'hidden', borderWidth: 1, borderColor: 'COLORS.border' },
+  barTrack:   { flex: 1, width: '100%', backgroundColor: COLORS.border, borderRadius: 4, justifyContent: 'flex-end', overflow: 'hidden', borderWidth: 1, borderColor: COLORS.border },
   barFill:    { width: '100%', borderRadius: 4 },
-  dayLabel:   { color: 'COLORS.textMuted', fontSize: 9, fontWeight: '600' },
+  dayLabel:   { color: COLORS.textMuted, fontSize: 9, fontWeight: '600' },
   empty:      { paddingVertical: 16, alignItems: 'center' },
-  emptyText:  { color: 'COLORS.textMuted', fontSize: 13 },
+  emptyText:  { color: COLORS.textMuted, fontSize: 13 },
 });
 
 // ─── Today Macros rings ────────────────────────────────────────────────────────
@@ -127,14 +127,14 @@ function MacroRing({ pct, color, label, value }: { pct: number; color: string; l
     <View style={{ alignItems: 'center', gap: 4 }}>
       <View style={{ width: size, height: size }}>
         <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
-          <Circle cx={size/2} cy={size/2} r={radius} stroke="COLORS.border" strokeWidth={stroke} fill="none" />
+          <Circle cx={size/2} cy={size/2} r={radius} stroke={COLORS.border} strokeWidth={stroke} fill="none" />
           <Circle cx={size/2} cy={size/2} r={radius} stroke={color} strokeWidth={stroke} fill="none"
             strokeDasharray={`${circumference} ${circumference}`} strokeDashoffset={offset}
             strokeLinecap="round" rotation={-90} origin={`${size/2},${size/2}`} />
         </Svg>
       </View>
-      <Text style={{ color: 'COLORS.text', fontSize: 12, fontWeight: '800' }}>{value}</Text>
-      <Text style={{ color: 'COLORS.textMuted', fontSize: 9, fontWeight: '700', letterSpacing: 1 }}>{label}</Text>
+      <Text style={{ color: COLORS.text, fontSize: 12, fontWeight: '800' }}>{value}</Text>
+      <Text style={{ color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 1 }}>{label}</Text>
     </View>
   );
 }
@@ -181,7 +181,7 @@ function CaloriesChart({ history, targetCal }: { history: any[]; targetCal: numb
         <SvgT x={PAD.l - 4} y={targetY + 4} fill={COLORS.recoveryMed} fontSize={8} textAnchor="end">{targetCal}</SvgT>
         <Path d={linePath} fill="none" stroke={COLORS.strain} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
         {vals.map((v, i) => (
-          <Circle key={i} cx={toX(i)} cy={toY(v)} r={3} fill={v >= targetCal * 0.9 ? COLORS.recoveryHigh : COLORS.strain} stroke="COLORS.background" strokeWidth={1} />
+          <Circle key={i} cx={toX(i)} cy={toY(v)} r={3} fill={v >= targetCal * 0.9 ? COLORS.recoveryHigh : COLORS.strain} stroke={COLORS.background} strokeWidth={1} />
         ))}
       </Svg>
     </View>
@@ -228,7 +228,7 @@ function PRTable({ prs }: { prs: any[] }) {
       <Text style={styles.sectionLabel}>PERSONAL RECORDS</Text>
       {prs.slice(0, 8).map((pr, i) => (
         <View key={i} style={styles.prRow}>
-          <Ionicons name="trophy" size={14} color="COLORS.gold" />
+          <Ionicons name="trophy" size={14} color={COLORS.gold} />
           <Text style={styles.prName}>{pr.exercise_name}</Text>
           <Text style={styles.prWeight}>{pr.weight_kg} kg</Text>
           <Text style={styles.prReps}>× {pr.reps}</Text>
@@ -289,8 +289,8 @@ function MotivationTab({ metrics, prs, nutrition }: { metrics: any[]; prs: any[]
         {badges.map((b, i) => (
           <View key={i} style={[styles.badgeCard, !b.earned && styles.badgeCardLocked]}>
             <Text style={[styles.badgeIcon, !b.earned && { opacity: 0.3 }]}>{b.icon}</Text>
-            <Text style={[styles.badgeLabel, !b.earned && { color: 'COLORS.textDim' }]}>{b.label}</Text>
-            <Text style={[styles.badgeDesc, !b.earned && { color: 'COLORS.border' }]}>{b.desc}</Text>
+            <Text style={[styles.badgeLabel, !b.earned && { color: COLORS.textDim }]}>{b.label}</Text>
+            <Text style={[styles.badgeDesc, !b.earned && { color: COLORS.border }]}>{b.desc}</Text>
             {b.earned && (
               <View style={[styles.earnedBadge, { borderColor: b.color + '60', backgroundColor: b.color + '15' }]}>
                 <Text style={[styles.earnedText, { color: b.color }]}>✓ EARNED</Text>
@@ -411,8 +411,8 @@ export default function ProgressScreen() {
   if (errorMsg && !metrics.length) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 32 }]}>
-        <Ionicons name="cloud-offline-outline" size={32} color="COLORS.textMuted" />
-        <Text style={{ color: 'COLORS.textMuted', fontSize: 13, textAlign: 'center', marginTop: 12 }}>{errorMsg}</Text>
+        <Ionicons name="cloud-offline-outline" size={32} color={COLORS.textMuted} />
+        <Text style={{ color: COLORS.textMuted, fontSize: 13, textAlign: 'center', marginTop: 12 }}>{errorMsg}</Text>
         <TouchableOpacity style={styles.retryBtn} onPress={onRefresh}>
           <Text style={{ color: COLORS.primaryGreen, fontSize: 13, fontWeight: '700' }}>Retry</Text>
         </TouchableOpacity>
@@ -434,7 +434,7 @@ export default function ProgressScreen() {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabBarScroll} contentContainerStyle={styles.tabBar}>
         {TABS.map(t => (
           <TouchableOpacity key={t.key} style={[styles.tab, activeTab === t.key && styles.tabActive]} onPress={() => setActiveTab(t.key)}>
-            <Ionicons name={t.icon as any} size={13} color={activeTab === t.key ? COLORS.primaryGreen : 'COLORS.textMuted'} />
+            <Ionicons name={t.icon as any} size={13} color={activeTab === t.key ? COLORS.primaryGreen : COLORS.textMuted} />
             <Text style={[styles.tabText, activeTab === t.key && styles.tabTextActive]}>{t.label}</Text>
           </TouchableOpacity>
         ))}
@@ -461,7 +461,7 @@ export default function ProgressScreen() {
               <View style={styles.logCard}>
                 <Text style={styles.sectionLabel}>LOG WEIGHT</Text>
                 <View style={styles.inputRow}>
-                  <TextInput style={styles.numInput} placeholder="e.g. 78.5" placeholderTextColor="COLORS.textMuted" value={weightInput} onChangeText={setWeightInput} keyboardType="decimal-pad" returnKeyType="done" onSubmitEditing={logWeight} />
+                  <TextInput style={styles.numInput} placeholder="e.g. 78.5" placeholderTextColor={COLORS.textMuted} value={weightInput} onChangeText={setWeightInput} keyboardType="decimal-pad" returnKeyType="done" onSubmitEditing={logWeight} />
                   <Text style={styles.unitLabel}>kg</Text>
                   <TouchableOpacity style={styles.logBtn} onPress={logWeight}><Text style={styles.logBtnText}>LOG</Text></TouchableOpacity>
                 </View>
@@ -492,7 +492,7 @@ export default function ProgressScreen() {
           {activeTab === 'nutrition' && (
             <>
               <TouchableOpacity style={styles.logFoodBtn} onPress={() => setLogFoodVisible(true)}>
-                <Ionicons name="add-circle" size={18} color="COLORS.background" />
+                <Ionicons name="add-circle" size={18} color={COLORS.background} />
                 <Text style={styles.logFoodBtnText}>LOG FOOD (FatSecret)</Text>
               </TouchableOpacity>
               <TodayMacros todayData={todayData} />
@@ -500,7 +500,7 @@ export default function ProgressScreen() {
               <ProteinAdherenceBar history={nutrition} />
               {nutrition.length === 0 && (
                 <View style={styles.emptyCard}>
-                  <Ionicons name="nutrition-outline" size={36} color="COLORS.textDim" />
+                  <Ionicons name="nutrition-outline" size={36} color={COLORS.textDim} />
                   <Text style={styles.emptyNote}>Tap LOG FOOD to add your first meal via FatSecret</Text>
                 </View>
               )}
@@ -514,9 +514,9 @@ export default function ProgressScreen() {
               <RecoveryTrend metrics={metrics} />
               <View style={styles.logCard}>
                 <Text style={styles.sectionLabel}>LOG RECOVERY SCORE</Text>
-                <Text style={{ color: 'COLORS.textMuted', fontSize: 11, marginBottom: 10 }}>How recovered do you feel today? (0 = destroyed · 100 = perfect)</Text>
+                <Text style={{ color: COLORS.textMuted, fontSize: 11, marginBottom: 10 }}>How recovered do you feel today? (0 = destroyed · 100 = perfect)</Text>
                 <View style={styles.inputRow}>
-                  <TextInput style={styles.numInput} placeholder="e.g. 75" placeholderTextColor="COLORS.textMuted" value={recoveryInput} onChangeText={setRecoveryInput} keyboardType="numeric" returnKeyType="done" onSubmitEditing={logRecovery} />
+                  <TextInput style={styles.numInput} placeholder="e.g. 75" placeholderTextColor={COLORS.textMuted} value={recoveryInput} onChangeText={setRecoveryInput} keyboardType="numeric" returnKeyType="done" onSubmitEditing={logRecovery} />
                   <Text style={styles.unitLabel}>/ 100</Text>
                   <TouchableOpacity style={styles.logBtn} onPress={logRecovery}><Text style={styles.logBtnText}>LOG</Text></TouchableOpacity>
                 </View>
@@ -558,81 +558,81 @@ const styles = StyleSheet.create({
   },
   headerSub: { color: COLORS.text, fontSize: 23, fontWeight: '700', letterSpacing: -0.4 },
 
-  tabBarScroll: { flexGrow: 0, borderBottomWidth: 1, borderBottomColor: 'COLORS.inputBg' },
+  tabBarScroll: { flexGrow: 0, borderBottomWidth: 1, borderBottomColor: COLORS.inputBg },
   tabBar: { paddingHorizontal: 12, paddingVertical: 10, gap: 6, flexDirection: 'row' },
-  tab: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 10, backgroundColor: 'COLORS.backgroundTop', borderWidth: 1, borderColor: 'COLORS.border' },
-  tabActive: { backgroundColor: 'COLORS.card', borderColor: COLORS.primaryGreen + '50' },
-  tabText: { color: 'COLORS.textMuted', fontSize: 11, fontWeight: '600' },
+  tab: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 10, backgroundColor: COLORS.backgroundTop, borderWidth: 1, borderColor: COLORS.border },
+  tabActive: { backgroundColor: COLORS.card, borderColor: COLORS.primaryGreen + '50' },
+  tabText: { color: COLORS.textMuted, fontSize: 11, fontWeight: '600' },
   tabTextActive: { color: COLORS.primaryGreen },
 
   scroll: { paddingHorizontal: 18, paddingTop: 18, paddingBottom: 36 },
 
-  logCard: { backgroundColor: 'COLORS.cardElevated', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: 'COLORS.border', marginBottom: 16 },
-  sectionLabel: { color: 'COLORS.textMuted', fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 10 },
+  logCard: { backgroundColor: COLORS.cardElevated, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
+  sectionLabel: { color: COLORS.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 10 },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  numInput: { flex: 1, backgroundColor: 'COLORS.inputBg', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: 'COLORS.text', fontSize: 20, fontWeight: '700', borderWidth: 1, borderColor: 'COLORS.border' },
-  unitLabel: { color: 'COLORS.textMuted', fontSize: 14, fontWeight: '600' },
+  numInput: { flex: 1, backgroundColor: COLORS.inputBg, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: COLORS.text, fontSize: 20, fontWeight: '700', borderWidth: 1, borderColor: COLORS.border },
+  unitLabel: { color: COLORS.textMuted, fontSize: 14, fontWeight: '600' },
   logBtn: { backgroundColor: COLORS.primaryGreen, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 13 },
-  logBtnText: { color: 'COLORS.background', fontSize: 13, fontWeight: '800', letterSpacing: 1 },
+  logBtnText: { color: COLORS.background, fontSize: 13, fontWeight: '800', letterSpacing: 1 },
 
-  macrosCard: { backgroundColor: 'COLORS.cardElevated', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: 'COLORS.border', marginBottom: 16 },
-  remainingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, borderTopWidth: 1, borderTopColor: 'COLORS.border', paddingTop: 10 },
-  remainingLabel: { color: 'COLORS.textMuted', fontSize: 11, fontWeight: '600' },
-  remainingVal: { color: 'COLORS.textSecondary', fontSize: 11 },
+  macrosCard: { backgroundColor: COLORS.cardElevated, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
+  remainingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 10 },
+  remainingLabel: { color: COLORS.textMuted, fontSize: 11, fontWeight: '600' },
+  remainingVal: { color: COLORS.textSecondary, fontSize: 11 },
 
   statsGrid: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  statCard: { flex: 1, backgroundColor: 'COLORS.cardElevated', borderRadius: 14, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: 'COLORS.border' },
+  statCard: { flex: 1, backgroundColor: COLORS.cardElevated, borderRadius: 14, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
   statVal: { color: COLORS.primaryGreen, fontSize: 18, fontWeight: '800' },
-  statLabel: { color: 'COLORS.textMuted', fontSize: 9, fontWeight: '700', letterSpacing: 1, marginTop: 2 },
+  statLabel: { color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 1, marginTop: 2 },
 
-  chartCard: { backgroundColor: 'COLORS.cardElevated', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: 'COLORS.border', marginBottom: 16 },
+  chartCard: { backgroundColor: COLORS.cardElevated, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
 
   logFoodBtn: { backgroundColor: COLORS.primaryGreen, borderRadius: 14, paddingVertical: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 16 },
-  logFoodBtnText: { color: 'COLORS.background', fontSize: 14, fontWeight: '800', letterSpacing: 0.5 },
+  logFoodBtnText: { color: COLORS.background, fontSize: 14, fontWeight: '800', letterSpacing: 0.5 },
 
   streaksRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
-  streakCard: { flex: 1, backgroundColor: 'COLORS.cardElevated', borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: 'COLORS.border' },
-  streakVal: { color: 'COLORS.text', fontSize: 22, fontWeight: '800', marginTop: 4 },
-  streakLabel: { color: 'COLORS.textMuted', fontSize: 9, fontWeight: '700', letterSpacing: 0.5, marginTop: 2 },
+  streakCard: { flex: 1, backgroundColor: COLORS.cardElevated, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
+  streakVal: { color: COLORS.text, fontSize: 22, fontWeight: '800', marginTop: 4 },
+  streakLabel: { color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 0.5, marginTop: 2 },
 
   recoveryRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
-  recoveryDate: { color: 'COLORS.textMuted', fontSize: 11, width: 36 },
-  recoveryTrack: { flex: 1, height: 4, backgroundColor: 'COLORS.inputBg', borderRadius: 2, overflow: 'hidden' },
+  recoveryDate: { color: COLORS.textMuted, fontSize: 11, width: 36 },
+  recoveryTrack: { flex: 1, height: 4, backgroundColor: COLORS.inputBg, borderRadius: 2, overflow: 'hidden' },
   recoveryFill: { height: 4, borderRadius: 2 },
   recoveryScore: { width: 36, fontSize: 12, fontWeight: '700', textAlign: 'right' },
 
-  prRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: 'COLORS.border' },
-  prName: { color: 'COLORS.textSecondary', fontSize: 13, flex: 1 },
-  prWeight: { color: 'COLORS.text', fontSize: 14, fontWeight: '800' },
-  prReps: { color: 'COLORS.textMuted', fontSize: 12 },
+  prRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  prName: { color: COLORS.textSecondary, fontSize: 13, flex: 1 },
+  prWeight: { color: COLORS.text, fontSize: 14, fontWeight: '800' },
+  prReps: { color: COLORS.textMuted, fontSize: 12 },
 
-  emptyNote: { color: 'COLORS.textMuted', fontSize: 13, textAlign: 'center', paddingVertical: 16 },
+  emptyNote: { color: COLORS.textMuted, fontSize: 13, textAlign: 'center', paddingVertical: 16 },
   emptyCard: { alignItems: 'center', paddingVertical: 32, gap: 12 },
-  retryBtn: { marginTop: 16, backgroundColor: 'COLORS.border', borderRadius: 10, paddingHorizontal: 24, paddingVertical: 10, borderWidth: 1, borderColor: 'COLORS.border' },
+  retryBtn: { marginTop: 16, backgroundColor: COLORS.border, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 10, borderWidth: 1, borderColor: COLORS.border },
 
   // Motivation tab
-  quoteCard: { backgroundColor: 'COLORS.backgroundTop', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: COLORS.strainGlow + '30', marginBottom: 16 },
+  quoteCard: { backgroundColor: COLORS.backgroundTop, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: COLORS.strainGlow + '30', marginBottom: 16 },
   quoteIconRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
   quoteLabelText: { color: COLORS.strainGlow, fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
-  quoteText: { color: 'COLORS.text', fontSize: 16, fontWeight: '600', lineHeight: 24, fontStyle: 'italic', marginBottom: 8 },
+  quoteText: { color: COLORS.text, fontSize: 16, fontWeight: '600', lineHeight: 24, fontStyle: 'italic', marginBottom: 8 },
   quoteAuthor: { color: COLORS.textMuted, fontSize: 12 },
 
   badgeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  badgeProgress: { height: 3, backgroundColor: 'COLORS.border', borderRadius: 2, overflow: 'hidden', marginBottom: 16 },
+  badgeProgress: { height: 3, backgroundColor: COLORS.border, borderRadius: 2, overflow: 'hidden', marginBottom: 16 },
   badgeProgressFill: { height: '100%', backgroundColor: COLORS.strainGlow, borderRadius: 2 },
 
   badgesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
-  badgeCard: { width: '47%', backgroundColor: 'COLORS.cardElevated', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: 'COLORS.border', gap: 4 },
+  badgeCard: { width: '47%', backgroundColor: COLORS.cardElevated, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border, gap: 4 },
   badgeCardLocked: { opacity: 0.6 },
   badgeIcon: { fontSize: 28, marginBottom: 4 },
-  badgeLabel: { color: 'COLORS.text', fontSize: 13, fontWeight: '700' },
-  badgeDesc: { color: 'COLORS.textMuted', fontSize: 11, lineHeight: 15 },
+  badgeLabel: { color: COLORS.text, fontSize: 13, fontWeight: '700' },
+  badgeDesc: { color: COLORS.textMuted, fontSize: 11, lineHeight: 15 },
   earnedBadge: { borderRadius: 6, paddingVertical: 3, paddingHorizontal: 6, borderWidth: 1, alignSelf: 'flex-start', marginTop: 4 },
   earnedText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
 
-  prHighlight: { backgroundColor: 'COLORS.cardElevated', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: 'COLORS.border', marginBottom: 16 },
-  prHighlightRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'COLORS.border' },
-  prHighlightRank: { color: 'COLORS.gold', fontSize: 14, fontWeight: '800', width: 24 },
-  prHighlightName: { color: 'COLORS.textSecondary', fontSize: 14, flex: 1 },
-  prHighlightWeight: { color: 'COLORS.text', fontSize: 16, fontWeight: '800' },
+  prHighlight: { backgroundColor: COLORS.cardElevated, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
+  prHighlightRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  prHighlightRank: { color: COLORS.gold, fontSize: 14, fontWeight: '800', width: 24 },
+  prHighlightName: { color: COLORS.textSecondary, fontSize: 14, flex: 1 },
+  prHighlightWeight: { color: COLORS.text, fontSize: 16, fontWeight: '800' },
 });
