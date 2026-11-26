@@ -38,9 +38,9 @@ interface ButtonProps {
 }
 
 const SIZE_MAP: Record<ButtonSize, { height: number; paddingH: number; fontSize: number; iconSize: number }> = {
-  sm: { height: 38, paddingH: 14, fontSize: 12, iconSize: ICON_SIZE.xs },
-  md: { height: 48, paddingH: 20, fontSize: 14, iconSize: ICON_SIZE.sm },
-  lg: { height: 56, paddingH: 26, fontSize: 15, iconSize: ICON_SIZE.sm },
+  sm: { height: 40, paddingH: 14, fontSize: 12, iconSize: ICON_SIZE.xs },
+  md: { height: 48, paddingH: 18, fontSize: 14, iconSize: ICON_SIZE.sm },
+  lg: { height: 54, paddingH: 22, fontSize: 15, iconSize: ICON_SIZE.sm },
 };
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
@@ -70,10 +70,10 @@ function Button({
   const scale = useRef(new Animated.Value(1)).current;
 
   const pressIn = () => {
-    Animated.spring(scale, { toValue: 0.96, useNativeDriver: true, speed: 40, bounciness: 4 }).start();
+    Animated.spring(scale, { toValue: 0.98, useNativeDriver: true, speed: 45, bounciness: 2 }).start();
   };
   const pressOut = () => {
-    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 24, bounciness: 6 }).start();
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 35, bounciness: 3 }).start();
   };
 
   const textColor =
@@ -171,7 +171,7 @@ function Button({
       disabled={isDisabled}
       activeOpacity={0.75}
       {...pressHandlers}
-      style={[styles.base, shape, { backgroundColor: alpha(accentColor, 0.1) }, scaleStyle, style]}
+      style={[styles.base, shape, { backgroundColor: alpha(accentColor, 0.09) }, scaleStyle, style]}
     >
       {content}
     </AnimatedTouchable>
