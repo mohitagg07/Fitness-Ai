@@ -80,7 +80,7 @@ def job_pattern_detection() -> None:
     """
     from agents.pattern_engine import run_pattern_engine
     from db.supabase_client import get_supabase, get_full_user_context, upsert_agent_state
-    from services.nutrition import calculate_macros
+    from services.nutrition import calculate_macros, is_training_day_for_user
     from schemas.models import Goal
 
     user_ids = _get_active_user_ids()
@@ -97,7 +97,7 @@ def job_pattern_detection() -> None:
                 age=profile.get("age") or 28,
                 gender=profile.get("gender") or "male",
                 goal=goal,
-                is_training_day=True,
+                is_training_day=is_training_day_for_user(user_id),
             )
             insights = run_pattern_engine(user_id, protein_target_g=targets["protein_g"])
             upsert_agent_state(user_id, {
@@ -254,7 +254,7 @@ def job_morning_brief_prep() -> None:
                 gender=profile.get("gender") or "male",
                 goal=goal,
                 food_preference=profile.get("food_preference"),
-                is_training_day=True,
+                is_training_day=is_training_day_for_user(user_id),
             )
             upsert_agent_state(user_id, {
                 **agent_state,
