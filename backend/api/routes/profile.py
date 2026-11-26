@@ -182,7 +182,16 @@ async def delete_injury(
     current_user: dict = Depends(get_current_user)
 ):
     sb = get_supabase()
-    sb.table("injury_profiles").delete().eq("id", injury_id).eq("user_id", current_user["user_id"]).execute()
+    res = (
+        sb.table("injury_profiles")
+        .delete()
+        .eq("id", injury_id)
+        .eq("user_id", current_user["user_id"])
+        .select("id")
+        .execute()
+    )
+    if not res.data:
+        raise HTTPException(404, "Injury record not found")
     return {"deleted": injury_id}
 
 
