@@ -39,12 +39,14 @@ def _get_logs(user_id: str, cutoff: str) -> list[dict]:
     sb = get_supabase()
     res = (
         sb.table("exercise_logs")
-        .select("exercise_name, weight_kg, reps, rpe, logged_at")
+        .select("exercise_name, weight_kg, reps, rpe, logged_at, is_warmup")
         .eq("user_id", user_id)
         .gte("logged_at", cutoff)
         .execute()
     )
-    return res.data or []
+    # Warm-up sets are useful session data but should not inflate working
+    # tonnage, intensity summaries, muscle balance, or ACWR.
+    return [row for row in (res.data or []) if not row.get("is_warmup")]
 
 
 def compute_daily_volume(user_id: str, target_day: date | None = None) -> dict:
@@ -109,6 +111,8 @@ def compute_muscle_volume(user_id: str, weeks: int = 1) -> dict:
 
     volume: dict[str, float] = {}
     for log in logs:
+        if log.get("is_warmup"):
+            continue
         group = classify_muscle_group(log.get("exercise_name", ""))
         if not group:
             continue
@@ -270,7 +274,7 @@ def compute_muscle_recovery_map(user_id: str) -> dict:
     cutoff = str(date.today() - timedelta(days=21))
     res = (
         sb.table("exercise_logs")
-        .select("exercise_name, logged_at")
+        .select("exercise_name, logged_at, is_warmup")
         .eq("user_id", user_id)
         .gte("logged_at", cutoff)
         .order("logged_at")
