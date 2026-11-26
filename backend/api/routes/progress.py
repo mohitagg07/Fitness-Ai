@@ -4,7 +4,7 @@ main.py mounts this at prefix="/api/progress".
 """
 import asyncio
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from schemas.models import MetricsCreate
 from core.security import get_current_user
 from db.supabase_client import get_supabase
@@ -19,27 +19,83 @@ from services.exercise_library import classify_muscle_group
 router = APIRouter(tags=["Progress"])
 
 
+def _build_volume_heatmap(
+    weeks: int,
+    today: date,
+    sessions: list[dict],
+    logs: list[dict],
+) -> dict:
+    """Build a Mon-Sun grid without double-counting days or overwriting sessions."""
+    start_monday = today - timedelta(days=today.weekday() + 7 * (weeks - 1))
+    set_counts: dict[str, int] = defaultdict(int)
+    for log in logs:
+        if log.get("is_warmup"):
+            continue
+        logged_at = log.get("logged_at")
+        if not logged_at:
+            continue
+        set_counts[str(logged_at)[:10]] += 1
+
+    session_counts: dict[str, int] = defaultdict(int)
+    volume_by_day: dict[str, float] = defaultdict(float)
+    for session in sessions:
+        if session.get("completed") is not True:
+            continue
+        session_date = session.get("session_date")
+        if not session_date:
+            continue
+        day_key = str(session_date)[:10]
+        session_counts[day_key] += 1
+        volume_by_day[day_key] += float(session.get("total_volume_kg") or 0)
+
+    grid = []
+    for week_index in range(weeks):
+        week_start = start_monday + timedelta(weeks=week_index)
+        week = []
+        for day_index in range(7):
+            day = week_start + timedelta(days=day_index)
+            day_key = str(day)
+            session_count = session_counts.get(day_key, 0)
+            week.append({
+                "date": day_key,
+                "sets": set_counts.get(day_key, 0),
+                "volume_kg": round(volume_by_day.get(day_key, 0.0), 1),
+                "has_session": session_count > 0,
+                "session_count": session_count,
+                "future": day > today,
+            })
+        grid.append(week)
+
+    total_sessions = sum(session_counts.values())
+    return {
+        "weeks": grid,
+        "total_sessions": total_sessions,
+        "has_data": total_sessions > 0,
+        "empty_state": "Complete and save a workout to see your training activity.",
+    }
+
+
 @router.post("/metrics", status_code=201)
 async def log_metrics(
     payload: MetricsCreate,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     sb = get_supabase()
-    data = {k: v for k, v in payload.model_dump().items() if v is not None}
+    data = {key: value for key, value in payload.model_dump().items() if value is not None}
     data["user_id"] = current_user["user_id"]
     if data.get("recorded_date"):
         data["recorded_date"] = str(data["recorded_date"])
-    res = sb.table("progress_metrics").insert(data).execute()
-    return res.data[0] if res.data else {}
+    response = sb.table("progress_metrics").insert(data).execute()
+    return response.data[0] if response.data else {}
 
 
 @router.get("/metrics")
 async def get_metrics(
     limit: int = 30,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     sb = get_supabase()
-    res = (
+    response = (
         sb.table("progress_metrics")
         .select("*")
         .eq("user_id", current_user["user_id"])
@@ -47,86 +103,44 @@ async def get_metrics(
         .limit(limit)
         .execute()
     )
-    return res.data
+    return response.data
 
 
 @router.get("/heatmap")
 async def get_volume_heatmap(
-    weeks: int = 8,
+    weeks: int = Query(default=8, ge=1, le=16),
     current_user: dict = Depends(get_current_user),
 ):
-    """
-    Returns a 2D grid of actual session volume (sets count) per day
-    for the last N weeks. Used by VolumeHeatmap in AnalyticsScreen.
-
-    Response: { weeks: [[{date, sets, volume_kg, has_session}...] x 7] x N }
-    Each inner array is Mon→Sun. Cells in the future are marked future=True.
-    """
+    """Return daily working-set counts and completed-session volume for 1–16 weeks."""
     sb = get_supabase()
     user_id = current_user["user_id"]
     today = date.today()
-    # Align to Monday of the oldest week
     start_monday = today - timedelta(days=today.weekday() + 7 * (weeks - 1))
     cutoff = str(start_monday)
 
-    # Fetch all completed sessions in range with their volume
-    sessions_res = (
+    sessions_response = (
         sb.table("workout_sessions")
         .select("session_date, total_volume_kg, completed")
         .eq("user_id", user_id)
+        .eq("completed", True)
         .gte("session_date", cutoff)
         .order("session_date")
         .execute()
     )
-    sessions = sessions_res.data or []
-
-    # Fetch exercise_logs to compute real set counts per day
-    logs_res = (
+    logs_response = (
         sb.table("exercise_logs")
-        .select("logged_at")
+        .select("logged_at, is_warmup")
         .eq("user_id", user_id)
         .gte("logged_at", cutoff)
         .execute()
     )
-    logs = logs_res.data or []
 
-    # Build a lookup: date_str -> set count
-    sets_by_date: dict[str, int] = defaultdict(int)
-    for log in logs:
-        d = log["logged_at"][:10]
-        sets_by_date[d] += 1
-
-    # Build a lookup: date_str -> volume_kg
-    vol_by_date: dict[str, float] = {}
-    session_dates: set[str] = set()
-    for s in sessions:
-        d = str(s["session_date"])[:10]
-        vol_by_date[d] = s.get("total_volume_kg") or 0
-        session_dates.add(d)
-
-    # Build grid: list of weeks, each a list of 7 days (Mon→Sun)
-    grid = []
-    for w in range(weeks):
-        week_start = start_monday + timedelta(weeks=w)
-        week = []
-        for d in range(7):
-            day = week_start + timedelta(days=d)
-            ds = str(day)
-            week.append({
-                "date": ds,
-                "sets": sets_by_date.get(ds, 0),
-                "volume_kg": round(vol_by_date.get(ds, 0), 1),
-                "has_session": ds in session_dates,
-                "future": day > today,
-            })
-        grid.append(week)
-
-    total_sessions = len(session_dates)
-    return {
-        "weeks": grid,
-        "total_sessions": total_sessions,
-        "has_data": total_sessions > 0,
-    }
+    return _build_volume_heatmap(
+        weeks=weeks,
+        today=today,
+        sessions=sessions_response.data or [],
+        logs=logs_response.data or [],
+    )
 
 
 @router.get("/predictions/trajectory")
@@ -167,71 +181,82 @@ async def get_exercise_catalog(current_user: dict = Depends(get_current_user)):
 
 @router.get("/muscle-balance")
 async def get_muscle_balance(
-    weeks: int = 4,
+    weeks: int = Query(default=4, ge=1, le=16),
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Returns muscle group training frequency as a percentage of total sessions,
-    computed from real exercise_logs. Used by RadarChart in AnalyticsScreen.
+    Compare classified working-set counts with the most-logged primary group.
+    Each exercise log contributes one primary group; secondary involvement is
+    not fractionally attributed. Percentages are descriptive, not hypertrophy.
     """
     sb = get_supabase()
-    user_id = current_user["user_id"]
     cutoff = str(date.today() - timedelta(weeks=weeks))
-
-    logs_res = (
+    logs_response = (
         sb.table("exercise_logs")
         .select("exercise_name, logged_at, is_warmup")
-        .eq("user_id", user_id)
+        .eq("user_id", current_user["user_id"])
         .gte("logged_at", cutoff)
         .execute()
     )
-    # Warm-up rows do not count as working-set exposure in the balance view.
-    logs = [row for row in (logs_res.data or []) if not row.get("is_warmup")]
+    logs = [row for row in (logs_response.data or []) if not row.get("is_warmup")]
 
     if not logs:
         return {
             "has_data": False,
             "muscle_groups": [],
-            "empty_state": f"Complete {3 if weeks <= 4 else weeks} workouts to unlock muscle balance.",
+            "empty_state": "Log working sets to start building your primary-muscle distribution.",
+            "total_sets": 0,
+            "weeks": weeks,
+            "comparison_basis": "percentage_of_highest_primary_group",
+            "lower_exposure_threshold_pct": 40,
         }
 
-    # Resolve using the shared curated catalogue and legacy-name fallback.
     muscle_sets: dict[str, int] = defaultdict(int)
-    total_sets = 0
+    classified_sets = 0
     for log in logs:
-        mg = classify_muscle_group(log.get("exercise_name", ""))
-        if mg:
-            muscle_sets[mg] += 1
-            total_sets += 1
+        group = classify_muscle_group(log.get("exercise_name", ""))
+        if group:
+            muscle_sets[group] += 1
+            classified_sets += 1
 
-    if total_sets == 0:
+    if classified_sets == 0:
         return {
             "has_data": False,
             "muscle_groups": [],
-            "empty_state": "Log exercises with recognized names (Bench Press, Squat, Deadlift) to see muscle balance.",
+            "empty_state": "No logged exercises matched the catalogue yet. Use a supported exercise name to classify primary-muscle exposure.",
+            "total_sets": 0,
+            "weeks": weeks,
+            "comparison_basis": "percentage_of_highest_primary_group",
+            "lower_exposure_threshold_pct": 40,
         }
 
     all_groups = ["Chest", "Back", "Shoulders", "Arms", "Core", "Legs"]
-    max_sets = max(muscle_sets.values()) if muscle_sets else 1
-    result = []
-    for g in all_groups:
-        count = muscle_sets.get(g, 0)
-        pct = round((count / max_sets) * 100) if max_sets > 0 else 0
-        result.append({"name": g, "sets": count, "pct": pct})
+    peak_sets = max(muscle_sets.values()) or 1
+    groups = [
+        {
+            "name": name,
+            "sets": muscle_sets.get(name, 0),
+            "pct": round((muscle_sets.get(name, 0) / peak_sets) * 100),
+        }
+        for name in all_groups
+    ]
+    lower_exposure = [group["name"] for group in groups if group["pct"] < 40]
 
-    lagging = [g["name"] for g in result if g["pct"] < 40]
     return {
         "has_data": True,
-        "muscle_groups": result,
-        "lagging": lagging,
-        "total_sets": total_sets,
+        "muscle_groups": groups,
+        "lower_exposure_groups": lower_exposure,
+        "lagging": lower_exposure,
+        "total_sets": classified_sets,
         "weeks": weeks,
+        "comparison_basis": "percentage_of_highest_primary_group",
+        "lower_exposure_threshold_pct": 40,
     }
 
 
 @router.get("/pr-timeline")
 async def get_pr_timeline(
-    limit: int = 20,
+    limit: int = Query(default=20, ge=1, le=50),
     current_user: dict = Depends(get_current_user),
 ):
     """

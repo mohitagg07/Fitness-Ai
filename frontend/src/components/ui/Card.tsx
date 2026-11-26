@@ -1,19 +1,5 @@
 // VYRN — Card primitive
-//
-// Every card in the app — dashboard tiles, coach response cards, PR rows,
-// nutrition cards, insight banners — must render through this component.
-// Five variants cover every real case we have; if a screen needs a sixth,
-// that's a sign the layout problem should be solved with props here, not
-// with a new one-off <View style={...}> on that screen.
-//
-// Two elevation levels: 'standard' (the default — nearly every card) and
-// 'hero' (the one primary surface per screen, e.g. AI Readiness). Hero
-// gets a slightly brighter border and a deeper, softer shadow so it reads
-// as "the main thing" without needing a louder color or a bigger badge.
-//
-// Entrance motion is opt-in. Most cards render immediately so screen
-// transitions stay responsive and data-heavy dashboards do not animate
-// every surface at once. Use animate only for a deliberate hero moment.
+// Entrance motion is opt-in; keep repeated dashboard surfaces responsive.
 
 import React, { useEffect, useRef } from 'react';
 import { Animated, TouchableOpacity, StyleSheet, ViewStyle, StyleProp, Easing } from 'react-native';
@@ -28,25 +14,20 @@ export type CardElevation = 'standard' | 'hero';
 
 const PADDING_MAP: Record<CardPadding, number> = {
   none: 0,
-  sm: SPACING.md,   // 12 — dense rows (PR list, chip rows)
-  md: SPACING.lg,   // 16 — default card density
-  lg: SPACING.xl,   // 24 — hero / primary CTA cards
+  sm: SPACING.md,
+  md: SPACING.lg,
+  lg: SPACING.xl,
 };
 
 interface CardProps {
   variant?: CardVariant;
   padding?: CardPadding;
-  /** 'hero' = the single primary surface on a screen (deeper shadow, brighter edge). */
   elevation?: CardElevation;
-  /** Required for 'accent' (left bar / tint) and 'gradient' (fill) variants. */
   accentColor?: string;
-  /** Second gradient stop — defaults to accentColor at lower opacity if omitted. */
   accentColorTo?: string;
   onPress?: () => void;
   disabled?: boolean;
-  /** Fade + rise on mount. Opt in only for a deliberate hero surface. */
   animate?: boolean;
-  /** Stagger multiple cards fading in one after another (ms). */
   animationDelay?: number;
   style?: StyleProp<ViewStyle>;
   children: React.ReactNode;
@@ -69,39 +50,34 @@ export default function Card({
 }: CardProps) {
   const pad = PADDING_MAP[padding];
   const isHero = elevation === 'hero';
-
   const progress = useRef(new Animated.Value(animate ? 0 : 1)).current;
+
   useEffect(() => {
-    if (!animate) return;
-    const anim = Animated.timing(progress, {
+    progress.stopAnimation();
+    if (!animate) {
+      progress.setValue(1);
+      return undefined;
+    }
+
+    progress.setValue(0);
+    const animation = Animated.timing(progress, {
       toValue: 1,
       duration: 240,
-      delay: animationDelay,
+      delay: Math.max(0, animationDelay),
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     });
-    anim.start();
-    return () => anim.stop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    animation.start();
+    return () => animation.stop();
+  }, [animate, animationDelay, progress]);
 
   const mountStyle = {
     opacity: progress,
-    transform: [
-      {
-        translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }),
-      },
-    ],
+    transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }],
   };
 
   const heroShadow: ViewStyle = isHero
-    ? {
-        shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.18,
-        shadowRadius: 18,
-        elevation: 5,
-      }
+    ? { shadowColor: '#000000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.18, shadowRadius: 18, elevation: 5 }
     : {};
 
   const InnerWrapper = onPress ? TouchableOpacity : Animated.View;
@@ -113,12 +89,7 @@ export default function Card({
     return (
       <Animated.View style={mountStyle}>
         <InnerWrapper {...innerProps} style={[styles.base, { padding: pad, borderWidth: 0 }, ELEVATION.glow(accentColor) as any, style]}>
-          <LinearGradient
-            colors={[accentColor, accentColorTo || alpha(accentColor, 0.55)]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
+          <LinearGradient colors={[accentColor, accentColorTo || alpha(accentColor, 0.55)]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
           {children}
         </InnerWrapper>
       </Animated.View>
@@ -131,14 +102,8 @@ export default function Card({
       : variant === 'outlined'
       ? { backgroundColor: 'transparent', borderWidth: 1, borderColor: COLORS.borderLight }
       : variant === 'accent'
-      ? {
-          backgroundColor: COLORS.card,
-          borderWidth: 1,
-          borderColor: alpha(accentColor, 0.3),
-          borderLeftWidth: 3,
-          borderLeftColor: accentColor,
-        }
-      : { backgroundColor: COLORS.card, borderWidth: 1, borderColor: isHero ? COLORS.borderLight : COLORS.cardBorder, ...ELEVATION.low, ...heroShadow }; // flat
+      ? { backgroundColor: COLORS.card, borderWidth: 1, borderColor: alpha(accentColor, 0.3), borderLeftWidth: 3, borderLeftColor: accentColor }
+      : { backgroundColor: COLORS.card, borderWidth: 1, borderColor: isHero ? COLORS.borderLight : COLORS.cardBorder, ...ELEVATION.low, ...heroShadow };
 
   return (
     <Animated.View style={mountStyle}>
@@ -150,8 +115,5 @@ export default function Card({
 }
 
 const styles = StyleSheet.create({
-  base: {
-    borderRadius: RADIUS.card,
-    overflow: 'hidden',
-  },
+  base: { borderRadius: RADIUS.card, overflow: 'hidden' },
 });
