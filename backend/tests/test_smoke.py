@@ -380,3 +380,14 @@ def test_training_day_resolver_returns_none_when_schedule_does_not_define_day() 
     from services.nutrition import resolve_training_day_from_schedule
 
     assert resolve_training_day_from_schedule({"mon": "push"}, date(2026, 11, 24)) is None
+
+
+def test_weekly_review_cache_requires_recent_timestamp() -> None:
+    from datetime import datetime, timedelta, timezone
+    from api.routes.review import _is_weekly_cache_fresh
+
+    now = datetime(2026, 11, 27, 12, 0, tzinfo=timezone.utc)
+    assert _is_weekly_cache_fresh((now - timedelta(minutes=5)).isoformat(), now)
+    assert not _is_weekly_cache_fresh((now - timedelta(minutes=20)).isoformat(), now)
+    assert not _is_weekly_cache_fresh((now + timedelta(minutes=10)).isoformat(), now)
+    assert not _is_weekly_cache_fresh(None, now)
