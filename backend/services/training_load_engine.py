@@ -253,82 +253,109 @@ RECOVERY_WINDOW_HOURS = {
 }
 
 
-def compute_muscle_recovery_map(user_id: str) -> dict:
-    """
-    For each muscle group: hours since it was last trained (from the most
-    recent exercise_logs row that classify_muscle_group() maps to that
-    group), turned into a 0-100% recovery estimate via a linear ramp
-    across RECOVERY_WINDOW_HOURS, capped at 100. A group with no logged
-    history in the last 21 days is reported as "no_data" rather than a
-    fabricated 100% — a group that's never been trained isn't "recovered,"
-    it's simply unmeasured.
+def build_muscle_recovery_map_from_logs(
+    logs: list[dict],
+    now: datetime | None = None,
+) -> dict:
+    """Build recovery and recent workload details from persisted working sets.
 
-    This is the backing data for the Muscle Recovery Map — colors are a
-    presentation detail the frontend derives from recovery_pct
-    (>=80 green, 40-79 yellow, <40 red), not computed here, so the two
-    stay in sync by construction rather than by convention.
+    The recovery percentage is an estimate based on elapsed time since the
+    latest logged working set and a broad muscle-group recovery window. The
+    additional 7-day volume and exercise list are descriptive training data,
+    not biological measurements.
     """
     from datetime import datetime, timezone
+
+    now = now or datetime.now(timezone.utc)
+    last_trained: dict[str, datetime] = {}
+    volume_7d: dict[str, float] = {}
+    sets_7d: dict[str, int] = {}
+    exercises_7d: dict[str, set[str]] = {}
+
+    for log in logs:
+        if log.get("is_warmup"):
+            continue
+        exercise_name = str(log.get("exercise_name") or "").strip()
+        group = classify_muscle_group(exercise_name)
+        timestamp = log.get("logged_at")
+        if not group or not timestamp:
+            continue
+
+        try:
+            trained_at = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
+            if trained_at.tzinfo is None:
+                trained_at = trained_at.replace(tzinfo=timezone.utc)
+        except (TypeError, ValueError):
+            continue
+
+        previous = last_trained.get(group)
+        if previous is None or trained_at > previous:
+            last_trained[group] = trained_at
+
+        hours_ago = max(0.0, (now - trained_at).total_seconds() / 3600)
+        if hours_ago <= 7 * 24:
+            weight = float(log.get("weight_kg") or 0)
+            reps = int(log.get("reps") or 0)
+            volume_7d[group] = volume_7d.get(group, 0.0) + weight * reps
+            sets_7d[group] = sets_7d.get(group, 0) + 1
+            exercises_7d.setdefault(group, set()).add(exercise_name)
+
+    groups_out = []
+    for group in ALL_GROUPS:
+        trained_at = last_trained.get(group)
+        shared = {
+            "name": group,
+            "volume_7d_kg": round(volume_7d.get(group, 0.0), 1),
+            "working_sets_7d": sets_7d.get(group, 0),
+            "exercises_7d": sorted(exercises_7d.get(group, set())),
+        }
+        if trained_at is None:
+            groups_out.append({
+                **shared,
+                "recovery_pct": None,
+                "hours_since_trained": None,
+                "status": "no_data",
+                "last_trained_at": None,
+            })
+            continue
+
+        hours_since = max(0.0, (now - trained_at).total_seconds() / 3600)
+        window = RECOVERY_WINDOW_HOURS.get(group, 48)
+        recovery_pct = min(100, round((hours_since / window) * 100))
+        status = "green" if recovery_pct >= 80 else "yellow" if recovery_pct >= 40 else "red"
+        groups_out.append({
+            **shared,
+            "recovery_pct": recovery_pct,
+            "hours_since_trained": round(hours_since, 1),
+            "status": status,
+            "last_trained_at": trained_at.isoformat(),
+        })
+
+    return {
+        "muscle_groups": groups_out,
+        "has_data": any(group["status"] != "no_data" for group in groups_out),
+        "model_note": (
+            "Recovery percentages are time-based estimates from logged working sets, "
+            "not direct measurements of muscle readiness or soreness."
+        ),
+    }
+
+
+def compute_muscle_recovery_map(user_id: str) -> dict:
+    """Return per-muscle recovery estimates and last-seven-day working volume."""
+    from datetime import date
 
     sb = get_supabase()
     cutoff = str(date.today() - timedelta(days=21))
     res = (
         sb.table("exercise_logs")
-        .select("exercise_name, logged_at, is_warmup")
+        .select("exercise_name, weight_kg, reps, logged_at, is_warmup")
         .eq("user_id", user_id)
         .gte("logged_at", cutoff)
         .order("logged_at")
         .execute()
     )
-    logs = res.data or []
-
-    last_trained: dict[str, str] = {}
-    for log in logs:
-        if log.get("is_warmup"):
-            continue
-        group = classify_muscle_group(log.get("exercise_name", ""))
-        if not group:
-            continue
-        logged_at = log.get("logged_at")
-        if not logged_at:
-            continue
-        # logs are ordered ascending, so the last write per group wins —
-        # simplest way to keep "most recent" without a second sort pass.
-        last_trained[group] = logged_at
-
-    now = datetime.now(timezone.utc)
-    groups_out = []
-    for g in ALL_GROUPS:
-        ts = last_trained.get(g)
-        if not ts:
-            groups_out.append({
-                "name": g, "recovery_pct": None, "hours_since_trained": None,
-                "status": "no_data",
-            })
-            continue
-        try:
-            trained_at = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-        except Exception:
-            groups_out.append({
-                "name": g, "recovery_pct": None, "hours_since_trained": None,
-                "status": "no_data",
-            })
-            continue
-        hours_since = max(0.0, (now - trained_at).total_seconds() / 3600)
-        window = RECOVERY_WINDOW_HOURS.get(g, 48)
-        recovery_pct = min(100, round((hours_since / window) * 100))
-        status = "green" if recovery_pct >= 80 else "yellow" if recovery_pct >= 40 else "red"
-        groups_out.append({
-            "name": g,
-            "recovery_pct": recovery_pct,
-            "hours_since_trained": round(hours_since, 1),
-            "status": status,
-        })
-
-    return {
-        "muscle_groups": groups_out,
-        "has_data": any(g["status"] != "no_data" for g in groups_out),
-    }
+    return build_muscle_recovery_map_from_logs(res.data or [])
 
 
 def run_training_load_engine(user_id: str) -> dict:
