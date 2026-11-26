@@ -15,7 +15,7 @@ import {
 import Svg, { Rect, Line, Path, Circle, Text as SvgT, G } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { progressApi, nutritionApi, profileApi, describeApiError } from '../../utils/api';
-import { COLORS, recoveryColor } from '../../theme/colors';
+import { COLORS, alpha, recoveryColor } from '../../theme/colors';
 import NutritionSearchModal from './NutritionSearchModal';
 import WeightChart from './WeightChart';
 import Logo from '../shared/Logo';
