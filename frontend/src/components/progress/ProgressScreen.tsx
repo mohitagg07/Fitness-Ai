@@ -162,10 +162,10 @@ function TodayMacros({ todayData }: { todayData: any }) {
 
 // ─── Calories vs Target ────────────────────────────────────────────────────────
 function CaloriesChart({ history, targetCal }: { history: any[]; targetCal: number }) {
-  const days = history.slice(0, 7).reverse();
-  if (days.length < 2) return null;
   const [chartWidth, setChartWidth] = useState(320);
   const W = chartWidth, H = 80;
+  const days = history.slice(0, 7).reverse();
+  if (days.length < 2) return null;
   const PAD = { l: 36, r: 8, t: 8, b: 20 };
   const plotW = W - PAD.l - PAD.r;
   const plotH = H - PAD.t - PAD.b;
@@ -198,12 +198,12 @@ function CaloriesChart({ history, targetCal }: { history: any[]; targetCal: numb
 
 // ─── Recovery Trend sparkline ──────────────────────────────────────────────────
 function RecoveryTrend({ metrics }: { metrics: any[] }) {
+  const [chartWidth, setChartWidth] = useState(320);
+  const W = chartWidth, H = 80;
   const data = metrics.filter(m => m.recovery_score != null).slice(0, 14).reverse();
   if (data.length < 2) return (
     <View style={styles.chartCard}><Text style={styles.sectionLabel}>RECOVERY TREND</Text><Text style={styles.emptyNote}>Log recovery scores to see your trend.</Text></View>
   );
-  const [chartWidth, setChartWidth] = useState(320);
-  const W = chartWidth, H = 80;
   const PAD = { l: 8, r: 8, t: 8, b: 8 };
   const plotW = W - PAD.l - PAD.r, plotH = H - PAD.t - PAD.b;
   const vals = data.map(m => m.recovery_score || 0);
