@@ -60,7 +60,11 @@ def _is_weekly_cache_fresh(generated_at, now: datetime | None = None) -> bool:
         return False
 
 
-def _read_weekly_cache(user_id: str, week_label: str) -> dict | None:
+def _read_weekly_cache(
+    user_id: str,
+    week_label: str,
+    require_fresh: bool = True,
+) -> dict | None:
     try:
         sb = get_supabase()
         res = (
@@ -73,7 +77,7 @@ def _read_weekly_cache(user_id: str, week_label: str) -> dict | None:
         )
         if res.data:
             row = res.data[0]
-            if not _is_weekly_cache_fresh(row.get("generated_at")):
+            if require_fresh and not _is_weekly_cache_fresh(row.get("generated_at")):
                 return None
             return {**row["payload"], "week_label": week_label, "generated_at": row["generated_at"]}
     except Exception as e:
@@ -129,7 +133,15 @@ async def get_weekly_review(
     start, end = _week_range(weeks_ago)
     week_label = f"{start.strftime('%b %d')} – {end.strftime('%b %d, %Y')}"
 
-    cached = await asyncio.to_thread(_read_weekly_cache, user_id, week_label)
+    # The current week is still changing as the user trains and logs meals,
+    # so keep its cache short-lived. Completed historical weeks are immutable
+    # and should remain cached instead of triggering repeated LLM generation.
+    cached = await asyncio.to_thread(
+        _read_weekly_cache,
+        user_id,
+        week_label,
+        weeks_ago == 0,
+    )
     if cached is not None:
         return cached
 
