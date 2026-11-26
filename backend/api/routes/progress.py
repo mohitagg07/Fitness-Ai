@@ -25,7 +25,10 @@ def _build_volume_heatmap(
     sessions: list[dict],
     logs: list[dict],
 ) -> dict:
-    """Build a Mon-Sun grid without double-counting days or overwriting sessions."""
+    """Build a Mon-Sun grid without double-counting days or overwriting sessions.
+
+    Working-set logs remain visible while a session is still in progress.
+    """
     start_monday = today - timedelta(days=today.weekday() + 7 * (weeks - 1))
     set_counts: dict[str, int] = defaultdict(int)
     for log in logs:
