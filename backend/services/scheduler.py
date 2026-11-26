@@ -26,10 +26,9 @@ Implements the automation layer described in the roadmap:
     └── Morning Brief Prep   — pre-compute tomorrow's dashboard mission so
                                 the very first request of the day is fast.
 
-This module is intentionally dependency-light: it uses APScheduler's
-BackgroundScheduler (in-process, no separate worker needed for a project
-this size) and degrades to a no-op if APScheduler isn't installed, so a
-missing optional dependency never breaks the API server itself.
+This scheduler is started only by backend/worker.py as a dedicated
+background process. It must not be started from a FastAPI/Uvicorn lifespan:
+multiple API workers or replicas would each execute every global job.
 
 "Active user" = anyone with a workout_sessions or nutrition_logs row in the
 last 30 days. Running every agent for every signed-up-but-inactive user
