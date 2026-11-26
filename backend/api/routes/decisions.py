@@ -137,11 +137,20 @@ async def update_outcome(
         raise HTTPException(400, f"outcome must be one of: {', '.join(allowed)}")
 
     try:
-        sb.table("ai_decisions").update({
-            "outcome": payload.outcome,
-            "outcome_note": payload.outcome_note,
-        }).eq("id", decision_id).eq("user_id", current_user["user_id"]).execute()
-        return {"updated": True}
+        res = (
+            sb.table("ai_decisions")
+            .update({
+                "outcome": payload.outcome,
+                "outcome_note": payload.outcome_note,
+            })
+            .eq("id", decision_id)
+            .eq("user_id", current_user["user_id"])
+            .select("id, outcome, outcome_note")
+            .execute()
+        )
+        if not res.data:
+            raise HTTPException(404, "Decision not found")
+        return {"updated": True, "decision": res.data[0]}
     except Exception as e:
         raise HTTPException(500, f"Failed to update outcome: {e}")
 
