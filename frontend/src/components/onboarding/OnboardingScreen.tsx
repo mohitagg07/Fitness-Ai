@@ -27,7 +27,7 @@ import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { profileApi } from '../../utils/api';
 import { actions } from '../../store';
-import { COLORS } from '../../theme/colors';
+import { COLORS, alpha } from '../../theme/colors';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const RING_SIZE = 84;
@@ -390,7 +390,7 @@ export default function OnboardingScreen() {
             disabled={slide === 0}
             style={[styles.backButton, slide === 0 && styles.backButtonHidden]}
           >
-            <Ionicons name="chevron-back" size={22} color="#9AA5B1" />
+            <Ionicons name="chevron-back" size={22} color={COLORS.textSecondary} />
           </Pressable>
 
           <ProgressRing progress={(slide + 1) / SLIDE_COUNT}>
@@ -403,12 +403,12 @@ export default function OnboardingScreen() {
               ]}
             >
               {submitting || isCheckingUsername ? (
-                <ActivityIndicator color="#0A0A0A" />
+                <ActivityIndicator color={COLORS.background} />
               ) : (
                 <Ionicons
                   name={slide === SLIDE_COUNT - 1 ? 'checkmark' : 'arrow-forward'}
                   size={26}
-                  color="#0A0A0A"
+                  color={COLORS.background}
                 />
               )}
             </Pressable>
@@ -424,7 +424,7 @@ export default function OnboardingScreen() {
       {showSuccess && (
         <View style={styles.successOverlay}>
           <View style={styles.successCheck}>
-            <Ionicons name="checkmark" size={32} color="#0A0A0A" />
+            <Ionicons name="checkmark" size={32} color={COLORS.background} />
           </View>
           <Text style={styles.successText}>
             Welcome{form.full_name.trim() ? `, ${form.full_name.trim().split(' ')[0]}` : ''}
@@ -453,7 +453,7 @@ function ProgressRing({
           cx={RING_SIZE / 2}
           cy={RING_SIZE / 2}
           r={RING_RADIUS}
-          stroke="#2A2A2A"
+          stroke={COLORS.border}
           strokeWidth={RING_STROKE}
           fill="none"
         />
@@ -649,7 +649,7 @@ const SlideWelcome = React.memo(function SlideWelcome({
         ref={nameRef}
         style={styles.input}
         placeholder="Full name"
-        placeholderTextColor="#666"
+        placeholderTextColor={COLORS.textMuted}
         value={form.full_name}
         onChangeText={(v) => setForm((f) => ({ ...f, full_name: v }))}
         onBlur={() => setTouched((t) => ({ ...t, name: true }))}
@@ -682,7 +682,7 @@ const SlideWelcome = React.memo(function SlideWelcome({
         ref={usernameRef}
         style={styles.input}
         placeholder="username"
-        placeholderTextColor="#666"
+        placeholderTextColor={COLORS.textMuted}
         autoCapitalize="none"
         autoCorrect={false}
         value={form.username}
@@ -716,7 +716,7 @@ const SlideWelcome = React.memo(function SlideWelcome({
         ref={dobRef}
         style={styles.input}
         placeholder="DD/MM/YYYY"
-        placeholderTextColor="#666"
+        placeholderTextColor={COLORS.textMuted}
         keyboardType="number-pad"
         maxLength={10}
         value={form.dob}
@@ -768,7 +768,7 @@ const SlideBody = React.memo(function SlideBody({
           <TextInput
             style={styles.input}
             placeholder="175"
-            placeholderTextColor="#666"
+            placeholderTextColor={COLORS.textMuted}
             keyboardType="decimal-pad"
             value={form.height_cm}
             onChangeText={(v) => setForm((f) => ({ ...f, height_cm: v.replace(/[^0-9.]/g, '') }))}
@@ -779,7 +779,7 @@ const SlideBody = React.memo(function SlideBody({
           <TextInput
             style={styles.input}
             placeholder="75"
-            placeholderTextColor="#666"
+            placeholderTextColor={COLORS.textMuted}
             keyboardType="decimal-pad"
             value={form.weight_kg}
             onChangeText={(v) => setForm((f) => ({ ...f, weight_kg: v.replace(/[^0-9.]/g, '') }))}
@@ -791,7 +791,7 @@ const SlideBody = React.memo(function SlideBody({
       <TextInput
         style={styles.input}
         placeholder="70"
-        placeholderTextColor="#666"
+        placeholderTextColor={COLORS.textMuted}
         keyboardType="decimal-pad"
         value={form.target_weight_kg}
         onChangeText={(v) => setForm((f) => ({ ...f, target_weight_kg: v.replace(/[^0-9.]/g, '') }))}
@@ -999,10 +999,10 @@ const SelectRow = React.memo(function SelectRow({
 });
 
 const styles = StyleSheet.create({
-  bg: { flex: 1, backgroundColor: '#111111' },
+  bg: { flex: 1, backgroundColor: COLORS.background },
   scrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(17,17,17,0.78)', // keeps form fields/text legible over the photo
+    backgroundColor: alpha(COLORS.background, 0.88), // keeps form fields/text legible over the photo
   },
   container: { flex: 1, backgroundColor: 'transparent' },
   pager: { flex: 1 },
@@ -1010,18 +1010,18 @@ const styles = StyleSheet.create({
   slideContent: { flex: 1, paddingHorizontal: 24, paddingTop: 64 },
   trainingScroll: { flex: 1 },
   trainingContent: { flexGrow: 1, paddingBottom: 24 },
-  slideTitle: { fontSize: 30, fontWeight: '800', color: '#E8ECEF' },
-  slideSubtitle: { fontSize: 14, color: '#9AA5B1', marginTop: 6, marginBottom: 28 },
-  label: { fontSize: 12, fontWeight: '600', color: '#9AA5B1', marginBottom: 8, marginTop: 18, letterSpacing: 0.5 },
+  slideTitle: { fontSize: 30, fontWeight: '700', color: COLORS.text, letterSpacing: -0.5 },
+  slideSubtitle: { fontSize: 14, color: COLORS.textSecondary, marginTop: 7, marginBottom: 28, lineHeight: 20 },
+  label: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 8, marginTop: 18, letterSpacing: 0.7 },
   input: {
-    backgroundColor: '#141414',
-    borderRadius: 12,
+    backgroundColor: COLORS.inputBg,
+    borderRadius: 14,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 15,
     fontSize: 16,
-    color: '#E8ECEF',
+    color: COLORS.text,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: COLORS.borderLight,
   },
   fieldError: { color: COLORS.danger, fontSize: 12, marginTop: 6, fontWeight: '500' },
   row2: { flexDirection: 'row', gap: 12 },
@@ -1035,27 +1035,27 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primaryGreen,
     alignItems: 'center', justifyContent: 'center',
   },
-  identityAvatarText: { color: '#0A0A0A', fontSize: 18, fontWeight: '800' },
-  identityName: { color: '#E8ECEF', fontSize: 15, fontWeight: '700' },
-  identityHandle: { color: '#9AA5B1', fontSize: 12, marginTop: 1 },
+  identityAvatarText: { color: COLORS.background, fontSize: 18, fontWeight: '800' },
+  identityName: { color: COLORS.text, fontSize: 15, fontWeight: '700' },
+  identityHandle: { color: COLORS.textSecondary, fontSize: 12, marginTop: 1 },
   labelRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     marginTop: 18, marginBottom: 8,
   },
   labelInRow: { marginTop: 0, marginBottom: 0 },
-  usernameStatus: { fontSize: 12, fontWeight: '600', color: '#9AA5B1' },
+  usernameStatus: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary },
   checkingRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  shimmerBar: { width: 28, height: 8, borderRadius: 4, backgroundColor: '#2A2A2A' },
+  shimmerBar: { width: 28, height: 8, borderRadius: 4, backgroundColor: COLORS.border },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   chip: {
     paddingHorizontal: 14, paddingVertical: 10, borderRadius: 16, minHeight: 36,
-    backgroundColor: '#171717', borderWidth: 1, borderColor: '#2A2A2A',
+    backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.borderLight,
     alignItems: 'center', justifyContent: 'center',
   },
-  chipText: { color: '#9AA5B1', fontSize: 12, fontWeight: '600' },
+  chipText: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '600' },
   chipActive: { backgroundColor: COLORS.primaryGreen, borderColor: COLORS.primaryGreen },
-  chipTextActive: { color: '#0A0A0A' },
-  helperText: { color: '#78838F', fontSize: 11, lineHeight: 16, marginTop: -2 },
+  chipTextActive: { color: COLORS.background },
+  helperText: { color: COLORS.textMuted, fontSize: 11, lineHeight: 16, marginTop: -2 },
   selectRow: { flexDirection: 'row', gap: 10 },
   selectRowWrap: { flexWrap: 'wrap' },
   pill: {
@@ -1063,48 +1063,48 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     minHeight: 44,
     borderRadius: 20,
-    backgroundColor: '#171717',
+    backgroundColor: COLORS.cardElevated,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: COLORS.borderLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
   pillActive: { backgroundColor: COLORS.primaryGreen, borderColor: COLORS.primaryGreen },
-  pillText: { color: '#9AA5B1', fontSize: 13, fontWeight: '600' },
-  pillTextActive: { color: '#0A0A0A' },
+  pillText: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '600' },
+  pillTextActive: { color: COLORS.background },
   stepperRow: { flexDirection: 'row', gap: 8 },
   stepperPill: {
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: '#171717', borderWidth: 1, borderColor: '#2A2A2A',
+    backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.borderLight,
     alignItems: 'center', justifyContent: 'center',
   },
   stepperPillActive: { backgroundColor: COLORS.primaryGreen, borderColor: COLORS.primaryGreen },
-  stepperText: { color: '#9AA5B1', fontWeight: '700' },
-  stepperTextActive: { color: '#0A0A0A' },
+  stepperText: { color: COLORS.textSecondary, fontWeight: '700' },
+  stepperTextActive: { color: COLORS.background },
   errorBanner: {
     marginHorizontal: 24, marginBottom: 8,
-    backgroundColor: '#2A1414', borderRadius: 10, padding: 12,
-    borderWidth: 1, borderColor: '#5C2424',
+    backgroundColor: alpha(COLORS.recoveryLow, 0.12), borderRadius: 10, padding: 12,
+    borderWidth: 1, borderColor: alpha(COLORS.recoveryLow, 0.32),
   },
-  errorText: { color: '#F25252', fontSize: 13 },
+  errorText: { color: COLORS.recoveryLow, fontSize: 13 },
   footer: { paddingHorizontal: 24, paddingBottom: 28, paddingTop: 8 },
   progressLabelRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline',
     marginBottom: 8,
   },
-  progressLabel: { color: '#E8ECEF', fontSize: 13, fontWeight: '700' },
-  progressLabelMuted: { color: '#5C5C5C', fontSize: 12, fontWeight: '600' },
+  progressLabel: { color: COLORS.text, fontSize: 13, fontWeight: '700' },
+  progressLabelMuted: { color: COLORS.textMuted, fontSize: 12, fontWeight: '600' },
   segments: { flexDirection: 'row', gap: 6, marginBottom: 14 },
-  segment: { flex: 1, height: 3, borderRadius: 2, backgroundColor: '#2A2A2A' },
+  segment: { flex: 1, height: 3, borderRadius: 2, backgroundColor: COLORS.border },
   segmentActive: { backgroundColor: COLORS.primaryGreen },
   footerCaption: {
-    textAlign: 'center', color: '#9AA5B1', fontSize: 12, fontWeight: '600', marginBottom: 8,
+    textAlign: 'center', color: COLORS.textSecondary, fontSize: 12, fontWeight: '600', marginBottom: 8,
   },
   controlsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   backButton: {
     width: 44, height: 44, borderRadius: 22,
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#171717',
+    backgroundColor: COLORS.cardElevated,
   },
   backButtonHidden: { opacity: 0, width: 44, height: 44 },
   ringWrap: { width: RING_SIZE, height: RING_SIZE, alignItems: 'center', justifyContent: 'center' },
@@ -1113,10 +1113,10 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primaryGreen,
     alignItems: 'center', justifyContent: 'center',
   },
-  nextButtonBusy: { backgroundColor: '#8FDC85' },
+  nextButtonBusy: { backgroundColor: COLORS.recoveryHigh },
   successOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(17,17,17,0.96)',
+    backgroundColor: alpha(COLORS.background, 0.96),
     alignItems: 'center', justifyContent: 'center', gap: 16,
   },
   successCheck: {
@@ -1124,5 +1124,5 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primaryGreen,
     alignItems: 'center', justifyContent: 'center',
   },
-  successText: { color: '#E8ECEF', fontSize: 18, fontWeight: '700' },
+  successText: { color: COLORS.text, fontSize: 18, fontWeight: '700' },
 });
