@@ -22,6 +22,7 @@ import { useLogSet } from '../../hooks/useWorkoutMutations';
 import { COLORS, alpha } from '../../theme/colors';
 import { FONTS, EYEBROW, BODY } from '../../theme/typography';
 import { SPACING, RADIUS } from '../../theme/spacing';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AmbientGlow from '../shared/AmbientGlow';
 import WorkoutSummaryCard from './WorkoutSummaryCard';
 import WorkoutHistoryModal from './WorkoutHistoryModal';
@@ -198,6 +199,7 @@ function WorkoutHUD() {
   // every second for the live clock/rest timer; without a selector it was
   // ALSO re-rendering on every chat message and CNS-fatigue update fired
   // from the Coach/Dashboard tabs in the background.
+  const insets = useSafeAreaInsets();
   const {
     activeSession, setActiveSession, addLogToSession, setCnsFatigue,
   } = useStore((s) => ({
@@ -226,6 +228,72 @@ function WorkoutHUD() {
   const [streakData, setStreakData]     = useState<MilestoneInfo | null>(null);
   const [moodPickerVisible, setMoodPickerVisible] = useState(false);
   const [pendingMood, setPendingMood]   = useState<MoodValue | undefined>(undefined);
+  const [isRestoringSession, setIsRestoringSession] = useState(true);
+
+  // Restore an unfinished workout from the server after app restart. Set rows
+  // are already persisted individually; this reconnects them to the live HUD.
+  useEffect(() => {
+    let alive = true;
+    if (activeSession) {
+      setIsRestoringSession(false);
+      return () => { alive = false; };
+    }
+
+    (async () => {
+      try {
+        const response = await workoutApi.getSessions(20);
+        const pending = (Array.isArray(response.data) ? response.data : [])
+          .filter((session: any) => session && session.completed !== true)
+          .sort((a: any, b: any) =>
+            new Date(b.created_at || b.session_date || 0).getTime() -
+            new Date(a.created_at || a.session_date || 0).getTime()
+          );
+        const session = pending[0];
+        if (!alive || !session) return;
+
+        const logs: SetLog[] = (Array.isArray(session.exercise_logs) ? session.exercise_logs : [])
+          .map((log: any) => ({
+            exercise_name: String(log.exercise_name || ''),
+            set_number: Number(log.set_number || 1),
+            weight_kg: Number(log.weight_kg || 0),
+            reps: Number(log.reps || 0),
+            rpe: Number(log.rpe ?? 8),
+          }))
+          .filter((log: SetLog) => log.exercise_name.length > 0)
+          .sort((a: SetLog, b: SetLog) => a.set_number - b.set_number);
+
+        const names = [...new Set(logs.map((log) => log.exercise_name))];
+        const restoredExercises: ExerciseCard[] = names.map((name) => {
+          const exerciseLogs = logs.filter((log) => log.exercise_name === name);
+          const last = exerciseLogs[exerciseLogs.length - 1];
+          return {
+            name,
+            sets: Math.max(3, exerciseLogs.length + 1),
+            reps: String(last?.reps || 8),
+            load: last ? `${last.weight_kg}kg` : '',
+            cue: 'Continue your saved session',
+            rest: '90 sec',
+            completed_sets: exerciseLogs.length,
+          };
+        });
+
+        const createdAt = session.created_at ? new Date(session.created_at).getTime() : Date.now();
+        setActiveSession({
+          ...session,
+          logs,
+          startedAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
+        });
+        setExercises(restoredExercises);
+        if (restoredExercises.length > 0) setActiveIdx(restoredExercises.length - 1);
+      } catch (error: any) {
+        if (__DEV__) console.warn('[Workout] Could not restore active session', error?.message || error);
+      } finally {
+        if (alive) setIsRestoringSession(false);
+      }
+    })();
+
+    return () => { alive = false; };
+  }, []);
 
   // Tick for elapsed time
   useEffect(() => {
@@ -282,7 +350,7 @@ function WorkoutHUD() {
 
   // ── Actions ─────────────────────────────────────────────────────────────────
   const startSession = async () => {
-    if (activeSession) return;
+    if (activeSession || isRestoringSession) return;
     try {
       const res = await workoutApi.createSession({ day_label: 'Training Session' });
       setActiveSession({ ...res.data, logs: [], startedAt: Date.now() });
@@ -531,7 +599,7 @@ function WorkoutHUD() {
   // ── Pre-session ─────────────────────────────────────────────────────────────
   if (!sessionStarted) {
     return (
-      <View style={S.container}>
+      <View style={[S.container, { paddingTop: insets.top }]}>
         <WorkoutSummaryCard
           visible={summaryVisible}
           data={summaryData}
@@ -561,10 +629,10 @@ function WorkoutHUD() {
             Track each set, manage your rest and keep your progress in one place.
             Start with a blank session or let your coach build today's plan.
           </Text>
-          <TouchableOpacity style={S.startBtn} onPress={startSession}>
-            <Text style={S.startBtnText}>Start empty session</Text>
+          <TouchableOpacity style={S.startBtn} onPress={startSession} disabled={isRestoringSession}>
+            <Text style={S.startBtnText}>{isRestoringSession ? 'Checking saved session…' : 'Start empty session'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={S.coachBtn} onPress={askCoachForWorkout}>
+          <TouchableOpacity style={S.coachBtn} onPress={askCoachForWorkout} disabled={isRestoringSession}>
             <Ionicons name="flash" size={16} color={COLORS.primaryGreen} />
             <Text style={S.coachBtnText}>Build today's plan with Coach</Text>
           </TouchableOpacity>
@@ -580,7 +648,7 @@ function WorkoutHUD() {
   // ── Active session ───────────────────────────────────────────────────────────
 
   return (
-    <View style={S.container}>
+    <View style={[S.container, { paddingTop: insets.top }]}>
       <AmbientGlow variant="workout" />
       <MoodPickerModal
         visible={moodPickerVisible}
