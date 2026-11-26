@@ -53,6 +53,7 @@
   "private": true,
   "overrides": {
     "shell-quote": "1.11.0",
-    "decode-uri-component": "0.5.1"
+    "decode-uri-component": "0.5.1",
+    "postcss": "8.5.23"
   }
 }
