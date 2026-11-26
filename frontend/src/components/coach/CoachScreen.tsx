@@ -642,6 +642,7 @@ export default function CoachScreen() {
   // here since the backend doesn't return those as distinct scores.
   const [brief, setBrief] = useState<{ recoveryScore: number; cnsFatigue: number; message: string } | null>(null);
   const flatListRef = useRef<FlashListRef<any>>(null);
+  const historyRequestedRef = useRef(false);
   // Selector form — see src/store/index.ts. CoachScreen needs chatHistory/
   // activeSession/profile/user, but previously re-rendered on every store
   // update including ones it never reads (e.g. Dashboard calling
@@ -650,6 +651,7 @@ export default function CoachScreen() {
   const { chatHistory, addChatMessage, setCnsFatigue, activeSession, profile, user } = useStore((s) => ({
     chatHistory: s.chatHistory,
     addChatMessage: s.addChatMessage,
+    hydrateChatHistory: s.hydrateChatHistory,
     setCnsFatigue: s.setCnsFatigue,
     activeSession: s.activeSession,
     profile: s.profile,
@@ -657,6 +659,37 @@ export default function CoachScreen() {
   }));
   const firstName = user?.full_name?.split(' ')[0] || profile?.full_name?.split(' ')[0] || 'Athlete';
   const hour = new Date().getHours();
+
+  // Restore conversation history from Supabase when the Coach tab opens.
+  // The store guard prevents a slow history request from overwriting a new
+  // message the athlete sends while the request is still in flight.
+  useEffect(() => {
+    if (historyRequestedRef.current) return;
+    historyRequestedRef.current = true;
+    let cancelled = false;
+
+    coachApi.getHistory(50)
+      .then((res) => {
+        if (cancelled || !Array.isArray(res.data)) return;
+        const restored = res.data
+          .filter((row: any) =>
+            (row?.role === 'user' || row?.role === 'assistant') &&
+            typeof row?.content === 'string'
+          )
+          .map((row: any) => ({
+            role: row.role as 'user' | 'assistant',
+            content: row.content,
+            timestamp: row.created_at ? new Date(row.created_at) : new Date(),
+            structured_decision: null,
+          }));
+        hydrateChatHistory(restored);
+      })
+      .catch((err) => {
+        if (__DEV__) console.warn('[Coach] Could not restore chat history', err?.message || err);
+      });
+
+    return () => { cancelled = true; };
+  }, [hydrateChatHistory]);
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   // PERF: previously an independent useEffect fetch of the exact same
