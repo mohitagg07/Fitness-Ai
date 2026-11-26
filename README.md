@@ -197,7 +197,7 @@ Memory is extracted automatically after every coach chat — no tagging, no manu
 | **Database** | Supabase (PostgreSQL + Auth + RLS) | User data, workouts, nutrition logs |
 | **Vector DB** | ChromaDB | Biomechanical safety guardrails + long-term user memory |
 | **AI Agent** | LangGraph | State-machine orchestration of multi-step coach pipeline |
-| **LLM** | Groq (`openai/gpt-oss-120b-versatile`) | Fast inference, structured JSON output |
+| **LLM** | Groq (`openai/gpt-oss-120b`) | Fast inference, structured JSON output |
 | **State** | Custom Zustand-like store | Global client state (token, session, chat history) |
 | **Auth** | JWT (HS256) + Supabase Auth | 30-day tokens, ORPHANED_SESSION detection |
 | **Embedding** | `LocalHashEmbeddingFunction` (custom) | 256-dim deterministic hash embeddings — no ONNX download |
