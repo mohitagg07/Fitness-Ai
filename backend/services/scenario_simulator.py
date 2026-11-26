@@ -248,7 +248,7 @@ def simulate_protein_increase(user_id: str, weeks: int, delta_g_per_day: int = 3
     reflects that instead of a flat number for everyone.
     """
     from db.supabase_client import get_full_user_context
-    from services.nutrition import calculate_macros
+    from services.nutrition import calculate_macros, is_training_day_for_user
     from schemas.models import Goal
 
     profile, _ = get_full_user_context(user_id)
@@ -260,7 +260,7 @@ def simulate_protein_increase(user_id: str, weeks: int, delta_g_per_day: int = 3
         age=profile.get("age") or 28,
         gender=profile.get("gender") or "male",
         goal=goal,
-        is_training_day=True,
+        is_training_day=is_training_day_for_user(user_id),
     )
     protein_target = targets["protein_g"]
     avg_protein = _avg_recent_protein_g(user_id)
