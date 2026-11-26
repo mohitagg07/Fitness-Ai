@@ -136,6 +136,37 @@ def _load_weight_trend(user_id: str, lookback_days: int = 30) -> dict:
     }
 
 
+COACH_STYLE_INSTRUCTIONS = {
+    "friendly": (
+        "Be warm, conversational, and motivating. Explain recommendations "
+        "clearly without sounding clinical or overbearing."
+    ),
+    "supportive": (
+        "Be empathetic and non-judgmental. Acknowledge difficulty, avoid shame, "
+        "and help the athlete choose a manageable next step."
+    ),
+    "scientific": (
+        "Use precise, evidence-aware language. Explain the training rationale "
+        "and distinguish measured data from estimates or uncertainty. Never "
+        "invent citations, physiological facts, or exact predictions."
+    ),
+    "strict": (
+        "Be direct and accountable. Set clear expectations and challenge "
+        "avoidable excuses without insulting or humiliating the athlete."
+    ),
+    "military": (
+        "Use concise, firm, command-style coaching. Prioritize discipline and "
+        "clear actions while remaining respectful and safety-first."
+    ),
+}
+
+
+def get_coach_style_instruction(style: str | None) -> str:
+    """Resolve a persisted coach style to a safe, deterministic prompt rule."""
+    normalized = (style or "friendly").strip().lower()
+    return COACH_STYLE_INSTRUCTIONS.get(normalized, COACH_STYLE_INSTRUCTIONS["friendly"])
+
+
 def get_llm():
     # GPT-OSS returns its private reasoning separately by default. Suppress
     # that field so downstream JSON parsing only receives the final answer.
@@ -359,6 +390,7 @@ def build_workout_node(state: WorkoutGraphState) -> WorkoutGraphState:
         equipment_text = "bodyweight only (no additional equipment recorded)"
     fatigue = state.get("cns_fatigue_score", 0)
     recovery_pct = state.get("recovery_score_pct")
+    coach_style_instruction = get_coach_style_instruction(profile.get("coach_style"))
     recovery_label = f"{recovery_pct}%" if isinstance(recovery_pct, (int, float)) else "unavailable"
     guardrails_text = "\n".join(state.get("guardrails", []))
 
@@ -413,6 +445,9 @@ CRITICAL RULES — READ FIRST:
 7. When planning a workout, provide specific exercises, not vague advice.
 8. NEVER invent a calorie/protein/water number or a body-weight figure. Use ONLY the TODAY'S NUTRITION and BODY WEIGHT sections below — if they say no data, say so honestly instead of guessing.
 9. Respect the athlete's training location and equipment. Never prescribe an exercise that requires equipment they have not selected or that is unavailable in their training environment. For home/hybrid athletes with no equipment recorded, create a bodyweight-only plan; do not assume a full gym.
+
+COACHING STYLE (selected by the athlete):
+{coach_style_instruction}
 
 ATHLETE PROFILE (from onboarding — you already know this):
 - Name: {(profile.get('full_name') or 'Athlete').split()[0]}
