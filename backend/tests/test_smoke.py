@@ -567,3 +567,50 @@ def test_muscle_recovery_map_treats_naive_timestamps_as_utc() -> None:
     back = next(group for group in result["muscle_groups"] if group["name"] == "Back")
     assert back["hours_since_trained"] == 2.0
     assert back["working_sets_7d"] == 1
+
+
+def test_coach_prior_messages_only_apply_session_filter_when_explicit(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from api.routes import coach
+
+    class Query:
+        def __init__(self):
+            self.filters = []
+
+        def select(self, *_args):
+            return self
+
+        def eq(self, key, value):
+            self.filters.append(("eq", key, value))
+            return self
+
+        def is_(self, key, value):
+            self.filters.append(("is", key, value))
+            return self
+
+        def order(self, *_args, **_kwargs):
+            return self
+
+        def limit(self, *_args):
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data=[{"role": "user", "content": "hello"}])
+
+    class Supabase:
+        def __init__(self):
+            self.query = Query()
+
+        def table(self, _name):
+            return self.query
+
+    fake = Supabase()
+    monkeypatch.setattr(coach, "get_supabase", lambda: fake)
+
+    assert coach._load_prior_messages("user-123", session_id=None)
+    assert ("eq", "user_id", "user-123") in fake.query.filters
+    assert not any(f[1] == "session_id" for f in fake.query.filters)
+
+    fake.query = Query()
+    assert coach._load_prior_messages("user-123", session_id="chat-123")
+    assert ("eq", "session_id", "chat-123") in fake.query.filters
