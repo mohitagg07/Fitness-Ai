@@ -18,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { workoutApi, coachApi } from '../../utils/api';
 import { confirmAsync } from '../../utils/confirm';
 import { useStore } from '../../store';
-import { useLogSet } from '../../hooks/useWorkoutMutations';
+import { useCompleteSession, useLogSet } from '../../hooks/useWorkoutMutations';
 import { COLORS, alpha } from '../../theme/colors';
 import { FONTS, EYEBROW, BODY } from '../../theme/typography';
 import { SPACING, RADIUS } from '../../theme/spacing';
@@ -386,6 +386,7 @@ function WorkoutHUD() {
   };
 
   const logSetMutation = useLogSet();
+  const completeSessionMutation = useCompleteSession();
 
   // PERF: this used to be `await workoutApi.logSet(...)` gating
   // *everything* — the haptic, the rest timer starting, the set counter
@@ -438,7 +439,14 @@ function WorkoutHUD() {
     logSetMutation.mutate(
       { sessionId: activeSession.id, ...logData },
       {
-        onError: () => Alert.alert('Error', 'Could not log set. It has been removed from your session.'),
+        onError: () => {
+          setExercises((previous) => previous.map((exercise, index) =>
+            index === activeIdx
+              ? { ...exercise, completed_sets: Math.max(0, exercise.completed_sets - 1) }
+              : exercise
+          ));
+          Alert.alert('Error', 'Could not log set. It has been removed from your session.');
+        },
       }
     );
 
@@ -497,7 +505,10 @@ function WorkoutHUD() {
     // having already landed in state by the time this runs.
     const moodToSend = moodOverride ?? pendingMood;
     try {
-      const res = await workoutApi.completeSession(activeSession.id, undefined, moodToSend);
+      const res = await completeSessionMutation.mutateAsync({
+        sessionId: activeSession.id,
+        mood: moodToSend,
+      });
       const summary = res.data;
       setActiveSession(null);
       setExercises([]);
@@ -534,7 +545,7 @@ function WorkoutHUD() {
     } finally {
       setIsFinishing(false);
     }
-  }, [activeSession, isFinishing, pendingMood, totalVolume, totalSets]);
+  }, [activeSession, isFinishing, pendingMood, totalVolume, totalSets, completeSessionMutation.mutateAsync]);
 
   const finishWorkout = async () => {
     if (!activeSession) return;
