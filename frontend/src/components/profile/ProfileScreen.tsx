@@ -84,6 +84,7 @@ interface PR { id: string; exercise_name: string; weight_kg: number; reps: numbe
 // already fires, so Profile and Home de-dupe into one request instead of
 // two, and a warm return to this tab renders instantly from cache.
 export default function ProfileScreen() {
+  const responsive = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   // Selector form — see src/store/index.ts. Profile only cares about
   // `user` and the stable `logout` action, so it no longer re-renders on
@@ -209,7 +210,10 @@ export default function ProfileScreen() {
         onSaved={() => setEditVisible(false)}
       />
 
-      <ScrollView style={styles.container}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{ width: '100%', maxWidth: responsive.pageMaxWidth, alignSelf: 'center', paddingBottom: responsive.gutter * 2 }}
+      >
         <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
           <View style={styles.logoBar}><Logo size="sm" /></View>
 
