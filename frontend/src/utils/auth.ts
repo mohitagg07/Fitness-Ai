@@ -1,6 +1,5 @@
 import { storage } from './storage';
-import { queryClient } from '../lib/queryClient';
-import { qk } from '../lib/queryKeys';
+import { clearPersistedQueryCache } from '../lib/queryClient';
 
 // Single source of truth for "wipe this device's session." Previously this
 // logic was duplicated (and drifting) across api.ts's 401 interceptor,
@@ -18,9 +17,14 @@ export async function clearAuthData(): Promise<void> {
     storage.deleteItem('vyrn_token'),
     storage.deleteItem('vyrn_user'),
   ]);
-  // Drop profile-scoped cache (not the whole client — workout history,
-  // etc. isn't inherently sensitive and clearing it would just cause
-  // needless re-fetches on the next login) so a fresh login never renders
-  // a stale flash of the previous session's identity.
-  queryClient.removeQueries({ queryKey: qk.profile.all });
+
+  // Every query in this application is user-scoped or derived from user
+  // state. Clear all of it, including the persisted AsyncStorage snapshot,
+  // so switching accounts cannot flash the previous user's private data.
+  await clearPersistedQueryCache();
+
+  // The API 401 interceptor can trigger this without calling actions.logout().
+  // Use a lazy import to avoid a static auth <-> store module cycle.
+  const { actions } = await import('../store');
+  actions.resetSessionState();
 }
