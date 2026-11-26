@@ -671,3 +671,38 @@ def test_profile_equipment_is_normalized_to_agent_canonical_keys() -> None:
         "squat_rack",
     ]
     assert ProfileUpdate(equipment=None).equipment is None
+
+
+@pytest.mark.asyncio
+async def test_complete_session_returns_404_for_missing_or_unowned_session(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from fastapi import HTTPException
+    from api.routes import workouts
+
+    class Query:
+        def __init__(self, table):
+            self.table_name = table
+
+        def select(self, *_args):
+            return self
+        def update(self, _data):
+            return self
+        def eq(self, *_args):
+            return self
+        def order(self, *_args, **_kwargs):
+            return self
+        def execute(self):
+            return SimpleNamespace(data=[])
+
+    class Supabase:
+        def table(self, table_name):
+            return Query(table_name)
+
+    monkeypatch.setattr(workouts, "get_supabase", lambda: Supabase())
+
+    with pytest.raises(HTTPException) as exc:
+        await workouts.complete_session(
+            "session-not-owned",
+            current_user={"user_id": "user-123"},
+        )
+    assert exc.value.status_code == 404
