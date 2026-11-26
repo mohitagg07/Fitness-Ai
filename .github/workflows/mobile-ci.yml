@@ -1,0 +1,57 @@
+name: VYRN Mobile CI
+
+on:
+  push:
+    branches:
+      - main
+      - "fix/**"
+      - "feat/**"
+    paths:
+      - "frontend/**"
+      - ".nvmrc"
+      - ".github/workflows/mobile-ci.yml"
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".nvmrc"
+      - ".github/workflows/mobile-ci.yml"
+  workflow_dispatch:
+
+jobs:
+  validate-expo:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npm run typecheck
+
+      - name: Check Expo package compatibility
+        run: npx expo install --check
+
+      - name: Run Expo Doctor
+        run: npx expo-doctor
+
+      - name: Bundle Android
+        env:
+          EXPO_PUBLIC_API_URL: https://neurofit-ai-backend.onrender.com/api
+        run: npx expo export --platform android --output-dir $RUNNER_TEMP/vyrn-android
+
+      - name: Bundle iOS
+        env:
+          EXPO_PUBLIC_API_URL: https://neurofit-ai-backend.onrender.com/api
+        run: npx expo export --platform ios --output-dir $RUNNER_TEMP/vyrn-ios
