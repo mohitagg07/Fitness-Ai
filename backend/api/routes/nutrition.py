@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from schemas.models import NutritionCreate, Goal
 from core.security import get_current_user
 from db.supabase_client import get_supabase, get_full_user_context, upsert_agent_state
-from services.nutrition import calculate_macros
+from services.nutrition import calculate_macros, is_training_day_for_user
 from agents.nutrition_agent import run_nutrition_agent
 import logging
 
@@ -29,10 +29,12 @@ router = APIRouter(tags=["Nutrition"])
 
 @router.get("/targets")
 async def get_nutrition_targets(
-    is_training_day: bool = True,
+    is_training_day: bool | None = None,
     current_user: dict = Depends(get_current_user)
 ):
-    profile, _ = get_full_user_context(current_user["user_id"])
+    user_id = current_user["user_id"]
+    training_day = is_training_day if is_training_day is not None else is_training_day_for_user(user_id)
+    profile, _ = get_full_user_context(user_id)
     goal_str = profile.get("goal") or "maintain"
     goal = Goal(goal_str) if goal_str in Goal._value2member_map_ else Goal.maintain
     return calculate_macros(
@@ -41,7 +43,7 @@ async def get_nutrition_targets(
         age=profile.get("age") or 28,
         gender=profile.get("gender") or "male",
         goal=goal,
-        is_training_day=is_training_day,
+        is_training_day=training_day,
     )
 
 
@@ -49,7 +51,7 @@ async def get_nutrition_targets(
 
 @router.get("/today")
 async def get_today_nutrition(
-    is_training_day: bool = True,
+    is_training_day: bool | None = None,
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -60,6 +62,7 @@ async def get_today_nutrition(
     user_id = current_user["user_id"]
     sb = get_supabase()
     today = str(date.today())
+    training_day = is_training_day if is_training_day is not None else is_training_day_for_user(user_id)
 
     profile, agent_state = get_full_user_context(user_id)
     goal_str = profile.get("goal") or "maintain"
@@ -70,7 +73,7 @@ async def get_today_nutrition(
         age=profile.get("age") or 28,
         gender=profile.get("gender") or "male",
         goal=goal,
-        is_training_day=is_training_day,
+        is_training_day=training_day,
     )
 
     res = (
@@ -122,7 +125,7 @@ async def get_today_nutrition(
 
 @router.get("/meal-plan")
 async def get_meal_plan(
-    is_training_day: bool = True,
+    is_training_day: bool | None = None,
     current_user: dict = Depends(get_current_user),
 ):
     """
@@ -136,6 +139,7 @@ async def get_meal_plan(
     user_id = current_user["user_id"]
     sb = get_supabase()
     today_str = str(date.today())
+    training_day = is_training_day if is_training_day is not None else is_training_day_for_user(user_id)
     profile, _ = get_full_user_context(user_id)
     goal_str = profile.get("goal") or "maintain"
     goal = Goal(goal_str) if goal_str in Goal._value2member_map_ else Goal.maintain
@@ -145,7 +149,7 @@ async def get_meal_plan(
         age=profile.get("age") or 28,
         gender=profile.get("gender") or "male",
         goal=goal,
-        is_training_day=is_training_day,
+        is_training_day=training_day,
     )
     res = (
         sb.table("nutrition_logs")
@@ -188,7 +192,7 @@ async def get_grocery_list(current_user: dict = Depends(get_current_user)):
         age=profile.get("age") or 28,
         gender=profile.get("gender") or "male",
         goal=goal,
-        is_training_day=True,
+        is_training_day=is_training_day_for_user(current_user["user_id"]),
     )
     return generate_grocery_list(
         weekly_protein_target_g=targets["protein_g"] * 7,
@@ -200,10 +204,12 @@ async def get_grocery_list(current_user: dict = Depends(get_current_user)):
 
 @router.get("/decision")
 async def get_nutrition_decision(
-    is_training_day: bool = True,
+    is_training_day: bool | None = None,
     current_user: dict = Depends(get_current_user)
 ):
-    profile, _ = get_full_user_context(current_user["user_id"])
+    user_id = current_user["user_id"]
+    training_day = is_training_day if is_training_day is not None else is_training_day_for_user(user_id)
+    profile, _ = get_full_user_context(user_id)
     goal_str = profile.get("goal") or "maintain"
     goal = Goal(goal_str) if goal_str in Goal._value2member_map_ else Goal.maintain
     return run_nutrition_agent(
@@ -214,7 +220,7 @@ async def get_nutrition_decision(
         gender=profile.get("gender") or "male",
         goal=goal,
         food_preference=profile.get("food_preference"),
-        is_training_day=is_training_day,
+        is_training_day=training_day,
     )
 
 
