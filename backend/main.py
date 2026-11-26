@@ -42,24 +42,10 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"ChromaDB seed warning: {e}")
 
-    # Start the background job scheduler (nightly pattern detection, weekly
-    # review generation, memory cleanup, morning brief prep). Safe no-op if
-    # APScheduler isn't installed or scheduling is disabled via env var —
-    # the app still serves requests normally either way.
-    scheduler = None
-    try:
-        from services.scheduler import start_scheduler
-        scheduler = start_scheduler()
-    except Exception as e:
-        print(f"Scheduler did not start: {e}")
-
+    # Scheduled jobs run in backend/worker.py, not inside API workers.
+    # Starting APScheduler here would run one copy per Uvicorn worker and
+    # per web replica, duplicating notifications, reviews, and reminders.
     yield
-
-    if scheduler is not None:
-        try:
-            scheduler.shutdown(wait=False)
-        except Exception:
-            pass
 
 
 app = FastAPI(
