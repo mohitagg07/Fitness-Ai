@@ -29,6 +29,7 @@ export const qk = {
   },
   analytics: {
     all: ['analytics'] as const,
+    muscleRecovery: () => [...qk.analytics.all, 'muscle-recovery'] as const,
     weeklyStats: () => [...qk.analytics.all, 'weekly-stats'] as const,
     heatmap: (weeks: number) => [...qk.analytics.all, 'heatmap', weeks] as const,
     muscleBalance: (weeks: number) => [...qk.analytics.all, 'muscle-balance', weeks] as const,
