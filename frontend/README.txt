@@ -1,60 +1,57 @@
-VYRN FIX PACKAGE (with SVG logo source files)
-==============================================
+VYRN mobile app
+===============
 
-This zip mirrors your frontend/ folder structure so you can drop files
-straight in. One filename had to be renamed to avoid clashing on
-extraction — see step 2 below.
+The maintained Expo application lives in this folder. The repository root README is the source of truth for the full backend, database and product setup.
 
-WHERE EACH FILE GOES (relative to C:\Users\mohit\Desktop\fitai\frontend\):
+Local development
+-----------------
 
-1. app.json
-   -> frontend\app.json   (REPLACE existing file)
+1. Use Node.js 20.19.4 (pinned in the repository's .nvmrc).
+2. Install the locked dependencies:
 
-2. app\_layout.tsx
-   -> frontend\app\_layout.tsx   (REPLACE existing file)
-   This is the ROOT layout. It must be a Stack, not a Tabs navigator.
+   npm ci
 
-3. app\tabs-group-layout.tsx
-   -> RENAME to _layout.tsx, then place at:
-      frontend\app\(tabs)\_layout.tsx   (REPLACE existing file)
-   This is the layout for the (tabs) route group — this is where the
-   "hide all tabs from the bar" logic belongs.
+3. Copy the environment template:
 
-4. assets\icon.png / assets\adaptive-icon.png / assets\splash.png / assets\favicon.png
-   -> frontend\assets\   (these are what app.json actually references —
-      Expo/EAS builds require raster PNGs here, not SVG, so keep these)
+   Windows PowerShell:
+     Copy-Item .env.example .env
 
-5. assets\icon.svg / assets\adaptive-icon.svg / assets\splash.svg /
-   assets\favicon.svg / assets\logo-mark.svg
-   -> frontend\assets\   (bonus: scalable vector versions of the same
-      mark, hand-rebuilt as clean SVG paths + gradient — useful for your
-      website, marketing, App Store listing graphics, or if you ever
-      want to re-export the PNGs at a different resolution. These are
-      NOT read by app.json/Expo — Expo app icons must be PNG.)
+   macOS / Linux:
+     cp .env.example .env
 
-AFTER COPYING THE APP FILES IN:
+4. Set EXPO_PUBLIC_API_URL in .env. Use the address that is reachable from the device:
+   - iOS Simulator / local web: http://localhost:8000/api
+   - Android Emulator: http://10.0.2.2:8000/api
+   - Physical phone: http://YOUR_LAPTOP_LAN_IP:8000/api (same Wi-Fi; allow port 8000 through the firewall)
 
-   cd C:\Users\mohit\Desktop\fitai\frontend
-   npx expo prebuild --clean
-   eas build -p android --profile preview
+5. Start the FastAPI backend from the backend folder in a separate terminal. Configure Supabase and Groq credentials first.
+6. Start Expo:
 
-WHY THIS FIXES THE ORIGINAL ISSUES:
-- Your root app/_layout.tsx had accidentally been overwritten with the
-  Tabs-navigator code meant for app/(tabs)/_layout.tsx. That broke
-  routing entirely (root layout conflicted with the (tabs) group),
-  causing the infinite spinner after the splash screen.
-- app.json had icon/splash/adaptive-icon/favicon fields pointing at
-  deleted PNGs, so the build had no app icon. The new PNGs (and their
-  SVG counterparts) are generated from assets/branding/logo-mark.png
-  (your green "V" mark) on a black background.
+   npx expo start --clear
 
-NOTE ON THE SVGs:
-Your original logo-mark.png is a flattened raster image (no vector data
-embedded), so there's no way to perfectly "extract" the original vector
-paths — auto-tracing tools weren't available in this environment either.
-Instead, these SVGs are a faithful hand-rebuilt reconstruction: same
-ring, same V/checkmark shape, same three-stop green -> teal -> blue
-gradient, same motion-line accents, sampled directly from your PNG's
-pixel colors. Visually near-identical, but if you have the original
-design file (Figma/Illustrator/AI export), that will always be more
-exact than this reconstruction.
+Checks
+-----
+
+   npm run typecheck
+   npx expo install --check
+   npx expo-doctor
+   npx expo export --platform android --output-dir .expo-export-android
+   npx expo export --platform ios --output-dir .expo-export-ios
+
+Native builds
+-------------
+
+The EAS preview profile creates an internal Android APK:
+
+   eas login
+   eas build --platform android --profile preview
+
+Do this only after the backend HTTPS URL is verified and the project has passed local checks. A JavaScript export is not a native installable build. Test the downloaded APK on a physical Android phone before distribution.
+
+Important
+---------
+
+- Do not delete package-lock.json; use npm ci for reproducible installs.
+- Do not change the EAS project ID or app identifiers without an explicit migration plan.
+- Never put backend secrets in EXPO_PUBLIC_* variables.
+- Camera-based exercise tracking is not part of the current baseline.
