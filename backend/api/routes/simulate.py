@@ -8,18 +8,22 @@ Replaces the frontend's previous hardcoded-formula simulation
 computed from the user's actual logged history. See
 services/scenario_simulator.py for the model behind each scenario.
 """
+import asyncio
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from core.security import get_current_user
 from services.scenario_simulator import run_scenario, ScenarioId
 
+logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Scenario Simulator"])
 
 
 class ScenarioRequest(BaseModel):
     scenario_id: str
-    weeks: int = 4
+    weeks: int = Field(default=4, ge=1, le=12)
 
 
 @router.post("/scenario")
@@ -32,8 +36,18 @@ async def simulate_scenario(
         raise HTTPException(400, f"scenario_id must be one of {sorted(valid_ids)}")
 
     try:
-        result = run_scenario(current_user["user_id"], payload.scenario_id, payload.weeks)
-    except Exception as e:
-        raise HTTPException(500, f"Simulation failed: {e}")
+        result = await asyncio.to_thread(
+            run_scenario,
+            current_user["user_id"],
+            payload.scenario_id,
+            payload.weeks,
+        )
+    except Exception:
+        logger.exception(
+            "Scenario simulation failed for user %s, scenario %s",
+            current_user["user_id"],
+            payload.scenario_id,
+        )
+        raise HTTPException(503, "The simulation could not be generated right now. Please try again.")
 
     return result
