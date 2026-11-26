@@ -27,7 +27,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import { describeApiError } from '../../utils/api';
 import { useStore, actions } from '../../store';
-import { COLORS } from '../../theme/colors';
+import { COLORS, alpha } from '../../theme/colors';
 import { FONTS } from '../../theme/typography';
 import Logo from '../shared/Logo';
 import { useMissionSummary, useWeeklyStats } from '../../hooks/useDashboardQueries';
@@ -38,7 +38,7 @@ import {
 const APP_VERSION = '1.0.0';
 
 const GOAL_COLORS: Record<string, string> = {
-  bulk: '#4CAF50', cut: '#FF4500', recomp: '#9C27B0', maintain: '#2196F3',
+  bulk: COLORS.recoveryHigh, cut: COLORS.recoveryLow, recomp: COLORS.coachPurple, maintain: COLORS.strain,
 };
 
 // Small, purely-decorative rotating line under the name — same idea as the
@@ -230,9 +230,9 @@ export default function ProfileScreen() {
             )}
             <View style={styles.avatarEditBadge}>
               {uploadingAvatar ? (
-                <ActivityIndicator size="small" color="#000" />
+                <ActivityIndicator size="small" color={COLORS.background} />
               ) : (
-                <Ionicons name="camera" size={14} color="#000" />
+                <Ionicons name="camera" size={14} color={COLORS.background} />
               )}
             </View>
           </TouchableOpacity>
@@ -241,8 +241,8 @@ export default function ProfileScreen() {
           <Text style={styles.email}>{user?.email}</Text>
 
           {profile?.goal && (
-            <View style={[styles.goalBadge, { backgroundColor: (GOAL_COLORS[profile.goal] || '#555') + '22' }]}>
-              <Text style={[styles.goalText, { color: GOAL_COLORS[profile.goal] || '#888' }]}>
+            <View style={[styles.goalBadge, { backgroundColor: (GOAL_COLORS[profile.goal] || COLORS.textMuted) + '22' }]}>
+              <Text style={[styles.goalText, { color: GOAL_COLORS[profile.goal] || COLORS.textMuted }]}>
                 {profile.goal.toUpperCase()} PHASE · {(profile.experience_level || '—').toUpperCase()}
               </Text>
             </View>
@@ -257,7 +257,7 @@ export default function ProfileScreen() {
             <View style={styles.streakStrip}>
               {workoutStreak != null && (
                 <View style={styles.streakChip}>
-                  <Ionicons name="flame" size={12} color="#FF4500" />
+                  <Ionicons name="flame" size={12} color={COLORS.recoveryLow} />
                   <Text style={styles.streakChipText}>{workoutStreak} day streak</Text>
                 </View>
               )}
@@ -295,7 +295,7 @@ export default function ProfileScreen() {
         {/* Equipment */}
         <View style={styles.card}>
           <View style={styles.cardLabelRow}>
-            <Ionicons name="barbell-outline" size={13} color="#4CAF50" />
+            <Ionicons name="barbell-outline" size={13} color={COLORS.recoveryHigh} />
             <Text style={styles.cardLabel}>EQUIPMENT</Text>
           </View>
           {profile?.equipment?.length ? (
@@ -330,7 +330,7 @@ export default function ProfileScreen() {
         {/* Injuries */}
         <View style={styles.card}>
           <View style={styles.cardLabelRow}>
-            <Ionicons name="shield-checkmark-outline" size={13} color="#FF4500" />
+            <Ionicons name="shield-checkmark-outline" size={13} color={COLORS.recoveryLow} />
             <Text style={styles.cardLabel}>INJURY PROFILE</Text>
           </View>
           {injuries.length ? (
@@ -340,8 +340,8 @@ export default function ProfileScreen() {
                   <Text style={styles.injuryPart}>{cap(inj.body_part?.replace(/_/g, ' '))}</Text>
                   <Text style={styles.injuryType}>{cap(inj.issue_type)}{inj.doctor_restriction ? ' · Doctor restricted' : ''}</Text>
                 </View>
-                <View style={[styles.severityBadge, { backgroundColor: inj.severity >= 7 ? '#3A1A1A' : '#2A2A1A' }]}>
-                  <Text style={[styles.severityText, { color: inj.severity >= 7 ? '#FF4500' : COLORS.primaryGreen }]}>
+                <View style={[styles.severityBadge, { backgroundColor: inj.severity >= 7 ? alpha(COLORS.recoveryLow, 0.16) : alpha(COLORS.recoveryMed, 0.13) }]}>
+                  <Text style={[styles.severityText, { color: inj.severity >= 7 ? COLORS.recoveryLow : COLORS.primaryGreen }]}>
                     {inj.severity}/10
                   </Text>
                 </View>
@@ -382,7 +382,7 @@ export default function ProfileScreen() {
         </View>
 
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={16} color="#FF4500" />
+          <Ionicons name="log-out-outline" size={16} color={COLORS.recoveryLow} />
           <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>
 
@@ -466,7 +466,7 @@ function AddInjuryRow() {
           <Text style={styles.cancelBtnText}>Cancel</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.saveSmallBtn} onPress={save} disabled={saving}>
-          {saving ? <ActivityIndicator size="small" color="#000" /> : <Text style={styles.saveSmallBtnText}>Save</Text>}
+          {saving ? <ActivityIndicator size="small" color={COLORS.background} /> : <Text style={styles.saveSmallBtnText}>Save</Text>}
         </TouchableOpacity>
       </View>
     </View>
@@ -660,10 +660,10 @@ const styles = StyleSheet.create({
   header: { alignItems: 'center', paddingBottom: 20, paddingHorizontal: 20 },
   logoBar: { alignSelf: 'stretch', marginBottom: 20 },
 
-  avatarWrap: { width: 88, height: 88, marginBottom: 12 },
-  avatarImg: { width: 88, height: 88, borderRadius: 44, backgroundColor: COLORS.cardElevated },
+  avatarWrap: { width: 92, height: 92, marginBottom: 14 },
+  avatarImg: { width: 92, height: 92, borderRadius: 24, backgroundColor: COLORS.cardElevated },
   avatarFallback: {
-    width: 88, height: 88, borderRadius: 44,
+    width: 92, height: 92, borderRadius: 24,
     backgroundColor: COLORS.cardElevated, borderWidth: 2, borderColor: COLORS.primaryGreen,
     alignItems: 'center', justifyContent: 'center',
   },
@@ -675,12 +675,12 @@ const styles = StyleSheet.create({
     borderWidth: 3, borderColor: COLORS.background,
   },
 
-  name: { color: COLORS.text, fontSize: 22, fontWeight: '700', marginBottom: 4 },
+  name: { color: COLORS.text, fontSize: 25, fontWeight: '700', marginBottom: 4, letterSpacing: -0.4 },
   email: { color: COLORS.textMuted, fontSize: 13, marginBottom: 12 },
   goalBadge: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 14 },
   goalText: { fontSize: 11, fontWeight: '700', letterSpacing: 1 },
 
-  editBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: COLORS.primaryGreen + '50', borderRadius: 10, paddingHorizontal: 16, paddingVertical: 9, backgroundColor: COLORS.primaryGreen + '12' },
+  editBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: COLORS.primaryGreen + '50', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 9, backgroundColor: COLORS.primaryGreen + '12' },
   editBtnText: { color: COLORS.primaryGreen, fontSize: 13, fontWeight: '700' },
 
   streakStrip: { flexDirection: 'row', gap: 8, marginTop: 12 },
@@ -694,7 +694,7 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row', justifyContent: 'space-around',
     marginHorizontal: 16, marginBottom: 16,
-    backgroundColor: COLORS.cardElevated, borderRadius: 16, padding: 16,
+    backgroundColor: COLORS.cardElevated, borderRadius: 18, padding: 16,
     borderWidth: 1, borderColor: COLORS.border,
   },
   stat: { alignItems: 'center' },
@@ -716,11 +716,11 @@ const styles = StyleSheet.create({
   emptyHint: { color: COLORS.textMuted, fontSize: 12.5, lineHeight: 18 },
 
   prRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  prName: { color: '#C0C0C0', fontSize: 14 },
+  prName: { color: COLORS.textSecondary, fontSize: 14 },
   prWeight: { color: COLORS.primaryGreen, fontSize: 14, fontWeight: '700' },
 
   injuryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  injuryPart: { color: '#C0C0C0', fontSize: 14, fontWeight: '600' },
+  injuryPart: { color: COLORS.textSecondary, fontSize: 14, fontWeight: '600' },
   injuryType: { color: COLORS.textSecondary, fontSize: 12, marginTop: 2 },
   severityBadge: { borderRadius: 8, padding: 6 },
   severityText: { fontSize: 12, fontWeight: '700' },
@@ -732,10 +732,10 @@ const styles = StyleSheet.create({
   cancelBtn: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border },
   cancelBtnText: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '600' },
   saveSmallBtn: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 10, backgroundColor: COLORS.primaryGreen },
-  saveSmallBtnText: { color: '#000', fontSize: 13, fontWeight: '700' },
+  saveSmallBtnText: { color: COLORS.background, fontSize: 13, fontWeight: '700' },
 
   tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tag: { backgroundColor: '#252525', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  tag: { backgroundColor: COLORS.card, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   tagText: { color: COLORS.textSecondary, fontSize: 12 },
 
   settingsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
@@ -744,10 +744,10 @@ const styles = StyleSheet.create({
   logoutBtn: {
     margin: 16, backgroundColor: COLORS.cardElevated,
     borderRadius: 14, padding: 16, alignItems: 'center',
-    borderWidth: 1, borderColor: '#3A2020',
+    borderWidth: 1, borderColor: alpha(COLORS.recoveryLow, 0.22),
     flexDirection: 'row', justifyContent: 'center', gap: 8,
   },
-  logoutText: { color: '#FF4500', fontSize: 14, fontWeight: '600' },
+  logoutText: { color: COLORS.recoveryLow, fontSize: 14, fontWeight: '600' },
   versionText: { textAlign: 'center', color: COLORS.textDim, fontSize: 11, marginBottom: 8 },
   retryBtn: { marginTop: 16, backgroundColor: COLORS.cardElevated, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 10, borderWidth: 1, borderColor: COLORS.border },
 

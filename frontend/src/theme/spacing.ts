@@ -1,24 +1,18 @@
 /**
- * VYRN — Spacing & Radius scale
- *
- * Formalizes the 4pt grid that was already implicit across the app
- * (most padding/margin/gap values were already 4, 8, 12, 16, 24...,
- * just spelled out as raw numbers in every file). Screens should pull
- * from here instead of writing new magic numbers, the same way colors
- * come from theme/colors.ts.
+ * VYRN — 4pt spacing and geometry scale.
+ * Dense enough for real training data, generous enough to feel considered.
  */
-
 export const SPACING = {
-  xs: 4,   // icon-to-label gaps, tight inline spacing
-  sm: 8,   // gaps within a row, small badge padding
-  md: 12,  // gap between stacked cards, comfortable inner gaps
-  lg: 16,  // card padding, screen-edge margins
-  xl: 24,  // section padding, gaps between distinct zones
-  xxl: 32, // rare — generous breathing room (empty/error states)
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  xxl: 32,
 };
 
 export const RADIUS = {
-  badge: 10,   // small pills/badges (phase badge, rescheduled tag)
-  button: 18,  // buttons and CTAs
-  card: 28,    // all cards — one radius for every card on a screen, floating-panel feel
+  badge: 8,
+  button: 14,
+  card: 20,
 };

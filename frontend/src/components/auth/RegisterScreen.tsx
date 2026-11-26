@@ -112,22 +112,22 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212' },
-  inner: { flexGrow: 1, padding: 28, paddingTop: 60 },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  inner: { flexGrow: 1, padding: 24, paddingTop: 56, justifyContent: 'center' },
   back: { marginBottom: 32, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  backText: { color: COLORS.primaryGreen, fontSize: 15 },
-  title: { color: '#FFF', fontSize: 28, fontWeight: '800', marginBottom: 8 },
-  subtitle: { color: '#888', fontSize: 14, marginBottom: 36 },
+  backText: { color: COLORS.primaryGreen, fontSize: 14, fontWeight: '600' },
+  title: { color: COLORS.text, fontSize: 30, fontWeight: '700', marginBottom: 8, letterSpacing: -0.5 },
+  subtitle: { color: COLORS.textSecondary, fontSize: 14, marginBottom: 30, lineHeight: 20 },
   form: { gap: 12 },
-  label: { color: '#555', fontSize: 11, fontWeight: '700', letterSpacing: 1.5, marginBottom: 4 },
+  label: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '700', letterSpacing: 1.1, marginBottom: 4 },
   input: {
-    backgroundColor: '#1E1E1E',
-    borderRadius: 12,
+    backgroundColor: COLORS.inputBg,
+    borderRadius: 14,
     padding: 16,
-    color: '#FFF',
+    color: COLORS.text,
     fontSize: 15,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: COLORS.borderLight,
     marginBottom: 8,
   },
   btn: {
@@ -138,5 +138,5 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   btnDisabled: { opacity: 0.6 },
-  btnText: { color: '#000', fontSize: 15, fontWeight: '800', letterSpacing: 1 },
+  btnText: { color: COLORS.background, fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },
 });

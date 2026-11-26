@@ -35,7 +35,7 @@ function DashboardHeader({ firstName, aiSentence, recoveryScore0to10, avatarUrl 
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   const score100 = Math.round(recoveryScore0to10 * 10);
   const ringColor = recoveryColor(score100);
-  const status = score100 >= 67 ? 'READY TO PERFORM' : score100 >= 34 ? 'TAKE IT STEADY' : 'PRIORITIZE RECOVERY';
+  const status = score100 >= 67 ? 'Ready to train' : score100 >= 34 ? 'Take it steady' : 'Prioritize recovery';
 
   // Real day-over-day delta — reads the last two persisted AI decisions
   // (same rows TodaysDecisionCard/decisions history use) and diffs their
@@ -65,9 +65,8 @@ function DashboardHeader({ firstName, aiSentence, recoveryScore0to10, avatarUrl 
           <Logo size="sm" />
         </View>
         <View style={styles.right}>
-          <TouchableOpacity hitSlop={10} onPress={() => router.push('/(tabs)/coach')} style={styles.iconBtn}>
-            <Ionicons name="notifications-outline" size={ICON_SIZE.md} color={COLORS.text} />
-            <View style={styles.notifDot} />
+          <TouchableOpacity hitSlop={10} onPress={() => router.push('/(tabs)/coach')} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Open AI coach">
+            <Ionicons name="flash-outline" size={ICON_SIZE.md} color={COLORS.text} />
           </TouchableOpacity>
           <TouchableOpacity hitSlop={10} onPress={() => router.push('/(tabs)/profile')}>
             {avatarUrl ? (
@@ -89,7 +88,7 @@ function DashboardHeader({ firstName, aiSentence, recoveryScore0to10, avatarUrl 
       <View style={styles.bodyRow}>
         <View style={styles.greetingCol}>
           <Text variant="body" color={COLORS.textSecondary}>{greeting},</Text>
-          <Text variant="hero" style={styles.name} numberOfLines={1}>{firstName} 👋</Text>
+          <Text variant="hero" style={styles.name} numberOfLines={1}>{firstName}</Text>
           <Text variant="body" color={COLORS.textSecondary} numberOfLines={2} style={styles.sentence}>
             {aiSentence}
           </Text>
@@ -98,8 +97,8 @@ function DashboardHeader({ firstName, aiSentence, recoveryScore0to10, avatarUrl 
         <View style={styles.ringCol}>
           <CircularProgress
             progress={score100}
-            size={80}
-            strokeWidth={5}
+            size={84}
+            strokeWidth={6}
             color={ringColor}
             center={
               <View style={{ alignItems: 'center' }}>
@@ -126,26 +125,26 @@ function DashboardHeader({ firstName, aiSentence, recoveryScore0to10, avatarUrl 
 }
 
 const styles = StyleSheet.create({
-  wrap: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md },
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md },
+  wrap: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.lg },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.lg },
   left: { flexDirection: 'row', alignItems: 'center' },
   right: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
-  iconBtn: { position: 'relative' },
-  notifDot: {
-    position: 'absolute', top: -1, right: -1, width: 7, height: 7, borderRadius: 3.5,
-    backgroundColor: COLORS.primaryGreen, borderWidth: 1.5, borderColor: COLORS.background,
-  },
-  avatar: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: COLORS.borderLight },
+  iconBtn: {
+     width: 38, height: 38, borderRadius: 13,
+     backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.border,
+     alignItems: 'center', justifyContent: 'center',
+   },
+  avatar: { width: 38, height: 38, borderRadius: 14, borderWidth: 1, borderColor: COLORS.borderLight },
   avatarFallback: {
-    width: 34, height: 34, borderRadius: 17, backgroundColor: COLORS.cardElevated,
+    width: 38, height: 38, borderRadius: 14, backgroundColor: COLORS.cardElevated,
     borderWidth: 1, borderColor: COLORS.borderLight, alignItems: 'center', justifyContent: 'center',
   },
   bodyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   greetingCol: { flex: 1, paddingRight: SPACING.md, justifyContent: 'center' },
-  name: { fontSize: 30, marginTop: 2, marginBottom: SPACING.xs },
+  name: { fontSize: 30, marginTop: 2, marginBottom: SPACING.sm },
   sentence: { lineHeight: 19 },
   ringCol: { alignItems: 'center' },
-  statusText: { marginTop: SPACING.sm, letterSpacing: 0.5, fontSize: 10 },
+  statusText: { marginTop: SPACING.sm, letterSpacing: 0.1, fontSize: 11 },
   deltaRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4 },
 });
 

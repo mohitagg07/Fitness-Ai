@@ -30,7 +30,7 @@ export type CardElevation = 'standard' | 'hero';
 const PADDING_MAP: Record<CardPadding, number> = {
   none: 0,
   sm: SPACING.md,   // 12 — dense rows (PR list, chip rows)
-  md: SPACING.xl,   // 24 — default for every card, per spec
+  md: SPACING.lg,   // 16 — default card density
   lg: SPACING.xl,   // 24 — hero / primary CTA cards
 };
 
@@ -76,7 +76,7 @@ export default function Card({
     if (!animate) return;
     const anim = Animated.timing(progress, {
       toValue: 1,
-      duration: 380,
+      duration: 240,
       delay: animationDelay,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
@@ -90,7 +90,7 @@ export default function Card({
     opacity: progress,
     transform: [
       {
-        translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }),
+        translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }),
       },
     ],
   };
@@ -99,9 +99,9 @@ export default function Card({
     ? {
         shadowColor: '#000000',
         shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.32,
-        shadowRadius: 24,
-        elevation: 10,
+        shadowOpacity: 0.18,
+        shadowRadius: 18,
+        elevation: 5,
       }
     : {};
 

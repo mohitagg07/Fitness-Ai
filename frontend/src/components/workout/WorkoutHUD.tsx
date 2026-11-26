@@ -555,22 +555,22 @@ function WorkoutHUD() {
           <View style={S.preBadge}>
             <Ionicons name="barbell-outline" size={28} color={COLORS.primaryGreen} />
           </View>
-          <Text style={S.gymTitle}>GYM MODE</Text>
-          <Text style={S.gymSubtitle}>Log every set, get stronger</Text>
+          <Text style={S.gymTitle}>Ready to train?</Text>
+          <Text style={S.gymSubtitle}>Your next session starts here.</Text>
           <Text style={S.gymDesc}>
-            Start a session, then log each set with load, reps, and RPE. Enter 0 kg for bodyweight movements.
-            Ask your coach for today's plan anytime.
+            Track each set, manage your rest and keep your progress in one place.
+            Start with a blank session or let your coach build today's plan.
           </Text>
           <TouchableOpacity style={S.startBtn} onPress={startSession}>
-            <Text style={S.startBtnText}>START SESSION</Text>
+            <Text style={S.startBtnText}>Start empty session</Text>
           </TouchableOpacity>
           <TouchableOpacity style={S.coachBtn} onPress={askCoachForWorkout}>
             <Ionicons name="flash" size={16} color={COLORS.primaryGreen} />
-            <Text style={S.coachBtnText}>Ask Coach for Today's Plan</Text>
+            <Text style={S.coachBtnText}>Build today's plan with Coach</Text>
           </TouchableOpacity>
           <TouchableOpacity style={S.historyBtn} onPress={() => setHistoryVisible(true)}>
             <Ionicons name="time-outline" size={16} color={COLORS.textSecondary} />
-            <Text style={S.historyBtnText}>View Workout History</Text>
+            <Text style={S.historyBtnText}>View workout history</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -847,25 +847,29 @@ const S = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
 
   // Pre-session
-  preSession:  { flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.xxl },
+  preSession:  {
+    flex: 1, justifyContent: 'center', alignItems: 'stretch',
+    paddingHorizontal: SPACING.xl, paddingTop: SPACING.xl, paddingBottom: 42,
+  },
   // Accent now comes from the icon color alone (green), not a mismatched
   // blue-tinted tile behind a green icon.
-  preBadge:    { width: 60, height: 60, borderRadius: RADIUS.card, backgroundColor: COLORS.cardElevated,
+  preBadge:    { width: 64, height: 64, borderRadius: 20, backgroundColor: COLORS.cardElevated,
                  alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.xl },
-  gymTitle:    { color: COLORS.primaryGreen, fontFamily: FONTS.extrabold, fontSize: 28, letterSpacing: 1 },
-  gymSubtitle: { ...BODY, color: COLORS.textSecondary, fontSize: 14, marginTop: SPACING.xs, marginBottom: SPACING.lg },
-  gymDesc:     { ...BODY, color: COLORS.textMuted, fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: SPACING.xxl },
-  startBtn:    { backgroundColor: COLORS.primaryGreen, borderRadius: RADIUS.card,
-                 paddingVertical: SPACING.lg, paddingHorizontal: SPACING.xxl, width: '100%',
+  gymTitle:    { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 32, letterSpacing: -0.8, textAlign: 'left' },
+  gymSubtitle: { ...BODY, color: COLORS.primaryGreen, fontSize: 15, fontFamily: FONTS.semibold, marginTop: SPACING.xs, marginBottom: SPACING.lg },
+  gymDesc:     { ...BODY, color: COLORS.textSecondary, fontSize: 14, textAlign: 'left', lineHeight: 22, marginBottom: SPACING.xxl, maxWidth: 340 },
+  startBtn:    { backgroundColor: COLORS.primaryGreen, borderRadius: RADIUS.button,
+                 paddingVertical: 17, paddingHorizontal: SPACING.xl, width: '100%',
                  alignItems: 'center', marginBottom: SPACING.md },
-  startBtnText:{ color: '#000', fontFamily: FONTS.extrabold, fontSize: 15, letterSpacing: 1 },
-  coachBtn:    { backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.card, paddingVertical: SPACING.lg,
-                 paddingHorizontal: SPACING.xxl, width: '100%', alignItems: 'center',
-                 flexDirection: 'row', justifyContent: 'center', gap: SPACING.sm },
-  coachBtnText:{ color: COLORS.primaryGreen, fontFamily: FONTS.semibold, fontSize: 14 },
-  historyBtn:  { marginTop: SPACING.md, paddingVertical: SPACING.md, paddingHorizontal: SPACING.xxl,
+  startBtnText:{ color: COLORS.background, fontFamily: FONTS.bold, fontSize: 15, letterSpacing: 0.1 },
+  coachBtn:    { backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.button, paddingVertical: 16,
+                 paddingHorizontal: SPACING.xl, width: '100%', alignItems: 'center',
+                 borderWidth: 1, borderColor: COLORS.borderLight,
+                 flexDirection: 'row', justifyContent: 'center', gap: SPACING.sm, marginTop: SPACING.sm },
+  coachBtnText:{ color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 14 },
+  historyBtn:  { marginTop: SPACING.md, paddingVertical: SPACING.md, paddingHorizontal: SPACING.xl,
                  alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: SPACING.sm },
-  historyBtnText: { color: COLORS.textSecondary, fontFamily: FONTS.semibold, fontSize: 13 },
+  historyBtnText: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 13 },
 
   // Exercise tabs
   exTabsScroll: { maxHeight: 68 },
@@ -883,7 +887,7 @@ const S = StyleSheet.create({
   // Log card — the single most important surface during a session, so it
   // gets the same card treatment (radius, border) as everywhere else in
   // the app rather than its own one-off values.
-  exerciseCard:   { backgroundColor: COLORS.card, borderRadius: RADIUS.card, margin: SPACING.md,
+  exerciseCard:   { backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.card, margin: SPACING.md,
                     marginTop: SPACING.sm, padding: SPACING.lg, borderWidth: 1, borderColor: COLORS.cardBorder },
   exCardHeader:   { flexDirection: 'row', justifyContent: 'space-between',
                     alignItems: 'flex-start', marginBottom: SPACING.sm },
@@ -925,7 +929,7 @@ const S = StyleSheet.create({
   // Primary action during an active session — same weight and radius as
   // the Dashboard's "Start Workout" CTA so every screen's main action
   // reads the same way.
-  logBtn:     { backgroundColor: COLORS.primaryGreen, borderRadius: RADIUS.card, paddingVertical: SPACING.md,
+  logBtn:     { backgroundColor: COLORS.primaryGreen, borderRadius: RADIUS.button, paddingVertical: SPACING.md,
                 flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm },
   logBtnDisabled: { opacity: 0.5 },
   logBtnText: { color: '#000', fontFamily: FONTS.extrabold, fontSize: 13, letterSpacing: 0.5 },
@@ -953,7 +957,7 @@ const S = StyleSheet.create({
   // Set CTA above (tinted, not solid) since it ends the session rather
   // than driving it.
   finishBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-                   gap: SPACING.sm, margin: SPACING.md, backgroundColor: alpha(COLORS.primaryGreen, 0.08), borderRadius: RADIUS.card,
+                   gap: SPACING.sm, margin: SPACING.md, backgroundColor: alpha(COLORS.primaryGreen, 0.08), borderRadius: RADIUS.button,
                    paddingVertical: SPACING.lg, borderWidth: 1, borderColor: alpha(COLORS.primaryGreen, 0.25) },
   // Was a hardcoded #4CAF50 — a different green from every other accent
   // in the app. Now the same primaryGreen used everywhere else.
