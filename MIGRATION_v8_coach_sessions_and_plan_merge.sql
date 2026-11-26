@@ -13,9 +13,8 @@ alter table public.ai_conversations
 
 -- Merge one weekday recommendation into the current active plan. A
 -- transaction-scoped advisory lock serializes coach plan updates per user.
--- All existing weekday entries are preserved. The function also guarantees
--- at most one active plan is selected for a given user by deactivating any
--- additional active rows only when creating/updating the single chosen row.
+-- All existing weekday entries are preserved. If legacy data contains
+-- multiple active rows, the newest is retained and duplicates are deactivated.
 create or replace function public.merge_coach_workout_day(
     p_user_id uuid,
     p_day_key text,
@@ -56,8 +55,12 @@ begin
 
     if found then
         update public.workout_plans
-           set schedule = coalesce(schedule, '{}'::jsonb)
-                          || jsonb_build_object(p_day_key, p_workout_type)
+           set schedule = (
+               case
+                   when jsonb_typeof(schedule) = 'object' then schedule
+                   else '{}'::jsonb
+               end
+           ) || jsonb_build_object(p_day_key, p_workout_type)
          where id = v_plan.id
            and user_id = p_user_id
          returning * into v_plan;
@@ -76,6 +79,14 @@ begin
         )
         returning * into v_plan;
     end if;
+
+    -- Older versions of the app may have left more than one active plan.
+    -- Keep the selected (newest) plan active and deactivate the duplicates.
+    update public.workout_plans
+       set is_active = false
+     where user_id = p_user_id
+       and is_active = true
+       and id <> v_plan.id;
 
     return next v_plan;
 end;
