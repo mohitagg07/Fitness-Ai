@@ -168,10 +168,49 @@ class OnboardingCreate(BaseModel):
     gym_or_home: WorkoutLocation = WorkoutLocation.gym
     workout_days_per_week: int = Field(ge=1, le=7, default=4)
     equipment: List[str] = Field(default_factory=list)
+
+    @field_validator("equipment", mode="before")
+    @classmethod
+    def normalize_equipment(cls, values):
+        return normalize_equipment_values(values)
+
     wake_time: Optional[str] = None
     sleep_time: Optional[str] = None
     workout_time_preference: Optional[WorkoutTimePreference] = None
     coach_style: CoachStyle = CoachStyle.friendly
+
+
+def normalize_equipment_values(values):
+    """Normalize old UI labels to the canonical equipment keys used by agents."""
+    if values is None:
+        return None
+    if isinstance(values, str):
+        values = [values]
+    if not isinstance(values, (list, tuple, set)):
+        raise ValueError("equipment must be a list of strings")
+
+    aliases = {
+        "dumbbells": "dumbbell",
+        "kettlebells": "kettlebell",
+        "bodyweight only": "bodyweight",
+        "no equipment": "bodyweight",
+        "resistance bands": "resistance_bands",
+        "pull-up bar": "pull_up_bar",
+        "pull up bar": "pull_up_bar",
+        "cable machine": "cable",
+        "machines": "machine",
+        "smith machine": "smith_machine",
+        "squat rack": "squat_rack",
+    }
+    normalized: list[str] = []
+    for item in values:
+        value = str(item or "").strip().lower()
+        if not value:
+            continue
+        canonical = aliases.get(value, value.replace("-", "_").replace(" ", "_"))
+        if canonical not in normalized:
+            normalized.append(canonical)
+    return normalized
 
 
 # ─── User Profile ─────────────────────────────────────────────────────────────
@@ -220,6 +259,12 @@ class ProfileUpdate(BaseModel):
     occupation: Optional[str] = Field(None, max_length=100)
     daily_steps: Optional[int] = Field(None, ge=0)
     equipment: Optional[List[str]] = None
+
+    @field_validator("equipment", mode="before")
+    @classmethod
+    def normalize_equipment(cls, values):
+        return normalize_equipment_values(values)
+
     food_preference: Optional[FoodPreference] = None
     allergies: Optional[List[str]] = None
     food_restrictions: Optional[List[str]] = None
