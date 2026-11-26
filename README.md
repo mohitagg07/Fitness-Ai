@@ -411,15 +411,15 @@ The base schema includes:
 
 | Table | Key columns | Notes |
 |---|---|---|
-| `profiles` | `id` (FK → auth.users), `full_name`, `goal`, `weight_kg`, `height_cm`, `equipment[]`, `coach_style`, `onboarding_complete` | Athlete profile and training preferences |
+| `profiles` | `id` (FK → auth.users), `full_name`, `goal`, `weight_kg`, `height_cm`, `equipment[]`, `coach_style`, `app_role`, `onboarding_complete` | Athlete profile and training preferences |
 | `injury_profiles` | `user_id`, `body_part`, `issue_type`, `severity`, `doctor_restriction` | Injury constraints used by the coach |
 | `workout_plans` | `user_id`, `schedule` (JSONB), `is_active` | Training schedule |
 | `workout_sessions` | `user_id`, `session_date`, `day_label`, `completed`, `total_volume_kg` | Workout sessions |
-| `exercise_logs` | `session_id`, `exercise_name`, `set_number`, `weight_kg`, `reps`, `rpe` | Set-by-set training log; 0 kg is valid for bodyweight exercises |
+| `exercise_logs` | `session_id`, `exercise_name`, `set_number`, `weight_kg`, `reps`, `rpe`, `is_warmup`, `is_dropset`, `tempo` | Set-by-set training log; 0 kg is valid for bodyweight exercises |
 | `personal_records` | `user_id`, `exercise_name`, `weight_kg` | Verified strength records |
 | `progress_metrics` | `user_id`, `recorded_date`, `weight_kg`, `recovery_score`, `body_fat_pct` | Progress check-ins |
 | `nutrition_logs` | `user_id`, `log_date`, `food_name`, `calories`, `protein_g`, `water_ml` | Nutrition entries |
-| `ai_conversations` | `user_id`, `session_id`, `role`, `content` | Coach conversation history |
+| `ai_conversations` | `user_id`, `session_id`, `role`, `content`, `metadata` | Coach conversation history |
 | `agent_states` | `user_id`, `cns_fatigue_score`, `workout_streak`, `protein_streak`, `total_workouts` | Persisted coach state |
 | `ai_timeline_events` | `user_id`, `event_type`, `message` | Append-only decision timeline |
 
