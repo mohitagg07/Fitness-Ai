@@ -143,13 +143,13 @@ function AIReadinessHero({ workoutType, workoutStreak, estimatedMinutes = 55 }: 
     >
     <View style={styles.card}>
       <View style={styles.headerRow}>
-        <Text variant="eyebrow" color={COLORS.textSecondary}>TODAY'S AI DECISION</Text>
+        <Text variant="eyebrow" color={COLORS.textSecondary}>TODAY'S TRAINING CALL</Text>
         <View style={styles.confBlock}>
           <Text variant="cardTitle" numeric weight="bold" color={cc} style={styles.confValue}>
             {decision.confidence_pct}%
           </Text>
           <Text variant="caption" weight="semibold" color={COLORS.textMuted} style={styles.confLabel}>
-            CONFIDENCE
+            DECISION CONFIDENCE
           </Text>
         </View>
       </View>
@@ -163,7 +163,7 @@ function AIReadinessHero({ workoutType, workoutStreak, estimatedMinutes = 55 }: 
             </Text>
           )}
         </View>
-        <MissionFigure color={cc} size={104} />
+        <MissionFigure color={cc} size={88} />
       </View>
 
       {decision.signals?.length > 0 && (
@@ -183,7 +183,7 @@ function AIReadinessHero({ workoutType, workoutStreak, estimatedMinutes = 55 }: 
 
       <View style={styles.ctaRow}>
         <Button
-          label="Start Workout"
+          label="Start workout"
           icon="play"
           size="lg"
           fullWidth
@@ -204,7 +204,7 @@ function AIReadinessHero({ workoutType, workoutStreak, estimatedMinutes = 55 }: 
           setExpanded((v) => !v);
         }}
       >
-        <Text variant="caption" weight="semibold" color={COLORS.strainGlow}>Why This Decision</Text>
+        <Text variant="caption" weight="semibold" color={COLORS.strainGlow}>Why this recommendation</Text>
         <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={ICON_SIZE.xs} color={COLORS.strainGlow} />
       </TouchableOpacity>
 
@@ -258,13 +258,13 @@ function WhyRow({ label, text }: { label: string; text: string }) {
 const styles = StyleSheet.create({
   card: {
     marginHorizontal: SPACING.lg,
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.lg,
     backgroundColor: COLORS.card,
     borderRadius: RADIUS.card,
     borderWidth: 1,
     borderColor: COLORS.borderLight,
-    padding: SPACING.xl,
-    minHeight: 300,
+    padding: SPACING.lg,
+    minHeight: 0,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.32,
@@ -278,7 +278,7 @@ const styles = StyleSheet.create({
   confLabel: { letterSpacing: 1.2, fontSize: 10, marginTop: 1 },
   mainRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.lg },
   mainLeft: { flex: 1, paddingRight: SPACING.sm },
-  decisionTitle: { fontSize: 30, lineHeight: 34 },
+  decisionTitle: { fontSize: 27, lineHeight: 32 },
   metricsRow: {
     // Was a single unwrapping row forcing 5 columns into the card width,
     // which is what forced 1-line-ellipsis labels like "BENCH PR…" and
@@ -293,7 +293,7 @@ const styles = StyleSheet.create({
   ctaRow: { flexDirection: 'row', marginBottom: SPACING.sm },
   whyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: SPACING.sm },
   whyPanel: {
-    marginTop: SPACING.sm, backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.card,
+    marginTop: SPACING.sm, backgroundColor: COLORS.backgroundTop, borderRadius: 16,
     padding: SPACING.md, borderWidth: 1, borderColor: COLORS.border,
   },
   whyLabel: { letterSpacing: 1, fontSize: 10, marginBottom: 3 },
