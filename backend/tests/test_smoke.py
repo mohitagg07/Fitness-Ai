@@ -468,3 +468,41 @@ def test_scheduler_worker_requires_explicit_enablement() -> None:
     with pytest.raises(RuntimeError):
         _require_scheduler_enabled(Settings(scheduler_enabled=False))
     _require_scheduler_enabled(Settings(scheduler_enabled=True))
+
+
+def test_log_set_rpc_params_include_server_user_and_session_without_client_set_number() -> None:
+    from api.routes.workouts import SetLogRequest, build_log_set_rpc_params
+
+    payload = SetLogRequest(
+        exercise_name="  Bench Press  ",
+        weight_kg=80,
+        reps=8,
+        rpe=8,
+        equipment_modifiers=["barbell"],
+        is_warmup=False,
+        is_dropset=True,
+        superset_group="superset-a",
+        tempo="3-1-1-0",
+        to_failure=False,
+        set_notes="Controlled eccentric",
+    )
+    params = build_log_set_rpc_params(
+        session_id="session-123",
+        user_id="user-456",
+        payload=payload,
+    )
+
+    assert params["p_session_id"] == "session-123"
+    assert params["p_user_id"] == "user-456"
+    assert params["p_exercise_name"] == "Bench Press"
+    assert params["p_set"]["weight_kg"] == 80
+    assert params["p_set"]["reps"] == 8
+    assert params["p_set"]["is_dropset"] is True
+    assert "set_number" not in params["p_set"]
+
+
+def test_log_set_rejects_blank_exercise_name() -> None:
+    from api.routes.workouts import SetLogRequest
+
+    with pytest.raises(ValidationError):
+        SetLogRequest(exercise_name="   ", weight_kg=40, reps=8)
