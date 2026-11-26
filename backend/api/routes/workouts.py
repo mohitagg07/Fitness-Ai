@@ -23,7 +23,7 @@ from core.security import get_current_user
 from db.supabase_client import get_supabase, upsert_agent_state, get_full_user_context
 from services.pr_validator import validate_logged_weight, find_new_personal_records
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 router = APIRouter(tags=["Workouts"])
 
