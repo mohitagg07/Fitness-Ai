@@ -20,9 +20,7 @@ Rewrite triggers (in priority order):
   - PR_OPPORTUNITY   → add a top set at 95% of PR weight
 """
 from __future__ import annotations
-import json
 import logging
-from datetime import date
 from typing import Optional
 
 from db.supabase_client import get_supabase
@@ -82,29 +80,33 @@ def _get_program_version_count(user_id: str) -> int:
 
 def _save_program_version(
     user_id: str,
-    version_number: int,
     trigger: str,
     changes: list[dict],
     explanation: str,
     plan_id: Optional[str] = None,
-) -> Optional[str]:
-    """Persist a rewrite to program_versions. Returns the new row id."""
+) -> Optional[dict]:
+    """Atomically persist or reuse an identical recent program rewrite.
+
+    The database function serializes writes per user, allocates version_number
+    inside the same transaction, and returns already_applied=True when the
+    same trigger/change set was saved for the same plan within seven days.
+    """
     sb = get_supabase()
     try:
-        row = {
-            "user_id": user_id,
-            "version_number": version_number,
-            "trigger": trigger,
-            "changes": json.dumps(changes),
-            "explanation": explanation,
-            "plan_id": plan_id,
-            "created_at": str(date.today()),
-        }
-        res = sb.table("program_versions").insert(row).execute()
-        saved = res.data or []
-        return saved[0]["id"] if saved else None
-    except Exception as e:
-        logger.error(f"Failed to save program version for {user_id}: {e}")
+        result = sb.rpc(
+            "save_program_version_idempotent",
+            {
+                "p_user_id": user_id,
+                "p_trigger": trigger,
+                "p_changes": changes,
+                "p_explanation": explanation,
+                "p_plan_id": plan_id,
+            },
+        ).execute()
+        rows = result.data or []
+        return rows[0] if rows else None
+    except Exception:
+        logger.exception("Failed to persist program version for %s", user_id)
         return None
 
 
@@ -276,31 +278,60 @@ def run_program_rewriter(user_id: str, profile: dict) -> dict:
             "stimulus — the same pattern elite coaches use to restart stalled progress."
         )
 
-    # 4. Get current version number
-    current_version = _get_program_version_count(user_id)
-    new_version = current_version + 1
-
-    # 5. Get active plan id (optional — plan may not exist yet)
+    # 4. Get the active plan id (optional — plan may not exist yet).
+    # Version allocation and deduplication are deliberately delegated to
+    # one Postgres transaction; a read-count-then-insert sequence races when
+    # the scheduler and an on-demand review run concurrently.
     active_plan = _get_active_plan(user_id)
     plan_id = active_plan["id"] if active_plan else None
 
-    # 6. Save the version
-    version_id = _save_program_version(
+    # 5. Persist atomically. A failed write must never be presented as a
+    # successful rewrite or cause a false "program updated" celebration.
+    saved = _save_program_version(
         user_id=user_id,
-        version_number=new_version,
         trigger=trigger,
         changes=changes,
         explanation=reason_text,
         plan_id=plan_id,
     )
+    if not saved:
+        logger.error("Program rewrite was not persisted for %s", user_id)
+        return {
+            "rewrite_triggered": False,
+            "persistence_error": True,
+            "already_applied": False,
+            "trigger": trigger,
+            "version_number": _get_program_version_count(user_id),
+            "changes": [],
+            "explanation": "The rewrite was generated but could not be saved. No program version was created.",
+            "version_id": None,
+        }
 
-    logger.info(f"Program rewrite v{new_version} saved for {user_id} — trigger: {trigger}")
+    already_applied = bool(saved.get("already_applied"))
+    version_number = int(saved.get("version_number") or 0)
+    version_id = saved.get("version_id")
+
+    if already_applied:
+        logger.info(
+            "Skipped duplicate program rewrite for %s — trigger: %s, version: %s",
+            user_id,
+            trigger,
+            version_number,
+        )
+    else:
+        logger.info(
+            "Program rewrite v%s saved for %s — trigger: %s",
+            version_number,
+            user_id,
+            trigger,
+        )
 
     return {
-        "rewrite_triggered": True,
+        "rewrite_triggered": not already_applied,
+        "already_applied": already_applied,
         "trigger": trigger,
-        "version_number": new_version,
-        "changes": changes,
-        "explanation": reason_text,
+        "version_number": version_number,
+        "changes": saved.get("changes") or changes,
+        "explanation": saved.get("explanation") or reason_text,
         "version_id": version_id,
     }
