@@ -21,7 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from schemas.models import SetLog
 from core.security import get_current_user
 from db.supabase_client import get_supabase, upsert_agent_state, get_full_user_context
-from services.pr_validator import validate_logged_weight
+from services.pr_validator import validate_logged_weight, find_new_personal_records
 from typing import Optional
 from pydantic import BaseModel, Field
 
@@ -326,65 +326,66 @@ async def complete_session(
     # so "Top PR: Bench +2.5kg" on the summary card reflects a real,
     # persisted comparison rather than a guess.
     new_prs: list[dict] = []
+    pr_save_warnings: list[dict] = []
     if working_logs:
-        best_this_session: dict[str, dict] = {}
-        for l in working_logs:
-            name = l.get("exercise_name")
-            w = l.get("weight_kg") or 0
-            if not name:
-                continue
-            if name not in best_this_session or w > best_this_session[name]["weight_kg"]:
-                best_this_session[name] = {"weight_kg": w, "reps": l.get("reps")}
-
         try:
             pr_res = (
                 sb.table("personal_records")
-                .select("exercise_name, weight_kg")
+                .select("exercise_name, weight_kg, reps")
                 .eq("user_id", user_id)
                 .execute()
             )
-            existing_prs = {r["exercise_name"]: r["weight_kg"] for r in (pr_res.data or [])}
-        except Exception:
-            existing_prs = {}
+            existing_pr_rows = pr_res.data or []
+        except Exception as e:
+            # A failed history read is not an empty PR table. Do not announce
+            # false first-time records when the existing records are unknown.
+            import logging
+            logging.getLogger(__name__).warning(
+                f"Could not load PR history for {user_id}: {e}"
+            )
+            existing_pr_rows = None
 
-        for name, best in best_this_session.items():
-            # A zero external load is a valid bodyweight set, not a barbell/
-            # dumbbell load PR. Keep it in the session history and volume
-            # calculations, but do not create or overwrite a 0 kg PR entry.
-            if best["weight_kg"] <= 0:
-                continue
-            old_pr = existing_prs.get(name)
-            if old_pr is None or best["weight_kg"] > old_pr:
-                delta = round(best["weight_kg"] - old_pr, 1) if old_pr is not None else None
+        if existing_pr_rows is not None:
+            candidates = find_new_personal_records(working_logs, existing_pr_rows)
+            for candidate in candidates:
+                name = candidate["exercise_name"]
+                weight = candidate["weight_kg"]
+                reps = candidate["reps"]
+                old_pr = candidate["previous_pr_kg"]
+                delta = round(weight - old_pr, 1) if old_pr is not None else None
 
-                # Sanity-check implausible jumps (e.g. a mis-typed weight_kg
-                # like 500 instead of 50) before treating this as a confirmed
-                # PR. This doesn't block the log or the upsert below — the
-                # set was genuinely performed and stays recorded either way
-                # — it just surfaces `needs_review` so the frontend can ask
-                # "log this as-is?" instead of silently celebrating a typo.
+                # Validate against the previous record for the same rep count.
                 needs_review = False
                 if old_pr is not None:
-                    check = validate_logged_weight(name, best["weight_kg"], {name: old_pr})
+                    check = validate_logged_weight(name, weight, {name: old_pr})
                     needs_review = not check["valid"]
 
-                new_prs.append({
-                    "exercise_name": name,
-                    "weight_kg": best["weight_kg"],
-                    "previous_pr_kg": old_pr,
-                    "delta_kg": delta,
-                    "needs_review": needs_review,
-                })
                 try:
                     sb.table("personal_records").upsert({
                         "user_id": user_id,
                         "exercise_name": name,
-                        "weight_kg": best["weight_kg"],
-                        "reps": best.get("reps"),
+                        "weight_kg": weight,
+                        "reps": reps,
                     }, on_conflict="user_id,exercise_name,reps").execute()
+                    # Only celebrate a PR after persistence succeeds.
+                    new_prs.append({
+                        "exercise_name": name,
+                        "weight_kg": weight,
+                        "reps": reps,
+                        "previous_pr_kg": old_pr,
+                        "delta_kg": delta,
+                        "needs_review": needs_review,
+                    })
                 except Exception as e:
                     import logging
-                    logging.getLogger(__name__).warning(f"PR upsert failed for {name}: {e}")
+                    logging.getLogger(__name__).warning(
+                        f"PR upsert failed for {name} x{reps}: {e}"
+                    )
+                    pr_save_warnings.append({
+                        "exercise_name": name,
+                        "reps": reps,
+                        "message": "This record could not be saved. Your workout was completed.",
+                    })
 
     # ── Pull a fresh recovery prediction so the summary card can show
     # "Recovery Prediction: Medium" without the frontend making a second
@@ -501,6 +502,7 @@ async def complete_session(
         "exercise_count": len(exercise_names),
         "best_set": best_set,
         "new_prs": new_prs,
+        "pr_save_warnings": pr_save_warnings,
         "recovery_prediction": recovery_prediction,
         "recovery_pct": recovery_pct,
         "coach_message": coach_message,
