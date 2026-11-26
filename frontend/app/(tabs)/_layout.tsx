@@ -33,7 +33,7 @@ const TABS: TabDef[] = [
   { name: 'coach',   title: 'Coach',     icon: 'flash-outline',       activeIcon: 'flash'       },
   { name: 'workout', title: 'Train',     icon: 'barbell-outline',     activeIcon: 'barbell'     },
   { name: 'progress', title: 'Progress', icon: 'stats-chart-outline', activeIcon: 'stats-chart' },
-  { name: 'profile', title: 'PROFILE',   icon: 'person-outline',      activeIcon: 'person'      },
+  { name: 'profile', title: 'Profile',   icon: 'person-outline',      activeIcon: 'person'      },
 ];
 
 // Hidden tabs — still routable via router.push(), just not in the bar
