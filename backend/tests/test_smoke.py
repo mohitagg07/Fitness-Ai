@@ -231,3 +231,129 @@ def test_global_admin_dependency_fails_closed_before_role_migration(monkeypatch)
     with pytest.raises(HTTPException) as exc:
         security.require_admin_user({"user_id": "user-123"})
     assert exc.value.status_code == 503
+
+
+def test_metrics_create_accepts_recovery_scores_on_0_to_100_scale() -> None:
+    from schemas.models import MetricsCreate
+
+    assert MetricsCreate(recovery_score=0).recovery_score == 0
+    assert MetricsCreate(recovery_score=100).recovery_score == 100
+    assert MetricsCreate(weight_kg=72.5).recovery_score is None
+
+
+@pytest.mark.parametrize("score", [-0.1, 100.1])
+def test_metrics_create_rejects_recovery_scores_outside_range(score) -> None:
+    from schemas.models import MetricsCreate
+
+    with pytest.raises(ValidationError):
+        MetricsCreate(recovery_score=score)
+
+
+def test_recovery_average_ignores_null_invalid_and_non_finite_values() -> None:
+    from services.recovery_metrics import average_recovery_score_pct
+
+    assert average_recovery_score_pct([
+        {"recovery_score": 70},
+        {"recovery_score": 80},
+        {"recovery_score": None},
+        {"recovery_score": "invalid"},
+        {"recovery_score": float("nan")},
+        {"recovery_score": 120},
+    ]) == 75.0
+
+
+def test_recovery_average_returns_none_when_no_valid_measurements_exist() -> None:
+    from services.recovery_metrics import average_recovery_score_pct
+
+    assert average_recovery_score_pct([
+        {"recovery_score": None},
+        {"recovery_score": "not-a-number"},
+        {"recovery_score": -1},
+    ]) is None
+
+
+def test_pattern_pr_lookup_uses_achieved_at_and_keeps_latest_rep_record(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from agents import pattern_engine
+
+    class Query:
+        def select(self, fields):
+            self.fields = fields
+            return self
+
+        def eq(self, *_args):
+            return self
+
+        def execute(self):
+            assert "achieved_at" in self.fields
+            assert "set_at" not in self.fields
+            return SimpleNamespace(data=[
+                {"exercise_name": "Bench Press", "weight_kg": 100, "reps": 1, "achieved_at": "2026-01-01"},
+                {"exercise_name": "Bench Press", "weight_kg": 80, "reps": 5, "achieved_at": "2026-02-01"},
+                {"exercise_name": "Squat", "weight_kg": 140, "reps": 1, "achieved_at": "2026-01-15"},
+            ])
+
+    class Supabase:
+        def table(self, table_name):
+            assert table_name == "personal_records"
+            return Query()
+
+    monkeypatch.setattr(pattern_engine, "get_supabase", lambda: Supabase())
+    records = pattern_engine._get_prs("user-123")
+
+    assert records["Bench Press"]["reps"] == 5
+    assert records["Bench Press"]["achieved_at"] == "2026-02-01"
+    assert records["Squat"]["weight_kg"] == 140
+
+
+def test_pr_opportunity_detector_is_registered_and_returns_insight(monkeypatch) -> None:
+    from agents import pattern_engine
+
+    monkeypatch.setattr(
+        pattern_engine,
+        "get_agent_state",
+        lambda _user_id: {"cns_fatigue_score": 1, "workout_streak": 4},
+    )
+    monkeypatch.setattr(
+        pattern_engine,
+        "_get_prs",
+        lambda _user_id: {"Bench Press": {"weight_kg": 100, "reps": 1}},
+    )
+
+    insights = pattern_engine.detect_pr_opportunity("user-123")
+
+    assert len(insights) == 1
+    assert insights[0].category == "pr_opportunity"
+
+
+def test_training_load_excludes_warmup_sets(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from services import training_load_engine
+
+    class Query:
+        def select(self, fields):
+            assert "is_warmup" in fields
+            return self
+
+        def eq(self, *_args):
+            return self
+
+        def gte(self, *_args):
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data=[
+                {"exercise_name": "Squat", "weight_kg": 100, "reps": 5, "rpe": 7, "logged_at": "2026-02-01T10:00:00Z", "is_warmup": False},
+                {"exercise_name": "Squat", "weight_kg": 60, "reps": 5, "rpe": 4, "logged_at": "2026-02-01T09:50:00Z", "is_warmup": True},
+            ])
+
+    class Supabase:
+        def table(self, table_name):
+            assert table_name == "exercise_logs"
+            return Query()
+
+    monkeypatch.setattr(training_load_engine, "get_supabase", lambda: Supabase())
+    logs = training_load_engine._get_logs("user-123", "2026-02-01")
+
+    assert len(logs) == 1
+    assert logs[0]["weight_kg"] == 100
