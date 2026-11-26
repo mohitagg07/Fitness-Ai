@@ -27,7 +27,7 @@ miss, generate live (as before) and warm the cache so the *next* load this
 week is instant too, without waiting for Sunday's scheduled job.
 """
 import asyncio
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from fastapi import APIRouter, Depends
 from core.security import get_current_user
 from agents.weekly_review_agent import generate_weekly_review, _week_range
@@ -37,6 +37,27 @@ import logging
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Review"])
+
+
+WEEKLY_REVIEW_CACHE_TTL = timedelta(minutes=10)
+
+
+def _is_weekly_cache_fresh(generated_at, now: datetime | None = None) -> bool:
+    """A weekly review cache must be recent because in-progress weeks change."""
+    if not generated_at:
+        return False
+    try:
+        timestamp = (
+            generated_at if isinstance(generated_at, datetime)
+            else datetime.fromisoformat(str(generated_at).replace("Z", "+00:00"))
+        )
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+        current = now or datetime.now(timezone.utc)
+        age = current - timestamp
+        return timedelta(0) <= age <= WEEKLY_REVIEW_CACHE_TTL
+    except (TypeError, ValueError):
+        return False
 
 
 def _read_weekly_cache(user_id: str, week_label: str) -> dict | None:
@@ -52,6 +73,8 @@ def _read_weekly_cache(user_id: str, week_label: str) -> dict | None:
         )
         if res.data:
             row = res.data[0]
+            if not _is_weekly_cache_fresh(row.get("generated_at")):
+                return None
             return {**row["payload"], "week_label": week_label, "generated_at": row["generated_at"]}
     except Exception as e:
         # Missing table / connectivity issue — fall through to live generation
