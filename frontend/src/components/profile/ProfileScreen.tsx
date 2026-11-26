@@ -38,7 +38,7 @@ import {
 const APP_VERSION = '1.0.0';
 
 const GOAL_COLORS: Record<string, string> = {
-  bulk: 'COLORS.recoveryHigh', cut: 'COLORS.recoveryLow', recomp: 'COLORS.coachPurple', maintain: 'COLORS.strain',
+  bulk: COLORS.recoveryHigh, cut: COLORS.recoveryLow, recomp: COLORS.coachPurple, maintain: COLORS.strain,
 };
 
 // Small, purely-decorative rotating line under the name — same idea as the
@@ -257,7 +257,7 @@ export default function ProfileScreen() {
             <View style={styles.streakStrip}>
               {workoutStreak != null && (
                 <View style={styles.streakChip}>
-                  <Ionicons name="flame" size={12} color="COLORS.recoveryLow" />
+                  <Ionicons name="flame" size={12} color={COLORS.recoveryLow} />
                   <Text style={styles.streakChipText}>{workoutStreak} day streak</Text>
                 </View>
               )}
@@ -295,7 +295,7 @@ export default function ProfileScreen() {
         {/* Equipment */}
         <View style={styles.card}>
           <View style={styles.cardLabelRow}>
-            <Ionicons name="barbell-outline" size={13} color="COLORS.recoveryHigh" />
+            <Ionicons name="barbell-outline" size={13} color={COLORS.recoveryHigh} />
             <Text style={styles.cardLabel}>EQUIPMENT</Text>
           </View>
           {profile?.equipment?.length ? (
@@ -330,7 +330,7 @@ export default function ProfileScreen() {
         {/* Injuries */}
         <View style={styles.card}>
           <View style={styles.cardLabelRow}>
-            <Ionicons name="shield-checkmark-outline" size={13} color="COLORS.recoveryLow" />
+            <Ionicons name="shield-checkmark-outline" size={13} color={COLORS.recoveryLow} />
             <Text style={styles.cardLabel}>INJURY PROFILE</Text>
           </View>
           {injuries.length ? (
@@ -341,7 +341,7 @@ export default function ProfileScreen() {
                   <Text style={styles.injuryType}>{cap(inj.issue_type)}{inj.doctor_restriction ? ' · Doctor restricted' : ''}</Text>
                 </View>
                 <View style={[styles.severityBadge, { backgroundColor: inj.severity >= 7 ? '#3A1A1A' : '#2A2A1A' }]}>
-                  <Text style={[styles.severityText, { color: inj.severity >= 7 ? 'COLORS.recoveryLow' : COLORS.primaryGreen }]}>
+                  <Text style={[styles.severityText, { color: inj.severity >= 7 ? COLORS.recoveryLow : COLORS.primaryGreen }]}>
                     {inj.severity}/10
                   </Text>
                 </View>
@@ -382,7 +382,7 @@ export default function ProfileScreen() {
         </View>
 
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={16} color="COLORS.recoveryLow" />
+          <Ionicons name="log-out-outline" size={16} color={COLORS.recoveryLow} />
           <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>
 
@@ -716,11 +716,11 @@ const styles = StyleSheet.create({
   emptyHint: { color: COLORS.textMuted, fontSize: 12.5, lineHeight: 18 },
 
   prRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  prName: { color: 'COLORS.textSecondary', fontSize: 14 },
+  prName: { color: COLORS.textSecondary, fontSize: 14 },
   prWeight: { color: COLORS.primaryGreen, fontSize: 14, fontWeight: '700' },
 
   injuryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  injuryPart: { color: 'COLORS.textSecondary', fontSize: 14, fontWeight: '600' },
+  injuryPart: { color: COLORS.textSecondary, fontSize: 14, fontWeight: '600' },
   injuryType: { color: COLORS.textSecondary, fontSize: 12, marginTop: 2 },
   severityBadge: { borderRadius: 8, padding: 6 },
   severityText: { fontSize: 12, fontWeight: '700' },
@@ -735,7 +735,7 @@ const styles = StyleSheet.create({
   saveSmallBtnText: { color: '#000', fontSize: 13, fontWeight: '700' },
 
   tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tag: { backgroundColor: 'COLORS.card', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  tag: { backgroundColor: COLORS.card, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   tagText: { color: COLORS.textSecondary, fontSize: 12 },
 
   settingsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
@@ -744,10 +744,10 @@ const styles = StyleSheet.create({
   logoutBtn: {
     margin: 16, backgroundColor: COLORS.cardElevated,
     borderRadius: 14, padding: 16, alignItems: 'center',
-    borderWidth: 1, borderColor: 'alpha(COLORS.recoveryLow, 0.22)',
+    borderWidth: 1, borderColor: alpha(COLORS.recoveryLow, 0.22),
     flexDirection: 'row', justifyContent: 'center', gap: 8,
   },
-  logoutText: { color: 'COLORS.recoveryLow', fontSize: 14, fontWeight: '600' },
+  logoutText: { color: COLORS.recoveryLow, fontSize: 14, fontWeight: '600' },
   versionText: { textAlign: 'center', color: COLORS.textDim, fontSize: 11, marginBottom: 8 },
   retryBtn: { marginTop: 16, backgroundColor: COLORS.cardElevated, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 10, borderWidth: 1, borderColor: COLORS.border },
 
