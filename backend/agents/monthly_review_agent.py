@@ -33,7 +33,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from db.supabase_client import get_supabase, get_full_user_context
 from db.memory_client import recall
-from services.nutrition import calculate_macros
+from services.nutrition import calculate_average_macro_targets_for_range
 from schemas.models import Goal
 from core.config import get_settings
 from services.recovery_metrics import get_average_recovery_score_pct
@@ -215,13 +215,8 @@ def generate_monthly_review(user_id: str, months_ago: int = 0, trigger_rewrite: 
     profile, agent_state = get_full_user_context(user_id)
     goal_str = profile.get("goal") or "maintain"
     goal = Goal(goal_str) if goal_str in Goal._value2member_map_ else Goal.maintain
-    targets = calculate_macros(
-        weight_kg=profile.get("weight_kg") or 75,
-        height_cm=profile.get("height_cm") or 175,
-        age=profile.get("age") or 28,
-        gender=profile.get("gender") or "male",
-        goal=goal,
-        is_training_day=True,
+    targets = calculate_average_macro_targets_for_range(
+        user_id, profile, goal, this_start, this_end
     )
 
     # ── Sessions ───────────────────────────────────────────────────────────
