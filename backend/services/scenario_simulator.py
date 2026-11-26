@@ -67,20 +67,11 @@ def _avg_recent_protein_g(user_id: str, days: int = 7) -> float | None:
 
 
 def _avg_recovery_score(user_id: str, days: int = 14) -> float | None:
-    from db.supabase_client import get_supabase
-    sb = get_supabase()
-    cutoff = str(date.today() - timedelta(days=days))
-    res = (
-        sb.table("progress_metrics")
-        .select("recovery_score")
-        .eq("user_id", user_id)
-        .gte("recorded_date", cutoff)
-        .not_.is_("recovery_score", "null")
-        .execute()
-    )
-    rows = res.data or []
-    scores = [r["recovery_score"] for r in rows if r.get("recovery_score") is not None]
-    return sum(scores) / len(scores) if scores else None
+    from services.recovery_metrics import get_average_recovery_score_pct
+
+    end_date = date.today()
+    start_date = end_date - timedelta(days=days)
+    return get_average_recovery_score_pct(user_id, start_date, end_date)
 
 
 def simulate_calorie_surplus(user_id: str, weeks: int, delta_kcal_per_day: int = 300) -> dict:
