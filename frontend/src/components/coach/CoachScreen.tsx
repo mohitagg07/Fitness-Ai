@@ -30,7 +30,7 @@ import { useStore } from '../../store';
 import { COLORS, alpha, recoveryColor } from '../../theme/colors';
 import { RADIUS } from '../../theme/spacing';
 import Logo from '../shared/Logo';
-import CircularProgress from '../ui/CircularProgress';
+
 import CoachMemoryModal from './CoachMemoryModal';
 
 // ─── Suggestion chips shown on empty state ────────────────────────────────────
@@ -612,25 +612,6 @@ function getOfflineFallback(message: string): string {
 }
 
 // ─── Small numeric badge used in the header briefing strip ───────────────────
-function MiniStatBase({ label, value, color }: { label: string; value: number; color: string }) {
-  return (
-    <View style={S.miniStat}>
-      <CircularProgress
-        progress={Math.max(0, Math.min(100, value))}
-        size={64}
-        strokeWidth={6}
-        color={color}
-        center={<Text style={[S.miniStatValue, { color }]}>{value}</Text>}
-      />
-      <Text style={S.miniStatLabel}>{label}</Text>
-    </View>
-  );
-}
-// Rebinding the name (rather than exporting a differently-named
-// version) so every existing <MiniStat .../> usage further down this
-// file picks up the memoized version automatically.
-const MiniStat = React.memo(MiniStatBase);
-
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function CoachScreen() {
   const responsive = useResponsiveLayout();
@@ -649,16 +630,12 @@ export default function CoachScreen() {
   // update including ones it never reads (e.g. Dashboard calling
   // setCnsFatigue, or ProfileScreen editing injuries) since useStore()
   // subscribed to the whole store unconditionally.
-  const { chatHistory, addChatMessage, hydrateChatHistory, setCnsFatigue, profile, user } = useStore((s) => ({
+  const { chatHistory, addChatMessage, hydrateChatHistory, setCnsFatigue } = useStore((s) => ({
     chatHistory: s.chatHistory,
     addChatMessage: s.addChatMessage,
     hydrateChatHistory: s.hydrateChatHistory,
     setCnsFatigue: s.setCnsFatigue,
-    profile: s.profile,
-    user: s.user,
   }));
-  const firstName = user?.full_name?.split(' ')[0] || profile?.full_name?.split(' ')[0] || 'Athlete';
-  const hour = new Date().getHours();
 
   // Restore conversation history from Supabase when the Coach tab opens.
   // The store guard prevents a slow history request from overwriting a new
@@ -691,7 +668,6 @@ export default function CoachScreen() {
 
     return () => { cancelled = true; };
   }, [hydrateChatHistory]);
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   // PERF: previously an independent useEffect fetch of the exact same
   // mission/dashboard summary DashboardScreen also fetches — meaning
@@ -719,6 +695,7 @@ export default function CoachScreen() {
   const pendingUserMessageRef = useRef<string | null>(null);
   const { send: sendStream, isStreaming, streamingText } = useCoachChatStream({
     onDone: (data) => {
+      pendingUserMessageRef.current = null;
       setServerStatus('online');
       addChatMessage('assistant', data.reply, data.structured_decision);
       if (data.cns_fatigue_score != null) setCnsFatigue(data.cns_fatigue_score);
@@ -729,34 +706,14 @@ export default function CoachScreen() {
       }
     },
     onError: (message) => {
+      const pendingMessage = pendingUserMessageRef.current;
+      pendingUserMessageRef.current = null;
       setServerStatus('offline');
-      const fallback = pendingUserMessageRef.current
-        ? getOfflineFallback(pendingUserMessageRef.current)
-        : message;
+      const fallback = pendingMessage ? getOfflineFallback(pendingMessage) : message;
       addChatMessage('assistant', fallback);
     },
   });
-  // Kept as an escape hatch: if the streaming endpoint is ever
-  // unreachable (older backend deploy, proxy stripping SSE), sendMessage
-  // falls back to the original single-shot /chat request rather than the
-  // user being stuck with no way to send a message at all.
-  const sendNonStreaming = async (message: string) => {
-    try {
-      const res = await coachApi.chat(message);
-      const data = res.data;
-      setServerStatus('online');
-      addChatMessage('assistant', data.reply, data.structured_decision);
-      if (data.cns_fatigue_score != null) setCnsFatigue(data.cns_fatigue_score);
-    } catch (err: any) {
-      const { kind, message: errMsg } = describeApiError(err);
-      setServerStatus('offline');
-      if (kind === 'network' || kind === 'server' || kind === 'timeout') {
-        addChatMessage('assistant', getOfflineFallback(message));
-      } else {
-        addChatMessage('assistant', errMsg);
-      }
-    }
-  };
+  // The stream hook owns connection, auth, cancellation and error settlement.
 
   const sendMessage = (text?: string) => {
     const message = text || input.trim();
@@ -766,11 +723,7 @@ export default function CoachScreen() {
     addChatMessage('user', message);
     pendingUserMessageRef.current = message;
 
-    try {
-      sendStream(message);
-    } catch {
-      sendNonStreaming(message);
-    }
+    void sendStream(message);
   };
 
   useEffect(() => {
@@ -824,8 +777,8 @@ export default function CoachScreen() {
             <TouchableOpacity hitSlop={10} onPress={() => setMemoryVisible(true)} accessibilityRole="button" accessibilityLabel="Open coach memory">
               <Ionicons name="bookmark-outline" size={21} color={COLORS.textSecondary} />
             </TouchableOpacity>
-            <TouchableOpacity hitSlop={10} onPress={() => router.push('/(tabs)/profile')}>
-              <Ionicons name="menu-outline" size={22} color={COLORS.textSecondary} />
+            <TouchableOpacity hitSlop={10} onPress={() => router.push('/(tabs)/profile')} accessibilityRole="button" accessibilityLabel="Open profile">
+              <Ionicons name="person-outline" size={21} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </View>
         </View>
@@ -837,28 +790,30 @@ export default function CoachScreen() {
             three rings stay honest about what data backs them. */}
         {brief && (
           <View style={S.briefCard}>
-            <View style={S.briefTopRow}>
-              <View style={S.briefAvatar}>
-                <Text style={S.briefAvatarText}>{firstName.charAt(0).toUpperCase()}</Text>
-              </View>
+            <View style={S.briefContextRow}>
+              <Ionicons name="pulse-outline" size={16} color={COLORS.recoveryHigh} />
               <View style={S.briefTextCol}>
-                <Text style={S.briefGreeting}>{greeting}, {firstName} 👋</Text>
+                <Text style={S.briefContextTitle}>Training context</Text>
                 <Text style={S.briefMessage} numberOfLines={2}>{brief.message}</Text>
               </View>
             </View>
             <View style={S.briefDivider} />
-            <View style={S.briefRings}>
-              <MiniStat label="Recovery" value={Math.round(brief.recoveryScore)} color={recoveryColor(brief.recoveryScore)} />
-              <MiniStat
-                label="CNS Load"
-                value={Math.round(brief.cnsFatigue)}
-                color={brief.cnsFatigue <= 30 ? COLORS.recoveryHigh : brief.cnsFatigue <= 60 ? COLORS.recoveryMed : COLORS.recoveryLow}
-              />
-              <MiniStat
-                label="Readiness"
-                value={Math.round((brief.recoveryScore + (100 - brief.cnsFatigue)) / 2)}
-                color={recoveryColor((brief.recoveryScore + (100 - brief.cnsFatigue)) / 2)}
-              />
+            <View style={S.briefMetrics}>
+              <View style={S.briefMetric}>
+                <Text style={S.briefMetricLabel}>RECOVERY</Text>
+                <Text style={[S.briefMetricValue, { color: recoveryColor(brief.recoveryScore) }]}>
+                  {Math.round(brief.recoveryScore)}<Text style={S.briefMetricUnit}> / 100</Text>
+                </Text>
+              </View>
+              <View style={S.briefMetricDivider} />
+              <View style={S.briefMetric}>
+                <Text style={S.briefMetricLabel}>CNS LOAD</Text>
+                <Text style={[S.briefMetricValue, {
+                  color: brief.cnsFatigue <= 30 ? COLORS.recoveryHigh : brief.cnsFatigue <= 60 ? COLORS.recoveryMed : COLORS.recoveryLow,
+                }]}>
+                  {Math.round(brief.cnsFatigue)}<Text style={S.briefMetricUnit}> / 100</Text>
+                </Text>
+              </View>
             </View>
           </View>
         )}
@@ -1082,33 +1037,22 @@ const S = StyleSheet.create({
     position: 'absolute', top: -1, right: -1, width: 7, height: 7, borderRadius: 4,
     backgroundColor: COLORS.recoveryHigh, borderWidth: 1.5, borderColor: COLORS.background,
   },
-  // Briefing strip — avatar + greeting + three live signal rings, all in
-  // one row like the reference. Sizes trimmed slightly from the original
-  // 2-ring version so three rings + avatar + text still fit comfortably
-  // on a standard phone width without wrapping.
-  // Briefing strip — greeting row on top (avatar + name + AI message),
-  // then a full-width strip of three real animated rings below. Split
-  // into two rows (rather than cramming avatar+text+3 rings into one
-  // line) so the rings can be large enough to read as an actual score
-  // dial instead of a tiny bordered dot.
+  // Compact context avoids repeating the dashboard's readiness ring in chat.
   briefCard: {
-    backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.card, borderWidth: 1, borderColor: COLORS.border,
-    padding: 16, gap: 14,
+    backgroundColor: COLORS.card, borderRadius: RADIUS.card, borderWidth: 1, borderColor: COLORS.border,
+    padding: 14, gap: 12,
   },
-  briefTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  briefAvatar: {
-    width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: alpha(COLORS.recoveryHigh, 0.12), borderWidth: 1.5, borderColor: alpha(COLORS.recoveryHigh, 0.35),
-  },
-  briefAvatarText: { color: COLORS.recoveryHigh, fontSize: 17, fontWeight: '800' },
-  briefTextCol: { flex: 1, minWidth: 0, gap: 3 },
-  briefGreeting: { color: COLORS.text, fontSize: 15, fontWeight: '700' },
-  briefMessage: { color: COLORS.textMuted, fontSize: 12, lineHeight: 16 },
+  briefContextRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
+  briefContextTitle: { color: COLORS.text, fontSize: 12, fontWeight: '700', letterSpacing: 0.25 },
+  briefTextCol: { flex: 1, minWidth: 0, gap: 4 },
+  briefMessage: { color: COLORS.textMuted, fontSize: 12, lineHeight: 17 },
   briefDivider: { height: 1, backgroundColor: COLORS.border },
-  briefRings: { flexDirection: 'row', justifyContent: 'space-around' },
-  miniStat: { alignItems: 'center', gap: 6 },
-  miniStatValue: { fontSize: 15, fontWeight: '800' },
-  miniStatLabel: { color: COLORS.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 0.4 },
+  briefMetrics: { flexDirection: 'row', alignItems: 'center', gap: 18 },
+  briefMetric: { flex: 1, gap: 3 },
+  briefMetricLabel: { color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 1.1 },
+  briefMetricValue: { fontSize: 20, lineHeight: 24, fontWeight: '700' },
+  briefMetricUnit: { color: COLORS.textMuted, fontSize: 11, fontWeight: '500' },
+  briefMetricDivider: { width: 1, height: 34, backgroundColor: COLORS.border },
   offlineBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: alpha(COLORS.recoveryMed, 0.10), paddingVertical: 9, paddingHorizontal: 16,
