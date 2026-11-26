@@ -155,10 +155,9 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          position: 'absolute',
-          left: 18,
-          right: 18,
-          bottom: 14,
+          // Keep the tab bar in normal layout flow so it reserves its own
+          // space instead of covering the last card/action on short screens.
+          marginHorizontal: 12,
           backgroundColor: alpha(COLORS.cardElevated, 0.97),
           borderColor: COLORS.tabBorder,
           borderWidth: 1,
