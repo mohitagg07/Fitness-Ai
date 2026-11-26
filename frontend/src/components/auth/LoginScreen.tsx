@@ -145,7 +145,7 @@ export default function AuthScreen() {
             onPress={() => setMode('login')}
           >
             <Text style={[styles.toggleText, mode === 'login' && styles.toggleTextActive]}>
-              LOG IN
+              Sign in
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -153,7 +153,7 @@ export default function AuthScreen() {
             onPress={() => setMode('register')}
           >
             <Text style={[styles.toggleText, mode === 'register' && styles.toggleTextActive]}>
-              SIGN UP
+              Create account
             </Text>
           </TouchableOpacity>
         </View>
@@ -232,7 +232,7 @@ export default function AuthScreen() {
             >
               {loading
                 ? <ActivityIndicator color="#000" />
-                : <Text style={styles.btnText}>CREATE ACCOUNT</Text>}
+                : <Text style={styles.btnText}>Create account</Text>}
             </TouchableOpacity>
           </View>
         )}
@@ -254,10 +254,10 @@ const styles = StyleSheet.create({
   inner: { flexGrow: 1, justifyContent: 'center', padding: 28 },
   logoWrap: {
     alignSelf: 'center', marginBottom: 14,
-    shadowColor: COLORS.recoveryHigh, shadowOpacity: 0.3, shadowRadius: 16,
+    shadowColor: COLORS.primaryGreen, shadowOpacity: 0.3, shadowRadius: 16,
     shadowOffset: { width: 0, height: 6 }, elevation: 8,
   },
-  subtitle: { color: COLORS.textSecondary, fontSize: 13, textAlign: 'center', marginBottom: 36, letterSpacing: 1 },
+  subtitle: { color: COLORS.textSecondary, fontSize: 13, textAlign: 'center', marginBottom: 32, letterSpacing: 0.2 },
   toggle: {
     flexDirection: 'row',
     backgroundColor: COLORS.cardElevated,
@@ -269,14 +269,14 @@ const styles = StyleSheet.create({
   },
   toggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
   toggleBtnActive: { backgroundColor: COLORS.recoveryHigh },
-  toggleText: { color: COLORS.textMuted, fontSize: 12, fontWeight: '700', letterSpacing: 1 },
+  toggleText: { color: COLORS.textMuted, fontSize: 13, fontWeight: '600', letterSpacing: 0.1 },
   toggleTextActive: { color: COLORS.background },
   form: { gap: 10 },
-  label: { color: COLORS.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1.5, marginBottom: 2 },
+  label: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '700', letterSpacing: 1.1, marginBottom: 3 },
   input: {
-    backgroundColor: COLORS.inputBg, borderRadius: 12,
-    padding: 15, color: COLORS.text, fontSize: 15,
-    borderWidth: 1, borderColor: COLORS.border, marginBottom: 6,
+    backgroundColor: COLORS.inputBg, borderRadius: 14,
+    padding: 16, color: COLORS.text, fontSize: 15,
+    borderWidth: 1, borderColor: COLORS.borderLight, marginBottom: 8,
   },
   btn: {
     backgroundColor: COLORS.recoveryHigh, borderRadius: 14,
@@ -285,5 +285,5 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 }, elevation: 5,
   },
   btnDisabled: { opacity: 0.6 },
-  btnText: { color: COLORS.background, fontSize: 14, fontWeight: '800', letterSpacing: 1 },
+  btnText: { color: COLORS.background, fontSize: 14, fontWeight: '700', letterSpacing: 0.2 },
 });
