@@ -101,6 +101,23 @@ export const actions = {
     next.splice(idx, 1);
     setState({ activeSession: { ..._state.activeSession, logs: next } });
   },
+  replaceLogInSession(optimistic: any, persisted: any) {
+    if (!_state.activeSession || !optimistic || !persisted) return;
+    const logs = [...(_state.activeSession.logs || [])];
+    const index = logs.findIndex(
+      (log: any) =>
+        log.exercise_name === optimistic.exercise_name &&
+        log.set_number === optimistic.set_number
+    );
+    if (index === -1) return;
+    logs[index] = persisted;
+    setState({
+      activeSession: {
+        ..._state.activeSession,
+        logs,
+      },
+    });
+  },
   setCnsFatigue(score: number) { setState({ cnsFatigue: score }); },
   // Hydrate the server-backed conversation once when Coach opens.
   // Do not overwrite a message typed while the history request was in flight.
