@@ -15,8 +15,12 @@ from __future__ import annotations
 from datetime import date, timedelta
 from dataclasses import dataclass, field
 from typing import Literal
+import logging
+
 from db.supabase_client import get_supabase
 from services.agent_state_store import get_agent_state
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -80,15 +84,31 @@ def _get_nutrition_recent(user_id: str, days: int) -> list[dict]:
 
 
 def _get_prs(user_id: str) -> dict:
-    """Returns dict of exercise -> {weight_kg, reps, set_at}"""
+    """Return the most recently achieved record for each exercise.
+
+    The table stores one row per exercise + rep-count pair. Plateau detection
+    is exercise-level, so it uses the most recent achieved_at date across all
+    rep schemes and never asks PostgREST for the non-existent set_at column.
+    """
     sb = get_supabase()
     res = (
         sb.table("personal_records")
-        .select("exercise_name, weight_kg, reps, set_at")
+        .select("exercise_name, weight_kg, reps, achieved_at")
         .eq("user_id", user_id)
         .execute()
     )
-    return {r["exercise_name"]: r for r in (res.data or [])}
+
+    latest_by_exercise: dict[str, dict] = {}
+    for row in res.data or []:
+        name = row.get("exercise_name")
+        if not name:
+            continue
+        existing = latest_by_exercise.get(name)
+        row_date = str(row.get("achieved_at") or "")
+        existing_date = str(existing.get("achieved_at") or "") if existing else ""
+        if existing is None or row_date > existing_date:
+            latest_by_exercise[name] = row
+    return latest_by_exercise
 
 
 def detect_strength_plateaus(user_id: str, weeks: int = 4) -> list[PatternInsight]:
@@ -97,11 +117,11 @@ def detect_strength_plateaus(user_id: str, weeks: int = 4) -> list[PatternInsigh
     prs = _get_prs(user_id)
 
     for exercise, pr_data in prs.items():
-        set_at_str = pr_data.get("set_at", "")
-        if not set_at_str:
+        achieved_at_str = pr_data.get("achieved_at", "")
+        if not achieved_at_str:
             continue
         try:
-            set_at = date.fromisoformat(set_at_str[:10])
+            set_at = date.fromisoformat(achieved_at_str[:10])
         except Exception:
             continue
 
@@ -338,7 +358,8 @@ def detect_workout_time_drift(user_id: str) -> list[PatternInsight]:
 
 
 
-    """Flag if recovery is high + recent trend is upward = good PR attempt day."""
+def detect_pr_opportunity(user_id: str) -> list[PatternInsight]:
+    """Flag a possible PR day when stored CNS fatigue and training streak support it."""
     agent_state = get_agent_state(user_id)
     cns = agent_state.get("cns_fatigue_score", 0)
     streak = agent_state.get("workout_streak", 0)
@@ -368,34 +389,20 @@ def run_pattern_engine(user_id: str, protein_target_g: float = 160.0) -> list[Pa
     """
     all_insights: list[PatternInsight] = []
 
-    try:
-        all_insights += detect_strength_plateaus(user_id)
-    except Exception:
-        pass
-    try:
-        all_insights += detect_missed_workout_patterns(user_id)
-    except Exception:
-        pass
-    try:
-        all_insights += detect_recovery_decline(user_id)
-    except Exception:
-        pass
-    try:
-        all_insights += detect_nutrition_patterns(user_id, protein_target_g)
-    except Exception:
-        pass
-    try:
-        all_insights += detect_pr_opportunity(user_id)
-    except Exception:
-        pass
-    try:
-        all_insights += detect_weekend_nutrition_dip(user_id)
-    except Exception:
-        pass
-    try:
-        all_insights += detect_workout_time_drift(user_id)
-    except Exception:
-        pass
+    detectors = (
+        ("strength_plateaus", lambda: detect_strength_plateaus(user_id)),
+        ("missed_workouts", lambda: detect_missed_workout_patterns(user_id)),
+        ("recovery_decline", lambda: detect_recovery_decline(user_id)),
+        ("nutrition_patterns", lambda: detect_nutrition_patterns(user_id, protein_target_g)),
+        ("pr_opportunity", lambda: detect_pr_opportunity(user_id)),
+        ("weekend_nutrition_dip", lambda: detect_weekend_nutrition_dip(user_id)),
+        ("workout_time_drift", lambda: detect_workout_time_drift(user_id)),
+    )
+    for detector_name, detector in detectors:
+        try:
+            all_insights.extend(detector())
+        except Exception:
+            logger.exception("Pattern detector %s failed for user %s", detector_name, user_id)
 
     severity_order = {"critical": 0, "warning": 1, "info": 2}
     all_insights.sort(key=lambda i: severity_order.get(i.severity, 3))
