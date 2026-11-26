@@ -688,7 +688,7 @@ function WorkoutHUD() {
           <View style={S.inputWrap}>
             <TextInput
               style={S.logInput}
-              placeholder="kg (0 for bodyweight)"
+              placeholder="kg or 0"
               placeholderTextColor={COLORS.textMuted}
               value={weight}
               onChangeText={setWeight}
@@ -708,6 +708,7 @@ function WorkoutHUD() {
             <Text style={S.inputUnit}>reps</Text>
           </View>
         </View>
+        <Text style={S.inputHint}>Use 0 kg for bodyweight exercises.</Text>
 
         {/* Previous set ghost */}
         <PrevSetGhost log={prevSet} />
@@ -912,6 +913,7 @@ const S = StyleSheet.create({
                textAlign: 'center', borderWidth: 1, borderColor: COLORS.borderLight },
   inputUnit: { position: 'absolute', bottom: 6, right: SPACING.sm, color: COLORS.textMuted,
                fontFamily: FONTS.semibold, fontSize: 11 },
+  inputHint: { color: COLORS.textMuted, fontSize: 11, marginTop: -SPACING.xs, marginBottom: SPACING.sm },
 
   rpeRow:    { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.md },
   rpeLabel:  { ...EYEBROW, color: COLORS.textSecondary, fontSize: 10, width: 30 },
