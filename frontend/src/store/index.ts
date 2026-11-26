@@ -48,10 +48,17 @@ export const actions = {
     await unregisterPushNotificationsAsync();
 
     await clearAuthData();
+  },
+  resetSessionState() {
     setState({
-      user: null, token: null, profile: null,
-      injuries: [], prs: {}, chatHistory: [],
-      activeSession: null, cnsFatigue: 0,
+      user: null,
+      token: null,
+      profile: null,
+      injuries: [],
+      prs: {},
+      chatHistory: [],
+      activeSession: null,
+      cnsFatigue: 0,
     });
   },
   setProfile(profile: any, injuries: any[], prs: any[]) {
