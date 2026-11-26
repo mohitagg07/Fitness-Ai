@@ -648,7 +648,7 @@ export default function CoachScreen() {
   // update including ones it never reads (e.g. Dashboard calling
   // setCnsFatigue, or ProfileScreen editing injuries) since useStore()
   // subscribed to the whole store unconditionally.
-  const { chatHistory, addChatMessage, setCnsFatigue, activeSession, profile, user } = useStore((s) => ({
+  const { chatHistory, addChatMessage, hydrateChatHistory, setCnsFatigue, activeSession, profile, user } = useStore((s) => ({
     chatHistory: s.chatHistory,
     addChatMessage: s.addChatMessage,
     hydrateChatHistory: s.hydrateChatHistory,
