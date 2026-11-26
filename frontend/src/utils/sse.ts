@@ -1,10 +1,8 @@
 // VYRN — minimal Server-Sent-Events client for React Native.
 //
-// React Native's `fetch` does not reliably expose a readable `response.body`
-// stream on all platforms, so this uses XMLHttpRequest instead: its
-// `progress` event fires with the response text accumulated so far, which
-// lets us diff out only the newly-arrived bytes on every tick and parse
-// them as SSE frames (`event: <name>\ndata: <json>\n\n`).
+// React Native does not consistently expose a readable fetch response
+// stream on every supported runtime. XMLHttpRequest gives us incremental
+// responseText updates, which are parsed into complete SSE frames here.
 
 type SSEHandlers = {
   onEvent: (event: string, data: any) => void;
@@ -18,26 +16,25 @@ type SSEConfig = {
   body?: any;
 };
 
-// Splits a raw SSE buffer into whole frames, returning the parsed frames
-// plus whatever incomplete trailing text should be carried over to the
-// next chunk.
-function parseFrames(buffer: string): { events: { event: string; data: string }[]; rest: string } {
-  const frames = buffer.split('\n\n');
+type SSEFrame = { event: string; data: string };
+
+function parseFrames(buffer: string): { events: SSEFrame[]; rest: string } {
+  const normalized = buffer.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const frames = normalized.split('\n\n');
   const rest = frames.pop() ?? '';
-  const events: { event: string; data: string }[] = [];
+  const events: SSEFrame[] = [];
 
   for (const frame of frames) {
-    if (!frame.trim()) continue;
+    if (!frame.trim() || frame.startsWith(':')) continue;
     let event = 'message';
     const dataLines: string[] = [];
+
     for (const line of frame.split('\n')) {
-      if (line.startsWith('event:')) {
-        event = line.slice(6).trim();
-      } else if (line.startsWith('data:')) {
-        dataLines.push(line.slice(5).trim());
-      }
+      if (line.startsWith('event:')) event = line.slice(6).trim();
+      else if (line.startsWith('data:')) dataLines.push(line.slice(5).replace(/^ /, ''));
     }
-    events.push({ event, data: dataLines.join('\n') });
+
+    if (dataLines.length) events.push({ event, data: dataLines.join('\n') });
   }
 
   return { events, rest };
@@ -48,11 +45,52 @@ export function openSSE(config: SSEConfig, handlers: SSEHandlers): () => void {
   let processedLength = 0;
   let buffer = '';
   let closed = false;
+  let sawDoneEvent = false;
 
   const finish = () => {
     if (closed) return;
     closed = true;
     xhr.abort();
+  };
+
+  const fail = (error: unknown) => {
+    if (closed) return;
+    closed = true;
+    xhr.abort();
+    handlers.onError(error);
+  };
+
+  const dispatch = (events: SSEFrame[]) => {
+    for (const frame of events) {
+      if (closed) return;
+      let data: any = frame.data;
+      if (frame.data) {
+        try {
+          data = JSON.parse(frame.data);
+        } catch {
+          // Plain-text SSE payloads are valid; preserve them as text.
+        }
+      }
+      if (frame.event === 'done') sawDoneEvent = true;
+      try {
+        handlers.onEvent(frame.event, data);
+      } catch (error) {
+        fail(error);
+        return;
+      }
+    }
+  };
+
+  const handleChunk = (flush = false) => {
+    if (closed) return;
+    const fullText = xhr.responseText || '';
+    const newText = fullText.slice(processedLength);
+    processedLength = fullText.length;
+    if (newText) buffer += newText;
+
+    const parsed = parseFrames(flush ? `${buffer}\n\n` : buffer);
+    buffer = flush ? '' : parsed.rest;
+    dispatch(parsed.events);
   };
 
   xhr.open(config.method || 'GET', config.url, true);
@@ -61,45 +99,28 @@ export function openSSE(config: SSEConfig, handlers: SSEHandlers): () => void {
     xhr.setRequestHeader(key, value);
   });
 
-  const handleChunk = () => {
-    const fullText = xhr.responseText || '';
-    const newText = fullText.slice(processedLength);
-    processedLength = fullText.length;
-    if (!newText) return;
-
-    buffer += newText;
-    const { events, rest } = parseFrames(buffer);
-    buffer = rest;
-
-    for (const { event, data } of events) {
-      try {
-        const parsed = data ? JSON.parse(data) : null;
-        handlers.onEvent(event, parsed);
-      } catch {
-        handlers.onEvent(event, data);
-      }
-    }
-  };
-
-  xhr.onprogress = handleChunk;
-
+  xhr.onprogress = () => handleChunk();
   xhr.onreadystatechange = () => {
-    if (xhr.readyState === 4 /* DONE */) {
-      handleChunk();
-      if (xhr.status < 200 || xhr.status >= 300) {
-        if (!closed) handlers.onError(new Error(`SSE request failed with status ${xhr.status}`));
-      }
+    if (xhr.readyState !== 4 || closed) return;
+
+    handleChunk(true);
+    if (closed) return;
+
+    if (xhr.status < 200 || xhr.status >= 300) {
+      fail(new Error(`SSE request failed with status ${xhr.status}`));
+    } else if (!sawDoneEvent) {
+      fail(new Error('SSE connection closed before the coach finished the response.'));
+    } else {
+      closed = true;
     }
   };
-
-  xhr.onerror = () => {
-    if (!closed) handlers.onError(new Error('SSE network error'));
-  };
+  xhr.onerror = () => fail(new Error('SSE network error'));
+  xhr.ontimeout = () => fail(new Error('SSE request timed out'));
 
   try {
     xhr.send(config.body !== undefined ? JSON.stringify(config.body) : undefined);
-  } catch (err) {
-    handlers.onError(err);
+  } catch (error) {
+    fail(error);
   }
 
   return finish;
