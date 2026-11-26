@@ -29,6 +29,7 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { describeApiError } from '../../utils/api';
 import { useStore } from '../../store';
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { COLORS } from '../../theme/colors';
 import { SPACING } from '../../theme/spacing';
 import Text from '../ui/Text';
@@ -88,6 +89,7 @@ interface DashboardSummary {
 // instantly from cache while a background refetch quietly confirms it's
 // current — no manual focus-tracking needed here anymore.
 export default function DashboardScreen() {
+  const responsive = useResponsiveLayout();
   // Selector form: this screen only re-renders on a store update when
   // user/profile/setCnsFatigue actually change — not on every chat
   // message or workout set logged elsewhere in the app while this tab
@@ -156,9 +158,10 @@ export default function DashboardScreen() {
 
   return (
     <View style={styles.root}>
-      <AmbientGlow variant="recovery" recoveryScore0to100={(summary?.recovery?.score ?? 7) * 10} />
+      <AmbientGlow variant="recovery" recoveryScore0to100={summary?.recovery?.score_pct ?? (summary?.recovery?.score ?? 7) * 10} />
       <ScrollView
         style={styles.container}
+        contentContainerStyle={{ width: '100%', maxWidth: responsive.pageMaxWidth, alignSelf: 'center', paddingBottom: responsive.gutter * 2 }}
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={COLORS.recoveryHigh} />
         }
@@ -183,13 +186,30 @@ export default function DashboardScreen() {
       {/* The first screen answers the three useful questions: am I ready,
           what should I do, and where can I go next. Deep analytics stay one
           deliberate tap away instead of competing with today's action. */}
-      <AIReadinessHero
-        workoutType={summary?.workout_today?.type ?? null}
-        workoutStreak={summary?.workout_streak ?? 0}
-      />
-
-      {summary?.proactive_brief && (
-        <CoachInsightCard brief={summary.proactive_brief} />
+      {responsive.isTablet ? (
+        <View style={styles.tabletPrimaryGrid}>
+          <View style={styles.tabletPrimaryColumn}>
+            <AIReadinessHero
+              workoutType={summary?.workout_today?.type ?? null}
+              workoutStreak={summary?.workout_streak ?? 0}
+            />
+          </View>
+          {summary?.proactive_brief && (
+            <View style={styles.tabletPrimaryColumn}>
+              <CoachInsightCard brief={summary.proactive_brief} />
+            </View>
+          )}
+        </View>
+      ) : (
+        <>
+          <AIReadinessHero
+            workoutType={summary?.workout_today?.type ?? null}
+            workoutStreak={summary?.workout_streak ?? 0}
+          />
+          {summary?.proactive_brief && (
+            <CoachInsightCard brief={summary.proactive_brief} />
+          )}
+        </>
       )}
 
       <QuickToolsCard />
@@ -245,6 +265,8 @@ export default function DashboardScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.background },
+  tabletPrimaryGrid: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.md },
+  tabletPrimaryColumn: { flex: 1, minWidth: 0 },
   container: { flex: 1, backgroundColor: 'transparent' },
   centerContainer: {
     flex: 1, backgroundColor: COLORS.background,
