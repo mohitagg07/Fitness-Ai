@@ -44,6 +44,7 @@ def test_progress_heatmap_has_empty_state_and_marks_future_cells():
 
 
 
+# In-progress exercise logs remain visible even though completed-session count is zero.
 def test_progress_heatmap_shows_logged_sets_even_before_session_completion():
     result = _build_volume_heatmap(
         weeks=1,
