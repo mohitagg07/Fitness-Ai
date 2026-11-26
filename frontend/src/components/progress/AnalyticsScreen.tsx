@@ -58,9 +58,9 @@ interface PREntryResponse {
 }
 interface PRTimelineResponse { has_data: boolean; prs: PREntryResponse[]; empty_state?: string; }
 
-type RangeOption = 4 | 8 | 12;
+export type AnalyticsAnalyticsRangeOption = 4 | 8 | 12;
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const RANGE_OPTIONS: RangeOption[] = [4, 8, 12];
+const RANGE_OPTIONS: AnalyticsRangeOption[] = [4, 8, 12];
 
 const CHART_TABS: { id: AnalyticsChartTab; label: string; caption: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { id: 'heatmap', label: 'Volume', caption: 'Training consistency', icon: 'grid-outline' },
@@ -290,7 +290,7 @@ function MuscleBalanceChart({ data, weeks }: { data: MuscleBalanceResponse; week
             <View style={styles.muscleTrack}>
               <View style={[
                 styles.muscleFill,
-                { width: Math.max(0, Math.min(100, group.pct)) + '%', backgroundColor: group.pct < threshold ? COLORS.recoveryMed : COLORS.primaryGreen },
+                { width: (Math.max(0, Math.min(100, group.pct)) + '%') as any, backgroundColor: group.pct < threshold ? COLORS.recoveryMed : COLORS.primaryGreen },
               ]} />
             </View>
           </View>
@@ -353,7 +353,7 @@ function PRTimeline({ prs }: { prs: PREntryResponse[] }) {
   );
 }
 
-function RangeSelector({ value, onChange }: { value: RangeOption; onChange: (next: RangeOption) => void }) {
+function RangeSelector({ value, onChange }: { value: AnalyticsRangeOption; onChange: (next: AnalyticsRangeOption) => void }) {
   return (
     <View style={styles.rangeSelector} accessibilityRole="tablist">
       {RANGE_OPTIONS.map((range) => (
@@ -376,14 +376,26 @@ export default function AnalyticsScreen({
   embedded = false,
   activeChart: controlledChart,
   onActiveChartChange,
+  heatmapRange: controlledHeatmapWeeks,
+  onHeatmapRangeChange,
+  balanceRange: controlledBalanceWeeks,
+  onBalanceRangeChange,
 }: {
   embedded?: boolean;
   activeChart?: AnalyticsChartTab;
   onActiveChartChange?: (next: AnalyticsChartTab) => void;
+  heatmapRange?: AnalyticsRangeOption;
+  onHeatmapRangeChange?: (next: AnalyticsRangeOption) => void;
+  balanceRange?: AnalyticsRangeOption;
+  onBalanceRangeChange?: (next: AnalyticsRangeOption) => void;
 }) {
   const [internalChart, setInternalChart] = useState<AnalyticsChartTab>('heatmap');
-  const [heatmapWeeks, setHeatmapWeeks] = useState<RangeOption>(8);
-  const [balanceWeeks, setBalanceWeeks] = useState<RangeOption>(4);
+  const [internalHeatmapWeeks, setInternalHeatmapWeeks] = useState<AnalyticsRangeOption>(8);
+  const [internalBalanceWeeks, setInternalBalanceWeeks] = useState<AnalyticsRangeOption>(4);
+  const heatmapWeeks = controlledHeatmapWeeks ?? internalHeatmapWeeks;
+  const balanceWeeks = controlledBalanceWeeks ?? internalBalanceWeeks;
+  const setHeatmapWeeks = onHeatmapRangeChange ?? setInternalHeatmapWeeks;
+  const setBalanceWeeks = onBalanceRangeChange ?? setInternalBalanceWeeks;
   const activeChart = controlledChart ?? internalChart;
 
   const selectChart = (next: AnalyticsChartTab) => {
@@ -493,9 +505,6 @@ export default function AnalyticsScreen({
               <Text style={styles.cardTitle}>Personal record history</Text>
               <Text style={styles.cardDescription}>Your latest saved personal-record entries, ordered by achievement date.</Text>
               <PRTimeline prs={prTimelineQuery.data.prs || []} />
-              {!prTimelineQuery.data.has_data && (
-                <Text style={styles.cardDescription}>{prTimelineQuery.data.empty_state || 'Your saved PR entries will appear here.'}</Text>
-              )}
             </>
           )}
 

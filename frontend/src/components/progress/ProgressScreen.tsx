@@ -21,7 +21,7 @@ import NutritionSearchModal from './NutritionSearchModal';
 import WeightChart from './WeightChart';
 import Logo from '../shared/Logo';
 import WeeklyReviewScreen from './WeeklyReviewScreen';
-import AnalyticsScreen, { type AnalyticsChartTab } from './AnalyticsScreen';
+import AnalyticsScreen, { type AnalyticsChartTab, type AnalyticsRangeOption } from './AnalyticsScreen';
 import MuscleRecoveryMap from './MuscleRecoveryMap';
 import { SkeletonCard } from '../shared/LoadingOverlay';
 
@@ -48,7 +48,7 @@ function ProteinAdherenceBar({ history }: { history: any[] }) {
             <View key={day.recorded_date || index} style={P.barCol}>
               <View style={P.barTrack}>
                 <View style={[P.barFill, {
-                  height: Math.max(4, ratio * 100) + '%',
+                  height: (Math.max(4, ratio * 100) + '%') as any,
                   backgroundColor: metDay ? COLORS.recoveryHigh : ratio > 0.7 ? COLORS.recoveryMed : COLORS.border,
                 }]} />
               </View>
@@ -229,6 +229,8 @@ export default function ProgressScreen() {
   const [recoveryInput, setRecoveryInput] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('body');
   const [activeAnalyticsChart, setActiveAnalyticsChart] = useState<AnalyticsChartTab>('heatmap');
+  const [analyticsHeatmapRange, setAnalyticsHeatmapRange] = useState<AnalyticsRangeOption>(8);
+  const [analyticsBalanceRange, setAnalyticsBalanceRange] = useState<AnalyticsRangeOption>(4);
   const [logFoodVisible, setLogFoodVisible] = useState(false);
   const tabBarRef = useRef<ScrollView | null>(null);
 
@@ -395,7 +397,15 @@ export default function ProgressScreen() {
           contentContainerStyle={[styles.scroll, { width: '100%', maxWidth: responsive.pageMaxWidth, alignSelf: 'center', paddingBottom: responsive.gutter * 3 }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primaryGreen} />}
         >
-          <AnalyticsScreen embedded activeChart={activeAnalyticsChart} onActiveChartChange={setActiveAnalyticsChart} />
+          <AnalyticsScreen
+            embedded
+            activeChart={activeAnalyticsChart}
+            onActiveChartChange={setActiveAnalyticsChart}
+            heatmapRange={analyticsHeatmapRange}
+            onHeatmapRangeChange={setAnalyticsHeatmapRange}
+            balanceRange={analyticsBalanceRange}
+            onBalanceRangeChange={setAnalyticsBalanceRange}
+          />
         </ScrollView>
       ) : (
         <ScrollView
@@ -470,7 +480,7 @@ export default function ProgressScreen() {
                   return (
                     <View key={metric.recorded_date || index} style={styles.recoveryRow}>
                       <Text style={styles.recoveryDate}>{(metric.recorded_date || '').slice(5) || '—'}</Text>
-                      <View style={styles.recoveryTrack}><View style={[styles.recoveryFill, { width: Math.max(0, Math.min(100, score)) + '%', backgroundColor: color }]} /></View>
+                      <View style={styles.recoveryTrack}><View style={[styles.recoveryFill, { width: (Math.max(0, Math.min(100, score)) + '%') as any, backgroundColor: color }]} /></View>
                       <Text style={[styles.recoveryScore, { color }]}>{score}%</Text>
                     </View>
                   );
