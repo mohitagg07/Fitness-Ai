@@ -439,3 +439,17 @@ async def test_missing_owned_mutations_return_404(monkeypatch) -> None:
         with pytest.raises(HTTPException) as exc:
             await case
         assert exc.value.status_code == 404
+
+
+def test_coach_style_instructions_cover_every_supported_style() -> None:
+    from agents.coach_agent import get_coach_style_instruction
+    from schemas.models import CoachStyle
+
+    for style in CoachStyle:
+        instruction = get_coach_style_instruction(style.value)
+        assert isinstance(instruction, str)
+        assert len(instruction) > 30
+
+    assert "non-judgmental" in get_coach_style_instruction("supportive")
+    assert "measured data" in get_coach_style_instruction("scientific")
+    assert get_coach_style_instruction("unknown") == get_coach_style_instruction("friendly")
