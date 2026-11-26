@@ -644,7 +644,7 @@ export default function CoachScreen() {
   // here since the backend doesn't return those as distinct scores.
   const [brief, setBrief] = useState<{ recoveryScore: number; cnsFatigue: number; message: string } | null>(null);
   const flatListRef = useRef<FlashListRef<any>>(null);
-  const historyRequestedRef = useRef(false);
+  const historySessionRef = useRef<string | null | undefined>(undefined);
   // Selector form — see src/store/index.ts. CoachScreen needs chatHistory/
   // activeSession/profile/user, but previously re-rendered on every store
   // update including ones it never reads (e.g. Dashboard calling
@@ -666,11 +666,12 @@ export default function CoachScreen() {
   // The store guard prevents a slow history request from overwriting a new
   // message the athlete sends while the request is still in flight.
   useEffect(() => {
-    if (historyRequestedRef.current) return;
-    historyRequestedRef.current = true;
+    const sessionId = activeSession?.id ?? null;
+    if (historySessionRef.current === sessionId) return;
+    historySessionRef.current = sessionId;
     let cancelled = false;
 
-    coachApi.getHistory(50, activeSession?.id)
+    coachApi.getHistory(50, sessionId ?? undefined)
       .then((res) => {
         if (cancelled || !Array.isArray(res.data)) return;
         const restored = res.data
