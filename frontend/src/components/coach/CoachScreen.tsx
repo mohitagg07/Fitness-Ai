@@ -221,7 +221,7 @@ function WorkoutCard({ sd }: { sd: any }) {
   const ic = intColor(summary.intensity);
 
   return (
-    <CardShell color="#0B120A" icon="barbell-outline" label="TODAY'S WORKOUT" accent={COLORS.recoveryHigh}>
+    <CardShell color={COLORS.card} icon="barbell-outline" label="TODAY'S WORKOUT" accent={COLORS.recoveryHigh}>
       {/* Intensity + meta row — plain icon+text pairs separated by a thin
           divider line, no filled pill/box backgrounds (matches the
           reference: label pairs in a row, not colored badges). */}
@@ -318,7 +318,7 @@ function WorkoutCard({ sd }: { sd: any }) {
 function LiveSetCard({ sd }: { sd: any }) {
   const tips = sd.tips || [];
   return (
-    <CardShell color="#08140F" icon="flash" label="SET ANALYSIS" accent={COLORS.strainGlow}>
+    <CardShell color={COLORS.cardElevated} icon="flash" label="SET ANALYSIS" accent={COLORS.strainGlow}>
       {sd.next_action && (
         <View style={C.nextActionBlock}>
           <Text style={C.nextActionLabel}>NEXT ACTION</Text>
@@ -347,7 +347,7 @@ function RecoveryCard({ sd }: { sd: any }) {
   const label = score >= 67 ? 'HIGH' : score >= 34 ? 'MEDIUM' : 'LOW';
 
   return (
-    <CardShell color="#050F1A" icon="pulse-outline" label="RECOVERY STATUS" accent={COLORS.strain}>
+    <CardShell color={COLORS.cardElevated} icon="pulse-outline" label="RECOVERY STATUS" accent={COLORS.strain}>
       <View style={C.recoveryBody}>
         {/* Score block */}
         <View style={C.recoveryScoreBlock}>
@@ -378,7 +378,7 @@ function NutritionCard({ sd }: { sd: any }) {
   const macros = sd.macros || null;
 
   return (
-    <CardShell color="#120A00" icon="nutrition-outline" label="NUTRITION ADVICE" accent={COLORS.calories}>
+    <CardShell color={COLORS.cardElevated} icon="nutrition-outline" label="NUTRITION ADVICE" accent={COLORS.calories}>
       {macros && (
         <View style={C.macroRow}>
           {macros.protein != null && (
@@ -422,13 +422,13 @@ function ProgressCard({ sd }: { sd: any }) {
   const prs  = sd.new_prs || sd.prs || [];
 
   return (
-    <CardShell color="#0A0A16" icon="trophy-outline" label="PROGRESS UPDATE" accent={COLORS.recoveryBlue}>
+    <CardShell color={COLORS.cardElevated} icon="trophy-outline" label="PROGRESS UPDATE" accent={COLORS.recoveryBlue}>
       {prs.length > 0 && (
         <View style={C.prBlock}>
           <Text style={C.prBlockLabel}>NEW PRs</Text>
           {prs.map((pr: any, i: number) => (
             <View key={i} style={C.prRow}>
-              <Ionicons name="trophy" size={14} color="#FFD700" />
+              <Ionicons name="trophy" size={14} color={COLORS.gold} />
               <Text style={C.prText}>
                 {pr.exercise_name || pr.exercise}: {pr.weight_kg || pr.weight} kg × {pr.reps} reps
               </Text>
@@ -462,7 +462,7 @@ function WeeklyCard({ sd }: { sd: any }) {
   const tips  = sd.tips  || [];
 
   return (
-    <CardShell color="#0A0A0A" icon="calendar-outline" label="WEEKLY SUMMARY" accent={COLORS.strain}>
+    <CardShell color={COLORS.card} icon="calendar-outline" label="WEEKLY SUMMARY" accent={COLORS.strain}>
       {/* Stat pills */}
       {Object.keys(stats).length > 0 && (
         <View style={C.weeklyStats}>
@@ -927,8 +927,8 @@ export default function CoachScreen() {
 // ─── Card styles (C) ──────────────────────────────────────────────────────────
 const C = StyleSheet.create({
   // Shell
-  shell:       { borderRadius: 22, overflow: 'hidden', marginTop: 12, borderWidth: 1,
-                 shadowColor: COLORS.recoveryHigh, shadowOpacity: 0.10, shadowRadius: 16,
+  shell:       { borderRadius: RADIUS.card, overflow: 'hidden', marginTop: 12, borderWidth: 1,
+                 shadowColor: '#000000', shadowOpacity: 0.14, shadowRadius: 14,
                  shadowOffset: { width: 0, height: 6 }, elevation: 4 },
   shellHeader: { flexDirection: 'row', alignItems: 'center', gap: 7,
                  paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1 },
@@ -948,11 +948,11 @@ const C = StyleSheet.create({
   metaItemText:  { color: COLORS.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 0.3 },
   metaDivider:   { width: 1, height: 12, backgroundColor: 'rgba(255,255,255,0.10)' },
 
-  tableWrap:  { borderTopWidth: 1, borderTopColor: '#1A1A1A' },
+  tableWrap:  { borderTopWidth: 1, borderTopColor: COLORS.border },
   exRow:      { paddingHorizontal: 14, paddingVertical: 12, gap: 10 },
   exHeaderRow:{ flexDirection: 'row', alignItems: 'center', gap: 12 },
-  tableRowAlt:{ backgroundColor: '#0A0A0A' },
-  exName:     { color: '#E8E8E8', fontSize: 14, fontWeight: '700', lineHeight: 18 },
+  tableRowAlt:{ backgroundColor: COLORS.backgroundTop },
+  exName:     { color: COLORS.text, fontSize: 14, fontWeight: '700', lineHeight: 18 },
   exThumb:    { width: 56, height: 56, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   exFocus:    { color: COLORS.textMuted, fontSize: 11, marginTop: 3, fontStyle: 'italic' },
   exMetricRow: {
@@ -972,7 +972,7 @@ const C = StyleSheet.create({
   nextActionBlock: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8 },
   nextActionLabel: { color: COLORS.strainGlow, fontSize: 9, fontWeight: '800',
                      letterSpacing: 1.5, marginBottom: 4 },
-  nextActionText:  { color: '#E8E8E8', fontSize: 20, fontWeight: '800', lineHeight: 26 },
+  nextActionText:  { color: COLORS.text, fontSize: 20, fontWeight: '800', lineHeight: 26 },
   insightBlock:    { paddingHorizontal: 14, paddingVertical: 10,
                      borderTopWidth: 1, borderTopColor: '#111' },
   insightText:     { color: COLORS.textMuted, fontSize: 12, fontStyle: 'italic' },
@@ -985,7 +985,7 @@ const C = StyleSheet.create({
   recoveryZonePill:   { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8,
                         paddingVertical: 3, marginTop: 6 },
   recoveryZoneText:   { fontSize: 9, fontWeight: '800', letterSpacing: 1.2 },
-  recoveryDivider:    { width: 1, height: 52, backgroundColor: '#1E1E1E' },
+  recoveryDivider:    { width: 1, height: 52, backgroundColor: COLORS.border },
   recoveryTips:       { flex: 1, gap: 6 },
 
   // Nutrition card
@@ -999,9 +999,9 @@ const C = StyleSheet.create({
 
   // Progress card
   prBlock:      { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8 },
-  prBlockLabel: { color: '#FFD700', fontSize: 9, fontWeight: '800', letterSpacing: 1.5, marginBottom: 8 },
+  prBlockLabel: { color: COLORS.gold, fontSize: 9, fontWeight: '800', letterSpacing: 1.5, marginBottom: 8 },
   prRow:        { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  prText:       { color: '#E8E8E8', fontSize: 13, fontWeight: '600' },
+  prText:       { color: COLORS.text, fontSize: 13, fontWeight: '600' },
   trendRow:     { flexDirection: 'row', alignItems: 'center', gap: 8,
                   paddingHorizontal: 14, paddingVertical: 10,
                   borderTopWidth: 1, borderTopColor: '#1A1A1A' },
@@ -1058,7 +1058,7 @@ const S = StyleSheet.create({
   // line) so the rings can be large enough to read as an actual score
   // dial instead of a tiny bordered dot.
   briefCard: {
-    backgroundColor: COLORS.card, borderRadius: RADIUS.card, borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.card, borderWidth: 1, borderColor: COLORS.border,
     padding: 16, gap: 14,
   },
   briefTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
