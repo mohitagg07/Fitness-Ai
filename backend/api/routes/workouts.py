@@ -52,7 +52,7 @@ class SetLogRequest(BaseModel):
     keep working unchanged.
     """
     exercise_name: str = Field(min_length=1)
-    weight_kg: float = Field(gt=0)
+    weight_kg: float = Field(ge=0)
     reps: int = Field(ge=1)
     rpe: Optional[float] = Field(None, ge=1, le=10)
     equipment_modifiers: list = Field(default_factory=list)
