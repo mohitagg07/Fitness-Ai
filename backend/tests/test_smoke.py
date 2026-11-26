@@ -518,3 +518,51 @@ def test_scenario_request_enforces_supported_time_horizon() -> None:
         ScenarioRequest(scenario_id="protein", weeks=0)
     with pytest.raises(ValidationError):
         ScenarioRequest(scenario_id="protein", weeks=13)
+
+
+def test_muscle_recovery_map_returns_real_recent_workload_and_ignores_warmups() -> None:
+    from datetime import datetime, timezone
+    from services.training_load_engine import build_muscle_recovery_map_from_logs
+
+    now = datetime(2026, 11, 27, 12, 0, tzinfo=timezone.utc)
+    result = build_muscle_recovery_map_from_logs(
+        [
+            {"exercise_name": "Bench Press", "weight_kg": 80, "reps": 8, "is_warmup": False, "logged_at": "2026-11-27T10:00:00Z"},
+            {"exercise_name": "Incline Dumbbell Press", "weight_kg": 30, "reps": 10, "is_warmup": False, "logged_at": "2026-11-26T10:00:00Z"},
+            {"exercise_name": "Bench Press", "weight_kg": 40, "reps": 10, "is_warmup": True, "logged_at": "2026-11-27T09:00:00Z"},
+            {"exercise_name": "Squat", "weight_kg": 100, "reps": 5, "is_warmup": False, "logged_at": "2026-11-10T10:00:00Z"},
+        ],
+        now,
+    )
+
+    chest = next(group for group in result["muscle_groups"] if group["name"] == "Chest")
+    legs = next(group for group in result["muscle_groups"] if group["name"] == "Legs")
+    back = next(group for group in result["muscle_groups"] if group["name"] == "Back")
+
+    assert chest["working_sets_7d"] == 2
+    assert chest["volume_7d_kg"] == 940.0
+    assert chest["exercises_7d"] == ["Bench Press", "Incline Dumbbell Press"]
+    assert chest["hours_since_trained"] == 2.0
+    assert legs["working_sets_7d"] == 0
+    assert legs["status"] == "red"
+    assert back["recovery_pct"] is None
+    assert result["has_data"] is True
+
+
+def test_muscle_recovery_map_treats_naive_timestamps_as_utc() -> None:
+    from datetime import datetime, timezone
+    from services.training_load_engine import build_muscle_recovery_map_from_logs
+
+    result = build_muscle_recovery_map_from_logs(
+        [{
+            "exercise_name": "Lat Pulldown",
+            "weight_kg": 50,
+            "reps": 10,
+            "is_warmup": False,
+            "logged_at": "2026-11-27T10:00:00",
+        }],
+        datetime(2026, 11, 27, 12, 0, tzinfo=timezone.utc),
+    )
+    back = next(group for group in result["muscle_groups"] if group["name"] == "Back")
+    assert back["hours_since_trained"] == 2.0
+    assert back["working_sets_7d"] == 1
