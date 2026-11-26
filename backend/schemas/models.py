@@ -367,6 +367,7 @@ class PerformanceLog(BaseModel):
 class MetricsCreate(BaseModel):
     recorded_date: Optional[date] = None
     weight_kg: Optional[float] = Field(None, gt=0, lt=500)
+    recovery_score: Optional[float] = Field(None, ge=0, le=100)
     body_fat_pct: Optional[float] = Field(None, ge=0, le=60)
     waist_cm: Optional[float] = Field(None, gt=0)
     chest_cm: Optional[float] = Field(None, gt=0)
