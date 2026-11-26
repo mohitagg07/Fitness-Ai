@@ -13,7 +13,7 @@ Routes:
 import asyncio
 import logging
 from fastapi import APIRouter, Depends, HTTPException
-from core.security import get_current_user
+from core.security import get_current_user, require_admin_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Admin"])
@@ -21,7 +21,7 @@ router = APIRouter(tags=["Admin"])
 
 @router.post("/run-jobs-now")
 async def run_jobs_now(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_admin_user),
 ):
     """
     Runs all five background jobs (pattern detection, memory cleanup,
