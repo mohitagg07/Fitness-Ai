@@ -40,11 +40,10 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("SECRET_KEY", "JWT_SECRET"),
     )
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 43200  # 30 days — long-lived so users
-    # aren't forced to log in repeatedly. Security still holds because the
-    # token is invalidated entirely if SECRET_KEY is ever rotated, and the
-    # ORPHANED_SESSION check in core/security.py catches stale tokens
-    # pointing at deleted accounts.
+    access_token_expire_minutes: int = 43200  # 30 days
+    # The scheduler is enabled only in the dedicated background worker
+    # process. Keep it false in every API/web process.
+    scheduler_enabled: bool = False
 
     # CORS
     allowed_origins: str = "http://localhost:3000,http://localhost:8081,http://localhost:5173"
