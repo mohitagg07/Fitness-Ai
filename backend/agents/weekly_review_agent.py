@@ -28,6 +28,7 @@ from db.memory_client import recall
 from services.nutrition import calculate_macros
 from schemas.models import Goal
 from core.config import get_settings
+from services.recovery_metrics import get_average_recovery_score_pct
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -39,7 +40,7 @@ class WeeklyReview:
     consistency_pct: int            # 0-100
     sessions_completed: int
     sessions_planned: int
-    avg_recovery_score: int         # 0-10
+    avg_recovery_score: float | None  # measured 0-10 average; None when no entries exist
     avg_protein_g: float
     protein_target_g: float
     protein_adherence_pct: int
@@ -263,8 +264,10 @@ def generate_weekly_review(user_id: str, weeks_ago: int = 0) -> WeeklyReview:
     strength_gains.sort(key=lambda x: x["delta_kg"], reverse=True)
 
     # ── Recovery ───────────────────────────────────────────────────────────
-    cns = agent_state.get("cns_fatigue_score", 0)
-    avg_recovery = max(0, min(10, 10 - cns))
+    # Use actual, dated user-entered recovery measurements. CNS fatigue is a
+    # different signal and must not be relabeled as an average recovery score.
+    recovery_pct = get_average_recovery_score_pct(user_id, this_start, this_end)
+    avg_recovery = round(recovery_pct / 10, 1) if recovery_pct is not None else None
 
     # ── Highlights and needs attention ────────────────────────────────────
     highlights = []
@@ -292,10 +295,17 @@ def generate_weekly_review(user_id: str, weeks_ago: int = 0) -> WeeklyReview:
     elif protein_adherence < 70:
         needs_attention.append(f"Protein averaged only {avg_protein:.0f}g ({protein_adherence}% of target) — this is limiting recovery.")
 
-    if avg_recovery >= 7:
-        highlights.append(f"Recovery score averaging {avg_recovery}/10 — body is responding well.")
-    elif avg_recovery <= 4:
-        needs_attention.append(f"Recovery averaging {avg_recovery}/10 — consider more sleep and a deload.")
+    if avg_recovery is not None:
+        if avg_recovery >= 7:
+            highlights.append(f"Measured recovery averaged {avg_recovery}/10 this week.")
+        elif avg_recovery <= 4:
+            needs_attention.append(
+                f"Measured recovery averaged {avg_recovery}/10 this week — review sleep, stress, and training load."
+            )
+    else:
+        needs_attention.append(
+            "No recovery scores were logged this week, so recovery could not be averaged."
+        )
 
     if calorie_adherence < 75:
         needs_attention.append(f"Calories averaged {avg_calories} kcal ({calorie_adherence}% of target) — may be under-fueling.")
