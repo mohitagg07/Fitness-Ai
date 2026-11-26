@@ -24,7 +24,7 @@ from api.routes.admin import router as admin_router
 from api.routes.strategy import router as strategy_router
 from api.routes.simulate import router as simulate_router
 from api.routes.habits import router as habits_router
-from core.config import get_settings
+from core.config import get_settings, validate_runtime_security_settings
 from db.chroma_client import seed_guardrails
 
 settings = get_settings()
@@ -32,6 +32,10 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Never start with a publicly known or weak JWT signing key. The app
+    # remains importable in offline tests; this validation runs at startup.
+    validate_runtime_security_settings(settings)
+
     # Seed ChromaDB on startup
     try:
         seed_guardrails()
