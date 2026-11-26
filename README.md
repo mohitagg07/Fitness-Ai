@@ -388,15 +388,24 @@ Both use `LocalHashEmbeddingFunction` (256-dim deterministic hash — no ONNX mo
 
 ## 4. Database Schema
 
-The database is created in Supabase. Run **all five SQL files below in order**, once per Supabase project, from the Supabase Dashboard → SQL Editor. Run each file completely before moving to the next:
+The database is created in Supabase. Run the SQL files below **in this exact order**, once per Supabase project, from Supabase Dashboard → SQL Editor. Run each file completely and verify success before moving to the next:
 
-1. `CRITICAL_RUN_THIS_SQL_FIRST.sql` — base tables and row-level security policies.
+1. `CRITICAL_RUN_THIS_SQL_FIRST.sql` — base tables, indexes, and row-level security.
 2. `MIGRATION_v2.sql` — training-strategy persistence and notification fields.
-3. `MIGRATION_avatar_url.sql` — profile avatar column, storage bucket, and storage policies.
-4. `MIGRATION_v4_push_tokens.sql` — device push-token storage.
-5. `MIGRATION_v5_username.sql` — profile usernames and uniqueness constraint.
+3. `MIGRATION_v3_exercise_logs_extended.sql` — workout set metadata (warm-up, drop-set, tempo, superset, and notes).
+4. `MIGRATION_avatar_url.sql` — profile avatar column, storage bucket, and storage policies.
+5. `MIGRATION_v4_push_tokens.sql` — device push-token storage.
+6. `MIGRATION_v5_username.sql` — profile usernames and uniqueness constraint.
+7. `MIGRATION_v6_security_roles.sql` — database-backed user/admin roles.
+8. `MIGRATION_v7_schema_sync.sql` — measured recovery score, agent caches, extended set metadata, and weekly review cache.
+9. `MIGRATION_v8_coach_sessions_and_plan_merge.sql` — structured coach message metadata and atomic weekly plan merge.
+10. `MIGRATION_v9_coach_styles.sql` — supported coach-style values.
+11. `MIGRATION_v10_atomic_workout_set_logging.sql` — ownership-checked, concurrency-safe set logging RPC.
+12. `MIGRATION_v11_protect_admin_role.sql` — prevents authenticated users from changing their own application role.
 
-These scripts are designed to be safe to re-run. **Do not drop existing tables or reset a database containing real user data.** If a script reports an error, stop and resolve that error before continuing.
+Migrations v6–v11 are new for this implementation. Existing user data is preserved; these migrations add columns, policies, constraints, and functions rather than resetting tables. Most are idempotent, but still stop and resolve any SQL error before proceeding. **Do not drop existing tables or reset a database containing real user data.**
+
+After v11, explicitly promote the intended administrator using the commented SQL in `MIGRATION_v6_security_roles.sql`. Run that promotion from the Supabase SQL Editor as a database owner. No account is made an administrator automatically.
 
 The base schema includes:
 
