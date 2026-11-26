@@ -36,6 +36,7 @@ from db.memory_client import recall
 from services.nutrition import calculate_macros
 from schemas.models import Goal
 from core.config import get_settings
+from services.recovery_metrics import get_average_recovery_score_pct
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -47,7 +48,7 @@ class MonthlyReview:
     consistency_pct: int
     sessions_completed: int
     sessions_expected: int
-    avg_recovery_score: int
+    avg_recovery_score: float | None
     weight_trend: dict              # {has_data, latest_kg, delta_kg, direction}
     strengths: list[str]            # max 4
     weaknesses: list[str]           # max 4
@@ -254,11 +255,10 @@ def generate_monthly_review(user_id: str, months_ago: int = 0, trigger_rewrite: 
     # ── Body weight trend ──────────────────────────────────────────────────
     weight_trend = _get_weight_trend(user_id, this_start, this_end)
 
-    # ── Recovery (current cached score used as directional signal — a
-    # per-day recovery history table doesn't exist yet, so we don't
-    # fabricate a monthly average from data we don't have) ────────────────
-    cns = agent_state.get("cns_fatigue_score", 0)
-    avg_recovery = max(0, min(10, 10 - cns))
+    # ── Recovery ───────────────────────────────────────────────────────────
+    # Average only the recovery measurements actually recorded in this month.
+    recovery_pct = get_average_recovery_score_pct(user_id, this_start, this_end)
+    avg_recovery = round(recovery_pct / 10, 1) if recovery_pct is not None else None
 
     # ── Strengths / Weaknesses — deterministic thresholds, same pattern as
     # decision_engine.py's favorable/unfavorable signal split ─────────────
@@ -298,10 +298,17 @@ def generate_monthly_review(user_id: str, months_ago: int = 0, trigger_rewrite: 
     else:
         weaknesses.append("No body-weight entries logged this month — log a weekly weigh-in to track real trend, not guesses.")
 
-    if avg_recovery <= 4:
-        weaknesses.append(f"Recovery currently averaging {avg_recovery}/10 — sleep and deload frequency need attention.")
-    elif avg_recovery >= 7:
-        strengths.append(f"Recovery holding strong at {avg_recovery}/10 across the month.")
+    if avg_recovery is not None:
+        if avg_recovery <= 4:
+            weaknesses.append(
+                f"Measured recovery averaged {avg_recovery}/10 this month — review sleep, stress, and training load."
+            )
+        elif avg_recovery >= 7:
+            strengths.append(f"Measured recovery averaged {avg_recovery}/10 across the month.")
+    else:
+        weaknesses.append(
+            "No recovery scores were logged this month, so recovery could not be averaged."
+        )
 
     # ── Confidence ─────────────────────────────────────────────────────────
     data_richness = sum([
