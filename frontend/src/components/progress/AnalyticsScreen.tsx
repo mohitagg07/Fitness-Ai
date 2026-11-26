@@ -65,7 +65,7 @@ const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const RANGE_OPTIONS: AnalyticsRangeOption[] = [4, 8, 12];
 
 const CHART_TABS: { id: AnalyticsChartTab; label: string; caption: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { id: 'heatmap', label: 'Volume', caption: 'Training consistency', icon: 'grid-outline' },
+  { id: 'heatmap', label: 'Activity', caption: 'Working-set activity', icon: 'grid-outline' },
   { id: 'radar', label: 'Muscle balance', caption: 'Primary-muscle exposure', icon: 'body-outline' },
   { id: 'prs', label: 'PR timeline', caption: 'Saved personal records', icon: 'trophy-outline' },
 ];
@@ -488,8 +488,8 @@ export default function AnalyticsScreen({
           {activeChart === 'heatmap' && heatmapQuery.data && (
             <>
               <Text style={styles.cardEyebrow}>TRAINING FREQUENCY</Text>
-              <Text style={styles.cardTitle}>Volume heatmap</Text>
-              <Text style={styles.cardDescription}>Daily working-set logs and completed sessions. Brighter cells indicate more logged working sets.</Text>
+              <Text style={styles.cardTitle}>Training activity</Text>
+              <Text style={styles.cardDescription}>Daily working-set counts and completed sessions. Brighter cells indicate more working sets logged that day.</Text>
               <VolumeHeatmap data={heatmapQuery.data} weeks={heatmapWeeks} />
             </>
           )}

@@ -196,14 +196,14 @@ function PRTable({ prs }: { prs: any[] }) {
 }
 
 function StreaksRow({ metrics, nutrition }: { metrics: any[]; nutrition: any[] }) {
-  const logDays = metrics.filter((metric) => metric.weight_kg || metric.recovery_score).length;
+  const logDays = new Set(metrics.filter((metric) => metric.weight_kg || metric.recovery_score).map((metric) => metric.recorded_date).filter(Boolean)).size;
   const proteinDays = nutrition.filter((day) => (day.protein_g || 0) >= (day.protein_target_g || 150)).length;
   return (
     <View style={styles.streaksRow}>
       <View style={styles.streakCard}>
         <Ionicons name="flame" size={22} color={COLORS.recoveryMed} />
         <Text style={styles.streakVal}>{logDays}</Text>
-        <Text style={styles.streakLabel}>LOG DAYS</Text>
+        <Text style={styles.streakLabel}>METRIC DAYS</Text>
       </View>
       <View style={styles.streakCard}>
         <Ionicons name="nutrition" size={22} color={COLORS.recoveryHigh} />
