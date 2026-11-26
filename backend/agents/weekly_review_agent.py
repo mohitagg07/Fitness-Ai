@@ -93,14 +93,14 @@ def _get_week_exercise_logs(user_id: str, start: date, end: date) -> list[dict]:
     sb = get_supabase()
     res = (
         sb.table("exercise_logs")
-        .select("exercise_name, weight_kg, reps, logged_at")
+        .select("exercise_name, weight_kg, reps, logged_at, is_warmup")
         .eq("user_id", user_id)
         .gte("logged_at", str(start))
         .lte("logged_at", str(end) + "T23:59:59")
         .order("weight_kg", desc=True)
         .execute()
     )
-    return res.data or []
+    return [row for row in (res.data or []) if not row.get("is_warmup")]
 
 
 def _get_prev_week_bests(user_id: str, prev_start: date, prev_end: date) -> dict[str, float]:
@@ -108,7 +108,7 @@ def _get_prev_week_bests(user_id: str, prev_start: date, prev_end: date) -> dict
     sb = get_supabase()
     res = (
         sb.table("exercise_logs")
-        .select("exercise_name, weight_kg")
+        .select("exercise_name, weight_kg, is_warmup")
         .eq("user_id", user_id)
         .gte("logged_at", str(prev_start))
         .lte("logged_at", str(prev_end) + "T23:59:59")
@@ -116,6 +116,8 @@ def _get_prev_week_bests(user_id: str, prev_start: date, prev_end: date) -> dict
     )
     bests: dict[str, float] = {}
     for l in (res.data or []):
+        if l.get("is_warmup"):
+            continue
         ex = l.get("exercise_name", "")
         w = l.get("weight_kg") or 0
         if ex and w > bests.get(ex, 0):
