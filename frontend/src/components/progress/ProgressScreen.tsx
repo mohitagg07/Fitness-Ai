@@ -8,9 +8,10 @@
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  TextInput, Alert, ActivityIndicator, RefreshControl,
+  TextInput, Alert, ActivityIndicator, RefreshControl, useWindowDimensions,
 } from 'react-native';
 import Svg, { Rect, Line, Path, Circle, Text as SvgT, G } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
@@ -163,7 +164,8 @@ function TodayMacros({ todayData }: { todayData: any }) {
 function CaloriesChart({ history, targetCal }: { history: any[]; targetCal: number }) {
   const days = history.slice(0, 7).reverse();
   if (days.length < 2) return null;
-  const W = 320, H = 80;
+  const [chartWidth, setChartWidth] = useState(320);
+  const W = chartWidth, H = 80;
   const PAD = { l: 36, r: 8, t: 8, b: 20 };
   const plotW = W - PAD.l - PAD.r;
   const plotH = H - PAD.t - PAD.b;
@@ -174,7 +176,13 @@ function CaloriesChart({ history, targetCal }: { history: any[]; targetCal: numb
   const linePath = vals.map((v, i) => `${i === 0 ? 'M' : 'L'} ${toX(i).toFixed(1)} ${toY(v).toFixed(1)}`).join(' ');
   const targetY  = toY(targetCal);
   return (
-    <View style={styles.chartCard}>
+    <View
+      style={styles.chartCard}
+      onLayout={(event) => {
+        const nextWidth = Math.round(event.nativeEvent.layout.width - 28);
+        if (nextWidth > 0 && nextWidth !== chartWidth) setChartWidth(nextWidth);
+      }}
+    >
       <Text style={styles.sectionLabel}>CALORIES VS TARGET (7 DAYS)</Text>
       <Svg width={W} height={H}>
         <Line x1={PAD.l} y1={targetY} x2={W - PAD.r} y2={targetY} stroke={COLORS.recoveryMed} strokeWidth={1} strokeDasharray="4 3" />
@@ -194,7 +202,8 @@ function RecoveryTrend({ metrics }: { metrics: any[] }) {
   if (data.length < 2) return (
     <View style={styles.chartCard}><Text style={styles.sectionLabel}>RECOVERY TREND</Text><Text style={styles.emptyNote}>Log recovery scores to see your trend.</Text></View>
   );
-  const W = 320, H = 80;
+  const [chartWidth, setChartWidth] = useState(320);
+  const W = chartWidth, H = 80;
   const PAD = { l: 8, r: 8, t: 8, b: 8 };
   const plotW = W - PAD.l - PAD.r, plotH = H - PAD.t - PAD.b;
   const vals = data.map(m => m.recovery_score || 0);
@@ -203,7 +212,13 @@ function RecoveryTrend({ metrics }: { metrics: any[] }) {
   const linePath = vals.map((v, i) => `${i === 0 ? 'M' : 'L'}${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(' ');
   const avg = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
   return (
-    <View style={styles.chartCard}>
+    <View
+      style={styles.chartCard}
+      onLayout={(event) => {
+        const nextWidth = Math.round(event.nativeEvent.layout.width - 28);
+        if (nextWidth > 0 && nextWidth !== chartWidth) setChartWidth(nextWidth);
+      }}
+    >
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
         <Text style={styles.sectionLabel}>RECOVERY TREND (14 DAYS)</Text>
         <Text style={{ color: recoveryColor(avg), fontSize: 13, fontWeight: '700' }}>Avg {avg}%</Text>
@@ -321,6 +336,8 @@ function MotivationTab({ metrics, prs, nutrition }: { metrics: any[]; prs: any[]
 
 // ─── Main Screen ───────────────────────────────────────────────────────────────
 export default function ProgressScreen() {
+  const { width: screenWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const [metrics, setMetrics]       = useState<any[]>([]);
   const [nutrition, setNutrition]   = useState<any[]>([]);
   const [todayData, setTodayData]   = useState<any>(null);
@@ -400,7 +417,7 @@ export default function ProgressScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}><Logo size="sm" /><Text style={styles.headerSub}>Progress</Text></View>
+        <View style={[styles.header, { paddingTop: insets.top + 12 }]}><Logo size="sm" /><Text style={styles.headerSub}>Progress</Text></View>
         <ScrollView contentContainerStyle={{ padding: 16 }}>
           <SkeletonCard height={110} /><SkeletonCard height={80} /><SkeletonCard height={160} />
         </ScrollView>
@@ -425,20 +442,22 @@ export default function ProgressScreen() {
       <NutritionSearchModal visible={logFoodVisible} onClose={() => setLogFoodVisible(false)} onLogged={loadData} />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <Logo size="sm" />
         <Text style={styles.headerSub}>Progress</Text>
       </View>
 
       {/* Scrollable tab bar */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabBarScroll} contentContainerStyle={styles.tabBar}>
-        {TABS.map(t => (
-          <TouchableOpacity key={t.key} style={[styles.tab, activeTab === t.key && styles.tabActive]} onPress={() => setActiveTab(t.key)}>
-            <Ionicons name={t.icon as any} size={13} color={activeTab === t.key ? COLORS.primaryGreen : COLORS.textMuted} />
-            <Text style={[styles.tabText, activeTab === t.key && styles.tabTextActive]}>{t.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      <View style={styles.tabBarScroll}>
+        <View style={[styles.tabBar, screenWidth >= 720 && styles.tabBarWide]}>
+          {TABS.map(t => (
+            <TouchableOpacity key={t.key} style={[styles.tab, screenWidth >= 720 && styles.tabWide, activeTab === t.key && styles.tabActive]} onPress={() => setActiveTab(t.key)}>
+              <Ionicons name={t.icon as any} size={13} color={activeTab === t.key ? COLORS.primaryGreen : COLORS.textMuted} />
+              <Text style={[styles.tabText, activeTab === t.key && styles.tabTextActive]}>{t.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
 
       {/* Body content */}
       {activeTab === 'review' ? (
@@ -558,9 +577,11 @@ const styles = StyleSheet.create({
   },
   headerSub: { color: COLORS.text, fontSize: 23, fontWeight: '700', letterSpacing: -0.4 },
 
-  tabBarScroll: { flexGrow: 0, borderBottomWidth: 1, borderBottomColor: COLORS.inputBg },
-  tabBar: { paddingHorizontal: 12, paddingVertical: 10, gap: 6, flexDirection: 'row' },
-  tab: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 10, backgroundColor: COLORS.backgroundTop, borderWidth: 1, borderColor: COLORS.border },
+  tabBarScroll: { borderBottomWidth: 1, borderBottomColor: COLORS.inputBg },
+  tabBar: { paddingHorizontal: 12, paddingVertical: 10, gap: 6, flexDirection: 'row', flexWrap: 'wrap' },
+  tabBarWide: { flexWrap: 'nowrap' },
+  tab: { flexGrow: 1, flexBasis: '30%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 5, paddingVertical: 7, paddingHorizontal: 8, borderRadius: 10, backgroundColor: COLORS.backgroundTop, borderWidth: 1, borderColor: COLORS.border },
+  tabWide: { flexBasis: 0 },
   tabActive: { backgroundColor: COLORS.card, borderColor: COLORS.primaryGreen + '50' },
   tabText: { color: COLORS.textMuted, fontSize: 11, fontWeight: '600' },
   tabTextActive: { color: COLORS.primaryGreen },
