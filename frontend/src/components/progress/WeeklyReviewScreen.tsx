@@ -24,7 +24,7 @@ interface WeeklyReview {
   consistency_pct: number;
   sessions_completed: number;
   sessions_planned: number;
-  avg_recovery_score: number;
+  avg_recovery_score: number | null;
   avg_protein_g: number;
   protein_target_g: number;
   protein_adherence_pct: number;
@@ -42,11 +42,11 @@ interface WeeklyReview {
 
 // Small arc/ring component
 function RingMeter({ pct, color, label, size = 72 }: {
-  pct: number; color: string; label: string; size?: number;
+  pct: number | null; color: string; label: string; size?: number;
 }) {
   const r = (size - 12) / 2;
   const circ = 2 * Math.PI * r;
-  const filled = circ * Math.min(pct, 100) / 100;
+  const filled = circ * Math.min(pct ?? 0, 100) / 100;
 
   return (
     <View style={{ alignItems: 'center', gap: 4 }}>
@@ -64,10 +64,10 @@ function RingMeter({ pct, color, label, size = 72 }: {
           x={size / 2} y={size / 2 + 5}
           textAnchor="middle"
           fill={color}
-          fontSize={15}
+          fontSize={pct === null ? 18 : 15}
           fontWeight="700"
         >
-          {pct}%
+          {pct === null ? '—' : `${pct}%`}
         </SvgText>
       </Svg>
       <Text style={[styles.ringLabel, { color: COLORS.textDim }]}>{label}</Text>
@@ -167,9 +167,13 @@ export default function WeeklyReviewScreen() {
     review.calories_adherence_pct >= 85 ? COLORS.recoveryHigh :
     review.calories_adherence_pct >= 65 ? COLORS.recoveryMed : COLORS.recoveryLow;
 
-  const recoveryColor =
-    review.avg_recovery_score >= 7 ? COLORS.recoveryHigh :
-    review.avg_recovery_score >= 4 ? COLORS.recoveryMed : COLORS.recoveryLow;
+  const recoveryColor = review.avg_recovery_score === null
+    ? COLORS.textDim
+    : review.avg_recovery_score >= 7
+      ? COLORS.recoveryHigh
+      : review.avg_recovery_score >= 4
+        ? COLORS.recoveryMed
+        : COLORS.recoveryLow;
 
   return (
     <ScrollView
@@ -207,7 +211,11 @@ export default function WeeklyReviewScreen() {
         <RingMeter pct={review.consistency_pct} color={consistencyColor} label="Consistency" />
         <RingMeter pct={review.protein_adherence_pct} color={proteinColor} label="Protein" />
         <RingMeter pct={review.calories_adherence_pct} color={calorieColor} label="Calories" />
-        <RingMeter pct={review.avg_recovery_score * 10} color={recoveryColor} label="Recovery" />
+        <RingMeter
+          pct={review.avg_recovery_score === null ? null : Math.round(review.avg_recovery_score * 10)}
+          color={recoveryColor}
+          label="Recovery"
+        />
       </View>
 
       {/* Sessions */}
@@ -316,8 +324,14 @@ export default function WeeklyReviewScreen() {
             This review was generated from{' '}
             <Text style={{ color: COLORS.recoveryHigh }}>{review.sessions_completed} workout sessions</Text>,{' '}
             <Text style={{ color: COLORS.recoveryHigh }}>{review.avg_protein_g.toFixed(0)}g avg protein</Text>,{' '}
-            and a recovery average of{' '}
-            <Text style={{ color: COLORS.recoveryHigh }}>{review.avg_recovery_score}/10</Text>.
+            {review.avg_recovery_score === null ? (
+              'No recovery scores were logged, so a recovery average is unavailable.'
+            ) : (
+              <>
+                and a measured recovery average of{' '}
+                <Text style={{ color: COLORS.recoveryHigh }}>{review.avg_recovery_score}/10</Text>.
+              </>
+            )}
             {review.strength_gains.length > 0 &&
               ` Strength data from ${review.strength_gains.length} exercise${review.strength_gains.length > 1 ? 's' : ''} was compared against the previous week.`}
             {' '}Confidence is {review.confidence.toLowerCase()} because {
