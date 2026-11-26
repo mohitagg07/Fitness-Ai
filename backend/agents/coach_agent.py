@@ -15,6 +15,7 @@ MAJOR CHANGES vs v1:
     missed session) when the agent detects relevant state.
 """
 from __future__ import annotations
+import asyncio
 import json
 import logging
 from typing import TypedDict, List, Optional
@@ -27,6 +28,7 @@ from langgraph.graph import StateGraph, END
 from db.chroma_client import query_guardrails
 from db.memory_client import recall, remember
 from core.config import get_settings
+from agents.recovery_agent import run_recovery_agent
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -48,6 +50,7 @@ class WorkoutGraphState(TypedDict):
     workout_blocks: Optional[dict]
     reply: str
     cns_fatigue_score: int
+    recovery_score_pct: Optional[int]
     guardrails_triggered: List[str]
     structured_decision: Optional[dict]
 
@@ -355,7 +358,8 @@ def build_workout_node(state: WorkoutGraphState) -> WorkoutGraphState:
     else:
         equipment_text = "bodyweight only (no additional equipment recorded)"
     fatigue = state.get("cns_fatigue_score", 0)
-    recovery_pct = max(0, min(100, round((10 - fatigue) / 10 * 100)))
+    recovery_pct = state.get("recovery_score_pct")
+    recovery_label = f"{recovery_pct}%" if isinstance(recovery_pct, (int, float)) else "unavailable"
     guardrails_text = "\n".join(state.get("guardrails", []))
 
     weight_caps = {
@@ -427,7 +431,7 @@ BODY WEIGHT (real logged data — ground any weight-trend statement in this):
 {weight_text}
 
 CURRENT STATUS:
-- CNS Fatigue: {fatigue}/10 (Recovery ≈ {recovery_pct}%)
+- CNS Fatigue: {fatigue}/10 (Recovery: {recovery_label}; use only this verified score)
 - Today: {date.today().strftime('%A, %B %d')}
 {"- ⚠️ HIGH FATIGUE: Recommend machine-only, 40% lower volume" if fatigue >= 7 else ""}
 
@@ -509,23 +513,49 @@ Hard limits:
     messages.append(HumanMessage(content=state["user_message"]))
 
     response = llm.invoke(messages)
-    raw = response.content.strip().replace("```json", "").replace("```", "").strip()
+    content = response.content
+    if isinstance(content, list):
+        raw = "\n".join(
+            str(part.get("text", "")) if isinstance(part, dict) else str(part)
+            for part in content
+        ).strip()
+    else:
+        raw = str(content or "").strip()
 
+    # Groq occasionally wraps the JSON object in markdown or a short preamble.
+    # Extract the first complete object, but never expose malformed JSON/code
+    # to the athlete as a chat message.
+    cleaned = raw.replace("```json", "").replace("```JSON", "").replace("```", "").strip()
     try:
-        decision = json.loads(raw)
+        try:
+            decision = json.loads(cleaned)
+        except json.JSONDecodeError:
+            object_start = cleaned.find("{")
+            if object_start < 0:
+                raise
+            decision, _ = json.JSONDecoder().raw_decode(cleaned[object_start:])
+        if not isinstance(decision, dict):
+            raise ValueError("Coach response must be a JSON object")
     except Exception as e:
-        logger.warning(f"build_workout_node: LLM did not return valid JSON: {e}")
+        logger.warning("build_workout_node: invalid structured response (%s)", type(e).__name__)
         decision = {
             "response_type": "chat",
-            "coach_message": raw[:400],
+            "coach_message": "I couldn't format that response correctly. Please send your question once more.",
             "exercises": [],
             "summary": None,
             "tips": [],
             "next_action": None,
-            "coach_insight": raw[:150],
+            "coach_insight": None,
             "intensity": None,
         }
 
+    if not isinstance(decision.get("coach_message"), str) or not decision["coach_message"].strip():
+        decision["coach_message"] = "I couldn't prepare a clear coaching response just now. Please try again."
+    if decision.get("response_type") not in {
+        "workout_plan", "live_set", "nutrition_tip", "recovery_advice",
+        "progress_update", "weekly_summary", "chat", "emergency",
+    }:
+        decision["response_type"] = "chat"
     decision["recovery"] = recovery_pct
     decision.setdefault("calories", None)
     decision.setdefault("protein", None)
@@ -610,11 +640,26 @@ async def run_coach(
         "workout_blocks": None,
         "reply": "",
         "cns_fatigue_score": agent_state.get("cns_fatigue_score", 0),
+        "recovery_score_pct": None,
         "guardrails_triggered": [],
         "structured_decision": None,
         "nutrition_today": None,
         "weight_trend": None,
     }
+
+    # Use the same detailed recovery calculation as the dashboard. CNS load
+    # alone is not a recovery score; e.g. CNS=0 must not be rendered as 100%.
+    if not any(term in user_message.lower() for term in ("sharp pain", "pop", "snap", "tore", "torn", "injured badly", "can't move")):
+        try:
+            recovery = await asyncio.to_thread(
+                run_recovery_agent,
+                user_id,
+                sleep_hours=user_profile.get("sleep_hours"),
+                planned_workout_type=None,
+            )
+            initial_state["recovery_score_pct"] = getattr(recovery, "score_pct", None)
+        except Exception as exc:
+            logger.warning("Coach recovery lookup unavailable (%s)", type(exc).__name__)
 
     result = await coach_graph.ainvoke(initial_state)
     return {
