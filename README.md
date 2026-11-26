@@ -533,7 +533,7 @@ Required external service values:
 - `GROQ_API_KEY` — Groq inference key.
 - `SUPABASE_URL` — Supabase project URL.
 - `SUPABASE_SERVICE_KEY` — Supabase service-role key; backend only.
-- `SECRET_KEY` — unique 32-byte-or-greater random JWT signing secret; keep stable across deployments.
+- `SECRET_KEY` — required unique random JWT signing secret (at least 32 characters); keep stable across deployments. The backend fails startup if it is missing or weak.
 - `ALLOWED_ORIGINS` — comma-separated browser origins when using the web app.
 
 ChromaDB settings are optional and default to `./chroma_store` and `vyrn_guardrails`.
@@ -1096,3 +1096,12 @@ print(m.count(), 'memory facts')
 **Train. Don't Think.**
 
 </div>
+
+
+## Admin role setup (v6)
+
+Global job execution is restricted to profiles with `app_role = 'admin'`.
+After deploying the backend code, run `MIGRATION_v6_security_roles.sql` in
+the Supabase SQL Editor. Then promote the intended administrator explicitly
+using the commented SQL statement in that migration. Existing users remain
+ordinary users by default; no account is promoted automatically.
