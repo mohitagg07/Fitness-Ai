@@ -17,7 +17,6 @@ import { useQuery } from '@tanstack/react-query';
 
 import api from '../../utils/api';
 import { COLORS, alpha } from '../../theme/colors';
-import { FONTS } from '../../theme/typography';
 import { SPACING, RADIUS } from '../../theme/spacing';
 import { qk, STALE } from '../../lib/queryKeys';
 import Text from '../ui/Text';
@@ -433,7 +432,7 @@ const styles = StyleSheet.create({
     marginTop: SPACING.md,
     marginBottom: SPACING.sm,
     backgroundColor: COLORS.cardElevated,
-    borderRadius: RADIUS.pill,
+    borderRadius: RADIUS.button,
     borderWidth: 1,
     borderColor: COLORS.cardBorder,
   },
@@ -461,7 +460,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.backgroundTop,
     borderWidth: 1,
     borderColor: COLORS.cardBorder,
-    borderRadius: RADIUS.lg,
+    borderRadius: RADIUS.card,
     paddingVertical: SPACING.md,
   },
   inspector: {
@@ -471,7 +470,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm,
   },
   recoveryBlock: {
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.button,
     backgroundColor: COLORS.cardElevated,
     padding: SPACING.md,
     gap: 3,
