@@ -134,10 +134,15 @@ def _load_weight_trend(user_id: str, lookback_days: int = 30) -> dict:
 
 
 def get_llm():
+    # GPT-OSS returns its private reasoning separately by default. Suppress
+    # that field so downstream JSON parsing only receives the final answer.
+    # Groq GPT-OSS does not support reasoning_format; use include_reasoning.
     return ChatGroq(
         model=settings.groq_model,
         api_key=settings.groq_api_key,
         temperature=0.3,
+        reasoning_effort="low",
+        model_kwargs={"include_reasoning": False},
     )
 
 
