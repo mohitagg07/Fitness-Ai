@@ -53,7 +53,7 @@ interface DashboardSummary {
   mission_text: string;
   next_task: string;
   workout_today: { type: string | null; rescheduled: boolean; message: string };
-  recovery: { score: number; action: string; message: string };
+  recovery: { score: number; score_pct?: number; action: string; message: string };
   cns_fatigue: number;
   workout_streak: number;
   protein_streak: number;
@@ -176,7 +176,7 @@ export default function DashboardScreen() {
       <DashboardHeader
         firstName={firstName}
         aiSentence={aiSentence}
-        recoveryScore0to10={summary?.recovery?.score ?? 0}
+        recoveryScore0to10={summary?.recovery?.score_pct != null ? summary.recovery.score_pct / 10 : (summary?.recovery?.score ?? 0)}
         avatarUrl={profile?.avatar_url}
       />
 
