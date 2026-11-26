@@ -23,6 +23,7 @@ import { COLORS, alpha } from '../../theme/colors';
 import { FONTS, EYEBROW, BODY } from '../../theme/typography';
 import { SPACING, RADIUS } from '../../theme/spacing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import AmbientGlow from '../shared/AmbientGlow';
 import WorkoutSummaryCard from './WorkoutSummaryCard';
 import WorkoutHistoryModal from './WorkoutHistoryModal';
@@ -195,6 +196,7 @@ function PrevSetGhost({ log }: { log: SetLog | null }) {
 
 // ─── Main HUD ────────────────────────────────────────────────────────────────
 function WorkoutHUD() {
+  const responsive = useResponsiveLayout();
   // Selector form — see src/store/index.ts. This screen already re-renders
   // every second for the live clock/rest timer; without a selector it was
   // ALSO re-rendering on every chat message and CNS-fatigue update fired
@@ -599,7 +601,7 @@ function WorkoutHUD() {
   // ── Pre-session ─────────────────────────────────────────────────────────────
   if (!sessionStarted) {
     return (
-      <View style={[S.container, { paddingTop: insets.top }]}>
+      <View style={[S.container, { paddingTop: insets.top, width: '100%', maxWidth: responsive.pageMaxWidth, alignSelf: 'center' }]}>
         <WorkoutSummaryCard
           visible={summaryVisible}
           data={summaryData}
