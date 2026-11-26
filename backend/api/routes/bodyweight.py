@@ -145,5 +145,7 @@ async def delete_weight_entry(
         if not res.data:
             raise HTTPException(404, "Weight entry not found")
         return {"deleted": True}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, f"Failed to delete entry: {e}")
