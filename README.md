@@ -1002,8 +1002,27 @@ Render's free tier has no persistent disk — `chroma_store/` is wiped on every 
 1. Connect repo as a **Web Service**
 2. Build command: `pip install -r requirements.txt`
 3. Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-4. Add all env vars from Section 7
-5. Set `ALLOWED_ORIGINS` to include your frontend's deployed URL
+4. Set `SCHEDULER_ENABLED=false` on the API/web service.
+5. Add all backend environment variables from Section 7.
+6. Set `ALLOWED_ORIGINS` to include your frontend's deployed URL.
+
+### Dedicated background worker (required for scheduled automation)
+
+Do not start APScheduler inside the API service. Create a separate Render
+Background Worker (or equivalent single-instance worker) using the same
+repository and backend root directory:
+
+- Start command: `python worker.py`
+- Set `SCHEDULER_ENABLED=true` in this worker only.
+- Copy the required backend secrets/configuration (Supabase, Groq, Chroma
+  persistence path, and the same `SECRET_KEY`) into the worker environment.
+- Keep exactly **one** scheduler worker instance. The API can scale independently.
+- The worker seeds guardrails, starts APScheduler, and shuts it down gracefully
+  on SIGTERM/SIGINT. Do not run it as a web replica.
+
+Without this worker, scheduled reviews, nightly pattern/habit processing,
+notification generation, and 15-minute workout reminders do not run. The
+admin-triggered jobs endpoint remains available to authorized administrators.
 
 ### Frontend (EAS)
 
