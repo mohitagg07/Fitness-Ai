@@ -325,7 +325,7 @@ def run_strategy_engine(user_id: str, rewrite_program: bool = True) -> dict:
     if rewrite_program and block_name != "deload":
         try:
             from agents.program_rewriter import run_program_rewriter
-            rewrite_result = run_program_rewriter(user_id)
+            rewrite_result = run_program_rewriter(user_id, signals["profile"])
         except Exception as e:
             logger.warning(f"run_strategy_engine: program rewrite failed (non-fatal): {e}")
 
