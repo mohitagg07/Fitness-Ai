@@ -670,7 +670,7 @@ export default function CoachScreen() {
   useEffect(() => {
     if (!missionSummary) return;
     setBrief({
-      recoveryScore: (missionSummary.recovery?.score ?? 0) * 10,
+      recoveryScore: missionSummary.recovery?.score_pct ?? (missionSummary.recovery?.score ?? 0) * 10,
       cnsFatigue: (missionSummary.cns_fatigue ?? 0) * 10,
       message: missionSummary.recovery?.message || "Recovery data will show up here once you've logged a session.",
     });
