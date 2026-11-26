@@ -614,3 +614,34 @@ def test_coach_prior_messages_only_apply_session_filter_when_explicit(monkeypatc
     fake.query = Query()
     assert coach._load_prior_messages("user-123", session_id="chat-123")
     assert ("eq", "session_id", "chat-123") in fake.query.filters
+
+
+def test_historical_weekly_review_cache_does_not_require_fresh_timestamp(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from api.routes import review
+
+    class Query:
+        def select(self, *_args):
+            return self
+        def eq(self, *_args):
+            return self
+        def limit(self, *_args):
+            return self
+        def execute(self):
+            return SimpleNamespace(data=[{
+                "payload": {"consistency_pct": 80},
+                "generated_at": "2020-01-01T00:00:00Z",
+            }])
+
+    class Supabase:
+        def table(self, _name):
+            return Query()
+
+    monkeypatch.setattr(review, "get_supabase", lambda: Supabase())
+
+    assert review._read_weekly_cache("u1", "Jan 01 – Jan 07, 2020", require_fresh=False) == {
+        "consistency_pct": 80,
+        "week_label": "Jan 01 – Jan 07, 2020",
+        "generated_at": "2020-01-01T00:00:00Z",
+    }
+    assert review._read_weekly_cache("u1", "Jan 01 – Jan 07, 2020", require_fresh=True) is None
