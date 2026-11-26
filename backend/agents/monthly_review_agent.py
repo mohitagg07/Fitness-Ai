@@ -103,13 +103,13 @@ def _get_month_exercise_logs(user_id: str, start: date, end: date) -> list[dict]
     sb = get_supabase()
     res = (
         sb.table("exercise_logs")
-        .select("exercise_name, weight_kg, reps, logged_at")
+        .select("exercise_name, weight_kg, reps, logged_at, is_warmup")
         .eq("user_id", user_id)
         .gte("logged_at", str(start))
         .lte("logged_at", str(end) + "T23:59:59")
         .execute()
     )
-    return res.data or []
+    return [row for row in (res.data or []) if not row.get("is_warmup")]
 
 
 def _get_weight_trend(user_id: str, start: date, end: date) -> dict:
