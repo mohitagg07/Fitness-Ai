@@ -34,6 +34,7 @@ import { useMissionSummary, useWeeklyStats } from '../../hooks/useDashboardQueri
 import {
   useProfileMe, useProfilePRs, useUpdateProfile, useUploadAvatar, useDeleteInjury, useAddInjury,
 } from '../../hooks/useProfileQueries';
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 
 const APP_VERSION = '1.0.0';
 
