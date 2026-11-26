@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from core.security import get_current_user
 from db.supabase_client import get_supabase, get_full_user_context
 from schemas.models import Goal
-from services.nutrition import calculate_macros
+from services.nutrition import calculate_macros, is_training_day_for_user
 from agents.nutrition_agent import run_nutrition_agent
 from agents.workout_agent import run_workout_agent
 from agents.progress_agent import run_progress_agent
@@ -59,6 +59,8 @@ async def get_dashboard_summary(
         food_pref = profile.get("food_preference") or "non-veg"
         coach_style = profile.get("coach_style") or "friendly"
 
+        training_day = is_training_day_for_user(user_id)
+
         (
             nutrition_decision,
             consumed,
@@ -74,14 +76,14 @@ async def get_dashboard_summary(
                 gender=gender,
                 goal=goal,
                 food_preference=food_pref,
-                is_training_day=True,
+                is_training_day=training_day,
                 local_hour=local_hour,
             ),
             asyncio.to_thread(_today_nutrition_consumed, user_id),
             asyncio.to_thread(run_workout_agent, user_id, preferred_time=profile.get("workout_time_preference")),
             asyncio.to_thread(run_progress_agent, user_id, goal),
         )
-        targets = calculate_macros(weight_kg, height_cm, age, gender, goal, is_training_day=True)
+        targets = calculate_macros(weight_kg, height_cm, age, gender, goal, is_training_day=training_day)
 
         recovery_decision = await asyncio.to_thread(
             run_recovery_agent,
