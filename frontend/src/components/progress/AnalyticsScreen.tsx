@@ -59,7 +59,7 @@ interface PREntryResponse {
 }
 interface PRTimelineResponse { has_data: boolean; prs: PREntryResponse[]; empty_state?: string; }
 
-export type AnalyticsAnalyticsRangeOption = 4 | 8 | 12;
+export type AnalyticsRangeOption = 4 | 8 | 12;
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const RANGE_OPTIONS: AnalyticsRangeOption[] = [4, 8, 12];
 
