@@ -123,10 +123,17 @@ async def mark_read(
 ):
     sb = get_supabase()
     try:
-        sb.table("notifications").update({"read": True}).eq(
-            "id", notification_id
-        ).eq("user_id", current_user["user_id"]).execute()
-        return {"updated": True}
+        res = (
+            sb.table("notifications")
+            .update({"read": True})
+            .eq("id", notification_id)
+            .eq("user_id", current_user["user_id"])
+            .select("id, read")
+            .execute()
+        )
+        if not res.data:
+            raise HTTPException(404, "Notification not found")
+        return {"updated": True, "notification": res.data[0]}
     except Exception as e:
         raise HTTPException(500, f"Failed to mark notification read: {e}")
 
