@@ -62,6 +62,8 @@ class ActivityLevel(str, Enum):
 
 class CoachStyle(str, Enum):
     friendly = "friendly"
+    supportive = "supportive"
+    scientific = "scientific"
     strict = "strict"
     military = "military"
 
