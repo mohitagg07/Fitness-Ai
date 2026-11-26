@@ -1,8 +1,5 @@
 name: VYRN Mobile CI
 
-permissions:
-  contents: write
-
 on:
   push:
     branches:
@@ -41,24 +38,9 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Align Expo SDK 54 package patches and refresh lockfile
-        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund "expo@~54.0.37" "expo-constants@~18.0.14" "babel-preset-expo@~54.0.12"
-
       - name: Install locked dependencies
         run: npm ci
 
-      # One-time branch-only commit: keep package.json and package-lock.json
-      # aligned with the Expo SDK's supported patch versions.
-      - name: Save Expo-compatible lockfile
-        if: github.event_name == 'push' && github.ref == 'refs/heads/fix/reliability-and-home-workouts'
-        run: |
-          git -C .. config user.name "github-actions[bot]"
-          git -C .. config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git -C .. add frontend/package.json frontend/package-lock.json
-          if ! git -C .. diff --cached --quiet; then
-            git -C .. commit -m "chore: align Expo SDK 54 dependency lockfile"
-            git -C .. push origin HEAD:refs/heads/fix/reliability-and-home-workouts
-          fi
 
       - name: TypeScript check
         run: npm run typecheck
