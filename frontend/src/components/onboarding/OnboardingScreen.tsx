@@ -827,7 +827,12 @@ const SlideTraining = React.memo(function SlideTraining({
   setForm: React.Dispatch<React.SetStateAction<FormState>>;
 }) {
   return (
-    <View style={styles.slideContent}>
+    <ScrollView
+      style={styles.trainingScroll}
+      contentContainerStyle={[styles.slideContent, styles.trainingContent]}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    >
       <Text style={styles.slideTitle}>Training.</Text>
       <Text style={styles.slideSubtitle}>Your Workout Agent uses this to build your plan.</Text>
 
@@ -911,7 +916,7 @@ const SlideTraining = React.memo(function SlideTraining({
           </Pressable>
         ))}
       </View>
-    </View>
+    </ScrollView>
   );
 }, (prev, next) =>
   prev.form.experience_level === next.form.experience_level &&
@@ -1003,6 +1008,8 @@ const styles = StyleSheet.create({
   pager: { flex: 1 },
   slide: { flex: 1 },
   slideContent: { flex: 1, paddingHorizontal: 24, paddingTop: 64 },
+  trainingScroll: { flex: 1 },
+  trainingContent: { flexGrow: 1, paddingBottom: 24 },
   slideTitle: { fontSize: 30, fontWeight: '800', color: '#E8ECEF' },
   slideSubtitle: { fontSize: 14, color: '#9AA5B1', marginTop: 6, marginBottom: 28 },
   label: { fontSize: 12, fontWeight: '600', color: '#9AA5B1', marginBottom: 8, marginTop: 18, letterSpacing: 0.5 },
