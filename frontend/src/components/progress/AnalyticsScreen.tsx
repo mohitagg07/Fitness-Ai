@@ -4,6 +4,7 @@
 // intentionally describes what the underlying data can prove: logged working
 // sets, one primary-muscle classification per exercise, and saved PR entries.
 // It does not present training distribution as hypertrophy or recovery proof.
+// Heatmap intensity is based on working-set counts; tonnage is shown only in day details.
 // In embedded mode, ProgressScreen owns chart and range state across category switches.
 
 import React, { useState } from 'react';
