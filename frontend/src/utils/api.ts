@@ -272,6 +272,11 @@ export const missionApi = {
   getToday: () => api.get('/mission/today'),
 };
 
+export const simulationApi = {
+  runScenario: (scenarioId: 'protein' | 'missWorkouts' | 'sleep' | 'calSurplus', weeks: number) =>
+    api.post('/simulate/scenario', { scenario_id: scenarioId, weeks }),
+};
+
 export default api;
 // Memory API — "What my coach knows" card, manual remember/forget
 export const memoryApi = {
