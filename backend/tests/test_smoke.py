@@ -131,3 +131,103 @@ def test_personal_record_helper_ignores_bodyweight_and_invalid_rows() -> None:
         }
     ]
 
+
+
+
+def test_secret_key_must_be_random_and_at_least_32_characters() -> None:
+    from core.config import validate_secret_key
+
+    assert validate_secret_key("a" * 64) == "a" * 64
+    with pytest.raises(RuntimeError):
+        validate_secret_key("")
+    with pytest.raises(RuntimeError):
+        validate_secret_key("too-short")
+    with pytest.raises(RuntimeError):
+        validate_secret_key("dev-secret-key-change-in-production")
+
+
+def test_global_admin_dependency_denies_regular_user(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from fastapi import HTTPException
+    from core import security
+
+    class Query:
+        def select(self, *_args):
+            return self
+
+        def eq(self, *_args):
+            return self
+
+        def maybe_single(self):
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data={"app_role": "user"})
+
+    class Supabase:
+        def table(self, _name):
+            return Query()
+
+    monkeypatch.setattr(security, "get_supabase", lambda: Supabase())
+
+    with pytest.raises(HTTPException) as exc:
+        security.require_admin_user({"user_id": "user-123"})
+    assert exc.value.status_code == 403
+
+
+def test_global_admin_dependency_allows_database_admin(monkeypatch) -> None:
+    from types import SimpleNamespace
+    from core import security
+
+    class Query:
+        def select(self, *_args):
+            return self
+
+        def eq(self, *_args):
+            return self
+
+        def maybe_single(self):
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data={"app_role": "admin"})
+
+    class Supabase:
+        def table(self, _name):
+            return Query()
+
+    monkeypatch.setattr(security, "get_supabase", lambda: Supabase())
+    user = {"user_id": "admin-123", "email": "admin@example.test"}
+
+    assert security.require_admin_user(user) is user
+
+
+def test_global_admin_dependency_fails_closed_before_role_migration(monkeypatch) -> None:
+    from core import security
+    from fastapi import HTTPException
+
+    class MissingColumn(Exception):
+        code = "42703"
+
+    class Query:
+        def select(self, *_args):
+            return self
+
+        def eq(self, *_args):
+            return self
+
+        def maybe_single(self):
+            return self
+
+        def execute(self):
+            raise MissingColumn("column profiles.app_role does not exist")
+
+    class Supabase:
+        def table(self, _name):
+            return Query()
+
+    monkeypatch.setattr(security, "get_supabase", lambda: Supabase())
+
+    with pytest.raises(HTTPException) as exc:
+        security.require_admin_user({"user_id": "user-123"})
+    assert exc.value.status_code == 503
