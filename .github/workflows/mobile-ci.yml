@@ -47,17 +47,17 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      # Commit the regenerated lockfile only from the feature-branch push run.
+      # Commit regenerated lockfiles on the working branch so npm ci is reproducible.
       # Pull-request CI checks the same updates in its ephemeral workspace.
       - name: Save generated package lockfile
-        if: github.event_name == 'push' && github.ref == 'refs/heads/fix/reliability-and-home-workouts'
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/fix/reliability-and-home-workouts')
         run: |
           git -C .. config user.name "github-actions[bot]"
           git -C .. config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git -C .. add frontend/package-lock.json
           if ! git -C .. diff --cached --quiet; then
-            git -C .. commit -m "chore: update vulnerable transitive npm dependencies"
-            git -C .. push origin HEAD:refs/heads/fix/reliability-and-home-workouts
+            git -C .. commit -m "chore: sync frontend dependency lockfile"
+            git -C .. push origin HEAD:refs/heads/${GITHUB_REF_NAME}
           fi
 
       - name: Report all production dependency advisories
