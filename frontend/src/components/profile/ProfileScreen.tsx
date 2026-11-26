@@ -27,7 +27,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import { describeApiError } from '../../utils/api';
 import { useStore, actions } from '../../store';
-import { COLORS } from '../../theme/colors';
+import { COLORS, alpha } from '../../theme/colors';
 import { FONTS } from '../../theme/typography';
 import Logo from '../shared/Logo';
 import { useMissionSummary, useWeeklyStats } from '../../hooks/useDashboardQueries';
@@ -660,10 +660,10 @@ const styles = StyleSheet.create({
   header: { alignItems: 'center', paddingBottom: 20, paddingHorizontal: 20 },
   logoBar: { alignSelf: 'stretch', marginBottom: 20 },
 
-  avatarWrap: { width: 88, height: 88, marginBottom: 12 },
-  avatarImg: { width: 88, height: 88, borderRadius: 44, backgroundColor: COLORS.cardElevated },
+  avatarWrap: { width: 92, height: 92, marginBottom: 14 },
+  avatarImg: { width: 92, height: 92, borderRadius: 24, backgroundColor: COLORS.cardElevated },
   avatarFallback: {
-    width: 88, height: 88, borderRadius: 44,
+    width: 92, height: 92, borderRadius: 24,
     backgroundColor: COLORS.cardElevated, borderWidth: 2, borderColor: COLORS.primaryGreen,
     alignItems: 'center', justifyContent: 'center',
   },
@@ -675,12 +675,12 @@ const styles = StyleSheet.create({
     borderWidth: 3, borderColor: COLORS.background,
   },
 
-  name: { color: COLORS.text, fontSize: 22, fontWeight: '700', marginBottom: 4 },
+  name: { color: COLORS.text, fontSize: 25, fontWeight: '700', marginBottom: 4, letterSpacing: -0.4 },
   email: { color: COLORS.textMuted, fontSize: 13, marginBottom: 12 },
   goalBadge: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 14 },
   goalText: { fontSize: 11, fontWeight: '700', letterSpacing: 1 },
 
-  editBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: COLORS.primaryGreen + '50', borderRadius: 10, paddingHorizontal: 16, paddingVertical: 9, backgroundColor: COLORS.primaryGreen + '12' },
+  editBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: COLORS.primaryGreen + '50', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 9, backgroundColor: COLORS.primaryGreen + '12' },
   editBtnText: { color: COLORS.primaryGreen, fontSize: 13, fontWeight: '700' },
 
   streakStrip: { flexDirection: 'row', gap: 8, marginTop: 12 },
@@ -694,7 +694,7 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row', justifyContent: 'space-around',
     marginHorizontal: 16, marginBottom: 16,
-    backgroundColor: COLORS.cardElevated, borderRadius: 16, padding: 16,
+    backgroundColor: COLORS.cardElevated, borderRadius: 18, padding: 16,
     borderWidth: 1, borderColor: COLORS.border,
   },
   stat: { alignItems: 'center' },
