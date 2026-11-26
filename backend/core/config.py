@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     # Accept either SECRET_KEY (canonical) or JWT_SECRET (the name the
     # README told people to use) so a .env written either way works.
     secret_key: str = Field(
-        default="dev-secret-key-change-in-production",
+        default="",
         validation_alias=AliasChoices("SECRET_KEY", "JWT_SECRET"),
     )
     algorithm: str = "HS256"
@@ -73,3 +73,25 @@ def setup_logging():
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+
+
+def validate_secret_key(secret_key: str | None) -> str:
+    """Return a configured high-entropy JWT key or fail closed.
+
+    A known development fallback is never accepted. Requiring at least
+    32 characters does not prove entropy, so deployments should generate
+    this value with Python's secrets module and keep it stable.
+    """
+    value = (secret_key or "").strip()
+    if value == "dev-secret-key-change-in-production" or len(value) < 32:
+        raise RuntimeError(
+            "SECRET_KEY is not configured securely. Set a unique random "
+            "value of at least 32 characters before starting VYRN."
+        )
+    return value
+
+
+def validate_runtime_security_settings(settings: Settings | None = None) -> None:
+    """Fail application startup when signing configuration is unsafe."""
+    active_settings = settings or get_settings()
+    validate_secret_key(active_settings.secret_key)
