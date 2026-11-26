@@ -225,11 +225,15 @@ async def get_today_mission(
     protein_remaining  = round(max(0.0, targets["protein_g"] - consumed["protein_g"]), 1)
     water_remaining    = max(0, targets["water_ml"] - int(consumed["water_ml"]))
 
-    # ── Derive recovery % from CNS fatigue (0-10 → 100-0%) ───────────────────
-    cns_fatigue   = agent_state.get("cns_fatigue_score", 0)
-    recovery_pct  = max(0, min(100, round((10 - cns_fatigue) / 10 * 100)))
-    # Blend with recovery agent score for a richer signal
-    recovery_pct  = round((recovery_pct + recovery_decision.recovery_score * 10) / 2)
+    # One canonical recovery score for the mission card, Coach and analytics.
+    # CNS fatigue is only one input to the recovery agent, not a substitute
+    # for its full sleep / training-load / nutrition / RPE calculation.
+    cns_fatigue = agent_state.get("cns_fatigue_score", 0)
+    recovery_pct = getattr(
+        recovery_decision,
+        "score_pct",
+        recovery_decision.recovery_score * 10,
+    )
 
     # ── Determine intensity label ─────────────────────────────────────────────
     wtype = (workout_decision.recommended_type or "rest").lower()
@@ -295,9 +299,10 @@ async def get_today_mission(
         },
         # Nested recovery object — DashboardScreen reads .score / .action / .message
         "recovery": {
-            "score":   recovery_decision.recovery_score,  # 0-10
-            "action":  recovery_decision.action,
-            "message": recovery_decision.message,
+            "score":     recovery_decision.recovery_score,  # legacy 0-10 scale
+            "score_pct": recovery_pct,                      # canonical 0-100 scale
+            "action":    recovery_decision.action,
+            "message":   recovery_decision.message,
         },
         "progress": {
             "stalled":            progress_decision.stalled,
