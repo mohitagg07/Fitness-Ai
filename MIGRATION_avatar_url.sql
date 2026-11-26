@@ -21,16 +21,19 @@ on conflict (id) do nothing;
 
 -- 3. Allow authenticated users to upload/update only their own folder
 --    (paths are written as "{user_id}/{uuid}.ext" by the backend).
+drop policy if exists "Users upload their own avatar" on storage.objects;
 create policy "Users upload their own avatar"
   on storage.objects for insert
   to authenticated
   with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
 
+drop policy if exists "Users update their own avatar" on storage.objects;
 create policy "Users update their own avatar"
   on storage.objects for update
   to authenticated
   using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
 
+drop policy if exists "Avatars are publicly readable" on storage.objects;
 create policy "Avatars are publicly readable"
   on storage.objects for select
   to public

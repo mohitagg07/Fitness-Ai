@@ -1,5 +1,8 @@
 name: VYRN Mobile CI
 
+permissions:
+  contents: write
+
 on:
   push:
     branches:
@@ -8,11 +11,15 @@ on:
       - "feat/**"
     paths:
       - "frontend/**"
+      - "backend/**"
+      - "*.sql"
       - ".nvmrc"
       - ".github/workflows/mobile-ci.yml"
   pull_request:
     paths:
       - "frontend/**"
+      - "backend/**"
+      - "*.sql"
       - ".nvmrc"
       - ".github/workflows/mobile-ci.yml"
   workflow_dispatch:
@@ -34,22 +41,43 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      - name: Refresh lockfile after declared dependency overrides
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
       - name: Install locked dependencies
         run: npm ci
+
+      # Commit the regenerated lockfile only from the feature-branch push run.
+      # Pull-request CI checks the same updates in its ephemeral workspace.
+      - name: Save generated package lockfile
+        if: github.event_name == 'push' && github.ref == 'refs/heads/fix/reliability-and-home-workouts'
+        run: |
+          git -C .. config user.name "github-actions[bot]"
+          git -C .. config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C .. add frontend/package-lock.json
+          if ! git -C .. diff --cached --quiet; then
+            git -C .. commit -m "chore: update vulnerable transitive npm dependencies"
+            git -C .. push origin HEAD:refs/heads/fix/reliability-and-home-workouts
+          fi
+
+      - name: Report all production dependency advisories
+        run: npm audit --omit=dev || true
+
+      # Expo SDK 54 still pulls a few upstream build-time advisories whose
+      # safe resolution requires a major Expo upgrade or a not-yet-published
+      # image-size fix. Do not force an SDK migration in this reliability PR.
+      # Critical findings remain a hard failure.
+      - name: Block critical production dependency vulnerabilities
+        run: npm audit --omit=dev --audit-level=critical
 
       - name: TypeScript check
         run: npm run typecheck
 
-      # These diagnostics remain visible but do not block platform bundling
-      # for SDK patch-level drift. The exact mismatches are recorded in CI;
-      # they must be aligned before shipping store builds.
       - name: Check Expo package compatibility
         run: npx expo install --check
-        continue-on-error: true
 
       - name: Run Expo Doctor
         run: npx expo-doctor
-        continue-on-error: true
 
       - name: Bundle Android
         env:
@@ -60,3 +88,29 @@ jobs:
         env:
           EXPO_PUBLIC_API_URL: https://neurofit-ai-backend.onrender.com/api
         run: npx expo export --platform ios --output-dir $RUNNER_TEMP/vyrn-ios
+
+
+  validate-backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Compile backend modules
+        run: python -m compileall -q .
+
+      - name: Run backend smoke tests
+        run: python -m pytest -q tests

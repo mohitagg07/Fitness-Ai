@@ -3,25 +3,7 @@ import { router } from 'expo-router';
 import { Platform } from 'react-native';
 import { storage } from './storage';
 import { clearAuthData } from './auth';
-
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/api';
-
-// "localhost" only resolves correctly in a web browser or the iOS
-// Simulator. On a physical device or the Android Emulator it points at
-// the device itself, not your dev machine — every request then fails as
-// a generic network error, which is the most common cause of the AI
-// Coach's "Connection error" message and a silently empty Dashboard.
-// This warning makes the misconfiguration visible immediately instead of
-// being discovered after debugging several screens.
-if (__DEV__ && !process.env.EXPO_PUBLIC_API_URL) {
-  console.warn(
-    '[VYRN] EXPO_PUBLIC_API_URL is not set — falling back to ' +
-    `"${API_BASE}". This will NOT work on a physical device or the Android ` +
-    'Emulator. Copy frontend/.env.example to frontend/.env and set your ' +
-    'machine\'s LAN IP (or 10.0.2.2 for Android Emulator), then restart ' +
-    '`expo start --clear`.'
-  );
-}
+import { API_BASE } from './config';
 
 const api = axios.create({
   baseURL: API_BASE,

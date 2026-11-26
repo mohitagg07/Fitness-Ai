@@ -341,6 +341,14 @@ def build_workout_node(state: WorkoutGraphState) -> WorkoutGraphState:
 
     profile = state.get("user_profile", {})
     prs = profile.get("personal_records") or {}
+    training_location = str(profile.get("gym_or_home") or "gym").lower()
+    available_equipment = profile.get("equipment") or []
+    if available_equipment:
+        equipment_text = ", ".join(str(item).replace("_", " ") for item in available_equipment)
+    elif training_location == "gym":
+        equipment_text = "full gym access"
+    else:
+        equipment_text = "bodyweight only (no additional equipment recorded)"
     fatigue = state.get("cns_fatigue_score", 0)
     recovery_pct = max(0, min(100, round((10 - fatigue) / 10 * 100)))
     guardrails_text = "\n".join(state.get("guardrails", []))
@@ -395,6 +403,7 @@ CRITICAL RULES — READ FIRST:
 6. Only bring up recovery, nutrition, or fatigue proactively when it's genuinely relevant to what they asked, when they haven't messaged in a while, or when something urgent needs their attention (e.g. very low recovery before a planned heavy session, or a guardrail-triggering injury risk). Casual messages like "hi", "hey", "how are you", or small talk should get a short, natural, in-character reply — NOT a forced nutrition/recovery briefing. If you have already mentioned a specific insight (e.g. "nutrition is low") earlier in this conversation, don't repeat the same insight again unless the athlete asks about it or the underlying numbers have changed.
 7. When planning a workout, provide specific exercises, not vague advice.
 8. NEVER invent a calorie/protein/water number or a body-weight figure. Use ONLY the TODAY'S NUTRITION and BODY WEIGHT sections below — if they say no data, say so honestly instead of guessing.
+9. Respect the athlete's training location and equipment. Never prescribe an exercise that requires equipment they have not selected or that is unavailable in their training environment. For home/hybrid athletes with no equipment recorded, create a bodyweight-only plan; do not assume a full gym.
 
 ATHLETE PROFILE (from onboarding — you already know this):
 - Name: {(profile.get('full_name') or 'Athlete').split()[0]}
@@ -402,7 +411,8 @@ ATHLETE PROFILE (from onboarding — you already know this):
 - Experience: {profile.get('experience_level', 'intermediate')}
 - Onboarding weight: {profile.get('weight_kg', '?')} kg (may be stale — prefer BODY WEIGHT section below for current trend)
 - Phase: {profile.get('current_phase', 'general')}
-- Equipment: {', '.join(profile.get('equipment') or ['full gym'])}
+- Training location: {training_location}
+- Available equipment: {equipment_text}
 - Injuries: {json.dumps(profile.get('injuries') or [])}
 
 TODAY'S NUTRITION (real logged data — ground any food/protein/calorie statement in this):

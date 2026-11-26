@@ -42,6 +42,18 @@ type Location = 'home' | 'gym' | 'hybrid';
 type CoachStyle = 'friendly' | 'strict' | 'military';
 type UsernameStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid' | 'error';
 
+const EQUIPMENT_OPTIONS = [
+  { value: 'bodyweight', label: 'Bodyweight' },
+  { value: 'dumbbell', label: 'Dumbbells' },
+  { value: 'resistance_bands', label: 'Resistance bands' },
+  { value: 'barbell', label: 'Barbell' },
+  { value: 'bench', label: 'Bench' },
+  { value: 'kettlebell', label: 'Kettlebell' },
+  { value: 'pull_up_bar', label: 'Pull-up bar' },
+  { value: 'cable', label: 'Cable' },
+  { value: 'machine', label: 'Machines' },
+];
+
 interface FormState {
   full_name: string;
   username: string;
@@ -53,6 +65,7 @@ interface FormState {
   goal: Goal | null;
   experience_level: Experience | null;
   gym_or_home: Location | null;
+  equipment: string[];
   workout_days_per_week: number;
   food_preference: string | null;
   coach_style: CoachStyle | null;
@@ -69,6 +82,7 @@ const initialForm: FormState = {
   goal: null,
   experience_level: null,
   gym_or_home: null,
+  equipment: [],
   workout_days_per_week: 4,
   food_preference: null,
   coach_style: null,
@@ -268,6 +282,7 @@ export default function OnboardingScreen() {
         goal: form.goal,
         experience_level: form.experience_level,
         gym_or_home: form.gym_or_home,
+        equipment: form.equipment,
         workout_days_per_week: form.workout_days_per_week,
         food_preference: form.food_preference ?? undefined,
         coach_style: form.coach_style,
@@ -812,7 +827,12 @@ const SlideTraining = React.memo(function SlideTraining({
   setForm: React.Dispatch<React.SetStateAction<FormState>>;
 }) {
   return (
-    <View style={styles.slideContent}>
+    <ScrollView
+      style={styles.trainingScroll}
+      contentContainerStyle={[styles.slideContent, styles.trainingContent]}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    >
       <Text style={styles.slideTitle}>Training.</Text>
       <Text style={styles.slideSubtitle}>Your Workout Agent uses this to build your plan.</Text>
 
@@ -837,8 +857,45 @@ const SlideTraining = React.memo(function SlideTraining({
           { value: 'hybrid', label: 'Hybrid' },
         ]}
         selected={form.gym_or_home}
-        onSelect={(v) => setForm((f) => ({ ...f, gym_or_home: v as Location }))}
+        onSelect={(v) => setForm((f) => ({
+          ...f,
+          gym_or_home: v as Location,
+          // A home/hybrid athlete starts with bodyweight as the safe baseline.
+          // A gym user who leaves equipment blank is treated as having full-gym access.
+          equipment: v === 'gym'
+            ? []
+            : (f.equipment.length > 0 ? f.equipment : ['bodyweight']),
+        }))}
       />
+
+      <Text style={styles.label}>Equipment you can use</Text>
+      <Text style={styles.helperText}>
+        Select only what you have access to. For a full gym, you can leave this blank.
+        Home workouts default to bodyweight if nothing else is selected.
+      </Text>
+      <View style={styles.chipRow}>
+        {EQUIPMENT_OPTIONS.map((option) => {
+          const selected = form.equipment.includes(option.value);
+          return (
+            <Pressable
+              key={option.value}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: selected }}
+              onPress={() => setForm((current) => ({
+                ...current,
+                equipment: selected
+                  ? current.equipment.filter((item) => item !== option.value)
+                  : [...current.equipment, option.value],
+              }))}
+              style={[styles.chip, selected && styles.chipActive]}
+            >
+              <Text style={[styles.chipText, selected && styles.chipTextActive]}>
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
 
       <Text style={styles.label}>Days per week: {form.workout_days_per_week}</Text>
       <View style={styles.stepperRow}>
@@ -859,11 +916,12 @@ const SlideTraining = React.memo(function SlideTraining({
           </Pressable>
         ))}
       </View>
-    </View>
+    </ScrollView>
   );
 }, (prev, next) =>
   prev.form.experience_level === next.form.experience_level &&
   prev.form.gym_or_home === next.form.gym_or_home &&
+  prev.form.equipment === next.form.equipment &&
   prev.form.workout_days_per_week === next.form.workout_days_per_week &&
   prev.setForm === next.setForm);
 
@@ -950,6 +1008,8 @@ const styles = StyleSheet.create({
   pager: { flex: 1 },
   slide: { flex: 1 },
   slideContent: { flex: 1, paddingHorizontal: 24, paddingTop: 64 },
+  trainingScroll: { flex: 1 },
+  trainingContent: { flexGrow: 1, paddingBottom: 24 },
   slideTitle: { fontSize: 30, fontWeight: '800', color: '#E8ECEF' },
   slideSubtitle: { fontSize: 14, color: '#9AA5B1', marginTop: 6, marginBottom: 28 },
   label: { fontSize: 12, fontWeight: '600', color: '#9AA5B1', marginBottom: 8, marginTop: 18, letterSpacing: 0.5 },
@@ -993,6 +1053,9 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   chipText: { color: '#9AA5B1', fontSize: 12, fontWeight: '600' },
+  chipActive: { backgroundColor: COLORS.primaryGreen, borderColor: COLORS.primaryGreen },
+  chipTextActive: { color: '#0A0A0A' },
+  helperText: { color: '#78838F', fontSize: 11, lineHeight: 16, marginTop: -2 },
   selectRow: { flexDirection: 'row', gap: 10 },
   selectRowWrap: { flexWrap: 'wrap' },
   pill: {

@@ -52,7 +52,7 @@ class SetLogRequest(BaseModel):
     keep working unchanged.
     """
     exercise_name: str = Field(min_length=1)
-    weight_kg: float = Field(gt=0)
+    weight_kg: float = Field(ge=0)
     reps: int = Field(ge=1)
     rpe: Optional[float] = Field(None, ge=1, le=10)
     equipment_modifiers: list = Field(default_factory=list)
@@ -348,6 +348,11 @@ async def complete_session(
             existing_prs = {}
 
         for name, best in best_this_session.items():
+            # A zero external load is a valid bodyweight set, not a barbell/
+            # dumbbell load PR. Keep it in the session history and volume
+            # calculations, but do not create or overwrite a 0 kg PR entry.
+            if best["weight_kg"] <= 0:
+                continue
             old_pr = existing_prs.get(name)
             if old_pr is None or best["weight_kg"] > old_pr:
                 delta = round(best["weight_kg"] - old_pr, 1) if old_pr is not None else None

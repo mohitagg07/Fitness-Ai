@@ -245,7 +245,7 @@ class PRCreate(BaseModel):
 class SetLog(BaseModel):
     exercise_name: str = Field(min_length=1)
     set_number: int = Field(ge=1)
-    weight_kg: float = Field(gt=0)
+    weight_kg: float = Field(ge=0)
     reps: int = Field(ge=1)
     rpe: Optional[float] = Field(None, ge=1, le=10)
     equipment_modifiers: List[str] = Field(default_factory=list)

@@ -336,13 +336,25 @@ function WorkoutHUD() {
     // silently corrupting volume/PR totals for this session.
     if (isLogging) return;
 
-    const w = parseFloat(weight);
-    const r = parseInt(reps);
+    const weightInput = weight.trim();
+    const w = Number(weightInput);
+    const repsInput = reps.trim();
+    const r = Number(repsInput);
     const name = resolvedName;
 
     if (!name) { Alert.alert('Missing exercise', 'Enter an exercise name.'); return; }
-    if (!w || w <= 0) { Alert.alert('Missing weight', 'Enter the weight in kg.'); return; }
-    if (!r || r <= 0) { Alert.alert('Missing reps',   'Enter the reps.');         return; }
+    if (!weightInput) {
+      Alert.alert('Missing weight', 'Enter the load in kg. Use 0 for bodyweight exercises.');
+      return;
+    }
+    if (!Number.isFinite(w) || w < 0) {
+      Alert.alert('Invalid weight', 'Enter a valid load in kg. Use 0 for bodyweight exercises.');
+      return;
+    }
+    if (!repsInput || !Number.isInteger(r) || r <= 0) {
+      Alert.alert('Missing reps', 'Enter a whole number of reps greater than zero.');
+      return;
+    }
 
     const setNum = currentSetNum;
     const logData = { exercise_name: name, set_number: setNum, weight_kg: w, reps: r, rpe };
@@ -546,7 +558,7 @@ function WorkoutHUD() {
           <Text style={S.gymTitle}>GYM MODE</Text>
           <Text style={S.gymSubtitle}>Log every set, get stronger</Text>
           <Text style={S.gymDesc}>
-            Start a session, then log each set with weight, reps, and RPE.
+            Start a session, then log each set with load, reps, and RPE. Enter 0 kg for bodyweight movements.
             Ask your coach for today's plan anytime.
           </Text>
           <TouchableOpacity style={S.startBtn} onPress={startSession}>
@@ -676,7 +688,7 @@ function WorkoutHUD() {
           <View style={S.inputWrap}>
             <TextInput
               style={S.logInput}
-              placeholder="kg"
+              placeholder="kg or 0"
               placeholderTextColor={COLORS.textMuted}
               value={weight}
               onChangeText={setWeight}
@@ -696,6 +708,7 @@ function WorkoutHUD() {
             <Text style={S.inputUnit}>reps</Text>
           </View>
         </View>
+        <Text style={S.inputHint}>Use 0 kg for bodyweight exercises.</Text>
 
         {/* Previous set ghost */}
         <PrevSetGhost log={prevSet} />
@@ -900,6 +913,7 @@ const S = StyleSheet.create({
                textAlign: 'center', borderWidth: 1, borderColor: COLORS.borderLight },
   inputUnit: { position: 'absolute', bottom: 6, right: SPACING.sm, color: COLORS.textMuted,
                fontFamily: FONTS.semibold, fontSize: 11 },
+  inputHint: { color: COLORS.textMuted, fontSize: 11, marginTop: -SPACING.xs, marginBottom: SPACING.sm },
 
   rpeRow:    { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.md },
   rpeLabel:  { ...EYEBROW, color: COLORS.textSecondary, fontSize: 10, width: 30 },

@@ -32,6 +32,11 @@ export const actions = {
     await storage.setItem('vyrn_user', JSON.stringify(user));
     setState({ user, token });
   },
+  // Restore a previously persisted session into memory on cold app launch.
+  // Unlike setAuth(), this does not rewrite SecureStore on every startup.
+  hydrateAuth(user: any, token: string) {
+    setState({ user, token });
+  },
   async logout() {
     // Unregister this device's push token BEFORE clearing the auth token —
     // unregisterPushNotificationsAsync() calls an authenticated endpoint,
