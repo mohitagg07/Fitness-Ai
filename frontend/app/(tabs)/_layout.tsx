@@ -4,6 +4,9 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { storage } from '../../src/utils/storage';
 import { profileApi } from '../../src/utils/api';
+import { actions } from '../../src/store';
+import { queryClient } from '../../src/lib/queryClient';
+import { qk } from '../../src/lib/queryKeys';
 import { clearAuthData } from '../../src/utils/auth';
 import { usePrefetchDashboard } from '../../src/hooks/useDashboardQueries';
 import { COLORS, alpha } from '../../src/theme/colors';
@@ -52,20 +55,58 @@ export default function TabsLayout() {
       // below) or a restored native navigation state can land here
       // directly. Every branch here still resolves to a single outcome —
       // it never leaves `authChecked` false forever.
-      const token = await storage.getItem('vyrn_token');
+      let token: string | null = null;
+      try {
+        token = await storage.getItem('vyrn_token');
+      } catch {
+        router.replace('/');
+        return;
+      }
       if (cancelled) return;
       if (!token) {
         router.replace('/login');
         return;
       }
 
+      // Restore the persisted identity immediately; profile data can be
+      // hydrated from the query cache while the network check runs.
+      let savedUser: any = null;
+      try {
+        const rawUser = await storage.getItem('vyrn_user');
+        savedUser = rawUser ? JSON.parse(rawUser) : null;
+      } catch {
+        savedUser = null;
+      }
+      if (cancelled) return;
+      actions.hydrateAuth(
+        savedUser && typeof savedUser === 'object' ? savedUser : { id: null },
+        token
+      );
+
+      const cachedPayload = queryClient.getQueryData(qk.profile.me()) as any;
+      if (cachedPayload) {
+        const cachedProfile = cachedPayload?.profile ?? cachedPayload ?? {};
+        actions.setProfile(
+          cachedProfile,
+          Array.isArray(cachedPayload?.injuries) ? cachedPayload.injuries : [],
+          Array.isArray(cachedPayload?.personal_records) ? cachedPayload.personal_records : []
+        );
+      }
+
       try {
         const res = await profileApi.getMe();
         if (cancelled) return;
-        if (res.data && res.data.onboarding_complete === false) {
+        const payload = res.data;
+        const profile = payload?.profile ?? payload ?? {};
+        if (profile?.onboarding_complete !== true) {
           router.replace('/onboarding');
           return;
         }
+        actions.setProfile(
+          profile,
+          Array.isArray(payload?.injuries) ? payload.injuries : [],
+          Array.isArray(payload?.personal_records) ? payload.personal_records : []
+        );
       } catch (err: any) {
         if (cancelled) return;
         const status = err?.response?.status;
@@ -78,11 +119,9 @@ export default function TabsLayout() {
           router.replace('/login');
           return;
         }
-        // Network error / slow backend — we already have a token and no
-        // proof it's invalid, so let them through rather than blocking the
-        // UI on a flaky connection. The global 401 interceptor in api.ts
-        // will still catch a genuinely dead token the moment any other
-        // authenticated call on this screen fails.
+        // Network error / slow backend — retain the persisted identity and
+        // cached profile if available. The dashboard will show its explicit
+        // offline/error state rather than an endless auth spinner.
       }
 
       setAuthChecked(true);
