@@ -25,6 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { coachApi, describeApiError } from '../../utils/api';
 import { useCoachChatStream } from '../../hooks/useCoachChatStream';
 import { useMissionSummary } from '../../hooks/useDashboardQueries';
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { useStore } from '../../store';
 import { COLORS, alpha, recoveryColor } from '../../theme/colors';
 import { RADIUS } from '../../theme/spacing';
@@ -632,6 +633,7 @@ const MiniStat = React.memo(MiniStatBase);
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function CoachScreen() {
+  const responsive = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const [input, setInput]   = useState('');
   const [serverStatus, setServerStatus] = useState<'online' | 'offline' | 'unknown'>('unknown');
@@ -801,7 +803,7 @@ export default function CoachScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={S.container}
+      style={[S.container, { width: '100%', maxWidth: responsive.pageMaxWidth, alignSelf: 'center' }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={90}
     >
