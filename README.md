@@ -402,8 +402,9 @@ The database is created in Supabase. Run the SQL files below **in this exact ord
 10. `MIGRATION_v9_coach_styles.sql` — supported coach-style values.
 11. `MIGRATION_v10_atomic_workout_set_logging.sql` — ownership-checked, concurrency-safe set logging RPC.
 12. `MIGRATION_v11_protect_admin_role.sql` — prevents authenticated users from changing their own application role.
+13. `MIGRATION_v12_atomic_program_versions.sql` — serializes program-version writes and suppresses duplicate rewrites for the same plan within seven days.
 
-Migrations v6–v11 are new for this implementation. Existing user data is preserved; these migrations add columns, policies, constraints, and functions rather than resetting tables. Most are idempotent, but still stop and resolve any SQL error before proceeding. **Do not drop existing tables or reset a database containing real user data.**
+Migrations v6–v12 are new for this implementation. Existing user data is preserved; these migrations add columns, policies, constraints, and functions rather than resetting tables. Most are idempotent, but still stop and resolve any SQL error before proceeding. **Do not drop existing tables or reset a database containing real user data.**
 
 After v11, explicitly promote the intended administrator using the commented SQL in `MIGRATION_v6_security_roles.sql`. Run that promotion from the Supabase SQL Editor as a database owner. No account is made an administrator automatically.
 
