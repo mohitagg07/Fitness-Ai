@@ -528,7 +528,7 @@ def test_muscle_recovery_map_returns_real_recent_workload_and_ignores_warmups() 
     result = build_muscle_recovery_map_from_logs(
         [
             {"exercise_name": "Bench Press", "weight_kg": 80, "reps": 8, "is_warmup": False, "logged_at": "2026-11-27T10:00:00Z"},
-            {"exercise_name": "Incline Dumbbell Press", "weight_kg": 30, "reps": 10, "is_warmup": False, "logged_at": "2026-11-26T10:00:00Z"},
+            {"exercise_name": "Cable Fly", "weight_kg": 30, "reps": 10, "is_warmup": False, "logged_at": "2026-11-26T10:00:00Z"},
             {"exercise_name": "Bench Press", "weight_kg": 40, "reps": 10, "is_warmup": True, "logged_at": "2026-11-27T09:00:00Z"},
             {"exercise_name": "Squat", "weight_kg": 100, "reps": 5, "is_warmup": False, "logged_at": "2026-11-10T10:00:00Z"},
         ],
@@ -541,10 +541,11 @@ def test_muscle_recovery_map_returns_real_recent_workload_and_ignores_warmups() 
 
     assert chest["working_sets_7d"] == 2
     assert chest["volume_7d_kg"] == 940.0
-    assert chest["exercises_7d"] == ["Bench Press", "Incline Dumbbell Press"]
+    assert chest["exercises_7d"] == ["Bench Press", "Cable Fly"]
     assert chest["hours_since_trained"] == 2.0
     assert legs["working_sets_7d"] == 0
-    assert legs["status"] == "red"
+    assert legs["status"] == "green"
+    assert legs["recovery_pct"] == 100
     assert back["recovery_pct"] is None
     assert result["has_data"] is True
 
