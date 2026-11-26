@@ -39,7 +39,7 @@ type Gender = 'male' | 'female' | 'other';
 type Goal = 'cut' | 'bulk' | 'maintain' | 'recomp';
 type Experience = 'beginner' | 'intermediate' | 'advanced' | 'elite';
 type Location = 'home' | 'gym' | 'hybrid';
-type CoachStyle = 'friendly' | 'strict' | 'military';
+type CoachStyle = 'friendly' | 'supportive' | 'scientific' | 'strict' | 'military';
 type UsernameStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid' | 'error';
 
 const EQUIPMENT_OPTIONS = [
@@ -955,6 +955,8 @@ const SlideCoach = React.memo(function SlideCoach({
       <SelectRow
         options={[
           { value: 'friendly', label: 'Friendly' },
+          { value: 'supportive', label: 'Supportive' },
+          { value: 'scientific', label: 'Scientific' },
           { value: 'strict', label: 'Strict' },
           { value: 'military', label: 'Military' },
         ]}
