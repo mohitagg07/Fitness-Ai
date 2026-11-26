@@ -24,6 +24,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, type AppStateStatus, Platform } from 'react-native';
 import { focusManager, onlineManager } from '@tanstack/react-query';
 
+export const QUERY_CACHE_STORAGE_KEY = 'VYRN_QUERY_CACHE';
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -85,7 +87,7 @@ AppState.addEventListener('change', onAppStateChange);
 
 export const asyncStoragePersister = createAsyncStoragePersister({
   storage: AsyncStorage,
-  key: 'VYRN_QUERY_CACHE',
+  key: QUERY_CACHE_STORAGE_KEY,
   // Cap what gets written to disk — chat history / large payloads should
   // not be persisted verbatim; this throttles writes to avoid janking the
   // JS thread on every single cache update.
@@ -129,4 +131,10 @@ export function markHydrationComplete() {
   if (hydrationSignaled) return; // idempotent — onSuccess/onError both call this
   hydrationSignaled = true;
   signalHydrated();
+}
+
+/** Remove all in-memory and persisted user-scoped query data on logout/account change. */
+export async function clearPersistedQueryCache(): Promise<void> {
+  queryClient.clear();
+  await AsyncStorage.removeItem(QUERY_CACHE_STORAGE_KEY);
 }
