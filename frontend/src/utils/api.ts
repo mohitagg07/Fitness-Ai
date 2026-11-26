@@ -207,8 +207,10 @@ export const progressApi = {
   // exposed standalone so the Progress tab can show it too without drift.
   getConsistency: () => api.get('/progress/consistency'),
   logNutrition: (data: any) => api.post('/nutrition/log', data),
-  getNutritionTargets: (is_training_day = true) =>
-    api.get(`/nutrition/targets?is_training_day=${is_training_day}`),
+  getNutritionTargets: (is_training_day?: boolean) =>
+    api.get('/nutrition/targets', is_training_day === undefined ? undefined : {
+      params: { is_training_day },
+    }),
   getNutritionHistory: (limit = 30) =>
     api.get(`/nutrition/history?limit=${limit}`),
 };
@@ -227,8 +229,10 @@ export const nutritionApi = {
     api.get('/nutrition/search', { params: { q, max_results: maxResults } }),
 
   // Meal Generator — ready-to-eat combo sized to today's remaining macros.
-  getMealPlan: (isTrainingDay = true) =>
-    api.get('/nutrition/meal-plan', { params: { is_training_day: isTrainingDay } }),
+  getMealPlan: (isTrainingDay?: boolean) =>
+    api.get('/nutrition/meal-plan', isTrainingDay === undefined ? undefined : {
+      params: { is_training_day: isTrainingDay },
+    }),
 
   // Smart Grocery — weekly shopping quantities from the real weekly protein target.
   getGroceryList: () => api.get('/nutrition/grocery-list'),
@@ -244,8 +248,10 @@ export const nutritionApi = {
   // Single-call "today" dashboard: consumed + targets + remaining + % for
   // every macro, plus today's logged meals — avoids re-deriving any of
   // this client-side from /targets + /history separately.
-  getToday: (is_training_day = true) =>
-    api.get('/nutrition/today', { params: { is_training_day } }),
+  getToday: (is_training_day?: boolean) =>
+    api.get('/nutrition/today', is_training_day === undefined ? undefined : {
+      params: { is_training_day },
+    }),
 };
 
 // Was previously missing entirely — DashboardScreen had no way to call
