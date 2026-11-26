@@ -41,6 +41,8 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Audit production dependencies
+        run: npm audit --omit=dev
 
       - name: TypeScript check
         run: npm run typecheck
