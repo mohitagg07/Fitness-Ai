@@ -125,14 +125,23 @@ def upsert_agent_state(user_id: str, state: dict) -> None:
     sb.table("agent_states").upsert(state, on_conflict="user_id").execute()
 
 
-def save_conversation_message(user_id: str, session_id: str | None, role: str, content: str) -> None:
+def save_conversation_message(
+    user_id: str,
+    session_id: str | None,
+    role: str,
+    content: str,
+    metadata: dict | None = None,
+) -> None:
     sb = get_supabase()
-    sb.table("ai_conversations").insert({
+    row = {
         "user_id": user_id,
         "session_id": session_id,
         "role": role,
         "content": content,
-    }).execute()
+    }
+    if metadata:
+        row["metadata"] = metadata
+    sb.table("ai_conversations").insert(row).execute()
 
 
 def upsert_personal_record(user_id: str, exercise_name: str, weight_kg: float, reps: int) -> None:
