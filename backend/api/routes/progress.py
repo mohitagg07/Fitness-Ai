@@ -2,6 +2,8 @@
 Progress route — metrics logging + rich analytics data for the Progress Center.
 main.py mounts this at prefix="/api/progress".
 """
+import asyncio
+
 from fastapi import APIRouter, Depends
 from schemas.models import MetricsCreate
 from core.security import get_current_user
@@ -148,7 +150,10 @@ async def get_muscle_recovery(current_user: dict = Depends(get_current_user)):
     Backs the Muscle Recovery Map on the Progress screen.
     """
     from services.training_load_engine import compute_muscle_recovery_map
-    return compute_muscle_recovery_map(current_user["user_id"])
+    return await asyncio.to_thread(
+        compute_muscle_recovery_map,
+        current_user["user_id"],
+    )
 
 
 @router.get("/muscle-balance")
