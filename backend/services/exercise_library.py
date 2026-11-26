@@ -14,6 +14,8 @@ Design principle (same as decision_engine.py / program_rewriter.py):
 from __future__ import annotations
 from typing import Optional
 
+from services.exercise_catalog import classify_exercise_group
+
 
 # ── Substitution chains — exercise -> ordered list of alternatives ─────────
 # Each alternative carries the equipment it requires so filter_substitutes
@@ -73,9 +75,12 @@ def get_substitutes(exercise_name: str) -> list[dict]:
 
 
 def classify_muscle_group(exercise_name: str) -> Optional[str]:
-    """Heuristic keyword classifier — mirrors classify_exercise() in
-    api/routes/progress.py so substitution filtering and analytics agree
-    on what counts as, e.g., a "Back" exercise."""
+    """Use curated metadata for known movements, then preserve the legacy
+    keyword fallback for free-text historical logs not in the catalogue."""
+    curated_group = classify_exercise_group(exercise_name)
+    if curated_group:
+        return curated_group
+
     name_l = exercise_name.lower()
     if any(k in name_l for k in ["bench", "chest", "pec", "fly", "push up", "pushup", "dip"]):
         return "Chest"

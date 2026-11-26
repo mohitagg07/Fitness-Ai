@@ -12,6 +12,9 @@ from agents.consistency_agent import run_consistency_agent
 from datetime import date, timedelta
 from collections import defaultdict
 
+from services.exercise_catalog import list_exercises
+from services.exercise_library import classify_muscle_group
+
 # ✅ NO prefix here — main.py sets prefix="/api/progress"
 router = APIRouter(tags=["Progress"])
 
@@ -156,6 +159,12 @@ async def get_muscle_recovery(current_user: dict = Depends(get_current_user)):
     )
 
 
+@router.get("/exercise-catalog")
+async def get_exercise_catalog(current_user: dict = Depends(get_current_user)):
+    """Return curated movement metadata shared by analytics and form tools."""
+    return {"version": "1.0", "exercises": list_exercises()}
+
+
 @router.get("/muscle-balance")
 async def get_muscle_balance(
     weeks: int = 4,
@@ -171,12 +180,13 @@ async def get_muscle_balance(
 
     logs_res = (
         sb.table("exercise_logs")
-        .select("exercise_name, logged_at")
+        .select("exercise_name, logged_at, is_warmup")
         .eq("user_id", user_id)
         .gte("logged_at", cutoff)
         .execute()
     )
-    logs = logs_res.data or []
+    # Warm-up rows do not count as working-set exposure in the balance view.
+    logs = [row for row in (logs_res.data or []) if not row.get("is_warmup")]
 
     if not logs:
         return {
@@ -185,27 +195,11 @@ async def get_muscle_balance(
             "empty_state": f"Complete {3 if weeks <= 4 else weeks} workouts to unlock muscle balance.",
         }
 
-    # Map exercise names to muscle groups (keyword heuristic)
-    def classify_exercise(name: str) -> str:
-        name_l = name.lower()
-        if any(k in name_l for k in ["bench", "chest", "pec", "fly", "push up", "pushup", "dip"]):
-            return "Chest"
-        if any(k in name_l for k in ["pull", "row", "lat", "back", "deadlift", "chin"]):
-            return "Back"
-        if any(k in name_l for k in ["shoulder", "press", "delt", "lateral", "overhead", "ohp", "military"]):
-            return "Shoulders"
-        if any(k in name_l for k in ["curl", "tricep", "bicep", "arm", "hammer", "skullcrusher"]):
-            return "Arms"
-        if any(k in name_l for k in ["squat", "leg", "lunge", "calf", "quad", "hamstring", "glute", "hip", "rdl", "leg press"]):
-            return "Legs"
-        if any(k in name_l for k in ["plank", "crunch", "core", "ab", "cable crunch", "situp", "sit-up"]):
-            return "Core"
-        return None
-
+    # Resolve using the shared curated catalogue and legacy-name fallback.
     muscle_sets: dict[str, int] = defaultdict(int)
     total_sets = 0
     for log in logs:
-        mg = classify_exercise(log.get("exercise_name", ""))
+        mg = classify_muscle_group(log.get("exercise_name", ""))
         if mg:
             muscle_sets[mg] += 1
             total_sets += 1
