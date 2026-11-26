@@ -104,7 +104,7 @@ function ProteinAdherenceBar({ history }: { history: any[] }) {
   );
 }
 const P = StyleSheet.create({
-  container:  { backgroundColor: 'COLORS.cardElevated', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: 'COLORS.border', marginBottom: 16 },
+  container:  { backgroundColor: 'COLORS.cardElevated', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: 'COLORS.border', marginBottom: 16 },
   headerRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   label:      { color: 'COLORS.textMuted', fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
   pct:        { fontSize: 13, fontWeight: '700' },
@@ -552,8 +552,11 @@ export default function ProgressScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { paddingHorizontal: 20, paddingTop: 56, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 4 },
-  headerSub: { color: COLORS.textMuted, fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
+  header: {
+    paddingHorizontal: 20, paddingTop: 56, paddingBottom: 14,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 6,
+  },
+  headerSub: { color: COLORS.text, fontSize: 23, fontWeight: '700', letterSpacing: -0.4 },
 
   tabBarScroll: { flexGrow: 0, borderBottomWidth: 1, borderBottomColor: 'COLORS.inputBg' },
   tabBar: { paddingHorizontal: 12, paddingVertical: 10, gap: 6, flexDirection: 'row' },
@@ -562,12 +565,12 @@ const styles = StyleSheet.create({
   tabText: { color: 'COLORS.textMuted', fontSize: 11, fontWeight: '600' },
   tabTextActive: { color: COLORS.primaryGreen },
 
-  scroll: { padding: 16, paddingTop: 14 },
+  scroll: { paddingHorizontal: 18, paddingTop: 18, paddingBottom: 36 },
 
   logCard: { backgroundColor: 'COLORS.cardElevated', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: 'COLORS.border', marginBottom: 16 },
   sectionLabel: { color: 'COLORS.textMuted', fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 10 },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  numInput: { flex: 1, backgroundColor: 'COLORS.inputBg', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, color: 'COLORS.text', fontSize: 20, fontWeight: '700', borderWidth: 1, borderColor: 'COLORS.border' },
+  numInput: { flex: 1, backgroundColor: 'COLORS.inputBg', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: 'COLORS.text', fontSize: 20, fontWeight: '700', borderWidth: 1, borderColor: 'COLORS.border' },
   unitLabel: { color: 'COLORS.textMuted', fontSize: 14, fontWeight: '600' },
   logBtn: { backgroundColor: COLORS.primaryGreen, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 13 },
   logBtnText: { color: 'COLORS.background', fontSize: 13, fontWeight: '800', letterSpacing: 1 },
@@ -578,7 +581,7 @@ const styles = StyleSheet.create({
   remainingVal: { color: 'COLORS.textSecondary', fontSize: 11 },
 
   statsGrid: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  statCard: { flex: 1, backgroundColor: 'COLORS.cardElevated', borderRadius: 10, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: 'COLORS.border' },
+  statCard: { flex: 1, backgroundColor: 'COLORS.cardElevated', borderRadius: 14, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: 'COLORS.border' },
   statVal: { color: COLORS.primaryGreen, fontSize: 18, fontWeight: '800' },
   statLabel: { color: 'COLORS.textMuted', fontSize: 9, fontWeight: '700', letterSpacing: 1, marginTop: 2 },
 
