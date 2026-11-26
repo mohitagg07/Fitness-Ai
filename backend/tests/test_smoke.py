@@ -77,3 +77,57 @@ def test_negative_external_load_is_rejected(payload_factory) -> None:
         values["set_number"] = 1
     with pytest.raises(ValidationError):
         payload_factory(**values)
+
+def test_personal_records_are_compared_per_exercise_and_rep_count() -> None:
+    from services.pr_validator import find_new_personal_records
+
+    existing = [
+        {"exercise_name": "Bench Press", "weight_kg": 100, "reps": 1},
+        {"exercise_name": "Bench Press", "weight_kg": 80, "reps": 5},
+    ]
+    session = [
+        {"exercise_name": "Bench Press", "weight_kg": 102.5, "reps": 1},
+        {"exercise_name": "Bench Press", "weight_kg": 82.5, "reps": 5},
+        {"exercise_name": "Bench Press", "weight_kg": 100, "reps": 1},
+    ]
+
+    records = find_new_personal_records(session, existing)
+
+    assert records == [
+        {
+            "exercise_name": "Bench Press",
+            "weight_kg": 102.5,
+            "reps": 1,
+            "previous_pr_kg": 100.0,
+        },
+        {
+            "exercise_name": "Bench Press",
+            "weight_kg": 82.5,
+            "reps": 5,
+            "previous_pr_kg": 80.0,
+        },
+    ]
+
+
+def test_personal_record_helper_ignores_bodyweight_and_invalid_rows() -> None:
+    from services.pr_validator import find_new_personal_records
+
+    records = find_new_personal_records(
+        [
+            {"exercise_name": "Push Up", "weight_kg": 0, "reps": 15},
+            {"exercise_name": "Bench Press", "weight_kg": 60, "reps": 0},
+            {"exercise_name": "Squat", "weight_kg": 100, "reps": 5},
+            {"exercise_name": "Squat", "weight_kg": 90, "reps": 5},
+        ],
+        [],
+    )
+
+    assert records == [
+        {
+            "exercise_name": "Squat",
+            "weight_kg": 100.0,
+            "reps": 5,
+            "previous_pr_kg": None,
+        }
+    ]
+
