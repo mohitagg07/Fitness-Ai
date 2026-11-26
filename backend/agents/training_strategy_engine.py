@@ -110,7 +110,7 @@ def _get_signals(user_id: str) -> dict:
     sleep_hrs = profile.get("sleep_hours")
 
     # Recovery (use the full dynamic engine)
-    from services.nutrition import calculate_macros
+    from services.nutrition import calculate_macros, is_training_day_for_user
     from schemas.models import Goal as GoalEnum
     goal_enum = GoalEnum(goal) if goal in GoalEnum._value2member_map_ else GoalEnum.maintain
     targets = calculate_macros(
@@ -119,7 +119,7 @@ def _get_signals(user_id: str) -> dict:
         age=profile.get("age") or 28,
         gender=profile.get("gender") or "male",
         goal=goal_enum,
-        is_training_day=True,
+        is_training_day=is_training_day_for_user(user_id),
     )
     recovery = run_recovery_agent(
         user_id,
