@@ -32,11 +32,12 @@ begin
         raise exception 'p_user_id is required';
     end if;
 
-    if p_day_key not in ('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun') then
+    if p_day_key is null
+       or p_day_key not in ('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun') then
         raise exception 'Invalid weekday key: %', p_day_key;
     end if;
 
-    if p_workout_type not in (
+    if p_workout_type is null or p_workout_type not in (
         'push', 'pull', 'legs', 'upper', 'lower', 'full_body', 'cardio', 'rest'
     ) then
         raise exception 'Invalid workout type: %', p_workout_type;
