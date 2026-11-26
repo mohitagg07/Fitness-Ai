@@ -209,7 +209,7 @@ def run_program_rewriter(user_id: str, profile: dict) -> dict:
     # training_strategy_engine._get_signals for the same pattern), not the
     # raw profile dict, so compute the target the same way other callers do.
     try:
-        from services.nutrition import calculate_macros
+        from services.nutrition import calculate_macros, is_training_day_for_user
         from schemas.models import Goal as GoalEnum
         goal = profile.get("goal") or "maintain"
         goal_enum = GoalEnum(goal) if goal in GoalEnum._value2member_map_ else GoalEnum.maintain
@@ -219,7 +219,7 @@ def run_program_rewriter(user_id: str, profile: dict) -> dict:
             age=profile.get("age") or 28,
             gender=profile.get("gender") or "male",
             goal=goal_enum,
-            is_training_day=True,
+            is_training_day=is_training_day_for_user(user_id),
         )
         insights = run_pattern_engine(user_id, protein_target_g=targets["protein_g"])
     except Exception as e:
