@@ -189,7 +189,7 @@ export default function SimulationScreen() {
               <Text style={styles.resultHeadline}>{result.headline}</Text>
             </View>
             <View style={styles.confBlock}>
-              <Text style={styles.confEyebrow}>CONFIDENCE</Text>
+              <Text style={styles.confEyebrow}>ESTIMATE CONFIDENCE</Text>
               <Text style={styles.confValue}>{result.confidence}%</Text>
             </View>
           </View>
@@ -237,6 +237,10 @@ export default function SimulationScreen() {
             <Text style={[styles.boxLabel, { color: COLORS.recoveryHigh }]}>RECOMMENDATION</Text>
             <Text style={styles.boxText}>{result.recommendation}</Text>
           </View>
+          <Text style={styles.disclaimer}>
+            Directional estimate, not a guarantee or a medical prediction.
+            Confidence reflects the model's data coverage, not a statistical probability.
+          </Text>
         </View>
       )}
     </ScrollView>
@@ -351,4 +355,8 @@ const styles = StyleSheet.create({
     letterSpacing: 1.3, textTransform: 'uppercase', marginBottom: 5,
   },
   boxText: { fontFamily: FONTS.regular, fontSize: 12, color: COLORS.textSecondary, lineHeight: 18 },
+  disclaimer: {
+    fontFamily: FONTS.regular, fontSize: 10, lineHeight: 15,
+    color: COLORS.textMuted, marginTop: 10,
+  },
 });
