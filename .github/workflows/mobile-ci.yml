@@ -47,13 +47,9 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Apply non-breaking security updates
-        run: |
-          npm audit fix --ignore-scripts --no-fund || echo "::warning::Some upstream Expo build-tool advisories remain; the audited report and critical-severity gate run next."
-
-      # Commit the verified lockfile only from the feature-branch push run.
+      # Commit the regenerated lockfile only from the feature-branch push run.
       # Pull-request CI checks the same updates in its ephemeral workspace.
-      - name: Save security lockfile
+      - name: Save generated package lockfile
         if: github.event_name == 'push' && github.ref == 'refs/heads/fix/reliability-and-home-workouts'
         run: |
           git -C .. config user.name "github-actions[bot]"
