@@ -9,9 +9,10 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  TextInput, Alert, ActivityIndicator, RefreshControl, useWindowDimensions,
+  TextInput, Alert, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import Svg, { Rect, Line, Path, Circle, Text as SvgT, G } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
@@ -336,7 +337,7 @@ function MotivationTab({ metrics, prs, nutrition }: { metrics: any[]; prs: any[]
 
 // ─── Main Screen ───────────────────────────────────────────────────────────────
 export default function ProgressScreen() {
-  const { width: screenWidth } = useWindowDimensions();
+  const responsive = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const [metrics, setMetrics]       = useState<any[]>([]);
   const [nutrition, setNutrition]   = useState<any[]>([]);
@@ -448,10 +449,10 @@ export default function ProgressScreen() {
       </View>
 
       {/* Scrollable tab bar */}
-      <View style={styles.tabBarScroll}>
-        <View style={[styles.tabBar, screenWidth >= 720 && styles.tabBarWide]}>
+      <View style={[styles.tabBarScroll, { width: '100%', maxWidth: responsive.pageMaxWidth, alignSelf: 'center' }]}>
+        <View style={[styles.tabBar, responsive.isTablet && styles.tabBarWide]}>
           {TABS.map(t => (
-            <TouchableOpacity key={t.key} style={[styles.tab, screenWidth >= 720 && styles.tabWide, activeTab === t.key && styles.tabActive]} onPress={() => setActiveTab(t.key)}>
+            <TouchableOpacity key={t.key} style={[styles.tab, responsive.isTablet && styles.tabWide, activeTab === t.key && styles.tabActive]} onPress={() => setActiveTab(t.key)}>
               <Ionicons name={t.icon as any} size={13} color={activeTab === t.key ? COLORS.primaryGreen : COLORS.textMuted} />
               <Text style={[styles.tabText, activeTab === t.key && styles.tabTextActive]}>{t.label}</Text>
             </TouchableOpacity>
@@ -464,14 +465,14 @@ export default function ProgressScreen() {
         <WeeklyReviewScreen />
       ) : activeTab === 'analytics' ? (
         <ScrollView
-          contentContainerStyle={styles.scroll}
+          contentContainerStyle={[styles.scroll, { width: '100%', maxWidth: responsive.pageMaxWidth, alignSelf: 'center', paddingBottom: responsive.gutter * 3 }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primaryGreen} />}
         >
           <AnalyticsScreen embedded={true} />
         </ScrollView>
       ) : (
         <ScrollView
-          contentContainerStyle={styles.scroll}
+          contentContainerStyle={[styles.scroll, { width: '100%', maxWidth: responsive.pageMaxWidth, alignSelf: 'center', paddingBottom: responsive.gutter * 3 }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primaryGreen} />}
         >
           {/* BODY */}
