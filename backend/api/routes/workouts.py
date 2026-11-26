@@ -149,6 +149,7 @@ async def get_workout_history(
         sb.table("exercise_logs")
         .select("session_id, exercise_name, weight_kg, reps, is_warmup")
         .in_("session_id", session_ids)
+        .eq("user_id", user_id)
         .execute()
     )
     logs = logs_res.data or []
@@ -654,6 +655,7 @@ async def log_set(
         sb.table("exercise_logs")
         .select("id", count="exact")
         .eq("session_id", session_id)
+        .eq("user_id", user_id)
         .eq("exercise_name", payload.exercise_name)
         .execute()
     )
@@ -714,9 +716,10 @@ async def get_strength_progression(
 
     res = (
         sb.table("exercise_logs")
-        .select("weight_kg, reps, logged_at")
+        .select("weight_kg, reps, logged_at, is_warmup")
         .eq("user_id", current_user["user_id"])
-        .ilike("exercise_name", f"%{exercise}%")
+        .eq("exercise_name", exercise)
+        .eq("is_warmup", False)
         .gte("logged_at", cutoff)
         .order("logged_at")
         .execute()
