@@ -345,12 +345,13 @@ def job_workout_reminders() -> None:
 # ─── Scheduler bootstrap ──────────────────────────────────────────────────────
 def start_scheduler():
     """
-    Starts an in-process APScheduler BackgroundScheduler running all four
-    nightly jobs. Returns the scheduler instance so main.py can shut it down
-    cleanly on app exit. Raises ImportError if apscheduler isn't installed —
-    main.py catches this and logs a warning, the API keeps running fine
-    without scheduled automation (jobs can still be triggered manually via
-    the /api/program/rewrite-style on-demand endpoints elsewhere).
+    Start APScheduler in the dedicated backend/worker.py process only.
+
+    The API server must never call this function: every Uvicorn worker and
+    replica would otherwise schedule duplicate global jobs. Returns the
+    scheduler instance so worker.py can shut it down gracefully.
+    Raises ImportError when APScheduler is unavailable; the worker should
+    fail startup rather than silently pretending scheduled automation runs.
     """
     from apscheduler.schedulers.background import BackgroundScheduler
     from apscheduler.triggers.cron import CronTrigger
