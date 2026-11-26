@@ -95,6 +95,17 @@ export const actions = {
     setState({ activeSession: { ..._state.activeSession, logs: next } });
   },
   setCnsFatigue(score: number) { setState({ cnsFatigue: score }); },
+  // Hydrate the server-backed conversation once when Coach opens.
+  // Do not overwrite a message typed while the history request was in flight.
+  hydrateChatHistory(messages: Array<{
+    role: 'user' | 'assistant';
+    content: string;
+    timestamp: Date;
+    structured_decision?: any;
+  }>) {
+    if (_state.chatHistory.length > 0 || messages.length === 0) return;
+    setState({ chatHistory: messages });
+  },
   addChatMessage(role: 'user' | 'assistant', content: string, structured_decision?: any) {
     setState({
       chatHistory: [..._state.chatHistory, {
