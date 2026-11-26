@@ -59,10 +59,41 @@ function dailyTagline() {
   return TAGLINES[dayOfYear % TAGLINES.length];
 }
 
-const EQUIPMENT_OPTIONS = [
-  'Barbell', 'Dumbbells', 'Kettlebells', 'Resistance Bands', 'Pull-up Bar',
-  'Cable Machine', 'Squat Rack', 'Bench', 'Smith Machine', 'Bodyweight Only',
+const EQUIPMENT_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'bodyweight', label: 'Bodyweight' },
+  { value: 'dumbbell', label: 'Dumbbells' },
+  { value: 'resistance_bands', label: 'Resistance bands' },
+  { value: 'barbell', label: 'Barbell' },
+  { value: 'bench', label: 'Bench' },
+  { value: 'kettlebell', label: 'Kettlebell' },
+  { value: 'pull_up_bar', label: 'Pull-up bar' },
+  { value: 'cable', label: 'Cable' },
+  { value: 'machine', label: 'Machines' },
+  { value: 'squat_rack', label: 'Squat rack' },
+  { value: 'smith_machine', label: 'Smith machine' },
 ];
+
+const LEGACY_EQUIPMENT_KEYS: Record<string, string> = {
+  'bodyweight only': 'bodyweight',
+  'dumbbells': 'dumbbell',
+  'kettlebells': 'kettlebell',
+  'resistance bands': 'resistance_bands',
+  'pull-up bar': 'pull_up_bar',
+  'cable machine': 'cable',
+};
+
+function normalizeEquipmentKey(value: string): string {
+  const trimmed = String(value || '').trim();
+  const legacy = LEGACY_EQUIPMENT_KEYS[trimmed.toLowerCase()];
+  if (legacy) return legacy;
+  return trimmed.toLowerCase().replace(/[\s-]+/g, '_');
+}
+
+function equipmentLabel(value: string): string {
+  const key = normalizeEquipmentKey(value);
+  return EQUIPMENT_OPTIONS.find((option) => option.value === key)?.label
+    ?? String(value || '').trim().replace(/_/g, ' ');
+}
 
 interface Profile {
   full_name?: string; username?: string; age?: number; gender?: string;
@@ -306,7 +337,7 @@ export default function ProfileScreen() {
           {profile?.equipment?.length ? (
             <View style={styles.tagsRow}>
               {profile.equipment.map((e: string, i: number) => (
-                <View key={i} style={styles.tag}><Text style={styles.tagText}>{e}</Text></View>
+                <View key={i} style={styles.tag}><Text style={styles.tagText}>{equipmentLabel(e)}</Text></View>
               ))}
             </View>
           ) : (
@@ -500,8 +531,10 @@ function EditProfileModal({
   const set = (k: keyof Profile, v: any) => setForm((f) => ({ ...f, [k]: v }));
 
   const toggleEquipment = (item: string) => {
-    const cur = form.equipment || [];
-    set('equipment', cur.includes(item) ? cur.filter((e) => e !== item) : [...cur, item]);
+    const cur = [...new Set((form.equipment || []).map(normalizeEquipmentKey))];
+    set('equipment', cur.includes(item)
+      ? cur.filter((e) => e !== item)
+      : [...cur, item]);
   };
 
   const save = async () => {
@@ -594,10 +627,12 @@ function EditProfileModal({
             <FieldLabel text="Equipment you have access to" />
             <View style={styles.tagsRow}>
               {EQUIPMENT_OPTIONS.map((item) => {
-                const active = (form.equipment || []).includes(item);
+                const active = (form.equipment || []).some(
+                  (value) => normalizeEquipmentKey(value) === item.value
+                );
                 return (
-                  <TouchableOpacity key={item} style={[styles.chip, active && styles.chipActive]} onPress={() => toggleEquipment(item)}>
-                    <Text style={[styles.chipText, active && styles.chipTextActive]}>{item}</Text>
+                  <TouchableOpacity key={item.value} style={[styles.chip, active && styles.chipActive]} onPress={() => toggleEquipment(item.value)}>
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>{item.label}</Text>
                   </TouchableOpacity>
                 );
               })}
