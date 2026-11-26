@@ -644,18 +644,16 @@ export default function CoachScreen() {
   // here since the backend doesn't return those as distinct scores.
   const [brief, setBrief] = useState<{ recoveryScore: number; cnsFatigue: number; message: string } | null>(null);
   const flatListRef = useRef<FlashListRef<any>>(null);
-  const historySessionRef = useRef<string | null | undefined>(undefined);
   // Selector form — see src/store/index.ts. CoachScreen needs chatHistory/
-  // activeSession/profile/user, but previously re-rendered on every store
+  // profile/user, but previously re-rendered on every store
   // update including ones it never reads (e.g. Dashboard calling
   // setCnsFatigue, or ProfileScreen editing injuries) since useStore()
   // subscribed to the whole store unconditionally.
-  const { chatHistory, addChatMessage, hydrateChatHistory, setCnsFatigue, activeSession, profile, user } = useStore((s) => ({
+  const { chatHistory, addChatMessage, hydrateChatHistory, setCnsFatigue, profile, user } = useStore((s) => ({
     chatHistory: s.chatHistory,
     addChatMessage: s.addChatMessage,
     hydrateChatHistory: s.hydrateChatHistory,
     setCnsFatigue: s.setCnsFatigue,
-    activeSession: s.activeSession,
     profile: s.profile,
     user: s.user,
   }));
@@ -666,12 +664,12 @@ export default function CoachScreen() {
   // The store guard prevents a slow history request from overwriting a new
   // message the athlete sends while the request is still in flight.
   useEffect(() => {
-    const sessionId = activeSession?.id ?? null;
-    if (historySessionRef.current === sessionId) return;
-    historySessionRef.current = sessionId;
     let cancelled = false;
 
-    coachApi.getHistory(50, sessionId ?? undefined)
+    // The Coach tab is one continuous conversation. Do not use the active
+    // workout session ID as a chat session ID; workout and chat lifecycles
+    // are independent.
+    coachApi.getHistory(50)
       .then((res) => {
         if (cancelled || !Array.isArray(res.data)) return;
         const restored = res.data
@@ -692,7 +690,7 @@ export default function CoachScreen() {
       });
 
     return () => { cancelled = true; };
-  }, [hydrateChatHistory, activeSession?.id]);
+  }, [hydrateChatHistory]);
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   // PERF: previously an independent useEffect fetch of the exact same
@@ -744,7 +742,7 @@ export default function CoachScreen() {
   // user being stuck with no way to send a message at all.
   const sendNonStreaming = async (message: string) => {
     try {
-      const res = await coachApi.chat(message, activeSession?.id);
+      const res = await coachApi.chat(message);
       const data = res.data;
       setServerStatus('online');
       addChatMessage('assistant', data.reply, data.structured_decision);
@@ -769,7 +767,7 @@ export default function CoachScreen() {
     pendingUserMessageRef.current = message;
 
     try {
-      sendStream(message, activeSession?.id);
+      sendStream(message);
     } catch {
       sendNonStreaming(message);
     }
