@@ -453,3 +453,18 @@ def test_coach_style_instructions_cover_every_supported_style() -> None:
     assert "non-judgmental" in get_coach_style_instruction("supportive")
     assert "measured data" in get_coach_style_instruction("scientific")
     assert get_coach_style_instruction("unknown") == get_coach_style_instruction("friendly")
+
+
+def test_scheduler_is_disabled_by_default() -> None:
+    from core.config import Settings
+
+    assert Settings().scheduler_enabled is False
+
+
+def test_scheduler_worker_requires_explicit_enablement() -> None:
+    from core.config import Settings
+    from worker import _require_scheduler_enabled
+
+    with pytest.raises(RuntimeError):
+        _require_scheduler_enabled(Settings(scheduler_enabled=False))
+    _require_scheduler_enabled(Settings(scheduler_enabled=True))
