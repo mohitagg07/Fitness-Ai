@@ -222,6 +222,12 @@ export default function MuscleRecoveryMap() {
     return STATUS_COLOR[group?.status ?? 'no_data'];
   };
 
+  const selectMuscle = (name: MuscleName) => {
+    setSelectedMuscle(name);
+    if (name === 'Back') setView('back');
+    if (name === 'Chest') setView('front');
+  };
+
   if (recoveryQuery.isLoading) {
     return (
       <View style={styles.card}>
@@ -290,7 +296,7 @@ export default function MuscleRecoveryMap() {
             view={view}
             selected={selectedMuscle}
             colorFor={colorFor}
-            onSelect={setSelectedMuscle}
+            onSelect={selectMuscle}
           />
           <Text variant="caption" color={COLORS.textMuted}>
             {view === 'front' ? 'ANTERIOR VIEW' : 'POSTERIOR VIEW'}
@@ -377,7 +383,7 @@ export default function MuscleRecoveryMap() {
               key={name}
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
-              onPress={() => setSelectedMuscle(name)}
+              onPress={() => selectMuscle(name)}
               style={[
                 styles.muscleChip,
                 active && { borderColor: STATUS_COLOR[status] },
