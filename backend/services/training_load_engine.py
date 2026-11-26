@@ -284,6 +284,8 @@ def compute_muscle_recovery_map(user_id: str) -> dict:
 
     last_trained: dict[str, str] = {}
     for log in logs:
+        if log.get("is_warmup"):
+            continue
         group = classify_muscle_group(log.get("exercise_name", ""))
         if not group:
             continue
