@@ -5,28 +5,15 @@ from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
-from core.config import get_settings
+import logging
+
+from core.config import get_settings, validate_secret_key
+from db.supabase_client import get_supabase
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
-
-# If SECRET_KEY is missing from .env, this falls back to a known constant
-# string. That fallback is stable across restarts on its own (it doesn't
-# explain a token being invalidated mid-session by itself), but it means
-# anyone who later actually sets SECRET_KEY in .env — or regenerates it —
-# silently invalidates every token issued under the old value, logging out
-# every signed-in user on the next request they make. Surfacing this at
-# startup makes that footgun visible instead of only showing up later as an
-# unexplained "why did the app log me out" symptom.
-if settings.secret_key == "dev-secret-key-change-in-production":
-    import logging
-    logging.getLogger(__name__).warning(
-        "SECRET_KEY is not set in .env — using the insecure default. "
-        "Every existing login token will be invalidated the moment you set "
-        "a real SECRET_KEY (or it changes for any other reason), forcing "
-        "all signed-in users to log in again. Set SECRET_KEY in backend/.env "
-        "now and keep it stable to avoid this."
-    )
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -35,11 +22,12 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     # removal. Using timezone-aware now(timezone.utc) is the correct
     # replacement and avoids any ambiguity in how the exp claim's instant
     # is computed.
+    signing_key = validate_secret_key(settings.secret_key)
     expire = datetime.now(timezone.utc) + (
         expires_delta or timedelta(minutes=settings.access_token_expire_minutes)
     )
     to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
+    return jwt.encode(to_encode, signing_key, algorithm=settings.algorithm)
 
 
 # In-process cache of user_ids already confirmed to have a profiles row.
@@ -148,8 +136,16 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
+        signing_key = validate_secret_key(settings.secret_key)
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication is not configured securely. Contact support.",
+        ) from exc
+
+    try:
         payload = jwt.decode(
-            token, settings.secret_key, algorithms=[settings.algorithm]
+            token, signing_key, algorithms=[settings.algorithm]
         )
         user_id: str = payload.get("sub")
         if not user_id:
@@ -159,3 +155,57 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
 
     await _ensure_profile_exists(user_id)
     return {"user_id": user_id, "email": payload.get("email")}
+
+
+def require_admin_user(
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    """Require a database-backed admin role for global administrative actions.
+
+    The role is read with the backend service key, which deliberately bypasses
+    Postgres RLS. This dependency therefore performs an explicit user-id filter
+    and fails closed when the role column/migration is unavailable.
+    """
+    user_id = current_user.get("user_id")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authenticated user.",
+        )
+
+    try:
+        result = (
+            get_supabase()
+            .table("profiles")
+            .select("app_role")
+            .eq("id", user_id)
+            .maybe_single()
+            .execute()
+        )
+    except Exception as exc:
+        code = getattr(exc, "code", None)
+        message = str(exc).lower()
+        if code == "42703" or "app_role" in message and (
+            "column" in message or "schema cache" in message
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=(
+                    "Admin authorization is not configured yet. "
+                    "Apply MIGRATION_v6_security_roles.sql in Supabase."
+                ),
+            ) from exc
+        logger.exception("Could not verify admin role for user %s", user_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Admin authorization could not be verified. Try again later.",
+        ) from exc
+
+    profile = result.data if result else None
+    if not profile or profile.get("app_role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator access is required.",
+        )
+
+    return current_user
