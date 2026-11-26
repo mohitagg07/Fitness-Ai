@@ -645,3 +645,29 @@ def test_historical_weekly_review_cache_does_not_require_fresh_timestamp(monkeyp
         "generated_at": "2020-01-01T00:00:00Z",
     }
     assert review._read_weekly_cache("u1", "Jan 01 – Jan 07, 2020", require_fresh=True) is None
+
+
+def test_profile_equipment_is_normalized_to_agent_canonical_keys() -> None:
+    from schemas.models import ProfileUpdate
+
+    payload = ProfileUpdate(equipment=[
+        "Dumbbells",
+        "Resistance Bands",
+        "Bodyweight Only",
+        "Pull-up Bar",
+        "Cable Machine",
+        "Smith Machine",
+        "Squat Rack",
+        "dumbbell",
+    ])
+
+    assert payload.equipment == [
+        "dumbbell",
+        "resistance_bands",
+        "bodyweight",
+        "pull_up_bar",
+        "cable",
+        "smith_machine",
+        "squat_rack",
+    ]
+    assert ProfileUpdate(equipment=None).equipment is None
