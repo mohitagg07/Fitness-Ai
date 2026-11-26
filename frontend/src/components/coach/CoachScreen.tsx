@@ -780,17 +780,14 @@ export default function CoachScreen() {
             <View style={S.headerTitleRow}>
               <Text style={S.headerTitle}>AI Coach</Text>
               <View style={S.proBadge}>
-                <Text style={S.proBadgeText}>PRO</Text>
+                <Text style={S.proBadgeText}>AI</Text>
               </View>
             </View>
             <Text style={S.headerSub}>Your performance partner</Text>
           </View>
           <View style={S.headerIcons}>
-            <TouchableOpacity hitSlop={10}>
-              <View>
-                <Ionicons name="notifications-outline" size={21} color={COLORS.textSecondary} />
-                <View style={S.notifDot} />
-              </View>
+            <TouchableOpacity hitSlop={10} onPress={() => setMemoryVisible(true)} accessibilityRole="button" accessibilityLabel="Open coach memory">
+              <Ionicons name="bookmark-outline" size={21} color={COLORS.textSecondary} />
             </TouchableOpacity>
             <TouchableOpacity hitSlop={10} onPress={() => router.push('/(tabs)/profile')}>
               <Ionicons name="menu-outline" size={22} color={COLORS.textSecondary} />
@@ -1060,7 +1057,7 @@ const S = StyleSheet.create({
   // line) so the rings can be large enough to read as an actual score
   // dial instead of a tiny bordered dot.
   briefCard: {
-    backgroundColor: COLORS.card, borderRadius: 24, borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: COLORS.card, borderRadius: RADIUS.card, borderWidth: 1, borderColor: COLORS.border,
     padding: 16, gap: 14,
   },
   briefTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -1079,8 +1076,8 @@ const S = StyleSheet.create({
   miniStatLabel: { color: COLORS.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 0.4 },
   offlineBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#1A1606', paddingVertical: 8, paddingHorizontal: 16,
-    borderBottomWidth: 1, borderBottomColor: '#3A2F00',
+    backgroundColor: alpha(COLORS.recoveryMed, 0.10), paddingVertical: 9, paddingHorizontal: 16,
+    borderBottomWidth: 1, borderBottomColor: alpha(COLORS.recoveryMed, 0.24),
   },
   offlineBannerText: { color: COLORS.recoveryMed, fontSize: 11, flex: 1, lineHeight: 16 },
 
@@ -1096,7 +1093,7 @@ const S = StyleSheet.create({
   emptySubtitle: { color: COLORS.textMuted, fontSize: 14, textAlign: 'center', lineHeight: 20 },
 
   suggestions:    { gap: 8 },
-  suggestion:     { backgroundColor: COLORS.card, borderRadius: 18, padding: 14,
+  suggestion:     { backgroundColor: COLORS.cardElevated, borderRadius: 16, padding: 14,
                     borderWidth: 1, borderColor: COLORS.border,
                     flexDirection: 'row', alignItems: 'center', gap: 12 },
   suggestionIcon: { width: 32, height: 32, borderRadius: 10,
@@ -1105,14 +1102,14 @@ const S = StyleSheet.create({
   suggestionText: { color: COLORS.textSecondary, fontSize: 13, flex: 1 },
 
   messageList: { padding: 16, paddingBottom: 12 },
-  bubble:      { marginBottom: 12, borderRadius: 20, padding: 14, maxWidth: '92%' },
+  bubble:      { marginBottom: 12, borderRadius: 18, padding: 15, maxWidth: '92%' },
   userBubble:  { backgroundColor: COLORS.userBubble, alignSelf: 'flex-end',
                  borderWidth: 1, borderColor: COLORS.strain + '40' },
   aiBubble:    { backgroundColor: COLORS.card, alignSelf: 'flex-start',
                  borderWidth: 1, borderColor: COLORS.border, maxWidth: '97%' },
   roleLabelRow:{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 },
   roleLabel:   { color: COLORS.recoveryHigh, fontSize: 9, fontWeight: '800', letterSpacing: 1.5 },
-  messageText: { color: '#E8E8E8', fontSize: 15, lineHeight: 22 },
+  messageText: { color: COLORS.text, fontSize: 15, lineHeight: 23 },
   userText:    { color: COLORS.text },
 
   thinkingRow:    { flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -1127,12 +1124,12 @@ const S = StyleSheet.create({
 
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10,
               padding: 12, paddingBottom: 16, borderTopWidth: 1, borderTopColor: COLORS.border },
-  input:    { flex: 1, backgroundColor: COLORS.cardElevated, borderRadius: 22,
+  input:    { flex: 1, backgroundColor: COLORS.cardElevated, borderRadius: 16,
               paddingHorizontal: 16, paddingVertical: 11, color: COLORS.text,
               fontSize: 15, maxHeight: 100, borderWidth: 1, borderColor: COLORS.borderLight },
   sendBtn:  { width: 42, height: 42, borderRadius: 21,
-              backgroundColor: COLORS.recoveryHigh, alignItems: 'center', justifyContent: 'center',
-              shadowColor: COLORS.recoveryHigh, shadowOpacity: 0.4,
-              shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
+              backgroundColor: COLORS.primaryGreen, alignItems: 'center', justifyContent: 'center',
+              shadowColor: COLORS.primaryGreen, shadowOpacity: 0.14,
+              shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
   sendBtnOff: { backgroundColor: COLORS.cardElevated, shadowOpacity: 0, elevation: 0 },
 });
