@@ -341,9 +341,12 @@ async def complete_session(
         .update(update_data)
         .eq("id", session_id)
         .eq("user_id", user_id)
+        .select("*")
         .execute()
     )
-    session = res.data[0] if res.data else {}
+    if not res.data:
+        raise HTTPException(404, "Workout session not found")
+    session = res.data[0]
 
     # ── Detect new PRs set during this specific session ──────────────────
     # Compares each exercise's heaviest set THIS session against the
