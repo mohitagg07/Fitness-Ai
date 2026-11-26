@@ -23,7 +23,7 @@
 //  10. Anything the coach caught? → PatternInsightsCard
 //  11. Where else can I go?       → QuickToolsCard
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View, TouchableOpacity, RefreshControl } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
@@ -95,6 +95,7 @@ export default function DashboardScreen() {
   const { user, profile, setCnsFatigue } = useStore((s) => ({
     user: s.user, profile: s.profile, setCnsFatigue: s.setCnsFatigue,
   }));
+  const [showFullReport, setShowFullReport] = useState(false);
 
   const { data: summary, isPending: loading, error, isRefetching } = useMissionSummary() as {
     data?: DashboardSummary; isPending: boolean; error: unknown; isRefetching: boolean;
@@ -179,50 +180,69 @@ export default function DashboardScreen() {
         avatarUrl={profile?.avatar_url}
       />
 
-      {/* 2. What should I do, why, and what result can I expect? */}
+      {/* The first screen answers the three useful questions: am I ready,
+          what should I do, and where can I go next. Deep analytics stay one
+          deliberate tap away instead of competing with today's action. */}
       <AIReadinessHero
         workoutType={summary?.workout_today?.type ?? null}
         workoutStreak={summary?.workout_streak ?? 0}
       />
 
-      {/* 2b. Have I actually been consistent lately? — one score, one
-          sentence, instead of another chart to interpret. */}
-      <ConsistencyScoreCard />
-
-      {/* 3. What does the coach say? */}
       {summary?.proactive_brief && (
         <CoachInsightCard brief={summary.proactive_brief} />
       )}
 
-      {/* 4. Am I improving? */}
-      <MomentumCard
-        workoutStreak={summary?.workout_streak ?? 0}
-        proteinStreak={summary?.protein_streak ?? 0}
-        weeklySessions={weeklySessions}
-      />
-
-      {/* 5. The real numbers behind this week */}
-      <WeeklyPerformanceCard />
-
-      {/* 6. What can I expect next? */}
-      <PredictionCard />
-
-      {/* 7. What have I earned? */}
-      <AchievementCard workoutStreak={summary?.workout_streak ?? 0} />
-
-      {/* 8. Is my program still the right one? */}
-      <ProgramHealthCard />
-
-      {/* 9. What happened today? */}
-      <TimelineCard />
-
-      {/* 10. Anything the coach caught proactively? */}
-      {summary?.pattern_insights && summary.pattern_insights.length > 0 && (
-        <PatternInsightsCard insights={summary.pattern_insights} />
-      )}
-
-      {/* 11. Where else can I go? */}
       <QuickToolsCard />
+
+      <View style={styles.progressSection}>
+        <Text variant="h2" color={COLORS.text}>Your momentum</Text>
+        <Text variant="small" color={COLORS.textMuted} style={styles.sectionDescription}>
+          Small, repeatable signals that keep your training moving.
+        </Text>
+        <ConsistencyScoreCard />
+        <MomentumCard
+          workoutStreak={summary?.workout_streak ?? 0}
+          proteinStreak={summary?.protein_streak ?? 0}
+          weeklySessions={weeklySessions}
+        />
+      </View>
+
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityState={{ expanded: showFullReport }}
+        onPress={() => setShowFullReport((value) => !value)}
+        activeOpacity={0.78}
+        style={styles.reportToggle}
+      >
+        <View style={styles.reportToggleCopy}>
+          <Text variant="body" weight="semibold" color={COLORS.text}>
+            {showFullReport ? 'Hide performance details' : 'Explore performance details'}
+          </Text>
+          <Text variant="caption" color={COLORS.textMuted}>
+            Weekly trends, predictions, milestones and training history
+          </Text>
+        </View>
+        <View style={styles.reportToggleIcon}>
+          <Ionicons
+            name={showFullReport ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={COLORS.primaryGreen}
+          />
+        </View>
+      </TouchableOpacity>
+
+      {showFullReport && (
+        <View style={styles.fullReport}>
+          <WeeklyPerformanceCard />
+          <PredictionCard />
+          <AchievementCard workoutStreak={summary?.workout_streak ?? 0} />
+          <ProgramHealthCard />
+          <TimelineCard />
+          {summary?.pattern_insights && summary.pattern_insights.length > 0 && (
+            <PatternInsightsCard insights={summary.pattern_insights} />
+          )}
+        </View>
+      )}
 
       <View style={{ height: 24 }} />
       </ScrollView>
@@ -246,4 +266,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
     backgroundColor: 'rgba(255,222,0,0.08)', paddingVertical: SPACING.sm, paddingHorizontal: SPACING.lg,
   },
+  progressSection: { marginTop: SPACING.sm, marginBottom: SPACING.md },
+  sectionDescription: { marginTop: 4, marginHorizontal: SPACING.lg, marginBottom: SPACING.md },
+  reportToggle: {
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.md,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    backgroundColor: COLORS.cardElevated,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  reportToggleCopy: { flex: 1, gap: 4 },
+  reportToggleIcon: {
+    width: 34, height: 34, borderRadius: 12,
+    backgroundColor: COLORS.backgroundTop,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  fullReport: { paddingTop: SPACING.sm },
+
 });
