@@ -33,7 +33,7 @@ def test_progress_heatmap_has_empty_state_and_marks_future_cells():
         weeks=1,
         today=date(2026, 11, 23),  # Monday
         sessions=[],
-        logs=[{"logged_at": "2026-11-23T08:00:00Z", "is_warmup": False}],
+        logs=[],
     )
 
     assert result["has_data"] is False
