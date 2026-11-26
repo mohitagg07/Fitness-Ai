@@ -16,7 +16,7 @@ Adaptive Performance System
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
 [![React Native](https://img.shields.io/badge/React_Native-Expo-61DAFB?style=flat-square&logo=react)](https://expo.dev)
 [![LangGraph](https://img.shields.io/badge/LangGraph-Multi--Agent-8A2BE2?style=flat-square)](https://github.com/langchain-ai/langgraph)
-[![Groq](https://img.shields.io/badge/Groq-llama--3.3--70b-F55036?style=flat-square)](https://groq.com)
+[![Groq](https://img.shields.io/badge/Groq-gpt--oss--120b-F55036?style=flat-square)](https://groq.com)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?style=flat-square&logo=supabase)](https://supabase.com)
 
 </div>
@@ -161,7 +161,7 @@ Memory is extracted automatically after every coach chat — no tagging, no manu
 └──────────────┘           │
                   ┌────────▼───────┐
                   │   Groq API     │
-                  │ llama-3.3-70b  │
+                  │ openai/gpt-oss-120b  │
                   └────────────────┘
 ```
 
@@ -197,7 +197,7 @@ Memory is extracted automatically after every coach chat — no tagging, no manu
 | **Database** | Supabase (PostgreSQL + Auth + RLS) | User data, workouts, nutrition logs |
 | **Vector DB** | ChromaDB | Biomechanical safety guardrails + long-term user memory |
 | **AI Agent** | LangGraph | State-machine orchestration of multi-step coach pipeline |
-| **LLM** | Groq (`llama-3.3-70b-versatile`) | Fast inference, structured JSON output |
+| **LLM** | Groq (`openai/gpt-oss-120b-versatile`) | Fast inference, structured JSON output |
 | **State** | Custom Zustand-like store | Global client state (token, session, chat history) |
 | **Auth** | JWT (HS256) + Supabase Auth | 30-day tokens, ORPHANED_SESSION detection |
 | **Embedding** | `LocalHashEmbeddingFunction` (custom) | 256-dim deterministic hash embeddings — no ONNX download |
