@@ -272,8 +272,32 @@ export const dashboardApi = {
 // Mission API — richer endpoint with proactive AI brief + pattern insights
 // Use this instead of dashboardApi.getSummary when you need the full
 // Coach Brain output (pattern_insights, proactive_brief, reasoning_steps).
+function getLocalTimezoneName(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+}
+
 export const missionApi = {
-  getToday: () => api.get('/mission/today'),
+  getToday: () => api.get('/mission/today', {
+    params: { timezone_name: getLocalTimezoneName() },
+  }),
+};
+
+export const recoveryApi = {
+  getTodayCheckIn: () => api.get('/recovery/check-in/today', {
+    params: { timezone_name: getLocalTimezoneName() },
+  }),
+  saveTodayCheckIn: (data: {
+    sleep_hours?: number;
+    soreness_level?: number;
+    energy_level?: number;
+    notes?: string;
+  }) => api.put('/recovery/check-in/today', data, {
+    params: { timezone_name: getLocalTimezoneName() },
+  }),
 };
 
 export const simulationApi = {

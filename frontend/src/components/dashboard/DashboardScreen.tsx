@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
+  Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -18,13 +19,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../../store';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { useMissionSummary, useRefreshDashboard } from '../../hooks/useDashboardQueries';
-import { describeApiError } from '../../utils/api';
+import { describeApiError, recoveryApi } from '../../utils/api';
 import { COLORS, alpha, recoveryColor } from '../../theme/colors';
 import { FONTS } from '../../theme/typography';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import ProfileAvatar from '../shared/ProfileAvatar';
 import AmbientGlow from '../shared/AmbientGlow';
 import PressableScale from '../ui/PressableScale';
+import RecoveryCheckInModal, { RecoveryCheckInValues } from './RecoveryCheckInModal';
 
 interface DashboardSummary {
   mission_text?: string;
@@ -151,6 +153,39 @@ export default function DashboardScreen() {
     isRefetching: boolean;
   };
   const refreshDashboard = useRefreshDashboard();
+  const [recoveryCheckInVisible, setRecoveryCheckInVisible] = useState(false);
+  const [savingRecoveryCheckIn, setSavingRecoveryCheckIn] = useState(false);
+  const [existingRecoveryCheckIn, setExistingRecoveryCheckIn] = useState<RecoveryCheckInValues | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    recoveryApi.getTodayCheckIn()
+      .then((response) => {
+        if (alive) setExistingRecoveryCheckIn(response.data?.check_in || null);
+      })
+      .catch(() => {
+        // Unavailable storage remains unavailable; profile defaults are not substituted.
+      });
+    return () => { alive = false; };
+  }, []);
+
+  const saveRecoveryCheckIn = async (values: RecoveryCheckInValues) => {
+    if (savingRecoveryCheckIn) return;
+    setSavingRecoveryCheckIn(true);
+    try {
+      const response = await recoveryApi.saveTodayCheckIn(values);
+      setExistingRecoveryCheckIn(response.data?.check_in || values);
+      setRecoveryCheckInVisible(false);
+      await refreshDashboard();
+    } catch (saveError) {
+      Alert.alert(
+        'Recovery check-in not saved',
+        describeApiError(saveError).message,
+      );
+    } finally {
+      setSavingRecoveryCheckIn(false);
+    }
+  };
 
   const firstName = user?.full_name?.split(' ')[0] || profile?.full_name?.split(' ')[0] || 'Athlete';
   const rawScore = typeof summary?.recovery?.score_pct === 'number'
@@ -282,6 +317,17 @@ export default function DashboardScreen() {
           </View>
         </View>
 
+        {summary?.recovery?.action === 'check_in' ? (
+          <PressableScale
+            style={styles.recoveryCheckInButton}
+            onPress={() => setRecoveryCheckInVisible(true)}
+          >
+            <Ionicons name="clipboard-outline" size={16} color={COLORS.primaryGreen} />
+            <Text style={styles.recoveryCheckInText}>Log today's recovery</Text>
+            <Ionicons name="arrow-forward" size={15} color={COLORS.primaryGreen} />
+          </PressableScale>
+        ) : null}
+
         <View style={styles.sectionHeading}>
           <View>
             <Text style={styles.sectionEyebrow}>YOUR PLAN</Text>
@@ -357,6 +403,13 @@ export default function DashboardScreen() {
           />
         </View>
       </ScrollView>
+      <RecoveryCheckInModal
+        visible={recoveryCheckInVisible}
+        existing={existingRecoveryCheckIn}
+        saving={savingRecoveryCheckIn}
+        onSave={saveRecoveryCheckIn}
+        onClose={() => setRecoveryCheckInVisible(false)}
+      />
     </View>
   );
 }
@@ -441,6 +494,26 @@ const styles = StyleSheet.create({
   readinessHeadline: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 20, lineHeight: 25, letterSpacing: -0.35, marginBottom: 6 },
   readinessDescription: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 11, lineHeight: 16 },
   readinessFootnote: { color: COLORS.textDim, fontFamily: FONTS.semibold, fontSize: 7, letterSpacing: 0.75, marginTop: 11 },
+  recoveryCheckInButton: {
+    minHeight: 44,
+    marginTop: -16,
+    marginBottom: 20,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: alpha(COLORS.primaryGreen, 0.3),
+    backgroundColor: alpha(COLORS.primaryGreen, 0.07),
+    paddingHorizontal: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  recoveryCheckInText: {
+    color: COLORS.primaryGreen,
+    fontFamily: FONTS.semibold,
+    fontSize: 11,
+    flex: 1,
+  },
   dial: { width: 98, height: 98, alignItems: 'center', justifyContent: 'center' },
   dialCenter: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   dialScore: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 27, lineHeight: 31, letterSpacing: -0.8 },
