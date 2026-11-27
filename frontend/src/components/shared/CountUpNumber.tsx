@@ -13,6 +13,7 @@
 import React, { useEffect } from 'react';
 import { TextInput, TextStyle, StyleSheet } from 'react-native';
 import Animated, { useAnimatedProps, useSharedValue, withTiming, Easing } from 'react-native-reanimated';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 
@@ -39,10 +40,13 @@ export default function CountUpNumber({
   value: number; duration?: number; style?: TextStyle | TextStyle[]; suffix?: string; decimals?: number;
 }) {
   const animated = useSharedValue(0);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
-    animated.value = withTiming(value, { duration, easing: Easing.out(Easing.cubic) });
-  }, [value, duration]);
+    animated.value = reduceMotion
+      ? value
+      : withTiming(value, { duration, easing: Easing.out(Easing.cubic) });
+  }, [value, duration, reduceMotion]);
 
   const animatedProps = useAnimatedProps(() => {
     return { text: `${formatWorklet(animated.value, decimals)}${suffix}` } as any;
