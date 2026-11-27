@@ -13,10 +13,6 @@ import { usePrefetchDashboard } from '../../src/hooks/useDashboardQueries';
 import { useReducedMotion } from '../../src/hooks/useReducedMotion';
 import { COLORS, alpha } from '../../src/theme/colors';
 import { FONTS } from '../../src/theme/typography';
-import {
-  registerForPushNotificationsAsync,
-  attachNotificationResponseHandler,
-} from '../../src/utils/pushNotifications';
 
 type TabDef = {
   name: string;
@@ -191,7 +187,17 @@ export default function TabsLayout() {
       // Native notification imports and the permission prompt are not on the
       // first-paint path. Run them only after the opening interactions settle.
       notificationTask = InteractionManager.runAfterInteractions(() => {
-        if (!cancelled) void registerForPushNotificationsAsync();
+        if (cancelled) return;
+        // Defer evaluating expo-notifications itself until the first shell
+        // interactions have settled, not merely its permission request.
+        void import('../../src/utils/pushNotifications')
+          .then(({ registerForPushNotificationsAsync }) => {
+            if (!cancelled) return registerForPushNotificationsAsync();
+            return undefined;
+          })
+          .catch((error) => {
+            if (__DEV__) console.warn('[VYRN] Push registration could not start', error);
+          });
       });
     };
 
@@ -203,11 +209,20 @@ export default function TabsLayout() {
   }, [prefetchDashboard, authSession.token, authSession.user]);
 
   useEffect(() => {
+    let cancelled = false;
     let cleanup: (() => void) | undefined;
     const task = InteractionManager.runAfterInteractions(() => {
-      cleanup = attachNotificationResponseHandler();
+      void import('../../src/utils/pushNotifications')
+        .then(({ attachNotificationResponseHandler }) => {
+          if (cancelled) return;
+          cleanup = attachNotificationResponseHandler();
+        })
+        .catch((error) => {
+          if (__DEV__) console.warn('[VYRN] Notification response listener could not start', error);
+        });
     });
     return () => {
+      cancelled = true;
       task.cancel();
       cleanup?.();
     };
