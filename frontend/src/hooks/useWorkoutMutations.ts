@@ -150,11 +150,11 @@ export function useLogSet() {
 
       try {
         await removePendingWorkoutSet(log.client_request_id);
-        return { optimistic: log, persisted, pending: false };
+        return { optimistic: log, persisted, pending: false, blocked: false, errorMessage: undefined };
       } catch {
         // The server may have committed but local cleanup failed. A replay is
         // safe because it reuses the exact same idempotency key.
-        return { optimistic: log, persisted, pending: true };
+        return { optimistic: log, persisted, pending: true, blocked: false, errorMessage: undefined };
       }
     },
     // Persist the write before the network call, then update the store.
