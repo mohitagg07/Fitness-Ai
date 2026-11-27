@@ -77,7 +77,7 @@ async def test_save_today_decision_passes_local_date_into_decision_engine(monkey
                 signals=[],
                 why_not=[],
             )
-        return {"goal": "maintain"}
+        return {"goal": "maintain"}, {}
 
     monkeypatch.setattr(decisions, "get_supabase", lambda: Supabase())
     monkeypatch.setattr(decisions.asyncio, "to_thread", fake_to_thread)

@@ -108,7 +108,7 @@ def test_progress_agent_weight_window_uses_explicit_athlete_local_date(monkeypat
         target_date=date(2026, 11, 28),
     )
     assert rows == []
-    assert captured["gte"] == "2026-11-18"
+    assert captured["recorded_date"] == "2026-11-18"
 
 
 def test_progress_agent_keeps_server_today_default_for_legacy_callers(monkeypatch):
