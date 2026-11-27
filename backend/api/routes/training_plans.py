@@ -358,27 +358,12 @@ async def create_plan_draft(
     equipment, injuries = _load_athlete_constraints(sb, user_id)
     snapshot = _validated_plan_snapshot(payload, equipment, injuries)
 
-    active = (
-        sb.table("workout_plans").select("id, current_version_id")
-        .eq("user_id", user_id).eq("is_active", True)
-        .order("created_at", desc=True).limit(1).execute()
-    )
-    active_plan_id = active.data[0]["id"] if active.data else None
-    previous_snapshot = None
-    active_version_id = active.data[0].get("current_version_id") if active.data else None
-    if active_version_id:
-        parent = (
-            sb.table("workout_plan_versions").select("snapshot")
-            .eq("id", active_version_id).eq("user_id", user_id).limit(1).execute()
-        )
-        previous_snapshot = parent.data[0].get("snapshot") if parent.data else None
-
     try:
         result = sb.rpc(
             "save_workout_plan_draft",
             {
                 "p_user_id": user_id,
-                "p_plan_id": active_plan_id,
+                "p_plan_id": None,
                 "p_name": payload.name,
                 "p_phase": payload.phase,
                 "p_weeks": payload.weeks,
@@ -404,8 +389,6 @@ async def create_plan_draft(
     if not version_result.data:
         raise HTTPException(500, "The draft was saved but could not be retrieved")
     version = _with_previous_snapshot(sb, user_id, version_result.data[0])
-    if version.get("previous_snapshot") is None:
-        version["previous_snapshot"] = previous_snapshot
     version["change_reason"] = payload.change_reason or "New Coach-generated workout"
 
     return {

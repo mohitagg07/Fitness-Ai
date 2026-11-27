@@ -270,6 +270,24 @@ begin
          limit 1
          for update;
         if not found then
+            -- Reuse a pending draft plan on first setup. Without this lookup,
+            -- rapid duplicate draft requests can create multiple inactive plan
+            -- rows before the athlete approves the first version.
+            select wp.* into v_plan
+              from public.workout_plans wp
+             where wp.user_id = p_user_id
+               and exists (
+                   select 1
+                     from public.workout_plan_versions pv
+                    where pv.plan_id = wp.id
+                      and pv.user_id = p_user_id
+                      and pv.status = 'draft'
+               )
+             order by wp.created_at desc
+             limit 1
+             for update;
+        end if;
+        if not found then
             insert into public.workout_plans(user_id, name, phase, weeks, schedule, is_active)
             values (p_user_id, coalesce(nullif(btrim(p_name), ''), 'VYRN Training Plan'),
                     p_phase, coalesce(p_weeks, 4), coalesce(p_schedule, '{}'::jsonb), false)
