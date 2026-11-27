@@ -25,6 +25,7 @@ import { FONTS } from '../../theme/typography';
 import StrengthProgressionChart from './StrengthProgressionChart';
 import PressableScale from '../ui/PressableScale';
 import Reveal from '../shared/Reveal';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -400,6 +401,7 @@ export default function AnalyticsScreen({
   balanceRange?: AnalyticsRangeOption;
   onBalanceRangeChange?: (next: AnalyticsRangeOption) => void;
 }) {
+  const reduceMotion = useReducedMotion();
   const [internalChart, setInternalChart] = useState<AnalyticsChartTab>('heatmap');
   const [internalHeatmapWeeks, setInternalHeatmapWeeks] = useState<AnalyticsRangeOption>(8);
   const [internalBalanceWeeks, setInternalBalanceWeeks] = useState<AnalyticsRangeOption>(4);
@@ -410,7 +412,7 @@ export default function AnalyticsScreen({
   const activeChart = controlledChart ?? internalChart;
 
   const selectChart = (next: AnalyticsChartTab) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    if (!reduceMotion) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     if (onActiveChartChange) onActiveChartChange(next);
     else setInternalChart(next);
   };

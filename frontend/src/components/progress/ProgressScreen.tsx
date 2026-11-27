@@ -20,6 +20,7 @@ import { COLORS, recoveryColor } from '../../theme/colors';
 import { FONTS } from '../../theme/typography';
 import PressableScale from '../ui/PressableScale';
 import Reveal from '../shared/Reveal';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { qk } from '../../lib/queryKeys';
 import NutritionSearchModal from './NutritionSearchModal';
 import WeightChart from './WeightChart';
@@ -91,11 +92,17 @@ function MacroRing({ pct, color, label, value }: { pct: number; color: string; l
   const circumference = 2 * Math.PI * radius;
   const safePct = Number.isFinite(pct) ? Math.max(0, Math.min(100, pct)) : 0;
   const animatedPct = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReducedMotion();
   useEffect(() => {
+    animatedPct.stopAnimation();
+    if (reduceMotion) {
+      animatedPct.setValue(safePct);
+      return undefined;
+    }
     const animation = Animated.timing(animatedPct, { toValue: safePct, duration: 720, useNativeDriver: false });
     animation.start();
     return () => animation.stop();
-  }, [animatedPct, safePct]);
+  }, [animatedPct, safePct, reduceMotion]);
   const offset = animatedPct.interpolate({ inputRange: [0, 100], outputRange: [circumference, 0] });
   return (
     <View style={{ alignItems: 'center', gap: 4 }}>
@@ -233,6 +240,7 @@ function StreaksRow({ metrics, nutrition }: { metrics: any[]; nutrition: any[] }
 export default function ProgressScreen() {
   const responsive = useResponsiveLayout();
   const insets = useSafeAreaInsets();
+  const reduceMotion = useReducedMotion();
   const routeParams = useLocalSearchParams<{ tab?: string }>();
   const queryClient = useQueryClient();
   const [metrics, setMetrics] = useState<any[]>([]);
@@ -347,7 +355,7 @@ export default function ProgressScreen() {
   ];
 
   const selectTab = (tab: Tab) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    if (!reduceMotion) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setActiveTab(tab);
     const index = tabs.findIndex((item) => item.key === tab);
     const estimatedTabWidth = responsive.isTablet ? 128 : 112;
