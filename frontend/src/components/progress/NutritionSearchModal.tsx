@@ -306,11 +306,11 @@ export default function NutritionSearchModal({
             <TextInput
               style={styles.manualInput}
               value={manualName}
-              onChangeText={setManualName}
+              onChangeText={(value) => { setManualName(value); setEstimatedFood(null); }}
               placeholder="e.g. Homemade paneer sandwich"
               placeholderTextColor={COLORS.textMuted}
               autoCapitalize="words"
-              keyboardAppearance="dark"
+              keyboardAppearance="light"
               selectionColor={COLORS.primaryGreen}
               underlineColorAndroid="transparent"
             />
