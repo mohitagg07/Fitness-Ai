@@ -29,6 +29,7 @@ import { describeApiError } from '../../utils/api';
 import { useStore, actions } from '../../store';
 import { COLORS, alpha } from '../../theme/colors';
 import { FONTS } from '../../theme/typography';
+import AmbientGlow from '../shared/AmbientGlow';
 
 import { useMissionSummary, useWeeklyStats } from '../../hooks/useDashboardQueries';
 import {
@@ -237,6 +238,7 @@ export default function ProfileScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.background }}>
+      <AmbientGlow variant="recovery" />
       <EditProfileModal
         visible={editVisible}
         profile={profile}
@@ -721,16 +723,16 @@ const styles = StyleSheet.create({
 
   name: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 27, fontWeight: '600', marginBottom: 4, letterSpacing: -0.5 },
   email: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 12, marginBottom: 12 },
-  goalBadge: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 14 },
+  goalBadge: { borderRadius: 999, paddingHorizontal: 13, paddingVertical: 7, marginBottom: 16 },
   goalText: { fontFamily: FONTS.bold, fontSize: 9, fontWeight: '700', letterSpacing: 0.9 },
 
-  editBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: COLORS.primaryGreen + '50', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 9, backgroundColor: COLORS.primaryGreen + '12' },
+  editBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: COLORS.primaryGreen + '50', borderRadius: 16, paddingHorizontal: 17, paddingVertical: 10, backgroundColor: COLORS.primaryGreen + '12' },
   editBtnText: { color: COLORS.primaryGreen, fontFamily: FONTS.semibold, fontSize: 12, fontWeight: '600' },
 
   streakStrip: { flexDirection: 'row', gap: 8, marginTop: 12 },
   streakChip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 999, paddingHorizontal: 11, paddingVertical: 7,
     backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.border,
   },
   streakChipText: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 10, fontWeight: '500' },
@@ -738,7 +740,7 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row', justifyContent: 'space-around',
     marginHorizontal: 16, marginBottom: 16,
-    backgroundColor: COLORS.cardElevated, borderRadius: 18, padding: 16,
+    backgroundColor: COLORS.cardElevated, borderRadius: 23, padding: 18,
     borderWidth: 1, borderColor: COLORS.border,
   },
   stat: { alignItems: 'center' },
@@ -746,9 +748,9 @@ const styles = StyleSheet.create({
   statLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, marginTop: 3, letterSpacing: 0.7 },
 
   card: {
-    backgroundColor: COLORS.cardElevated, borderRadius: 16,
-    padding: 16, marginHorizontal: 16, marginBottom: 12,
-    borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: COLORS.cardElevated, borderRadius: 25,
+    padding: 18, marginHorizontal: 16, marginBottom: 14,
+    borderWidth: 1, borderColor: COLORS.borderLight,
   },
   cardLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 9, fontWeight: '700', letterSpacing: 1.2 },
   cardLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
@@ -772,7 +774,7 @@ const styles = StyleSheet.create({
   addRowBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
   addRowText: { color: COLORS.primaryGreen, fontFamily: FONTS.semibold, fontSize: 12, fontWeight: '600' },
   addInjuryForm: { marginTop: 12, gap: 8 },
-  smallInput: { backgroundColor: COLORS.inputBg, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: COLORS.text, fontFamily: FONTS.regular, fontSize: 13, borderWidth: 1, borderColor: COLORS.border },
+  smallInput: { backgroundColor: COLORS.inputBg, borderRadius: 15, paddingHorizontal: 14, paddingVertical: 12, color: COLORS.text, fontFamily: FONTS.regular, fontSize: 13, borderWidth: 1, borderColor: COLORS.border },
   cancelBtn: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border },
   cancelBtnText: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 12, fontWeight: '500' },
   saveSmallBtn: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 10, backgroundColor: COLORS.primaryGreen },
@@ -787,7 +789,7 @@ const styles = StyleSheet.create({
 
   logoutBtn: {
     margin: 16, backgroundColor: COLORS.cardElevated,
-    borderRadius: 14, padding: 16, alignItems: 'center',
+    borderRadius: 19, padding: 17, alignItems: 'center',
     borderWidth: 1, borderColor: alpha(COLORS.recoveryLow, 0.22),
     flexDirection: 'row', justifyContent: 'center', gap: 8,
   },
@@ -807,10 +809,10 @@ const styles = StyleSheet.create({
 
   sectionTitle: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 9, fontWeight: '700', letterSpacing: 1.2, marginBottom: 12 },
   fieldLabel: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 11, marginBottom: 6, marginTop: 12 },
-  input: { backgroundColor: COLORS.inputBg, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: COLORS.text, fontFamily: FONTS.regular, fontSize: 14, borderWidth: 1, borderColor: COLORS.border },
+  input: { backgroundColor: COLORS.inputBg, borderRadius: 16, paddingHorizontal: 15, paddingVertical: 13, color: COLORS.text, fontFamily: FONTS.regular, fontSize: 14, borderWidth: 1, borderColor: COLORS.border },
 
   segmentedRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  segment: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: COLORS.inputBg },
+  segment: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 14, paddingHorizontal: 13, paddingVertical: 10, backgroundColor: COLORS.inputBg },
   segmentActive: { borderColor: COLORS.primaryGreen, backgroundColor: COLORS.primaryGreen + '18' },
   segmentText: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 11, fontWeight: '500' },
   segmentTextActive: { color: COLORS.primaryGreen },

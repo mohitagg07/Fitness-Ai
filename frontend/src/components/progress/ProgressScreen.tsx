@@ -16,7 +16,7 @@ import {
 import Svg, { Line, Path, Circle, Text as SvgT } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { progressApi, nutritionApi, profileApi, describeApiError } from '../../utils/api';
-import { COLORS, recoveryColor } from '../../theme/colors';
+import { COLORS, recoveryColor, alpha } from '../../theme/colors';
 import { FONTS } from '../../theme/typography';
 import PressableScale from '../ui/PressableScale';
 import Reveal from '../shared/Reveal';
@@ -25,6 +25,7 @@ import { qk } from '../../lib/queryKeys';
 import NutritionSearchModal from './NutritionSearchModal';
 import WeightChart from './WeightChart';
 import ProfileAvatar from '../shared/ProfileAvatar';
+import AmbientGlow from '../shared/AmbientGlow';
 import WeeklyReviewScreen from './WeeklyReviewScreen';
 import AnalyticsScreen, { type AnalyticsChartTab, type AnalyticsRangeOption } from './AnalyticsScreen';
 import MuscleRecoveryMap from './MuscleRecoveryMap';
@@ -73,7 +74,7 @@ function ProteinAdherenceBar({ history }: { history: any[] }) {
 }
 
 const P = StyleSheet.create({
-  container: { backgroundColor: COLORS.cardElevated, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
+  container: { backgroundColor: COLORS.cardElevated, borderRadius: 23, padding: 18, borderWidth: 1, borderColor: COLORS.borderLight, marginBottom: 16 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   label: { fontFamily: FONTS.bold,  color: COLORS.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
   pct: { fontFamily: FONTS.bold,  fontSize: 13, fontWeight: '700' },
@@ -377,6 +378,7 @@ export default function ProgressScreen() {
 
   return (
     <View style={styles.container}>
+      <AmbientGlow variant="workout" />
       <NutritionSearchModal visible={logFoodVisible} onClose={() => setLogFoodVisible(false)} onLogged={loadData} />
       <View style={[styles.header, { paddingTop: insets.top + 15 }]}>
         <View style={styles.headerTopRow}>
@@ -537,39 +539,39 @@ const styles = StyleSheet.create({
   headerEyebrow: { fontFamily: FONTS.bold,  color: COLORS.primaryGreen, fontSize: 9, fontWeight: '800', letterSpacing: 1.75 },
   headerDescription: { fontFamily: FONTS.regular,  color: COLORS.textMuted, fontSize: 12, lineHeight: 18, marginTop: 1 },
   headerSub: { fontFamily: FONTS.semibold,  color: COLORS.text, fontSize: 27, lineHeight: 32, fontWeight: '600', letterSpacing: -0.7 },
-  tabBarScroll: { borderBottomWidth: 1, borderBottomColor: COLORS.border, flexGrow: 0, backgroundColor: COLORS.background },
-  tabBar: { paddingHorizontal: 18, paddingTop: 5, paddingBottom: 0, gap: 23, flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center' },
+  tabBarScroll: { borderBottomWidth: 0, flexGrow: 0, backgroundColor: 'transparent' },
+  tabBar: { paddingHorizontal: 18, paddingTop: 9, paddingBottom: 10, gap: 8, flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center' },
   tabBarWide: { justifyContent: 'center' },
-  tab: { flexGrow: 0, flexShrink: 0, minWidth: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, paddingVertical: 13, paddingHorizontal: 1, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tab: { flexGrow: 0, flexShrink: 0, minWidth: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 7, paddingVertical: 11, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: 'transparent', backgroundColor: 'transparent' },
   tabWide: { minWidth: 120 },
-  tabActive: { backgroundColor: 'transparent', borderBottomColor: COLORS.primaryGreen },
+  tabActive: { backgroundColor: alpha(COLORS.primaryGreen, 0.12), borderColor: alpha(COLORS.primaryGreen, 0.24) },
   tabText: { fontFamily: FONTS.semibold,  color: COLORS.textMuted, fontSize: 11, fontWeight: '600', letterSpacing: 0.1 },
   tabTextActive: { color: COLORS.primaryGreen },
   errorBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 10, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardElevated },
   errorBannerText: { fontFamily: FONTS.regular,  color: COLORS.textSecondary, flex: 1, fontSize: 10, lineHeight: 15 },
   errorRetry: { fontFamily: FONTS.bold,  color: COLORS.primaryGreen, fontSize: 11, fontWeight: '700' },
   scroll: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40 },
-  logCard: { backgroundColor: COLORS.card, borderRadius: 19, padding: 17, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
+  logCard: { backgroundColor: COLORS.card, borderRadius: 25, padding: 19, borderWidth: 1, borderColor: COLORS.borderLight, marginBottom: 17 },
   sectionLabel: { fontFamily: FONTS.bold,  color: COLORS.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 10 },
   helperText: { fontFamily: FONTS.regular,  color: COLORS.textMuted, fontSize: 11, lineHeight: 16, marginBottom: 10 },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   numInput: { fontFamily: FONTS.numericSemibold,  flex: 1, backgroundColor: COLORS.inputBg, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: COLORS.text, fontSize: 20, fontWeight: '700', borderWidth: 1, borderColor: COLORS.border },
   unitLabel: { fontFamily: FONTS.semibold,  color: COLORS.textMuted, fontSize: 14, fontWeight: '600' },
-  logBtn: { backgroundColor: COLORS.primaryGreen, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 13 },
+  logBtn: { backgroundColor: COLORS.primaryGreen, borderRadius: 16, paddingHorizontal: 19, paddingVertical: 14 },
   logBtnText: { fontFamily: FONTS.bold,  color: COLORS.background, fontSize: 13, fontWeight: '800', letterSpacing: 1 },
-  macrosCard: { backgroundColor: COLORS.card, borderRadius: 20, padding: 18, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
+  macrosCard: { backgroundColor: COLORS.card, borderRadius: 25, padding: 19, borderWidth: 1, borderColor: COLORS.borderLight, marginBottom: 17 },
   remainingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 10 },
   remainingLabel: { fontFamily: FONTS.semibold,  color: COLORS.textMuted, fontSize: 11, fontWeight: '600' },
   remainingVal: { fontFamily: FONTS.regular,  color: COLORS.textSecondary, fontSize: 11 },
   statsGrid: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  statCard: { flex: 1, backgroundColor: COLORS.card, borderRadius: 16, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
+  statCard: { flex: 1, backgroundColor: COLORS.card, borderRadius: 21, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
   statVal: { fontFamily: FONTS.numericSemibold,  color: COLORS.primaryGreen, fontSize: 18, fontWeight: '800' },
   statLabel: { fontFamily: FONTS.bold,  color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 1, marginTop: 2 },
   chartCard: { backgroundColor: COLORS.card, borderRadius: 19, padding: 17, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
   logFoodBtn: { backgroundColor: COLORS.primaryGreen, borderRadius: 15, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 16 },
   logFoodBtnText: { fontFamily: FONTS.bold,  color: COLORS.background, fontSize: 14, fontWeight: '800', letterSpacing: 0.5 },
   streaksRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
-  streakCard: { flex: 1, backgroundColor: COLORS.card, borderRadius: 17, padding: 15, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
+  streakCard: { flex: 1, backgroundColor: COLORS.card, borderRadius: 22, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
   streakVal: { fontFamily: FONTS.numericSemibold,  color: COLORS.text, fontSize: 22, fontWeight: '800', marginTop: 4 },
   streakLabel: { fontFamily: FONTS.bold,  color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 0.5, marginTop: 2 },
   recoveryRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },

@@ -34,6 +34,7 @@ import PressableScale from '../ui/PressableScale';
 import Reveal from '../shared/Reveal';
 import ProfileAvatar from '../shared/ProfileAvatar';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
+import AmbientGlow from '../shared/AmbientGlow';
 
 interface ExerciseCard {
   name: string;
@@ -692,6 +693,7 @@ function WorkoutHUD() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={0}
       >
+        <AmbientGlow variant="workout" />
         <WorkoutSummaryCard
           visible={summaryVisible}
           data={summaryData}
@@ -752,6 +754,7 @@ function WorkoutHUD() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={0}
     >
+      <AmbientGlow variant="workout" />
       <MoodPickerModal
         visible={moodPickerVisible}
         onSelect={handleMoodSelect}
@@ -1061,7 +1064,7 @@ const S = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
 
   // Shared screen identity/header for both preparation and active training.
-  screenBar: { minHeight: 64, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: COLORS.background },
+  screenBar: { minHeight: 68, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: COLORS.background },
   screenEyebrow: { ...EYEBROW, color: COLORS.primaryGreen, fontSize: 8, letterSpacing: 1.3 },
   screenBarTitle: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 19, lineHeight: 24 },
   // Pre-session
@@ -1071,9 +1074,9 @@ const S = StyleSheet.create({
   },
   // Accent now comes from the icon color alone (green), not a mismatched
   // blue-tinted tile behind a green icon.
-  preBadge:    { width: 64, height: 64, borderRadius: 20, backgroundColor: COLORS.cardElevated,
+  preBadge:    { width: 66, height: 66, borderRadius: 22, backgroundColor: COLORS.cardElevated,
                  alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.xl },
-  gymTitle:    { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 32, letterSpacing: -0.8, textAlign: 'left' },
+  gymTitle:    { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 35, letterSpacing: -0.8, textAlign: 'left' },
   gymSubtitle: { ...BODY, color: COLORS.primaryGreen, fontSize: 15, fontFamily: FONTS.semibold, marginTop: SPACING.xs, marginBottom: SPACING.lg },
   gymDesc: { ...BODY, color: COLORS.textSecondary, fontSize: 14, textAlign: 'left', lineHeight: 22, marginBottom: SPACING.xxl, maxWidth: 340 },
   startBtn:    { backgroundColor: COLORS.primaryGreen, borderRadius: RADIUS.button,

@@ -24,8 +24,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nutritionApi, progressApi, describeApiError } from '../../utils/api';
-import { COLORS } from '../../theme/colors';
+import { COLORS, alpha } from '../../theme/colors';
 import ProfileAvatar from '../shared/ProfileAvatar';
+import AmbientGlow from '../shared/AmbientGlow';
 
 interface FoodResult {
   food_id: string;
@@ -277,6 +278,7 @@ export default function NutritionSearchModal({
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
+        <AmbientGlow variant="workout" />
         {/* Header */}
         <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
           <TouchableOpacity onPress={closeAndReset} style={styles.closeBtn}>
@@ -311,7 +313,7 @@ export default function NutritionSearchModal({
               placeholder="e.g. Homemade paneer sandwich"
               placeholderTextColor={COLORS.textMuted}
               autoCapitalize="words"
-              keyboardAppearance="light"
+              keyboardAppearance="dark"
               selectionColor={COLORS.primaryGreen}
               underlineColorAndroid="transparent"
             />
@@ -508,10 +510,10 @@ export default function NutritionSearchModal({
               disabled={logging}
             >
               {logging ? (
-                <ActivityIndicator color="#000" />
+                <ActivityIndicator color={COLORS.background} />
               ) : (
                 <>
-                  <Ionicons name="checkmark-circle" size={18} color="#000" />
+                  <Ionicons name="checkmark-circle" size={18} color={COLORS.background} />
                   <Text style={styles.confirmBtnText}>LOG THIS MEAL</Text>
                 </>
               )}
@@ -555,21 +557,21 @@ const styles = StyleSheet.create({
   manualTitle: { color: COLORS.text, fontSize: 25, lineHeight: 30, fontWeight: '800', marginTop: 4 },
   manualSubtitle: { color: COLORS.textMuted, fontSize: 13, lineHeight: 19, marginBottom: 8 },
   manualLabel: { color: COLORS.textMuted, fontSize: 9, fontWeight: '800', letterSpacing: 1.1, marginTop: 5 },
-  manualInput: { color: COLORS.text, backgroundColor: COLORS.inputBg, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 13, paddingVertical: 13, fontSize: 14, minHeight: 48 },
+  manualInput: { color: COLORS.text, backgroundColor: COLORS.inputBg, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 14, paddingVertical: 13, fontSize: 14, minHeight: 48 },
   portionSuggestions: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 9 },
   portionChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardElevated },
   portionChipActive: { backgroundColor: COLORS.primaryGreen, borderColor: COLORS.primaryGreen },
   portionChipText: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '600' },
-  portionChipTextActive: { color: '#FFFFFF' },
+  portionChipTextActive: { color: COLORS.background },
   preparationInput: { minHeight: 72, textAlignVertical: 'top' },
-  estimateBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800', letterSpacing: 0.6 },
-  estimateCard: { marginTop: 16, padding: 14, borderRadius: 17, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, gap: 12 },
+  estimateBtnText: { color: COLORS.background, fontSize: 13, fontWeight: '800', letterSpacing: 0.6 },
+  estimateCard: { marginTop: 16, padding: 14, borderRadius: 24, backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.borderLight, gap: 12 },
   estimateHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
   estimateTitle: { color: COLORS.text, fontSize: 16, fontWeight: '800' },
   estimatePortion: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 17, marginTop: 4 },
   confidencePill: { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 6, borderWidth: 1 },
-  confidenceMedium: { backgroundColor: '#E9F4E8', borderColor: '#B8D8B8' },
-  confidenceLow: { backgroundColor: '#FBF0E4', borderColor: '#E9D0AB' },
+  confidenceMedium: { backgroundColor: alpha(COLORS.recoveryHigh, 0.12), borderColor: alpha(COLORS.recoveryHigh, 0.4) },
+  confidenceLow: { backgroundColor: alpha(COLORS.recoveryMed, 0.12), borderColor: alpha(COLORS.recoveryMed, 0.4) },
   confidenceText: { color: COLORS.textSecondary, fontSize: 8, fontWeight: '800', letterSpacing: 0.5 },
   estimatedMacros: { flexDirection: 'row', gap: 7 },
   assumptionBlock: { paddingTop: 9, borderTopWidth: 1, borderTopColor: COLORS.border, gap: 5 },
@@ -594,8 +596,8 @@ const styles = StyleSheet.create({
   resultsList: { padding: 16, gap: 8 },
   resultRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: COLORS.card, borderRadius: 14, padding: 14,
-    borderWidth: 1, borderColor: COLORS.border, marginBottom: 8,
+    backgroundColor: COLORS.card, borderRadius: 20, padding: 16,
+    borderWidth: 1, borderColor: COLORS.borderLight, marginBottom: 8,
   },
   resultName: { color: COLORS.text, fontSize: 15, fontWeight: '700' },
   resultBrand: { color: COLORS.textMuted, fontSize: 12, marginTop: 1 },
@@ -617,10 +619,10 @@ const styles = StyleSheet.create({
   macroPreview: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   previewNote: { color: COLORS.textDim, fontSize: 11, textAlign: 'center', marginBottom: 24, lineHeight: 16 },
   confirmBtn: {
-    backgroundColor: COLORS.primaryGreen, borderRadius: 14, padding: 16,
+    backgroundColor: COLORS.primaryGreen, borderRadius: 18, padding: 17,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     marginTop: 'auto',
   },
   confirmBtnDisabled: { opacity: 0.6 },
-  confirmBtnText: { color: '#000', fontSize: 14, fontWeight: '800', letterSpacing: 1 },
+  confirmBtnText: { color: COLORS.background, fontSize: 14, fontWeight: '800', letterSpacing: 1 },
 });
