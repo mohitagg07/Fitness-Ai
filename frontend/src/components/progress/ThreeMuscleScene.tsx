@@ -7,7 +7,7 @@ import {
   View,
 } from 'react-native';
 import { GLView, type ExpoWebGLRenderingContext } from 'expo-gl';
-import { Renderer, THREE } from 'expo-three';
+import * as THREE from 'three';
 
 import { COLORS } from '../../theme/colors';
 import Text from '../ui/Text';
@@ -17,7 +17,7 @@ type MuscleKey = 'Chest' | 'Back' | 'Shoulders' | 'Arms' | 'Core' | 'Legs';
 type MusclePalette = Record<MuscleKey, string>;
 
 type MuscleScene = {
-  renderer: Renderer;
+  renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   root: THREE.Group;
@@ -223,9 +223,28 @@ export default function ThreeMuscleScene({
     try {
       cleanupRef.current?.();
 
-      const renderer = new Renderer({ gl, alpha: true, antialias: true });
-      renderer.setPixelRatio(Math.min(PixelRatio.get(), 1.5));
-      renderer.setSize(gl.drawingBufferWidth, gl.drawingBufferHeight);
+      // Three.js expects a browser canvas object. GLView supplies the WebGL2
+      // context directly, so provide a deliberately tiny canvas shim instead
+      // of bringing in expo-three's legacy browser-polyfill dependency tree.
+      const canvasShim = {
+        width: gl.drawingBufferWidth,
+        height: gl.drawingBufferHeight,
+        clientWidth: gl.drawingBufferWidth,
+        clientHeight: gl.drawingBufferHeight,
+        style: {},
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+        setAttribute: () => undefined,
+        getContext: () => gl,
+      };
+      const renderer = new THREE.WebGLRenderer({
+        canvas: canvasShim as unknown as HTMLCanvasElement,
+        context: gl as unknown as WebGL2RenderingContext,
+        alpha: false,
+        antialias: true,
+      });
+      renderer.setPixelRatio(Math.min(PixelRatio.get(), 1.35));
+      renderer.setSize(gl.drawingBufferWidth, gl.drawingBufferHeight, false);
       renderer.setClearColor(toThreeColor(CANVAS_BACKGROUND), 1);
 
       const scene = new THREE.Scene();
