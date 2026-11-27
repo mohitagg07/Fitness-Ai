@@ -143,3 +143,57 @@ def test_session_transition_supports_only_explicit_lifecycle_actions(action: str
 def test_session_transition_rejects_unsupported_lifecycle_action() -> None:
     with pytest.raises(ValidationError):
         SessionTransitionRequest(action="complete")
+
+
+
+def test_recovery_components_keep_missing_data_unknown() -> None:
+    from agents.recovery_agent import (
+        _cns_component,
+        _nutrition_component,
+        _rpe_component,
+        _sleep_component,
+        _soreness_component,
+        _volume_component,
+    )
+
+    assert _sleep_component(None) is None
+    assert _volume_component(None) is None
+    assert _nutrition_component(None, None) is None
+    assert _rpe_component(None) is None
+    assert _cns_component(None) is None
+    assert _soreness_component(None) is None
+
+
+def test_recovery_sleep_and_soreness_components_are_bounded() -> None:
+    from agents.recovery_agent import _sleep_component, _soreness_component
+
+    assert _sleep_component(8) == 30
+    assert _sleep_component(0) == 0
+    assert _soreness_component(1) == 15
+    assert _soreness_component(5) == 0
+    assert _soreness_component(0) is None
+    assert _soreness_component(6) is None
+
+
+def test_recovery_checkin_payload_rejects_invalid_ranges() -> None:
+    from pydantic import ValidationError
+    from api.routes.recovery import RecoveryCheckInRequest
+
+    assert RecoveryCheckInRequest(sleep_hours=7.5, soreness_level=2, energy_level=4).sleep_hours == 7.5
+    with pytest.raises(ValidationError):
+        RecoveryCheckInRequest(sleep_hours=25)
+    with pytest.raises(ValidationError):
+        RecoveryCheckInRequest(soreness_level=6)
+    with pytest.raises(ValidationError):
+        RecoveryCheckInRequest(energy_level=0)
+
+
+def test_today_recovery_checkin_fails_as_unknown_when_migration_is_missing(monkeypatch) -> None:
+    from agents import recovery_agent
+
+    class BrokenSupabase:
+        def table(self, _name):
+            raise RuntimeError("relation recovery_checkins does not exist")
+
+    monkeypatch.setattr(recovery_agent, "get_supabase", lambda: BrokenSupabase())
+    assert recovery_agent._today_recovery_checkin("user-1") is None
