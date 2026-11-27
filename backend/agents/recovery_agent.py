@@ -210,8 +210,11 @@ def _sessions_last_7_days(user_id: str, target_date: date | None = None) -> int:
 
 
 # ── Main entry point ──────────────────────────────────────────────────────────
-def _recent_rpe_days(user_id: str, target_date: date | None = None) -> int | None:
-    """Count recent high-effort session dates using actual rated sets."""
+def _recent_rpe_stats(
+    user_id: str,
+    target_date: date | None = None,
+) -> tuple[float | None, int | None]:
+    """Return actual recent average set RPE and high-effort days."""
     from datetime import datetime, timezone
 
     sb = get_supabase()
@@ -230,17 +233,21 @@ def _recent_rpe_days(user_id: str, target_date: date | None = None) -> int | Non
     )
     rows = [row for row in (result.data or []) if row.get("rpe") is not None and row.get("logged_at")]
     if not rows:
-        return None
+        return None, None
     by_day: dict[str, list[float]] = {}
+    all_rpe: list[float] = []
     for row in rows:
         try:
+            value = float(row["rpe"])
             stamp = datetime.fromisoformat(str(row["logged_at"]).replace("Z", "+00:00"))
-            by_day.setdefault(stamp.date().isoformat(), []).append(float(row["rpe"]))
+            all_rpe.append(value)
+            by_day.setdefault(stamp.date().isoformat(), []).append(value)
         except (TypeError, ValueError):
             continue
-    if not by_day:
-        return None
-    return sum(1 for values in by_day.values() if sum(values) / len(values) >= 8)
+    if not by_day or not all_rpe:
+        return None, None
+    high_days = sum(1 for values in by_day.values() if sum(values) / len(values) >= 8)
+    return round(sum(all_rpe) / len(all_rpe), 2), high_days
 
 
 def _last_explicit_cns_fatigue(user_id: str) -> int | None:
@@ -293,7 +300,7 @@ def run_recovery_agent(
     protein_pct, calorie_pct = _nutrition_ratios_today(
         user_id, protein_target_g, calorie_target, target_date
     )
-    high_rpe_days = _recent_rpe_days(user_id, target_date)
+    avg_rpe, high_rpe_days = _recent_rpe_stats(user_id, target_date)
 
     # Missing sources are excluded from the weighted score, never replaced
     # with midpoint values that could look like measured readiness.
@@ -317,19 +324,24 @@ def run_recovery_agent(
 
     score_100 = round(available_score / confidence_pct * 100) if confidence_pct else None
     score_10 = round(score_100 / 10) if score_100 is not None else 0
-    # This estimate is used only for the CNS-load breakdown, not as evidence
-    # that a user actually reported RPE or fatigue.
-    last_rpe = 5.0
     freq_7d = _sessions_last_7_days(user_id, target_date)
 
-    # ── CNS Load label ────────────────────────────────────────────────────────
-    cns_load = compute_cns_load(
-        volume_kg=recent_volume or 0.0,
-        avg_rpe=last_rpe,
-        frequency_days=freq_7d,
-        consecutive_high_rpe=high_rpe_days or 0,
-        cns_fatigue_score=cns_fatigue or 0,
-    )
+    # Do not display a CNS-load estimate unless its source data actually
+    # exists. No placeholder RPE or zero-fatigue score is inserted.
+    if recent_volume is not None and avg_rpe is not None and cns_fatigue is not None and high_rpe_days is not None:
+        cns_load = compute_cns_load(
+            volume_kg=recent_volume,
+            avg_rpe=avg_rpe,
+            frequency_days=freq_7d,
+            consecutive_high_rpe=high_rpe_days,
+            cns_fatigue_score=cns_fatigue,
+        )
+    else:
+        cns_load = {
+            "score": None,
+            "label": "Insufficient data",
+            "components": {},
+        }
 
     # ── Decision ──────────────────────────────────────────────────────────────
     high_intensity_types = {"push", "pull", "legs", "cardio"}
