@@ -13,8 +13,24 @@ from schemas.models import RecoveryDecision
 from db.supabase_client import get_supabase
 
 
-WEIGHTS = {"sleep": 30, "volume": 20, "nutrition": 20, "rpe": 15, "cns": 15}
+WEIGHTS = {"sleep": 25, "soreness": 15, "energy": 10, "volume": 15, "nutrition": 15, "rpe": 10, "cns": 10}
 MINIMUM_DATA_COMPLETENESS_PCT = 60
+
+
+def _today_recovery_checkin(user_id: str, target_date: date | None = None) -> dict | None:
+    """Read today's reported recovery; never substitute profile sleep baseline."""
+    local_day = str(target_date or date.today())
+    try:
+        result = (
+            get_supabase().table("recovery_checkins")
+            .select("local_date, sleep_hours, soreness_level, energy_level, notes, updated_at")
+            .eq("user_id", user_id).eq("local_date", local_day).limit(1).execute()
+        )
+    except Exception:
+        # Missing migration means missing evidence, not a fabricated fallback.
+        return None
+    rows = result.data or []
+    return rows[0] if rows else None
 
 
 def compute_cns_load(volume_kg: float, avg_rpe: float, frequency_days: int,
@@ -53,6 +69,18 @@ def _sleep_component(sleep_hours: float | None) -> int | None:
     if hours >= 6: return 16
     if hours >= 5: return 8
     return 0
+
+
+def _soreness_component(soreness_level: int | None) -> int | None:
+    if soreness_level is None or not 1 <= soreness_level <= 5:
+        return None
+    return round(15 - ((soreness_level - 1) * 3.75))
+
+
+def _energy_component(energy_level: int | None) -> int | None:
+    if energy_level is None or not 1 <= energy_level <= 5:
+        return None
+    return round((energy_level - 1) * 2.5)
 
 
 def _volume_component(recent_volume_kg: float | None) -> int | None:
@@ -194,43 +222,57 @@ def _sessions_last_7_days(user_id: str, target_date: date | None = None) -> int:
     return result.count or 0
 
 
-def run_recovery_agent(user_id: str, sleep_hours: float | None,
-                       planned_workout_type: str | None = None,
-                       protein_target_g: float | None = None,
-                       calorie_target: float | None = None,
-                       target_date: date | None = None) -> RecoveryDecision:
-    """
-    Estimate readiness using observed information only.
+def run_recovery_agent(
+    user_id: str,
+    sleep_hours: float | None,
+    planned_workout_type: str | None = None,
+    protein_target_g: float | None = None,
+    calorie_target: float | None = None,
+    target_date: date | None = None,
+) -> RecoveryDecision:
+    """Readiness uses observed evidence; profile sleep is not a daily check-in."""
+    check_in = _today_recovery_checkin(user_id, target_date)
+    reported_sleep = check_in.get("sleep_hours") if check_in else None
+    soreness_level = check_in.get("soreness_level") if check_in else None
+    energy_level = check_in.get("energy_level") if check_in else None
 
-    data_completeness_pct is the total weight of available evidence. Below 60%,
-    readiness is unavailable and action becomes check_in. The approved plan
-    remains unchanged and no load or schedule change is implied.
-    """
     recent_volume = _last_session_volume(user_id)
     protein_pct, calorie_pct = _nutrition_ratios_today(
         user_id, protein_target_g, calorie_target, target_date
     )
     avg_rpe, high_rpe_days = _recent_rpe_stats(user_id, target_date)
     cns_fatigue = _last_explicit_cns_fatigue(user_id)
+
+    raw_sleep = _sleep_component(reported_sleep)
+    raw_volume = _volume_component(recent_volume)
+    raw_nutrition = _nutrition_component(protein_pct, calorie_pct)
+    raw_rpe = _rpe_component(high_rpe_days)
+    raw_cns = _cns_component(cns_fatigue)
     components = {
-        "sleep": _sleep_component(sleep_hours),
-        "volume": _volume_component(recent_volume),
-        "nutrition": _nutrition_component(protein_pct, calorie_pct),
-        "rpe": _rpe_component(high_rpe_days),
-        "cns": _cns_component(cns_fatigue),
+        "sleep": round(raw_sleep * (25 / 30)) if raw_sleep is not None else None,
+        "soreness": _soreness_component(soreness_level),
+        "energy": _energy_component(energy_level),
+        "volume": round(raw_volume * (15 / 20)) if raw_volume is not None else None,
+        "nutrition": round(raw_nutrition * (15 / 20)) if raw_nutrition is not None else None,
+        "rpe": round(raw_rpe * (10 / 15)) if raw_rpe is not None else None,
+        "cns": round(raw_cns * (10 / 15)) if raw_cns is not None else None,
     }
     available = {name: value for name, value in components.items() if value is not None}
     completeness_pct = sum(WEIGHTS[name] for name in available)
-    score_100 = (round(sum(available.values()) * 100 / completeness_pct)
-                 if completeness_pct else None)
+    score_100 = (
+        round(sum(available.values()) * 100 / completeness_pct)
+        if completeness_pct else None
+    )
     score_10 = round(score_100 / 10) if score_100 is not None else 0
 
     cns_load = {"score": None, "label": "Insufficient data", "components": {}}
     if recent_volume is not None and avg_rpe is not None and high_rpe_days is not None and cns_fatigue is not None:
         cns_load = compute_cns_load(
-            volume_kg=recent_volume, avg_rpe=avg_rpe,
+            volume_kg=recent_volume,
+            avg_rpe=avg_rpe,
             frequency_days=_sessions_last_7_days(user_id, target_date),
-            consecutive_high_rpe=high_rpe_days, cns_fatigue_score=cns_fatigue,
+            consecutive_high_rpe=high_rpe_days,
+            cns_fatigue_score=cns_fatigue,
         )
 
     high_intensity = (planned_workout_type or "").lower() in {"push", "pull", "legs", "cardio"}
@@ -280,8 +322,11 @@ def run_recovery_agent(user_id: str, sleep_hours: float | None,
     decision.__dict__["missing_signals"] = sorted(set(WEIGHTS) - set(available))
     decision.__dict__["sub_scores"] = components
     decision.__dict__["cns_load"] = cns_load
+    decision.__dict__["check_in"] = check_in
     decision.__dict__["source_values"] = {
-        "sleep_hours": sleep_hours,
+        "last_night_sleep_hours": reported_sleep,
+        "soreness_level": soreness_level,
+        "energy_level": energy_level,
         "last_session_volume_kg": recent_volume,
         "protein_ratio": protein_pct,
         "calorie_ratio": calorie_pct,

@@ -51,6 +51,6 @@ def test_readiness_does_not_claim_recovery_when_all_sources_are_missing(monkeypa
     assert result.__dict__["score_pct"] is None
     assert result.__dict__["data_completeness_pct"] == 0
     assert set(result.__dict__["missing_signals"]) == {
-        "sleep", "volume", "nutrition", "rpe", "cns"
+        "sleep", "soreness", "energy", "volume", "nutrition", "rpe", "cns"
     }
     assert "approved plan unchanged" in result.message

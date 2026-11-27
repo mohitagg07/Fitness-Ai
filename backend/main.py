@@ -24,6 +24,7 @@ from api.routes.admin import router as admin_router
 from api.routes.strategy import router as strategy_router
 from api.routes.simulate import router as simulate_router
 from api.routes.habits import router as habits_router
+from api.routes.recovery import router as recovery_router
 from core.config import get_settings, validate_runtime_security_settings
 from db.chroma_client import seed_guardrails
 
@@ -82,6 +83,7 @@ app.include_router(admin_router,    prefix="/api/admin",    tags=["Admin"])
 app.include_router(strategy_router, prefix="/api/strategy", tags=["Training Strategy"])
 app.include_router(simulate_router, prefix="/api/simulate", tags=["Scenario Simulator"])
 app.include_router(habits_router,   prefix="/api/habits",   tags=["Habit Intelligence"])
+app.include_router(recovery_router, prefix="/api/recovery", tags=["Recovery"])
 
 
 @app.get("/")
