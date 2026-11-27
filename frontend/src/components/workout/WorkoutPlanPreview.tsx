@@ -308,13 +308,13 @@ const styles = StyleSheet.create({
   fieldLabel: { ...EYEBROW, color: COLORS.textMuted, fontSize: 8 },
   stepper: {
     minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.input, borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.button, borderWidth: 1, borderColor: COLORS.border,
   },
   stepButton: { width: 27, height: 36, alignItems: 'center', justifyContent: 'center' },
   stepValue: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 13 },
   input: {
     minHeight: 38, color: COLORS.text, fontFamily: FONTS.medium, fontSize: 12,
-    paddingHorizontal: 9, paddingVertical: 7, borderRadius: RADIUS.input,
+    paddingHorizontal: 9, paddingVertical: 7, borderRadius: RADIUS.button,
     backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.border,
   },
   restRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: SPACING.sm },
