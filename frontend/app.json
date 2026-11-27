@@ -5,8 +5,8 @@
     "version": "1.0.0",
     "scheme": "vyrn",
     "orientation": "portrait",
-    "userInterfaceStyle": "dark",
-    "backgroundColor": "#08110C",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F5F3EA",
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/splash.png",
@@ -49,7 +49,7 @@
         "expo-notifications",
         {
           "icon": "./assets/icon.png",
-          "color": "#B9DE72"
+          "color": "#176B4A"
         }
       ]
     ],
