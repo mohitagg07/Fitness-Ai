@@ -17,7 +17,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
-import { workoutApi, coachApi } from '../../utils/api';
+import { workoutApi, coachApi, trainingPlanApi } from '../../utils/api';
 import { useMissionSummary } from '../../hooks/useDashboardQueries';
 import { confirmAsync } from '../../utils/confirm';
 import { useStore } from '../../store';
@@ -28,9 +28,10 @@ import { SPACING, RADIUS } from '../../theme/spacing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import WorkoutSummaryCard from './WorkoutSummaryCard';
+import WorkoutPlanPreview, { WorkoutExerciseDraft } from './WorkoutPlanPreview';
 import WorkoutHistoryModal from './WorkoutHistoryModal';
 import MilestoneCelebration from './MilestoneCelebration';
-import MoodPickerModal, { MoodValue } from './MoodPickerModal';
+import MoodPickerModal, { WorkoutFeedback } from './MoodPickerModal';
 import PressableScale from '../ui/PressableScale';
 import Reveal from '../shared/Reveal';
 import ProfileAvatar from '../shared/ProfileAvatar';
@@ -53,6 +54,17 @@ interface SetLog {
   weight_kg: number;
   reps: number;
   rpe: number;
+}
+
+interface DraftPlanReference {
+  planId: string;
+  versionId: string;
+  sessionRequestId: string;
+  name: string;
+  workoutType: string;
+  estimatedMinutes: number | null;
+  muscleGroups: string[];
+  approved: boolean;
 }
 
 const RPE_LEVELS = [6, 7, 7.5, 8, 8.5, 9, 9.5, 10];
@@ -235,10 +247,16 @@ function SessionHeader({
   startedAt,
   totalVolume,
   setCount,
+  paused,
+  pausedAt,
+  pausedDurationSeconds,
 }: {
   startedAt: number;
   totalVolume: number;
   setCount: number;
+  paused: boolean;
+  pausedAt?: string | null;
+  pausedDurationSeconds?: number;
 }) {
   const [now, setNow] = useState(() => Date.now());
 
@@ -249,7 +267,11 @@ function SessionHeader({
     return () => clearInterval(id);
   }, [startedAt]);
 
-  const elapsedSeconds = Math.max(0, Math.floor((now - startedAt) / 1000));
+  const pausedAtMs = pausedAt ? new Date(pausedAt).getTime() : null;
+  const clockEnd = paused && pausedAtMs && Number.isFinite(pausedAtMs) ? pausedAtMs : now;
+  const elapsedSeconds = Math.max(0, Math.floor(
+    (clockEnd - startedAt) / 1000 - Math.max(0, pausedDurationSeconds || 0)
+  ));
   const hours = Math.floor(elapsedSeconds / 3600);
   const minutes = Math.floor((elapsedSeconds % 3600) / 60);
   const seconds = elapsedSeconds % 60;
@@ -262,7 +284,7 @@ function SessionHeader({
       <View style={H.timeBlock}>
         <View style={H.pill}>
           <View style={H.activeDot} />
-          <Text style={H.pillText}>LIVE SESSION</Text>
+          <Text style={H.pillText}>{paused ? 'SESSION PAUSED' : 'LIVE SESSION'}</Text>
         </View>
         <Text style={H.timeValue}>{elapsed}</Text>
         <Text style={H.timeLabel}>ELAPSED TIME</Text>
@@ -336,10 +358,18 @@ function WorkoutHUD() {
   const [streakVisible, setStreakVisible] = useState(false);
   const [streakData, setStreakData]     = useState<MilestoneInfo | null>(null);
   const [moodPickerVisible, setMoodPickerVisible] = useState(false);
-  const [pendingMood, setPendingMood]   = useState<MoodValue | undefined>(undefined);
   const [isRestoringSession, setIsRestoringSession] = useState(true);
   const [isBuildingPlan, setIsBuildingPlan] = useState(false);
+  const [isApprovingPlan, setIsApprovingPlan] = useState(false);
+  const [planPreviewVisible, setPlanPreviewVisible] = useState(false);
+  const [draftPlan, setDraftPlan] = useState<DraftPlanReference | null>(null);
+  const [isSessionPaused, setIsSessionPaused] = useState(false);
+  const pendingSetWrites = useRef<Set<Promise<any>>>(new Set());
+  const profile = useStore((state) => state.profile);
 
+  // Restore an unfinished workout from the server after app restart. The
+  // immutable prescription snapshot is authoritative; logged sets only update
+  // completion counts and never define which exercises existed in the plan.
   // Restore an unfinished workout from the server after app restart. Set rows
   // are already persisted individually; this reconnects them to the live HUD.
   useEffect(() => {
@@ -353,10 +383,14 @@ function WorkoutHUD() {
       try {
         const response = await workoutApi.getSessions(20);
         const pending = (Array.isArray(response.data) ? response.data : [])
-          .filter((session: any) => session && session.completed !== true)
+          .filter((session: any) => session && (
+            session.status === 'active'
+            || session.status === 'paused'
+            || (!session.status && session.completed !== true)
+          ))
           .sort((a: any, b: any) =>
-            new Date(b.created_at || b.session_date || 0).getTime() -
-            new Date(a.created_at || a.session_date || 0).getTime()
+            new Date(b.started_at || b.created_at || b.session_date || 0).getTime() -
+            new Date(a.started_at || a.created_at || a.session_date || 0).getTime()
           );
         const session = pending[0];
         if (!alive || !session) return;
@@ -372,29 +406,53 @@ function WorkoutHUD() {
           .filter((log: SetLog) => log.exercise_name.length > 0)
           .sort((a: SetLog, b: SetLog) => a.set_number - b.set_number);
 
+        const plannedExercises = session.planned_workout_snapshot?.exercises;
         const names = [...new Set(logs.map((log) => log.exercise_name))];
-        const restoredExercises: ExerciseCard[] = names.map((name) => {
-          const exerciseLogs = logs.filter((log) => log.exercise_name === name);
-          const last = exerciseLogs[exerciseLogs.length - 1];
-          return {
-            name,
-            sets: Math.max(3, exerciseLogs.length + 1),
-            reps: String(last?.reps || 8),
-            load: last ? `${last.weight_kg}kg` : '',
-            cue: 'Continue your saved session',
-            rest: '90 sec',
-            completed_sets: exerciseLogs.length,
-          };
-        });
+        const restoredExercises: ExerciseCard[] = Array.isArray(plannedExercises) && plannedExercises.length > 0
+          ? plannedExercises.map((planned: any) => {
+              const name = String(planned.name || planned.exercise_name || 'Exercise');
+              const exerciseLogs = logs.filter((log) => log.exercise_name.toLowerCase() === name.toLowerCase());
+              const last = exerciseLogs[exerciseLogs.length - 1];
+              const loadText = planned.load_kg != null
+                ? `${planned.load_kg}kg`
+                : String(planned.load_guidance || '');
+              return {
+                name,
+                sets: Number(planned.sets) || 3,
+                reps: String(planned.reps || '8-12'),
+                load: loadText,
+                cue: String(planned.cue || 'Follow the approved exercise prescription'),
+                rest: `${Number(planned.rest_seconds) || 90} sec`,
+                completed_sets: exerciseLogs.length,
+              };
+            })
+          : names.map((name) => {
+              const exerciseLogs = logs.filter((log) => log.exercise_name === name);
+              const last = exerciseLogs[exerciseLogs.length - 1];
+              return {
+                name,
+                sets: Math.max(3, exerciseLogs.length + 1),
+                reps: String(last?.reps || 8),
+                load: last ? `${last.weight_kg}kg` : '',
+                cue: 'Continue your saved session',
+                rest: '90 sec',
+                completed_sets: exerciseLogs.length,
+              };
+            });
 
-        const createdAt = session.created_at ? new Date(session.created_at).getTime() : Date.now();
+        const startedAt = session.started_at || session.created_at;
+        const startedAtMs = startedAt ? new Date(startedAt).getTime() : Date.now();
         setActiveSession({
           ...session,
           logs,
-          startedAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
+          startedAt: Number.isFinite(startedAtMs) ? startedAtMs : Date.now(),
         });
         setExercises(restoredExercises);
-        if (restoredExercises.length > 0) setActiveIdx(restoredExercises.length - 1);
+        setIsSessionPaused(session.status === 'paused');
+        const nextExerciseIndex = restoredExercises.findIndex((exercise) => exercise.completed_sets < exercise.sets);
+        if (restoredExercises.length > 0) {
+          setActiveIdx(nextExerciseIndex >= 0 ? nextExerciseIndex : restoredExercises.length - 1);
+        }
       } catch (error: any) {
         if (__DEV__) console.warn('[Workout] Could not restore active session', error?.message || error);
       } finally {
@@ -435,46 +493,205 @@ function WorkoutHUD() {
   const currentSetNum = (setCountByExercise[resolvedName] || 0) + 1;
 
   // ── Actions ─────────────────────────────────────────────────────────────────
-  const startSession = async (): Promise<boolean> => {
-    if (activeSession) return true;
-    if (isRestoringSession) return false;
-    try {
-      const res = await workoutApi.createSession({ day_label: 'Training Session' });
-      setActiveSession({ ...res.data, logs: [], startedAt: Date.now() });
-      return true;
-    } catch {
-      Alert.alert('Error', 'Could not start session. Check your connection and try again.');
-      return false;
-    }
-  };
+  const buildDraftPayload = (items: WorkoutExerciseDraft[], draft: DraftPlanReference) => ({
+    name: draft.name,
+    goal: profile?.goal || null,
+    phase: profile?.current_phase || null,
+    weeks: 4,
+    schedule: {},
+    change_reason: 'Coach-generated training session awaiting athlete approval',
+    workout: {
+      label: draft.name,
+      workout_type: draft.workoutType,
+      muscle_groups: draft.muscleGroups,
+      estimated_duration_minutes: draft.estimatedMinutes,
+      exercises: items.map((exercise) => {
+        const loadMatch = exercise.load.match(/-?\d+(?:\.\d+)?/);
+        const loadKg = loadMatch ? Number(loadMatch[0]) : null;
+        const restMatch = exercise.rest.match(/\d+/);
+        return {
+          name: exercise.name.trim(),
+          sets: Math.max(1, Math.min(20, Number(exercise.sets) || 3)),
+          reps: exercise.reps.trim() || '8-12',
+          load_kg: Number.isFinite(loadKg) ? loadKg : null,
+          load_guidance: exercise.load.trim() || null,
+          rest_seconds: restMatch ? Math.max(0, Math.min(900, Number(restMatch[0]))) : 90,
+          cue: exercise.cue || null,
+          equipment_required: [],
+          muscle_groups: [],
+        };
+      }),
+    },
+  });
 
   const askCoachForWorkout = async () => {
-    if (isBuildingPlan || isRestoringSession) return;
+    if (isBuildingPlan || isRestoringSession || isApprovingPlan) return;
     setIsBuildingPlan(true);
     try {
       const res = await coachApi.chat("What's my workout today?");
       const sd = res.data?.structured_decision;
-      if (sd?.exercises?.length > 0) {
-        const nextExercises: ExerciseCard[] = sd.exercises.map((e: any) => ({
-          name: String(e.name || 'Exercise'),
-          sets: parseInt(e.sets, 10) || 3,
-          reps: String(e.reps || '8'),
-          load: String(e.weight || ''),
-          cue: String(e.focus || ''),
-          rest: String(e.rest || ''),
-          completed_sets: 0,
-        }));
-        setExercises(nextExercises);
-        setActiveIdx(0);
-        if (!activeSession && !(await startSession())) setExercises([]);
-      } else {
+      if (!sd?.exercises?.length) {
         Alert.alert('Coach', res.data?.reply || 'Open Coach to refine your plan and try again.');
+        return;
       }
-    } catch {
-      Alert.alert('Error', 'Could not build your workout. Try again or open Coach.');
+
+      const allowedTypes = ['push', 'pull', 'legs', 'upper', 'lower', 'full_body', 'cardio', 'mobility', 'recovery'];
+      const proposedType = String(sd.workout_type || recommendedWorkout || 'full_body').toLowerCase();
+      const workoutType = allowedTypes.includes(proposedType) ? proposedType : 'full_body';
+      const nextExercises: ExerciseCard[] = sd.exercises.map((exercise: any) => ({
+        name: String(exercise.name || '').trim(),
+        sets: Math.max(1, Math.min(20, Number.parseInt(String(exercise.sets), 10) || 3)),
+        reps: String(exercise.reps || '8-12'),
+        load: String(exercise.weight || exercise.load_guidance || ''),
+        cue: String(exercise.focus || exercise.cue || ''),
+        rest: String(exercise.rest || '90 sec'),
+        completed_sets: 0,
+      })).filter((exercise: ExerciseCard) => exercise.name.length > 0);
+
+      if (!nextExercises.length) {
+        Alert.alert('Coach', 'The proposed workout did not include valid exercises. Ask Coach to regenerate it.');
+        return;
+      }
+
+      const estimatedText = String(sd.summary?.estimated_time || sd.estimated_time || '');
+      const estimatedMatch = estimatedText.match(/\d+/);
+      const estimatedMinutes = estimatedMatch ? Number(estimatedMatch[0]) : null;
+      const title = String(sd.summary?.label || `${workoutType.replace(/_/g, ' ')} workout`)
+        .replace(/^\s+|\s+$/g, '');
+      const muscleGroups = Array.isArray(sd.muscle_groups)
+        ? sd.muscle_groups.map((item: unknown) => String(item))
+        : [];
+
+      const draftPayload = {
+        name: title,
+        goal: profile?.goal || null,
+        phase: profile?.current_phase || null,
+        weeks: 4,
+        schedule: {},
+        change_reason: 'Coach-generated training session awaiting athlete approval',
+        workout: {
+          label: title,
+          workout_type: workoutType,
+          muscle_groups: muscleGroups,
+          estimated_duration_minutes: estimatedMinutes,
+          exercises: nextExercises.map((exercise) => {
+            const loadMatch = exercise.load.match(/-?\d+(?:\.\d+)?/);
+            const restMatch = exercise.rest.match(/\d+/);
+            return {
+              name: exercise.name,
+              sets: exercise.sets,
+              reps: exercise.reps,
+              load_kg: loadMatch ? Number(loadMatch[0]) : null,
+              load_guidance: exercise.load || null,
+              rest_seconds: restMatch ? Math.max(0, Math.min(900, Number(restMatch[0]))) : 90,
+              cue: exercise.cue || null,
+              equipment_required: [],
+              muscle_groups: [],
+            };
+          }),
+        },
+      };
+
+      const created = await trainingPlanApi.createDraft(draftPayload);
+      const planId = String(created.data?.plan?.id || '');
+      const versionId = String(created.data?.version?.id || '');
+      if (!planId || !versionId) throw new Error('The server did not return a saved draft version.');
+
+      setDraftPlan({
+        planId,
+        versionId,
+        sessionRequestId: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`,
+        name: title,
+        workoutType,
+        estimatedMinutes,
+        muscleGroups,
+        approved: false,
+      });
+      setExercises(nextExercises);
+      setActiveIdx(0);
+      setPlanPreviewVisible(true);
+    } catch (error: any) {
+      Alert.alert('Could not prepare workout', error?.response?.data?.detail || 'Could not save the workout draft. Check your connection and try again.');
     } finally {
       setIsBuildingPlan(false);
     }
+  };
+
+  const approveDraftAndStart = async () => {
+    if (!draftPlan || isApprovingPlan || exercises.length === 0) return;
+    setIsApprovingPlan(true);
+    try {
+      let approvedDraft = draftPlan;
+      if (!approvedDraft.approved) {
+        // A request may have reached the server even when the client timed out.
+        // Check the active version before trying to edit/approve the same draft.
+        let alreadyActive = false;
+        try {
+          const current = await trainingPlanApi.getActive();
+          const activeVersionId = current.data?.version?.id || current.data?.plan?.current_version_id;
+          alreadyActive = activeVersionId === approvedDraft.versionId;
+        } catch {
+          // The normal update/approve path below will surface a useful error.
+        }
+
+        if (!alreadyActive) {
+          const payload = buildDraftPayload(exercises, approvedDraft);
+          await trainingPlanApi.updateDraft(approvedDraft.planId, approvedDraft.versionId, payload);
+          try {
+            await trainingPlanApi.approveVersion(approvedDraft.planId, approvedDraft.versionId);
+          } catch (approvalError) {
+            // Approval can commit while its HTTP response is lost. Verify the
+            // current version before treating that as a failed approval.
+            const current = await trainingPlanApi.getActive();
+            const activeVersionId = current.data?.version?.id || current.data?.plan?.current_version_id;
+            if (activeVersionId !== approvedDraft.versionId) throw approvalError;
+          }
+        }
+        approvedDraft = { ...approvedDraft, approved: true };
+        setDraftPlan(approvedDraft);
+      }
+
+      const now = new Date();
+      const localSessionDate = [
+        now.getFullYear(),
+        String(now.getMonth() + 1).padStart(2, '0'),
+        String(now.getDate()).padStart(2, '0'),
+      ].join('-');
+      // client_request_id is stable for this preview. A network retry returns
+      // the already-created session instead of opening a duplicate workout.
+      const created = await workoutApi.createSession({
+        plan_id: approvedDraft.planId,
+        plan_version_id: approvedDraft.versionId,
+        client_request_id: approvedDraft.sessionRequestId,
+        session_date: localSessionDate,
+      });
+      const serverSession = created.data;
+      const startedAtValue = serverSession?.started_at || serverSession?.created_at;
+      const startedAtMs = startedAtValue ? new Date(startedAtValue).getTime() : Date.now();
+      setActiveSession({
+        ...serverSession,
+        logs: [],
+        startedAt: Number.isFinite(startedAtMs) ? startedAtMs : Date.now(),
+      });
+      setActiveIdx(0);
+      setIsSessionPaused(false);
+      setRestStartedAt(null);
+      setPlanPreviewVisible(false);
+      setDraftPlan(null);
+    } catch (error: any) {
+      Alert.alert('Could not start workout', error?.response?.data?.detail || 'Your plan is safe. Check your connection and retry; VYRN will reuse the same session request.');
+    } finally {
+      setIsApprovingPlan(false);
+    }
+  };
+
+  const cancelPlanPreview = async () => {
+    if (draftPlan && !draftPlan.approved) {
+      trainingPlanApi.rejectVersion(draftPlan.planId, draftPlan.versionId).catch(() => undefined);
+    }
+    setPlanPreviewVisible(false);
+    setDraftPlan(null);
+    setExercises([]);
   };
 
   const logSetMutation = useLogSet();
@@ -492,7 +709,7 @@ function WorkoutHUD() {
   // callback passed here surfaces the alert — the failure path is a beat
   // later, not the success path.
   const logSet = () => {
-    if (!activeSession) return;
+    if (!activeSession || isSessionPaused) return;
     // Guards against a fast double-tap firing two requests before the store
     // updates — without this, both calls read the same currentSetNum and
     // both succeed, logging two sets with an identical set_number and
@@ -520,15 +737,7 @@ function WorkoutHUD() {
     }
 
     const setNum = currentSetNum;
-    const clientRequestId = `workout-set:${activeSession.id}:${activeIdx}:${setNum}`;
-    const logData = {
-      exercise_name: name,
-      set_number: setNum,
-      weight_kg: w,
-      reps: r,
-      rpe,
-      client_request_id: clientRequestId,
-    };
+    const logData = { exercise_name: name, set_number: setNum, weight_kg: w, reps: r, rpe };
 
     // Brief re-entrancy guard only — cleared on the next tick rather than
     // held until the network settles, since there's no longer anything
@@ -536,19 +745,22 @@ function WorkoutHUD() {
     setIsLogging(true);
     setTimeout(() => setIsLogging(false), 250);
 
-    logSetMutation.mutate(
-      { sessionId: activeSession.id, ...logData },
-      {
-        onError: () => {
-          setExercises((previous) => previous.map((exercise, index) =>
-            index === activeIdx
-              ? { ...exercise, completed_sets: Math.max(0, exercise.completed_sets - 1) }
-              : exercise
-          ));
-          Alert.alert('Error', 'Could not log set. It has been removed from your session.');
-        },
-      }
-    );
+    const write = logSetMutation.mutateAsync({
+      sessionId: activeSession.id,
+      ...logData,
+      client_request_id: `${activeSession.id}:${String(logData.exercise_name).toLowerCase()}:${logData.set_number}`,
+    });
+    pendingSetWrites.current.add(write);
+    void write.catch(() => {
+      setExercises((previous) => previous.map((exercise, index) =>
+        index === activeIdx
+          ? { ...exercise, completed_sets: Math.max(0, exercise.completed_sets - 1) }
+          : exercise
+      ));
+      Alert.alert('Set not saved', 'The set could not be saved. Please retry when your connection is stable.');
+    }).finally(() => {
+      pendingSetWrites.current.delete(write);
+    });
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -580,6 +792,43 @@ function WorkoutHUD() {
     }
   };
 
+  const toggleSessionPause = async () => {
+    if (!activeSession || isFinishing) return;
+    try {
+      const action = isSessionPaused ? 'resume' : 'pause';
+      const response = await workoutApi.transitionSession(activeSession.id, action);
+      const next = response.data;
+      setActiveSession({ ...activeSession, ...next });
+      setIsSessionPaused(next.status === 'paused');
+      if (next.status === 'paused') setRestStartedAt(null);
+    } catch (error: any) {
+      Alert.alert('Workout not updated', error?.response?.data?.detail || 'Could not change the workout state. Your saved sets are still available.');
+    }
+  };
+
+  const abandonSession = async () => {
+    if (!activeSession || isFinishing) return;
+    const confirmed = await confirmAsync(
+      'Abandon this workout?',
+      'The session will be marked abandoned. Your already-saved set history will be retained.',
+      'Abandon',
+      'Keep training'
+    );
+    if (!confirmed) return;
+    try {
+      await workoutApi.transitionSession(activeSession.id, 'abandon');
+      setActiveSession(null);
+      setExercises([]);
+      setActiveIdx(0);
+      setIsSessionPaused(false);
+      setRestStartedAt(null);
+      setWeight('');
+      setReps('');
+    } catch (error: any) {
+      Alert.alert('Could not abandon workout', error?.response?.data?.detail || 'Try again. The session has not been changed.');
+    }
+  };
+
   // Extracted so a failed completion can be retried directly — without this,
   // a network blip meant the only way to retry was dismissing the alert and
   // going back through the destructive "Finish Workout?" confirm again.
@@ -594,23 +843,19 @@ function WorkoutHUD() {
   // this were redefined on workout state changes, the memo on those three would
   // silently defeated the entire time a workout is active, which is
   // exactly when it matters most.
-  const completeAndShowSummary = useCallback(async (moodOverride?: MoodValue) => {
+  const completeAndShowSummary = useCallback(async (feedback?: WorkoutFeedback) => {
     if (!activeSession || isFinishing) return;
     setIsFinishing(true);
-    // moodOverride avoids a stale-closure read of `pendingMood` right after
-    // setPendingMood() — state updates aren't synchronous, so the caller
-    // passes the freshly-picked value directly instead of relying on it
-    // having already landed in state by the time this runs.
-    const moodToSend = moodOverride ?? pendingMood;
     try {
       const res = await completeSessionMutation.mutateAsync({
         sessionId: activeSession.id,
-        feedback: { mood: moodToSend },
+        feedback,
       });
       const summary = res.data;
       setActiveSession(null);
       setExercises([]);
       setActiveIdx(0);
+      setIsSessionPaused(false);
       setRestStartedAt(null);
       setSummaryData(summary || {
         total_volume_kg: Math.round(totalVolume),
@@ -620,47 +865,52 @@ function WorkoutHUD() {
         best_set: null,
         session_minutes: Math.round((Date.now() - (activeSession.startedAt || Date.now())) / 60000),
       });
-      // Queue a milestone card (if this session hit a streak milestone) to
-      // show right after the summary card is dismissed, so the two
-      // celebrations don't compete for attention at once.
       setStreakData(computeMilestone(summary));
       setSummaryVisible(true);
     } catch {
-      // Local session state is left untouched here on purpose — the sets
-      // already logged during the session live server-side (each logSet
-      // call already persisted), so nothing is lost and Retry can safely
-      // call the same idempotent endpoint again.
-      // BUG FIX: same web/Alert.alert button-array issue as finishWorkout()
-      // above — use confirmAsync so Retry actually fires on web.
       const retry = await confirmAsync(
         'Error',
         'Could not complete session. Check your connection and try again.',
         'Retry',
         'Cancel'
       );
-      if (retry) await completeAndShowSummary(moodToSend);
+      if (retry) await completeAndShowSummary(feedback);
     } finally {
       setIsFinishing(false);
     }
-  }, [activeSession, isFinishing, pendingMood, totalVolume, totalSets, completeSessionMutation.mutateAsync]);
+  }, [activeSession, isFinishing, totalVolume, totalSets, completeSessionMutation.mutateAsync]);
 
   const finishWorkout = async () => {
-    if (!activeSession) return;
-    // BUG FIX: this used to call Alert.alert(title, message, [buttons]) directly.
-    // react-native-web renders NOTHING for the multi-button form and never
-    // fires onPress, so on web (this build) tapping "Finish Workout" looked
-    // like the button did nothing at all. confirmAsync() is the cross-platform
-    // helper built for exactly this (see utils/confirm.ts) — use it here too.
+    if (!activeSession || isFinishing) return;
     const ok = await confirmAsync(
       'Finish Workout?',
       'This will end your session and save all sets.',
       'Finish',
       'Cancel'
     );
-    // One optional tap before the summary — see MoodPickerModal for why
-    // this is the moment it's asked, and why it's skippable.
-    if (ok) setMoodPickerVisible(true);
+    if (!ok) return;
+
+    // Do not close the session while an optimistic set write is unresolved.
+    setIsFinishing(true);
+    try {
+      while (pendingSetWrites.current.size > 0) {
+        await Promise.allSettled(Array.from(pendingSetWrites.current));
+      }
+      setMoodPickerVisible(true);
+    } finally {
+      setIsFinishing(false);
+    }
   };
+
+  const handleFeedbackSelect = useCallback((feedback: WorkoutFeedback) => {
+    setMoodPickerVisible(false);
+    void completeAndShowSummary(feedback);
+  }, [completeAndShowSummary]);
+
+  const handleFeedbackSkip = useCallback(() => {
+    setMoodPickerVisible(false);
+    void completeAndShowSummary(undefined);
+  }, [completeAndShowSummary]);
 
   // Group logs by exercise for display. This screen re-renders every
   // second (live workout clock) — groupedLogs() was previously a plain
@@ -687,18 +937,6 @@ function WorkoutHUD() {
   // "no session" and "session started" renders (React's "Rendered more
   // hooks than during the previous render" error, thrown the instant
   // startSession() flips sessionStarted from false to true).
-  const handleMoodSelect = useCallback((mood: MoodValue) => {
-    setPendingMood(mood);
-    setMoodPickerVisible(false);
-    completeAndShowSummary(mood);
-  }, [completeAndShowSummary]);
-
-  const handleMoodSkip = useCallback(() => {
-    setPendingMood(undefined);
-    setMoodPickerVisible(false);
-    completeAndShowSummary(undefined);
-  }, [completeAndShowSummary]);
-
   const handleSummaryClose = useCallback(() => {
     setSummaryVisible(false);
     if (streakData) setTimeout(() => setStreakVisible(true), 300);
@@ -715,6 +953,17 @@ function WorkoutHUD() {
         keyboardVerticalOffset={0}
       >
         <AmbientGlow variant="workout" />
+        <WorkoutPlanPreview
+          visible={planPreviewVisible}
+          title={draftPlan?.name || 'Workout plan'}
+          workoutType={draftPlan?.workoutType || recommendedWorkout || 'full_body'}
+          estimatedMinutes={draftPlan?.estimatedMinutes}
+          exercises={exercises}
+          onChange={(next) => setExercises(next)}
+          onApprove={approveDraftAndStart}
+          onCancel={cancelPlanPreview}
+          saving={isApprovingPlan}
+        />
         <WorkoutSummaryCard
           visible={summaryVisible}
           data={summaryData}
@@ -761,18 +1010,18 @@ function WorkoutHUD() {
           </View>
           <View style={S.trainActions}>
             <Text style={S.actionSectionLabel}>CHOOSE HOW TO START</Text>
-            <PressableScale style={S.startBtn} onPress={startSession} disabled={isRestoringSession || isBuildingPlan} accessibilityRole="button" accessibilityLabel="Start a workout without a prepared plan">
+            <PressableScale style={S.startBtn} onPress={askCoachForWorkout} disabled={isRestoringSession || isBuildingPlan || isApprovingPlan} accessibilityRole="button" accessibilityLabel="Review today's workout before starting">
               <View style={S.actionCopy}>
-                <Text style={S.startBtnText}>{isRestoringSession ? 'Checking saved session…' : 'Start a workout'}</Text>
-                <Text style={S.actionHelper}>Begin now and add exercises as you go</Text>
+                <Text style={S.startBtnText}>{isRestoringSession ? 'Checking saved session…' : isBuildingPlan ? 'Preparing your plan…' : 'Review today’s workout'}</Text>
+                <Text style={S.actionHelper}>See, edit and approve the exercise plan before training</Text>
               </View>
-              <Ionicons name="arrow-forward" size={18} color={COLORS.background} />
+              {isBuildingPlan ? <ActivityIndicator size="small" color={COLORS.background} /> : <Ionicons name="arrow-forward" size={18} color={COLORS.background} />}
             </PressableScale>
-            <PressableScale style={S.coachBtn} onPress={askCoachForWorkout} disabled={isRestoringSession || isBuildingPlan} accessibilityRole="button" accessibilityLabel="Build today's training plan with Coach">
-              {isBuildingPlan ? <ActivityIndicator size="small" color={COLORS.coachPurple} /> : <Ionicons name="sparkles-outline" size={19} color={COLORS.coachPurple} />}
+            <PressableScale style={S.coachBtn} onPress={() => router.push('/(tabs)/coach')} disabled={isRestoringSession || isBuildingPlan} accessibilityRole="button" accessibilityLabel="Open Coach to personalize the workout">
+              <Ionicons name="chatbubble-ellipses-outline" size={19} color={COLORS.coachPurple} />
               <View style={S.actionCopy}>
-                <Text style={S.coachBtnText}>{isBuildingPlan ? 'Building your plan…' : 'Build a plan with Coach'}</Text>
-                <Text style={S.coachHelper}>Get exercises, sets, reps and training cues</Text>
+                <Text style={S.coachBtnText}>Customize with Coach</Text>
+                <Text style={S.coachHelper}>Discuss your goals, constraints or exercise choices</Text>
               </View>
               <Ionicons name="arrow-forward" size={16} color={COLORS.textMuted} />
             </PressableScale>
@@ -798,8 +1047,8 @@ function WorkoutHUD() {
       <AmbientGlow variant="workout" />
       <MoodPickerModal
         visible={moodPickerVisible}
-        onSelect={handleMoodSelect}
-        onSkip={handleMoodSkip}
+        onSelect={handleFeedbackSelect}
+        onSkip={handleFeedbackSkip}
       />
       <WorkoutSummaryCard
         visible={summaryVisible}
@@ -833,6 +1082,9 @@ function WorkoutHUD() {
         startedAt={Number(activeSession?.startedAt) || Date.now()}
         totalVolume={Math.round(totalVolume)}
         setCount={totalSets}
+        paused={isSessionPaused}
+        pausedAt={activeSession?.paused_at || null}
+        pausedDurationSeconds={Number(activeSession?.paused_duration_seconds || 0)}
       />
 
       {/* Exercise plan tabs */}
@@ -940,7 +1192,7 @@ function WorkoutHUD() {
             <Text style={S.inputUnit}>reps</Text>
           </View>
         </View>
-        <Text style={S.inputHint}>Use 0 kg for bodyweight exercises.</Text>
+        <Text style={S.inputHint}>{isSessionPaused ? 'This workout is paused. Resume to log another set.' : 'Use 0 kg for bodyweight exercises.'}</Text>
 
         {/* Previous set ghost */}
         <PrevSetGhost log={prevSet} />
@@ -971,15 +1223,15 @@ function WorkoutHUD() {
         </View>
 
         <PressableScale
-          style={[S.logBtn, isLogging && S.logBtnDisabled]}
+          style={[S.logBtn, (isLogging || isSessionPaused) && S.logBtnDisabled]}
           onPress={logSet}
-          disabled={isLogging}
+          disabled={isLogging || isSessionPaused}
           accessibilityRole="button"
           accessibilityLabel="Log set and start rest timer"
           accessibilityState={{ disabled: isLogging }}
         >
           <Ionicons name="add-circle-outline" size={16} color={COLORS.background} />
-          <Text style={S.logBtnText}>{isLogging ? 'LOGGING…' : 'LOG SET + START REST'}</Text>
+          <Text style={S.logBtnText}>{isSessionPaused ? 'RESUME TO LOG SETS' : isLogging ? 'LOGGING…' : 'LOG SET + START REST'}</Text>
         </PressableScale>
       </View></Reveal>
 
@@ -1009,17 +1261,45 @@ function WorkoutHUD() {
         <View style={{ height: 16 }} />
       </ScrollView></Reveal>
 
-      <PressableScale
-        style={[S.finishBtn, isFinishing && S.logBtnDisabled]}
-        onPress={finishWorkout}
-        disabled={isFinishing}
-        accessibilityRole="button"
-        accessibilityLabel="Finish workout and save session"
-        accessibilityState={{ disabled: isFinishing }}
-      >
-        <Ionicons name="checkmark-circle-outline" size={18} color={COLORS.primaryGreen} />
-        <Text style={S.finishBtnText}>{isFinishing ? 'SAVING…' : 'FINISH WORKOUT'}</Text>
-      </PressableScale>
+      {isSessionPaused && (
+        <View style={S.pausedBanner}>
+          <Ionicons name="pause-circle-outline" size={16} color={COLORS.recoveryMed} />
+          <Text style={S.pausedBannerText}>Workout paused. Resume when you are ready to continue.</Text>
+        </View>
+      )}
+      <View style={S.sessionActions}>
+        <PressableScale
+          style={S.pauseBtn}
+          onPress={toggleSessionPause}
+          disabled={isFinishing}
+          accessibilityRole="button"
+          accessibilityLabel={isSessionPaused ? 'Resume workout' : 'Pause workout'}
+        >
+          <Ionicons name={isSessionPaused ? 'play-outline' : 'pause-outline'} size={16} color={COLORS.text} />
+          <Text style={S.pauseBtnText}>{isSessionPaused ? 'RESUME' : 'PAUSE'}</Text>
+        </PressableScale>
+        <PressableScale
+          style={S.abandonBtn}
+          onPress={abandonSession}
+          disabled={isFinishing}
+          accessibilityRole="button"
+          accessibilityLabel="Abandon workout"
+        >
+          <Ionicons name="exit-outline" size={16} color={COLORS.recoveryLow} />
+          <Text style={S.abandonBtnText}>ABANDON</Text>
+        </PressableScale>
+        <PressableScale
+          style={[S.finishBtn, { flex: 1.8 }, isFinishing && S.logBtnDisabled]}
+          onPress={finishWorkout}
+          disabled={isFinishing}
+          accessibilityRole="button"
+          accessibilityLabel="Finish workout and save session"
+          accessibilityState={{ disabled: isFinishing }}
+        >
+          <Ionicons name="checkmark-circle-outline" size={18} color={COLORS.primaryGreen} />
+          <Text style={S.finishBtnText}>{isFinishing ? 'SAVING…' : 'FINISH'}</Text>
+        </PressableScale>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -1218,6 +1498,13 @@ const S = StyleSheet.create({
   // Secondary/closing action — kept visually quieter than the green Log
   // Set CTA above (tinted, not solid) since it ends the session rather
   // than driving it.
+  sessionActions: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingHorizontal: SPACING.lg, paddingTop: SPACING.sm },
+  pauseBtn: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: RADIUS.button, borderWidth: 1, borderColor: COLORS.borderLight, backgroundColor: COLORS.card },
+  pauseBtnText: { color: COLORS.text, fontFamily: FONTS.bold, fontSize: 9, letterSpacing: 0.5 },
+  abandonBtn: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderRadius: RADIUS.button, borderWidth: 1, borderColor: alpha(COLORS.recoveryLow, 0.35), backgroundColor: COLORS.card },
+  abandonBtnText: { color: COLORS.recoveryLow, fontFamily: FONTS.bold, fontSize: 9, letterSpacing: 0.4 },
+  pausedBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: SPACING.lg, marginTop: SPACING.sm, padding: SPACING.sm, borderRadius: RADIUS.button, backgroundColor: alpha(COLORS.recoveryMed, 0.1), borderWidth: 1, borderColor: alpha(COLORS.recoveryMed, 0.25) },
+  pausedBannerText: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 10, flex: 1 },
   finishBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
                    gap: SPACING.sm, margin: SPACING.md, backgroundColor: alpha(COLORS.primaryGreen, 0.08), borderRadius: RADIUS.button,
                    paddingVertical: SPACING.lg, borderWidth: 1, borderColor: alpha(COLORS.primaryGreen, 0.25) },

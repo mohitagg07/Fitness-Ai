@@ -185,6 +185,23 @@ export const coachApi = {
 export const workoutApi = {
   createSession: (data: any) => api.post('/workouts/sessions', data),
   getSessions: (limit = 10) => api.get(`/workouts/sessions?limit=${limit}`),
+  getSessionExerciseEvents: (id: string) => api.get(`/workouts/sessions/${id}/exercise-events`),
+  getExerciseDetails: (exercise: string) => api.get('/workouts/exercise-details', { params: { exercise } }),
+  getExercisePerformance: (exercise: string, targetReps = '8-12', targetLoadKg?: number) =>
+    api.get('/workouts/exercise-performance', {
+      params: {
+        exercise,
+        target_reps: targetReps,
+        ...(targetLoadKg !== undefined ? { target_load_kg: targetLoadKg } : {}),
+      },
+    }),
+  recordExerciseEvent: (id: string, data: {
+    action: 'skip' | 'replace';
+    exercise_name: string;
+    replacement_exercise?: string;
+    client_request_id: string;
+    reason?: string;
+  }) => api.post(`/workouts/sessions/${id}/exercise-events`, data),
   completeSession: (id: string, feedback?: {
     cns_fatigue_after?: number;
     session_notes?: string;
@@ -193,19 +210,39 @@ export const workoutApi = {
     energy_level?: number;
     pain_status?: 'none' | 'mild' | 'sharp' | 'worsening';
     pain_notes?: string;
-  }) => api.patch(`/workouts/sessions/${id}/complete`, feedback || {}),
+  } | number, legacyMood?: string) => {
+    const body = typeof feedback === 'number'
+      ? { cns_fatigue_after: feedback, ...(legacyMood ? { mood: legacyMood } : {}) }
+      : (feedback || {});
+    return api.patch(`/workouts/sessions/${id}/complete`, body);
+  },
+  transitionSession: (id: string, action: 'pause' | 'resume' | 'abandon') =>
+    api.patch(`/workouts/sessions/${id}/state`, { action }),
   logSet: (sessionId: string, data: any) =>
     api.post(`/workouts/sessions/${sessionId}/logs`, data),
   getSessionLogs: (sessionId: string) =>
     api.get(`/workouts/sessions/${sessionId}/logs`),
-  // Returns weekly best weight for a given exercise (last N weeks)
   getStrengthProgression: (exercise: string, weeks = 8) =>
     api.get('/workouts/strength-progression', { params: { exercise, weeks } }),
-  // Completed-session history list (date, volume, exercise count) + detail
   getHistory: (limit = 20, offset = 0) =>
     api.get('/workouts/history', { params: { limit, offset } }),
   getSessionDetail: (sessionId: string) =>
     api.get(`/workouts/sessions/${sessionId}/detail`),
+};
+
+export const trainingPlanApi = {
+  getActive: () => api.get('/training-plans/active'),
+  getVersions: (planId: string, limit = 20) =>
+    api.get(`/training-plans/${planId}/versions`, { params: { limit } }),
+  createDraft: (data: any) => api.post('/training-plans/drafts', data),
+  updateDraft: (planId: string, versionId: string, data: any) =>
+    api.patch(`/training-plans/${planId}/versions/${versionId}`, data),
+  approveVersion: (planId: string, versionId: string) =>
+    api.post(`/training-plans/${planId}/versions/${versionId}/approve`),
+  rejectVersion: (planId: string, versionId: string) =>
+    api.post(`/training-plans/${planId}/versions/${versionId}/reject`),
+  rollbackVersion: (planId: string, versionId: string) =>
+    api.post(`/training-plans/${planId}/versions/${versionId}/rollback`),
 };
 
 export const progressApi = {

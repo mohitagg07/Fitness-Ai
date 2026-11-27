@@ -62,6 +62,31 @@ interface SummaryData {
   recovery_pct?: number | null;
   recovery_prediction?: string | null;
   coach_message?: string | null;
+  planned_vs_actual?: {
+    has_plan: boolean;
+    planned_exercises: number;
+    exercises_with_logged_sets: number;
+    skipped_exercises: number;
+    replaced_exercises?: number;
+    not_started_exercises?: number;
+    planned_working_sets: number;
+    completed_working_sets: number;
+    set_completion_ratio: number | null;
+    exercises: Array<{
+      name: string;
+      current_name?: string;
+      planned_sets: number;
+      logged_working_sets: number;
+      completed: boolean;
+      status?: 'completed' | 'skipped' | 'replaced' | 'replacement_not_logged' | 'not_started';
+      reason?: string | null;
+    }>;
+  };
+  session_effort?: number | null;
+  energy_level?: number | null;
+  pain_status?: 'none' | 'mild' | 'sharp' | 'worsening' | null;
+  pain_notes?: string | null;
+  calories_is_estimate?: boolean;
 }
 
 interface Props {
@@ -257,6 +282,92 @@ function WorkoutSummaryCard({ visible, data, onClose }: Props) {
             </Reveal>
           )}
 
+          {data.planned_vs_actual?.has_plan && (
+            <Reveal mount={mount} delay={0.22} style={styles.planReview}>
+              <>
+                <View style={styles.reviewHeading}>
+                  <Text variant="caption" weight="bold" color={COLORS.textDim} style={{ letterSpacing: 1.1 }}>PLAN VS COMPLETED</Text>
+                  <Text variant="caption" weight="semibold" color={COLORS.primaryGreen}>
+                    {data.planned_vs_actual.exercises_with_logged_sets}/{data.planned_vs_actual.planned_exercises} exercises
+                  </Text>
+                </View>
+                <View style={styles.reviewStats}>
+                  <View style={styles.reviewStat}>
+                    <Text variant="body" weight="bold" numeric color={COLORS.text}>
+                      {data.planned_vs_actual.completed_working_sets}/{data.planned_vs_actual.planned_working_sets}
+                    </Text>
+                    <Text variant="caption" color={COLORS.textMuted}>Working sets</Text>
+                  </View>
+                  <View style={styles.reviewStat}>
+                    <Text variant="body" weight="bold" numeric color={COLORS.text}>
+                      {data.planned_vs_actual.skipped_exercises}
+                    </Text>
+                    <Text variant="caption" color={COLORS.textMuted}>Exercises skipped</Text>
+                  </View>
+                  {!!data.planned_vs_actual.replaced_exercises && (
+                    <View style={styles.reviewStat}>
+                      <Text variant="body" weight="bold" numeric color={COLORS.text}>
+                        {data.planned_vs_actual.replaced_exercises}
+                      </Text>
+                      <Text variant="caption" color={COLORS.textMuted}>Exercises replaced</Text>
+                    </View>
+                  )}
+                </View>
+                {data.planned_vs_actual.exercises.filter((exercise) => exercise.status && exercise.status !== 'completed').map((exercise, index) => {
+                  const wasSkipped = exercise.status === 'skipped';
+                  const wasReplaced = exercise.status === 'replaced' || exercise.status === 'replacement_not_logged';
+                  const statusLabel = wasSkipped
+                    ? 'Skipped'
+                    : exercise.status === 'replaced'
+                      ? 'Replaced'
+                      : exercise.status === 'replacement_not_logged'
+                        ? 'Replacement not logged'
+                        : 'Not started';
+                  return (
+                    <View key={`${exercise.name}-${index}`} style={styles.skippedRow}>
+                      <Ionicons
+                        name={wasSkipped ? 'close-circle-outline' : wasReplaced ? 'swap-horizontal-outline' : 'remove-circle-outline'}
+                        size={13}
+                        color={wasSkipped ? COLORS.textMuted : wasReplaced ? COLORS.recoveryMed : COLORS.textDim}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text variant="caption" color={COLORS.textSecondary}>
+                          {exercise.name}{wasReplaced && exercise.current_name && exercise.current_name !== exercise.name ? ` → ${exercise.current_name}` : ''}
+                        </Text>
+                        {!!exercise.reason && (
+                          <Text variant="caption" color={COLORS.textMuted}>{exercise.reason}</Text>
+                        )}
+                      </View>
+                      <Text variant="caption" color={COLORS.textMuted}>{statusLabel}</Text>
+                    </View>
+                  );
+                })}
+              </>
+            </Reveal>
+          )}
+
+          {(data.session_effort != null || data.energy_level != null || (data.pain_status && data.pain_status !== 'none')) && (
+            <Reveal mount={mount} delay={0.25} style={styles.checkin}>
+              <Text variant="caption" weight="bold" color={COLORS.textDim} style={{ letterSpacing: 1.1 }}>YOUR CHECK-IN</Text>
+              <View style={styles.checkinRow}>
+                {data.session_effort != null && (
+                  <Text variant="caption" color={COLORS.textSecondary}>Effort {data.session_effort}/10</Text>
+                )}
+                {data.energy_level != null && (
+                  <Text variant="caption" color={COLORS.textSecondary}>Energy {data.energy_level}/5</Text>
+                )}
+                {data.pain_status && data.pain_status !== 'none' && (
+                  <Text variant="caption" color={data.pain_status === 'sharp' || data.pain_status === 'worsening' ? COLORS.recoveryLow : COLORS.textSecondary}>
+                    Pain: {data.pain_status}
+                  </Text>
+                )}
+              </View>
+              {!!data.pain_notes && (
+                <Text variant="caption" color={COLORS.textMuted}>{data.pain_notes}</Text>
+              )}
+            </Reveal>
+          )}
+
           {/* Recovery tomorrow + Coach message */}
           <Reveal mount={mount} delay={0.26} style={styles.bottomRow}>
             <>
@@ -354,6 +465,16 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm, paddingHorizontal: SPACING.md,
   },
 
+  planReview: {
+    backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.card - 8, padding: SPACING.md,
+    marginBottom: SPACING.md, borderWidth: 1, borderColor: COLORS.cardBorder, gap: SPACING.sm,
+  },
+  reviewHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.sm },
+  reviewStats: { flexDirection: 'row', gap: SPACING.lg },
+  reviewStat: { flex: 1, gap: 2 },
+  skippedRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, paddingTop: 3 },
+  checkin: { backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.card - 8, padding: SPACING.md, marginBottom: SPACING.md, borderWidth: 1, borderColor: COLORS.cardBorder, gap: SPACING.xs },
+  checkinRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.md },
   bottomRow: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
     backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.card - 8, padding: SPACING.md,
