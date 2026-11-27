@@ -77,7 +77,7 @@ Rules:
         response = get_llm().invoke([HumanMessage(content=prompt)])
         content = response.content
         raw = (
-            "\\n".join(
+            "\n".join(
                 str(part.get("text", "")) if isinstance(part, dict) else str(part)
                 for part in content
             ).strip()
