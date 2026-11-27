@@ -5,6 +5,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
+import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
@@ -217,6 +218,7 @@ function StreaksRow({ metrics, nutrition }: { metrics: any[]; nutrition: any[] }
 export default function ProgressScreen() {
   const responsive = useResponsiveLayout();
   const insets = useSafeAreaInsets();
+  const routeParams = useLocalSearchParams<{ tab?: string }>();
   const queryClient = useQueryClient();
   const [metrics, setMetrics] = useState<any[]>([]);
   const [nutrition, setNutrition] = useState<any[]>([]);
@@ -227,12 +229,16 @@ export default function ProgressScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [weightInput, setWeightInput] = useState('');
   const [recoveryInput, setRecoveryInput] = useState('');
-  const [activeTab, setActiveTab] = useState<Tab>('body');
+  const [activeTab, setActiveTab] = useState<Tab>(routeParams.tab === 'nutrition' ? 'nutrition' : 'body');
   const [activeAnalyticsChart, setActiveAnalyticsChart] = useState<AnalyticsChartTab>('heatmap');
   const [analyticsHeatmapRange, setAnalyticsHeatmapRange] = useState<AnalyticsRangeOption>(8);
   const [analyticsBalanceRange, setAnalyticsBalanceRange] = useState<AnalyticsRangeOption>(4);
   const [logFoodVisible, setLogFoodVisible] = useState(false);
   const tabBarRef = useRef<ScrollView | null>(null);
+
+  useEffect(() => {
+    if (routeParams.tab === 'nutrition') setActiveTab('nutrition');
+  }, [routeParams.tab]);
 
   const loadData = useCallback(async () => {
     setErrorMsg(null);
