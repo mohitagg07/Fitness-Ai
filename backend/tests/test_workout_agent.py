@@ -31,7 +31,7 @@ def test_missed_yesterday_does_not_replace_today_scheduled_workout(monkeypatch):
 
     assert decision.recommended_type == "pull"
     assert decision.rescheduled is False
-    assert "today's scheduled Pull remains unchanged" in decision.message
+    assert "today's scheduled pull remains unchanged" in decision.message.lower()
     assert "has not been rescheduled" in decision.message
 
 

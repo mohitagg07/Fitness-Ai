@@ -75,6 +75,8 @@ def _pick_ai_decision(workout_decision, recovery_decision, nutrition_decision) -
     Single most important AI decision for the card — gym exercise, nutrition
     action, or rest directive. Priority: recovery override > workout > nutrition.
     """
+    if recovery_decision.action == "check_in":
+        return "Recovery check-in needed — no readiness score is available yet"
     if recovery_decision.action == "rest":
         return "Full rest day — no training today"
     if recovery_decision.action == "replace_with_light":
@@ -100,6 +102,8 @@ def _pick_next_action(
     """
     preferred_time = profile.get("workout_time_preference") or "today"
 
+    if recovery_decision.action == "check_in":
+        return "Log recovery details; keep the approved workout plan conservative and unchanged"
     if recovery_decision.action == "rest":
         return "Sleep 8h tonight to restore recovery score"
     if workout_decision.rescheduled:
@@ -124,7 +128,9 @@ def _build_alerts(
     """
     alerts: list[str] = []
 
-    if recovery_decision.action in ("rest", "replace_with_light"):
+    if recovery_decision.action == "check_in":
+        alerts.append("Recovery information is incomplete — keep the approved plan unchanged")
+    elif recovery_decision.action in ("rest", "replace_with_light"):
         alerts.append(f"⚠️ Recovery low ({recovery_decision.recovery_score}/10) — modify or skip training")
 
     if progress_decision.stalled:
@@ -153,10 +159,27 @@ async def get_today_mission(
     goal_str = profile.get("goal") or "maintain"
     goal = Goal(goal_str) if goal_str in Goal._value2member_map_ else Goal.maintain
 
-    weight_kg = profile.get("weight_kg") or 75
-    height_cm = profile.get("height_cm") or 175
-    age       = profile.get("age") or 28
-    gender    = profile.get("gender") or "male"
+    measured_weight_kg = profile.get("weight_kg")
+    measured_height_cm = profile.get("height_cm")
+    measured_age = profile.get("age")
+    measured_gender = profile.get("gender")
+    weight_kg = measured_weight_kg if measured_weight_kg is not None else 75
+    height_cm = measured_height_cm if measured_height_cm is not None else 175
+    age = measured_age if measured_age is not None else 28
+    gender = measured_gender or "male"
+    missing_measurements = [
+        key for key, value in (
+            ("weight_kg", measured_weight_kg), ("height_cm", measured_height_cm),
+            ("age", measured_age), ("gender", measured_gender),
+        ) if value is None
+    ]
+    nutrition_inputs_complete = not missing_measurements
+    measurement_sources = {
+        "weight_kg": "profile" if measured_weight_kg is not None else "estimated_default",
+        "height_cm": "profile" if measured_height_cm is not None else "estimated_default",
+        "age": "profile" if measured_age is not None else "estimated_default",
+        "gender": "profile" if measured_gender is not None else "estimated_default",
+    }
     food_pref = profile.get("food_preference") or "non-veg"
     coach_style = profile.get("coach_style") or "friendly"
 
@@ -193,6 +216,8 @@ async def get_today_mission(
         user_id,
         sleep_hours=profile.get("sleep_hours"),
         planned_workout_type=workout_decision.recommended_type,
+        protein_target_g=targets["protein_g"] if nutrition_inputs_complete else None,
+        calorie_target=targets["calories"] if nutrition_inputs_complete else None,
     )
 
     # ── Pattern Detection Engine + Proactive AI Brain ────────────────────────
@@ -239,7 +264,9 @@ async def get_today_mission(
 
     # ── Determine intensity label ─────────────────────────────────────────────
     wtype = (workout_decision.recommended_type or "rest").lower()
-    if recovery_decision.action == "rest":
+    if recovery_decision.action == "check_in":
+        intensity = "Check-in"
+    elif recovery_decision.action == "rest":
         intensity = "Rest"
     elif recovery_decision.action == "replace_with_light" or wtype in ("rest",):
         intensity = "Low"
@@ -278,6 +305,10 @@ async def get_today_mission(
         "greeting":      f"Ready to train, {full_name}?",
         "generated_at":  datetime.utcnow().isoformat(),
         "user_id":       user_id,
+        "measurement_sources": measurement_sources,
+        "missing_measurements": missing_measurements,
+        "nutrition_target_source": "profile" if nutrition_inputs_complete else "estimated_defaults",
+        "nutrition_target_confidence": "personalized" if nutrition_inputs_complete else "estimated",
 
         # ── Dashboard-compatible fields (DashboardSummary type expects these) ─
         # DashboardScreen tries mission/today first; it must return the same
@@ -301,10 +332,13 @@ async def get_today_mission(
         },
         # Nested recovery object — DashboardScreen reads .score / .action / .message
         "recovery": {
-            "score":     recovery_decision.recovery_score,  # legacy 0-10 scale
-            "score_pct": recovery_pct,                      # canonical 0-100 scale
-            "action":    recovery_decision.action,
-            "message":   recovery_decision.message,
+            "score": recovery_decision.recovery_score if recovery_pct is not None else None,
+            "score_pct": recovery_pct,
+            "action": recovery_decision.action,
+            "message": recovery_decision.message,
+            "data_completeness_pct": getattr(recovery_decision, "data_completeness_pct", 0),
+            "available_signals": getattr(recovery_decision, "available_signals", []),
+            "missing_signals": getattr(recovery_decision, "missing_signals", []),
         },
         "progress": {
             "stalled":            progress_decision.stalled,
@@ -322,7 +356,7 @@ async def get_today_mission(
         "protein_target":       targets["protein_g"],
         "workout_rescheduled":  workout_decision.rescheduled,
         "workout_message":      workout_decision.message,
-        "recovery_score":       recovery_decision.recovery_score,
+        "recovery_score":       recovery_decision.recovery_score if recovery_pct is not None else None,
         "recovery_action":      recovery_decision.action,
         "progress_stalled":     progress_decision.stalled,
 

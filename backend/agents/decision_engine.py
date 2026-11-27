@@ -110,10 +110,26 @@ def build_decision_center(
     goal = Goal(profile.get("goal")) if profile.get("goal") in Goal._value2member_map_ else Goal.maintain
 
     workout_decision = run_workout_agent(user_id, preferred_time=profile.get("workout_time_preference"))
+    measurements_complete = all(
+        profile.get(key) is not None
+        for key in ("weight_kg", "height_cm", "age", "gender")
+    )
+    nutrition_targets = None
+    if measurements_complete:
+        nutrition_targets = calculate_macros(
+            weight_kg=profile["weight_kg"],
+            height_cm=profile["height_cm"],
+            age=profile["age"],
+            gender=profile["gender"],
+            goal=goal,
+            is_training_day=True,
+        )
     recovery_decision = run_recovery_agent(
         user_id,
         sleep_hours=profile.get("sleep_hours"),
         planned_workout_type=workout_decision.recommended_type,
+        protein_target_g=nutrition_targets["protein_g"] if nutrition_targets else None,
+        calorie_target=nutrition_targets["calories"] if nutrition_targets else None,
     )
     progress_decision = run_progress_agent(user_id, goal)
 
@@ -126,47 +142,45 @@ def build_decision_center(
         .eq("log_date", today)
         .execute()
     )
-    protein_today = sum(r.get("protein_g") or 0 for r in (nutrition_res.data or []))
+    nutrition_rows = nutrition_res.data or []
+    has_protein_log = bool(nutrition_rows) and any(
+        row.get("protein_g") is not None for row in nutrition_rows
+    )
+    protein_today = sum(r.get("protein_g") or 0 for r in nutrition_rows)
     # FIX: profile has no `protein_target_g` column — that was a fabricated
     # field name. The real target comes from calculate_macros(), the exact
     # same function dashboard.py's /summary endpoint already uses, so this
     # signal's "favorable" threshold lines up with what the Nutrition card
     # elsewhere in the app calls "on target."
-    macro_targets = calculate_macros(
-        weight_kg=profile.get("weight_kg") or 75,
-        height_cm=profile.get("height_cm") or 175,
-        age=profile.get("age") or 28,
-        gender=profile.get("gender") or "male",
-        goal=goal,
-        is_training_day=True,
-    )
-    protein_target = macro_targets["protein_g"]
+    protein_target = nutrition_targets["protein_g"] if nutrition_targets else None
 
     bench_trend = _recent_bench_style_trend(user_id)
     injury = _injury_status(user_id)
 
     # ── Build the evidence list — every entry traceable to a real value ──
+    recovery_pct = getattr(recovery_decision, "score_pct", None)
+    sleep_hours = profile.get("sleep_hours")
     signals: list[EvidenceSignal] = [
         EvidenceSignal(
             label="Recovery",
-            value=f"{recovery_decision.recovery_score * 10}%",
-            favorable=recovery_decision.recovery_score >= 7,
-            weight=1.5,  # recovery is the single biggest lever — weighted higher
+            value=f"{recovery_pct}%" if recovery_pct is not None else "Insufficient data",
+            favorable=recovery_pct is not None and recovery_pct >= 70,
+            weight=1.5 if recovery_pct is not None else 0.0,
         ),
         EvidenceSignal(
-            label="Sleep",
-            value=f"{profile.get('sleep_hours')}h" if profile.get("sleep_hours") is not None else "Not logged",
-            favorable=(profile.get("sleep_hours") or 0) >= 7,
-            weight=1.0,
+            label="Reported sleep",
+            value=f"{sleep_hours}h" if sleep_hours is not None else "Not reported",
+            favorable=sleep_hours is not None and sleep_hours >= 7,
+            weight=1.0 if sleep_hours is not None else 0.0,
         ),
         EvidenceSignal(
             label="Protein",
-            # Was "Not logged today" — inconsistent with Sleep's "Not
-            # logged" right next to it, and the extra word is what pushed
-            # this value past MetricChip's single-line width on mobile.
-            value=f"{round(protein_today)}g" if protein_today else "Not logged",
-            favorable=protein_today >= protein_target * 0.85,
-            weight=1.0,
+            value=f"{round(protein_today)}g" if has_protein_log else "Not logged",
+            favorable=(
+                has_protein_log and protein_target is not None
+                and protein_today >= protein_target * 0.85
+            ),
+            weight=1.0 if has_protein_log and protein_target is not None else 0.0,
         ),
     ]
 
@@ -178,17 +192,43 @@ def build_decision_center(
             favorable=bench_trend["delta_kg"] >= 0,
             weight=1.0,
         ))
+    else:
+        signals.append(EvidenceSignal(
+            label="Strength trend",
+            value="Insufficient history",
+            favorable=False,
+            weight=0.0,
+        ))
 
+    if injury:
+        signals.append(EvidenceSignal(
+            label=f"{injury['body_part']} Pain",
+            value=f"{injury['severity']}/10",
+            favorable=injury["severity"] < 4,
+            weight=1.25,
+        ))
+    else:
+        signals.append(EvidenceSignal(
+            label="Injury status",
+            value="No injury information on file",
+            favorable=False,
+            weight=0.0,
+        ))
+
+    # Require enough logged inputs before asserting a training recommendation.
+    max_evidence_weight = 1.5 + 1.0 + 1.0 + 1.0 + 1.25
+    available_weight = sum(signal.weight for signal in signals)
+    coverage_pct = round(available_weight / max_evidence_weight * 100)
     signals.append(EvidenceSignal(
-        label=f"{injury['body_part']} Pain" if injury else "Injury Status",
-        value=f"{injury['severity']}/10" if injury else "None",
-        favorable=not injury or injury["severity"] < 4,
-        weight=1.25,  # injury status can veto an otherwise-good day, weighted higher
+        label="Data coverage",
+        value=f"{coverage_pct}% of key inputs recorded",
+        favorable=coverage_pct >= 60,
+        weight=0.0,
     ))
 
-    # ── Decision: directly derived from recovery_decision.action, the
-    # same field that already drives the Recovery card elsewhere. ──────
-    if recovery_decision.action == "rest":
+    if coverage_pct < 60 or recovery_decision.action == "check_in":
+        decision = "Recovery check-in needed"
+    elif recovery_decision.action == "rest":
         decision = "Rest Day"
     elif recovery_decision.action == "replace_with_light":
         decision = "Light / Active Recovery"
@@ -200,33 +240,41 @@ def build_decision_center(
     # ── Confidence: weighted % of favorable signals. Pure arithmetic —
     # every input is one of the EvidenceSignal rows shown right above it.
     total_weight = sum(s.weight for s in signals)
-    favorable_weight = sum(s.weight for s in signals if s.favorable)
-    confidence_pct = round((favorable_weight / total_weight) * 100) if total_weight else 50
+    favorable_weight = sum(s.weight for s in signals if s.favorable and s.weight > 0)
+    confidence_pct = round((favorable_weight / total_weight) * 100) if total_weight else 0
 
     # ── Reasoning: short deterministic fallback always available; an LLM
     # paraphrase is attempted but never required for the card to work. ──
-    favorable_labels = [s.label for s in signals if s.favorable]
-    unfavorable_labels = [s.label for s in signals if not s.favorable]
-    if unfavorable_labels:
+    favorable_labels = [s.label for s in signals if s.weight > 0 and s.favorable]
+    unfavorable_labels = [s.label for s in signals if s.weight > 0 and not s.favorable]
+    if decision == "Recovery check-in needed":
         reasoning = (
-            f"{', '.join(favorable_labels) or 'Most signals'} support a {decision.lower()}, "
+            f"Only {coverage_pct}% of key inputs are recorded. I cannot make a reliable "
+            "readiness call yet. Keep the approved plan unchanged and add the missing "
+            "recovery information."
+        )
+    elif unfavorable_labels:
+        reasoning = (
+            f"{', '.join(favorable_labels) or 'The available signals'} support a {decision.lower()}, "
             f"though {', '.join(unfavorable_labels)} {'is' if len(unfavorable_labels)==1 else 'are'} worth watching."
         )
     else:
-        reasoning = f"All tracked signals — {', '.join(favorable_labels)} — support a {decision.lower()} today."
+        reasoning = f"All available tracked signals — {', '.join(favorable_labels)} — support a {decision.lower()} today."
 
     expected_outcome = None
-    if bench_trend and decision not in ("Rest Day",):
+    if bench_trend and decision not in ("Rest Day", "Recovery check-in needed"):
         expected_outcome = (
             f"Continued consistency at this recovery level historically supports steady "
             f"progress on {bench_trend['exercise_name']}."
         )
 
     alternative = None
-    if injury and injury["severity"] >= 4:
-        alternative = f"If {injury['body_part'].lower()} discomfort increases, switch to a machine or unilateral variation and notify your coach."
+    if decision == "Recovery check-in needed":
+        alternative = "Keep the approved workout prescription unchanged until enough recovery information is available."
+    elif injury and injury["severity"] >= 4:
+        alternative = f"If {injury['body_part'].lower()} discomfort increases, stop the provoking movement and review a safer alternative."
     elif recovery_decision.action != "rest":
-        alternative = "If fatigue or soreness spikes mid-session, cut volume by 30% rather than pushing through."
+        alternative = "If fatigue or soreness spikes mid-session, stop or reduce effort rather than pushing through pain."
 
     # ── Why not the alternatives: same rule, every reason traces back to a
     # signal already shown above — no LLM, matching this file's design
@@ -234,21 +282,21 @@ def build_decision_center(
     # are actually plausible given today's recovery/injury state, so the
     # list stays short and specific rather than listing every workout type.
     why_not: list[WhyNotItem] = []
-    recovery_pct_val = recovery_decision.recovery_score * 10
+    recovery_pct_val = recovery_pct
 
-    if decision != "Rest Day" and recovery_decision.recovery_score >= 4:
+    if recovery_pct_val is not None and decision not in ("Rest Day", "Recovery check-in needed") and recovery_pct_val >= 40:
         why_not.append(WhyNotItem(
             option="Rest Day",
             reason=f"Recovery at {recovery_pct_val}% doesn't call for a full rest day.",
         ))
 
-    if decision not in ("Rest Day", "Light / Active Recovery"):
+    if decision not in ("Rest Day", "Light / Active Recovery", "Recovery check-in needed"):
         if injury and injury["severity"] >= 4:
             why_not.append(WhyNotItem(
                 option="PR Attempt",
                 reason=f"{injury['body_part'].replace('_', ' ').title()} pain at {injury['severity']}/10 rules out max-effort lifts today.",
             ))
-        elif recovery_decision.recovery_score < 8:
+        elif recovery_pct_val is not None and recovery_pct_val < 80:
             why_not.append(WhyNotItem(
                 option="PR Attempt",
                 reason=f"Recovery at {recovery_pct_val}% is solid but not peak — save max attempts for a fresher day.",

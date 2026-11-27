@@ -35,8 +35,8 @@ interface DashboardSummary {
     message?: string;
   };
   recovery?: {
-    score?: number;
-    score_pct?: number;
+    score?: number | null;
+    score_pct?: number | null;
     action?: string;
     message?: string;
   };
@@ -197,16 +197,18 @@ export default function DashboardScreen() {
     );
   }
 
-  const readinessHeadline = score === null
-    ? 'Building your baseline'
-    : score >= 67
-      ? 'Ready to train'
-      : score >= 34
-        ? 'Keep the intensity measured'
-        : 'Recovery comes first';
+  const readinessHeadline = summary?.recovery?.action === 'check_in'
+    ? 'Log recovery details'
+    : score === null
+      ? 'Building your baseline'
+      : score >= 67
+        ? 'Ready to train'
+        : score >= 34
+          ? 'Keep the intensity measured'
+          : 'Recovery comes first';
 
-  const readinessMessage = summary?.recovery?.action
-    || summary?.recovery?.message
+  const readinessMessage = summary?.recovery?.message
+    || summary?.recovery?.action
     || 'Log a few workouts and recovery check-ins to build your personal readiness picture.';
 
   return (
