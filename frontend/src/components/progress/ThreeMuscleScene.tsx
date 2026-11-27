@@ -1,9 +1,10 @@
 import React, { Component, MutableRefObject, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, PanResponder, Platform, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, PanResponder, Platform, StyleSheet, View } from 'react-native';
 import { Canvas, useFrame, useThree } from '@react-three/fiber/native';
 import * as THREE from 'three';
 
 import { COLORS } from '../../theme/colors';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import Text from '../ui/Text';
 
 type MuscleKey = 'Chest' | 'Back' | 'Shoulders' | 'Arms' | 'Core' | 'Legs';
@@ -306,7 +307,7 @@ export default function ThreeMuscleScene({
   onInteraction?: () => void;
 }) {
   const [loading, setLoading] = useState(true);
-  const [reduceMotion, setReduceMotion] = useState(true);
+  const reduceMotion = useReducedMotion();
   const onInteractionRef = useRef(onInteraction);
   onInteractionRef.current = onInteraction;
   const invalidateRef = useRef<(() => void) | null>(null);
@@ -317,18 +318,6 @@ export default function ThreeMuscleScene({
     startY: 0,
     dragging: false,
   });
-
-  useEffect(() => {
-    let active = true;
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then((enabled) => { if (active) setReduceMotion(enabled); })
-      .catch(() => undefined);
-    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
-    return () => {
-      active = false;
-      subscription.remove();
-    };
-  }, []);
 
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => false,
