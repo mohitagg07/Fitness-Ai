@@ -11,6 +11,7 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { COLORS } from '../../theme/colors';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 interface AnimatedSplashProps {
   onFinished: () => void;
@@ -42,6 +43,7 @@ export default function AnimatedSplash({ onFinished }: AnimatedSplashProps) {
   const pulse = useSharedValue(0);
   const screenOpacity = useSharedValue(1);
   const finishedRef = useRef(false);
+  const reduceMotion = useReducedMotion();
 
   const finishOnce = () => {
     if (finishedRef.current) return;
@@ -50,6 +52,15 @@ export default function AnimatedSplash({ onFinished }: AnimatedSplashProps) {
   };
 
   useEffect(() => {
+    if (reduceMotion) {
+      heroOpacity.value = 1;
+      heroScale.value = 1;
+      pulse.value = 0;
+      screenOpacity.value = 1;
+      const timer = setTimeout(finishOnce, 0);
+      return () => clearTimeout(timer);
+    }
+
     heroOpacity.value = withTiming(1, { duration: 700, easing: Easing.out(Easing.cubic) });
     heroScale.value = withTiming(1, { duration: 900, easing: Easing.out(Easing.cubic) });
     // Slow breathing glow loop once settled — same treatment as the
@@ -81,7 +92,7 @@ export default function AnimatedSplash({ onFinished }: AnimatedSplashProps) {
     const timer = setTimeout(finishOnce, 3200);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [reduceMotion]);
 
   const heroStyle = useAnimatedStyle(() => {
     const pulseScale = 1 + pulse.value * 0.06;
