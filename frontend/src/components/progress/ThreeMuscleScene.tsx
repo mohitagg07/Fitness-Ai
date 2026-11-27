@@ -1,10 +1,11 @@
 import React, { Component, MutableRefObject, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, PanResponder, Platform, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, PanResponder, Platform, StyleSheet, View } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber/native';
 import * as THREE from 'three';
 
 import { COLORS } from '../../theme/colors';
 import Text from '../ui/Text';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 type MuscleKey = 'Chest' | 'Back' | 'Shoulders' | 'Arms' | 'Core' | 'Legs';
 type MusclePalette = Record<MuscleKey, string>;
@@ -69,7 +70,7 @@ function MuscleBelly({
   const isSelected = selected === muscle;
 
   return (
-    <mesh position={position} rotation={rotation} scale={[1, 1, depth]} castShadow receiveShadow>
+    <mesh position={position} rotation={rotation} scale={[1, 1, depth]}>
       <latheGeometry args={[profile, 28]} />
       <meshStandardMaterial
         color={color}
@@ -92,7 +93,7 @@ function BodyVolume({
   color?: string;
 }) {
   return (
-    <mesh position={position} scale={scale} castShadow receiveShadow>
+    <mesh position={position} scale={scale}>
       <sphereGeometry args={[1, 32, 24]} />
       <meshStandardMaterial color={color} roughness={0.72} metalness={0.025} />
     </mesh>
@@ -104,18 +105,20 @@ function RecoveryAvatar({
   musclePalette,
   controls,
   reduceMotion,
+  autoRotate,
 }: {
   selectedMuscle: MuscleKey;
   musclePalette: MusclePalette;
   controls: MutableRefObject<SceneControls>;
   reduceMotion: boolean;
+  autoRotate: boolean;
 }) {
   const root = useRef<THREE.Group>(null);
 
   useFrame((_, delta) => {
     if (!root.current) return;
     const step = Math.min(delta, 0.05);
-    if (!reduceMotion && !controls.current.dragging) controls.current.rotationY += step * 0.115;
+    if (autoRotate && !reduceMotion && !controls.current.dragging) controls.current.rotationY += step * 0.115;
     root.current.rotation.y = controls.current.rotationY;
     root.current.rotation.x = controls.current.rotationX;
   });
@@ -141,7 +144,7 @@ function RecoveryAvatar({
         {/* Neutral structural silhouette: head, neck, torso, pelvis and limb foundations. */}
         <BodyVolume position={[0, 1.64, 0]} scale={[0.22, 0.28, 0.19]} color={BODY_BASE} />
         <BodyVolume position={[0, 1.30, 0]} scale={[0.13, 0.22, 0.13]} color={BODY_DARK} />
-        <mesh position={[0, 0.28, 0]} castShadow receiveShadow>
+        <mesh position={[0, 0.28, 0]}>
           <latheGeometry args={[TORSO_PROFILE, 48]} />
           <meshStandardMaterial color={BODY_BASE} roughness={0.68} metalness={0.035} />
         </mesh>
@@ -222,11 +225,13 @@ function RecoveryScene({
   musclePalette,
   controls,
   reduceMotion,
+  autoRotate,
 }: {
   selectedMuscle: MuscleKey;
   musclePalette: MusclePalette;
   controls: MutableRefObject<SceneControls>;
   reduceMotion: boolean;
+  autoRotate: boolean;
 }) {
   return (
     <>
@@ -236,7 +241,7 @@ function RecoveryScene({
       <directionalLight position={[3.8, 5.5, 5]} intensity={2.0} color="#F2FFF2" />
       <directionalLight position={[-4, 1.5, -4]} intensity={1.45} color="#8DCB9A" />
       <pointLight position={[0, -1.2, 3.2]} intensity={0.62} distance={8} color="#B9DE72" />
-      <RecoveryAvatar selectedMuscle={selectedMuscle} musclePalette={musclePalette} controls={controls} reduceMotion={reduceMotion} />
+      <RecoveryAvatar selectedMuscle={selectedMuscle} musclePalette={musclePalette} controls={controls} reduceMotion={reduceMotion} autoRotate={autoRotate} />
     </>
   );
 }
@@ -274,13 +279,17 @@ export default function ThreeMuscleScene({
   selectedMuscle,
   musclePalette,
   onFailure,
+  onReady,
+  autoRotate = true,
 }: {
   selectedMuscle: MuscleKey;
   musclePalette: MusclePalette;
   onFailure: () => void;
+  onReady?: () => void;
+  autoRotate?: boolean;
 }) {
   const [loading, setLoading] = useState(true);
-  const [reduceMotion, setReduceMotion] = useState(false);
+  const reduceMotion = useReducedMotion();
   const controls = useRef<SceneControls>({
     rotationX: 0,
     rotationY: 0,
@@ -288,18 +297,6 @@ export default function ThreeMuscleScene({
     startY: 0,
     dragging: false,
   });
-
-  useEffect(() => {
-    let active = true;
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then((enabled) => { if (active) setReduceMotion(enabled); })
-      .catch(() => undefined);
-    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
-    return () => {
-      active = false;
-      subscription.remove();
-    };
-  }, []);
 
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => false,
@@ -338,9 +335,10 @@ export default function ThreeMuscleScene({
           onCreated={({ gl }) => {
             gl.setClearColor(CANVAS_BACKGROUND, 1);
             setLoading(false);
+            onReady?.();
           }}
         >
-          <RecoveryScene selectedMuscle={selectedMuscle} musclePalette={musclePalette} controls={controls} reduceMotion={reduceMotion} />
+          <RecoveryScene selectedMuscle={selectedMuscle} musclePalette={musclePalette} controls={controls} reduceMotion={reduceMotion} autoRotate={autoRotate} />
         </Canvas>
       </SceneBoundary>
       <View style={styles.dragLayer} {...panResponder.panHandlers}>
