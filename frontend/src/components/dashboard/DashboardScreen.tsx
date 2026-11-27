@@ -34,7 +34,7 @@ import AchievementCard from './AchievementCard';
 import ProgramHealthCard from './ProgramHealthCard';
 import TimelineCard from './TimelineCard';
 import PatternInsightsCard from './PatternInsightsCard';
-import Logo from '../shared/Logo';
+import ProfileAvatar from '../shared/ProfileAvatar';
 import PressableScale from '../ui/PressableScale';
 import Reveal from '../shared/Reveal';
 
@@ -252,20 +252,12 @@ export default function DashboardScreen() {
       >
         <View style={styles.topline}>
           <View style={styles.brandLockup}>
-            <Logo size="sm" />
             <View>
               <TextLike style={styles.brandName}>VYRN</TextLike>
-              <TextLike style={styles.brandSub}>PERFORMANCE SYSTEM</TextLike>
+              <TextLike style={styles.brandSub}>YOUR DAILY COACH</TextLike>
             </View>
           </View>
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel="Open profile"
-            onPress={() => router.push('/(tabs)/profile')}
-            style={styles.profileButton}
-          >
-            <Ionicons name="person-outline" size={19} color={COLORS.text} />
-          </PressableScale>
+          <ProfileAvatar size={44} onPress={() => router.push('/(tabs)/profile')} />
         </View>
 
         <Reveal delay={20}><View style={styles.greetingBlock}>
@@ -500,10 +492,7 @@ const styles = StyleSheet.create({
   brandLockup: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   brandName: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 15, letterSpacing: 3.4 },
   brandSub: { color: COLORS.textMuted, fontFamily: FONTS.semibold, fontSize: 8, letterSpacing: 1.35, marginTop: 2 },
-  profileButton: {
-    width: 42, height: 42, borderRadius: 21, borderWidth: 1, borderColor: COLORS.border,
-    alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.card,
-  },
+
   greetingBlock: { marginBottom: 25 },
   dateLabel: { color: COLORS.primaryGreen, fontFamily: FONTS.semibold, fontSize: 10, letterSpacing: 1.45, marginBottom: 12 },
   greeting: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 18, lineHeight: 23 },
