@@ -90,8 +90,9 @@ export const actions = {
   // entry a failed request added, identified by exercise+set_number
   // rather than array index, since other logs may have been appended
   // (by other in-flight taps) between the optimistic add and the failure.
-  removeLogFromSession(log: any) {
+  removeLogFromSession(log: any, sessionId?: string) {
     if (!_state.activeSession || !log) return;
+    if (sessionId && _state.activeSession.id !== sessionId) return;
     const logs = _state.activeSession.logs || [];
     const idx = logs.findIndex(
       (l: any) => l.exercise_name === log.exercise_name && l.set_number === log.set_number
@@ -101,8 +102,9 @@ export const actions = {
     next.splice(idx, 1);
     setState({ activeSession: { ..._state.activeSession, logs: next } });
   },
-  replaceLogInSession(optimistic: any, persisted: any) {
+  replaceLogInSession(optimistic: any, persisted: any, sessionId?: string) {
     if (!_state.activeSession || !optimistic || !persisted) return;
+    if (sessionId && _state.activeSession.id !== sessionId) return;
     const logs = [...(_state.activeSession.logs || [])];
     const index = logs.findIndex(
       (log: any) =>
