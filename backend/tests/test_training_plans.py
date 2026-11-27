@@ -164,6 +164,16 @@ def test_recovery_components_keep_missing_data_unknown() -> None:
     assert _soreness_component(None) is None
 
 
+def test_recovery_energy_component_is_bounded_and_uses_reported_input() -> None:
+    from agents.recovery_agent import _energy_component
+
+    assert _energy_component(1) == 0
+    assert _energy_component(3) == 5
+    assert _energy_component(5) == 10
+    assert _energy_component(None) is None
+    assert _energy_component(6) is None
+
+
 def test_recovery_sleep_and_soreness_components_are_bounded() -> None:
     from agents.recovery_agent import _sleep_component, _soreness_component
 
