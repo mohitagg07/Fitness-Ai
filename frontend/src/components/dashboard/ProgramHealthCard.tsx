@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
   adjustmentChip: {
     borderWidth: 1, borderRadius: RADIUS.badge - 2, paddingVertical: 2, paddingHorizontal: 6,
   },
-  adjustmentText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
+  adjustmentText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
 });
 
 export default React.memo(ProgramHealthCard);
