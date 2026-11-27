@@ -78,3 +78,28 @@ def test_nonmatching_adaptive_change_fails_closed():
             [{"type": "volume_reduction", "exercise": "Barbell Squat"}],
             "plateau on barbell squat",
         )
+
+
+
+def test_under_fueling_flag_does_not_apply_a_second_volume_reduction():
+    current = {
+        "schedule": {"mon": "push"},
+        "workouts_by_day": {
+            "mon": {
+                "workout_type": "push",
+                "exercises": [_exercise("Bench Press", 4)],
+            }
+        },
+    }
+    proposed = _apply_adaptive_changes(
+        current,
+        [
+            {"type": "volume_reduction", "description": "Reduce weekly volume by 15%"},
+            {"type": "intensity_hold", "description": "Hold loads"},
+            {"type": "nutrition_flag", "description": "Nutrition gate"},
+        ],
+        "under_eating",
+    )
+    # floor(4 * .85) = 3. The nutrition flag does not reduce the 3 sets again.
+    assert proposed["workouts_by_day"]["mon"]["exercises"][0]["sets"] == 3
+    assert proposed["workouts_by_day"]["mon"]["exercises"][0]["rpe_target"] == 7

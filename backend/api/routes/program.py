@@ -108,9 +108,10 @@ def _apply_adaptive_changes(snapshot: dict, changes: list[dict], trigger: str) -
                 elif change_type in ("intensity_reduction", "intensity_hold"):
                     exercise["rpe_target"] = min(float(exercise.get("rpe_target") or 7), 7)
                 elif change_type in ("nutrition_flag", "under_fueling"):
-                    current_sets = max(1, int(exercise.get("sets") or 1))
-                    exercise["sets"] = max(1, math.floor(current_sets * 0.85))
-                    exercise["rpe_target"] = min(float(exercise.get("rpe_target") or 7), 7)
+                    # Volume reduction is already applied by the separate
+                    # volume_reduction item. This change is a coaching flag,
+                    # not a second volume cut.
+                    pass
                 elif change_type in ("exercise_swap", "swap_exercise"):
                     swap_to = str(
                         change.get("swap_to") or change.get("replacement") or change.get("to") or ""
