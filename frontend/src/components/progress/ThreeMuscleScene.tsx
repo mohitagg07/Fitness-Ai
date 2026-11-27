@@ -306,7 +306,7 @@ export default function ThreeMuscleScene({
   onInteraction?: () => void;
 }) {
   const [loading, setLoading] = useState(true);
-  const [reduceMotion, setReduceMotion] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(true);
   const onInteractionRef = useRef(onInteraction);
   onInteractionRef.current = onInteraction;
   const invalidateRef = useRef<(() => void) | null>(null);
