@@ -12,6 +12,8 @@ from pydantic import BaseModel, Field, field_validator
 
 from core.security import get_current_user
 from db.supabase_client import get_supabase
+from services.exercise_catalog import resolve_exercise
+from services.exercise_library import BODY_PART_TO_MUSCLE_GROUPS
 
 router = APIRouter(tags=["Training Plans"])
 
@@ -105,6 +107,104 @@ class SessionTransitionRequest(BaseModel):
     action: Literal["pause", "resume", "abandon"]
 
 
+def validate_workout_constraints(
+    workout: WorkoutPrescription,
+    available_equipment: list[str] | None,
+    injuries: list[dict] | None,
+) -> dict:
+    """Canonicalize and validate a proposed prescription against known athlete constraints.
+
+    Unknown exercises are not silently accepted: the current curated catalogue
+    is the safety/anatomy source of truth. Equipment requirements are derived
+    from that catalogue instead of trusting LLM-provided metadata.
+    """
+    owned = {str(value).strip().lower().replace("-", "_").replace(" ", "_") for value in (available_equipment or [])}
+    equipment_aliases = {
+        "bar": "pull_up_bar",
+        "rack": "squat_rack",
+        "body_weight": "bodyweight",
+    }
+    owned = {equipment_aliases.get(value, value) for value in owned}
+
+    blocked_groups: set[str] = set()
+    for injury in injuries or []:
+        try:
+            severity = int(injury.get("severity") or 0)
+        except (TypeError, ValueError):
+            severity = 0
+        if severity < 4 and not injury.get("doctor_restriction"):
+            continue
+        body_part = str(injury.get("body_part") or "").strip().lower().replace("_", " ")
+        for injured_part, groups in BODY_PART_TO_MUSCLE_GROUPS.items():
+            if injured_part in body_part:
+                blocked_groups.update(groups)
+
+    canonical_exercises = []
+    for item in workout.exercises:
+        definition = resolve_exercise(item.name)
+        if definition is None:
+            raise HTTPException(
+                422,
+                f"{item.name} is not in VYRN's reviewed exercise catalogue. Choose a supported exercise before approving this plan.",
+            )
+        if item.exercise_id and item.exercise_id != definition.exercise_id:
+            raise HTTPException(422, f"Exercise identity mismatch for {item.name}.")
+
+        required = {
+            equipment_aliases.get(str(value).strip().lower().replace("-", "_").replace(" ", "_"),
+                                  str(value).strip().lower().replace("-", "_").replace(" ", "_"))
+            for value in definition.equipment
+            if value != "bodyweight"
+        }
+        missing = sorted(required - owned)
+        if missing:
+            raise HTTPException(
+                422,
+                f"{definition.name} requires equipment not recorded in your profile: {', '.join(missing)}. Update your equipment profile or choose another exercise.",
+            )
+        if definition.primary_group in blocked_groups:
+            raise HTTPException(
+                409,
+                f"{definition.name} targets {definition.primary_group}, which overlaps a recorded injury restriction. Choose a safer movement or update the restriction with your clinician's guidance.",
+            )
+
+        canonical_exercises.append({
+            **item.model_dump(),
+            "exercise_id": definition.exercise_id,
+            "name": definition.name,
+            "equipment_required": list(definition.equipment),
+            "muscle_groups": [definition.primary_group],
+        })
+
+    return {
+        "label": workout.label,
+        "workout_type": workout.workout_type,
+        "muscle_groups": workout.muscle_groups,
+        "estimated_duration_minutes": workout.estimated_duration_minutes,
+        "warmup_notes": workout.warmup_notes,
+        "cooldown_notes": workout.cooldown_notes,
+        "exercises": canonical_exercises,
+    }
+
+
+def _load_athlete_constraints(sb, user_id: str) -> tuple[list[str], list[dict]]:
+    profile_result = (
+        sb.table("profiles")
+        .select("equipment, gym_or_home")
+        .eq("id", user_id)
+        .limit(1)
+        .execute()
+    )
+    injury_result = (
+        sb.table("injury_profiles")
+        .select("body_part, severity, doctor_restriction")
+        .eq("user_id", user_id)
+        .execute()
+    )
+    profile = profile_result.data[0] if profile_result.data else {}
+    return profile.get("equipment") or [], injury_result.data or []
+
+
 def _owned_plan(sb, user_id: str, plan_id: str) -> dict:
     result = (
         sb.table("workout_plans")
@@ -157,8 +257,10 @@ async def create_plan_draft(
 ):
     user_id = current_user["user_id"]
     data = payload.model_dump()
-    workout = data.pop("workout")
     change_reason = data.pop("change_reason", None)
+    equipment, injuries = _load_athlete_constraints(get_supabase(), user_id)
+    workout = validate_workout_constraints(payload.workout, equipment, injuries)
+    data.pop("workout", None)
     snapshot = {**data, "workout": workout}
     try:
         result = get_supabase().rpc(
@@ -223,8 +325,10 @@ async def update_plan_draft(
         raise HTTPException(409, "Only a draft plan version can be edited")
 
     data = payload.model_dump()
-    workout = data.pop("workout")
     data.pop("change_reason", None)
+    equipment, injuries = _load_athlete_constraints(sb, user_id)
+    workout = validate_workout_constraints(payload.workout, equipment, injuries)
+    data.pop("workout", None)
     if not data.get("schedule"):
         data["schedule"] = plan.get("schedule") or {}
     snapshot = {**data, "workout": workout}
