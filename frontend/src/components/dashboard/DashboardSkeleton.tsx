@@ -1,72 +1,59 @@
-// VYRN — Dashboard loading skeleton
-//
-// Replaces the old center-screen spinner. A spinner tells the user
-// "wait"; a skeleton tells them "here's what's coming" — it mimics the
-// real card layout (rings, workout card, decision card) so the first
-// paint feels instant and nothing jumps around when real data lands.
-
-import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated, Easing } from 'react-native';
+// VYRN — Lightweight Home placeholder.
+// Static surfaces avoid running several independent shimmer loops while
+// the first mission query is loading. The actual Home shell renders as soon
+// as the route mounts, so this remains a fallback rather than the normal path.
+import React from 'react';
+import { View, StyleSheet } from 'react-native';
 import { COLORS } from '../../theme/colors';
-
-function Shimmer({ style }: { style: any }) {
-  const opacity = useRef(new Animated.Value(0.35)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, { toValue: 0.75, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 0.35, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [opacity]);
-
-  return <Animated.View style={[style, { opacity }]} />;
-}
 
 export default function DashboardSkeleton() {
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
-        <Shimmer style={styles.logoBlock} />
-        <Shimmer style={styles.nameBlock} />
+        <View style={styles.logo} />
+        <View style={styles.avatar} />
       </View>
-
-      {/* Rings */}
-      <View style={styles.ringsRow}>
-        <Shimmer style={styles.ring} />
-        <Shimmer style={styles.ring} />
+      <View style={styles.heading}>
+        <View style={styles.eyebrow} />
+        <View style={styles.title} />
+        <View style={styles.greeting} />
       </View>
-
-      {/* Workout card */}
-      <Shimmer style={styles.bigCard} />
-
-      {/* Decision card */}
-      <Shimmer style={styles.bigCard} />
-
-      {/* Mini rings */}
-      <View style={styles.miniRow}>
-        <Shimmer style={styles.miniRing} />
-        <Shimmer style={styles.miniRing} />
-        <Shimmer style={styles.miniRing} />
+      <View style={styles.readiness}>
+        <View style={styles.line} />
+        <View style={styles.readinessBody}>
+          <View style={styles.copy}>
+            <View style={styles.lineWide} />
+            <View style={styles.lineShort} />
+            <View style={styles.lineShort} />
+          </View>
+          <View style={styles.ring} />
+        </View>
       </View>
+      <View style={styles.card} />
+      <View style={styles.button} />
+      <View style={styles.cardSmall} />
     </View>
   );
 }
 
-const BASE = '#141414';
-
+const SURFACE = COLORS.cardElevated;
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background, paddingTop: 60, paddingHorizontal: 16 },
-  header: { marginBottom: 24, gap: 10 },
-  logoBlock: { width: 80, height: 20, borderRadius: 6, backgroundColor: BASE },
-  nameBlock: { width: 160, height: 26, borderRadius: 6, backgroundColor: BASE },
-  ringsRow: { flexDirection: 'row', justifyContent: 'center', gap: 20, marginBottom: 28 },
-  ring: { width: 150, height: 150, borderRadius: 75, backgroundColor: BASE },
-  bigCard: { height: 120, borderRadius: 18, backgroundColor: BASE, marginBottom: 14 },
-  miniRow: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 8 },
-  miniRing: { width: 64, height: 64, borderRadius: 32, backgroundColor: BASE },
+  container: { flex: 1, backgroundColor: COLORS.background, paddingTop: 62, paddingHorizontal: 20 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 30 },
+  logo: { width: 112, height: 21, borderRadius: 6, backgroundColor: SURFACE },
+  avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: SURFACE },
+  heading: { marginBottom: 25, gap: 9 },
+  eyebrow: { width: 46, height: 8, borderRadius: 4, backgroundColor: COLORS.border },
+  title: { width: 110, height: 30, borderRadius: 8, backgroundColor: SURFACE },
+  greeting: { width: 185, height: 38, borderRadius: 8, backgroundColor: SURFACE },
+  readiness: { padding: 18, borderRadius: 26, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, marginBottom: 26 },
+  line: { width: 95, height: 8, borderRadius: 4, backgroundColor: COLORS.border },
+  readinessBody: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 18 },
+  copy: { flex: 1, gap: 9 },
+  lineWide: { width: '82%', height: 16, borderRadius: 5, backgroundColor: SURFACE },
+  lineShort: { width: '70%', height: 8, borderRadius: 4, backgroundColor: COLORS.border },
+  ring: { width: 88, height: 88, borderRadius: 44, backgroundColor: SURFACE },
+  card: { height: 100, borderRadius: 22, backgroundColor: SURFACE, marginBottom: 11 },
+  button: { height: 54, borderRadius: 18, backgroundColor: COLORS.cardElevated, marginBottom: 24 },
+  cardSmall: { height: 86, borderRadius: 20, backgroundColor: SURFACE },
 });

@@ -26,7 +26,6 @@ import { describeApiError } from '../../utils/api';
 import { COLORS, alpha, recoveryColor } from '../../theme/colors';
 import { FONTS } from '../../theme/typography';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
-import DashboardSkeleton from './DashboardSkeleton';
 import ConsistencyScoreCard from './ConsistencyScoreCard';
 import MomentumCard from './MomentumCard';
 import WeeklyPerformanceCard from './WeeklyPerformanceCard';
@@ -212,8 +211,6 @@ export default function DashboardScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
     await refreshDashboard();
   };
-
-  if (isPending && !summary) return <DashboardSkeleton />;
 
   if (errorMessage && !summary) {
     return (

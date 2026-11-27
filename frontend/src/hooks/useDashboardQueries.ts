@@ -14,9 +14,16 @@ async function fetchMissionSummary() {
   try {
     const res = await missionApi.getToday();
     return res.data;
-  } catch {
-    const res = await dashboardApi.getSummary();
-    return res.data;
+  } catch (error: any) {
+    // Keep the legacy endpoint only as a route-compatibility fallback.
+    // Falling back on timeouts/network failures created a second 30s wait
+    // after the primary request had already failed.
+    const status = error?.response?.status;
+    if (status === 404 || status === 405 || status === 501) {
+      const fallback = await dashboardApi.getSummary();
+      return fallback.data;
+    }
+    throw error;
   }
 }
 
@@ -96,11 +103,6 @@ export function usePrefetchDashboard() {
     void queryClient.prefetchQuery({
       queryKey: qk.dashboard.mission(),
       queryFn: fetchMissionSummary,
-      staleTime: STALE.short,
-    });
-    void queryClient.prefetchQuery({
-      queryKey: qk.analytics.weeklyStats(),
-      queryFn: async () => (await analyticsApi.getWeeklyStats()).data,
       staleTime: STALE.short,
     });
   }, [queryClient]);

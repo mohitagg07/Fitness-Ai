@@ -63,8 +63,25 @@ export default function Index() {
       setBootError(null);
 
       let token: string | null;
+      let savedUser: any = null;
       try {
-        token = await readStorageWithTimeout('vyrn_token');
+        // Read both small local session values together. Sequential secure
+        // storage reads added a second native bridge wait to every cold start.
+        const [tokenResult, userResult] = await Promise.allSettled([
+          readStorageWithTimeout('vyrn_token'),
+          readStorageWithTimeout('vyrn_user'),
+        ]);
+
+        if (tokenResult.status !== 'fulfilled') throw tokenResult.reason;
+        token = tokenResult.value;
+
+        if (userResult.status === 'fulfilled' && userResult.value) {
+          try {
+            savedUser = JSON.parse(userResult.value);
+          } catch {
+            savedUser = null;
+          }
+        }
       } catch (error) {
         if (active) {
           setBootError(
@@ -80,16 +97,6 @@ export default function Index() {
       if (!token) {
         navigate('/login');
         return;
-      }
-
-      // The token is sufficient to enter the shell. A missing or malformed
-      // cached identity is recoverable and must not block the first screen.
-      let savedUser: any = null;
-      try {
-        const rawUser = await readStorageWithTimeout('vyrn_user');
-        savedUser = rawUser ? JSON.parse(rawUser) : null;
-      } catch {
-        savedUser = null;
       }
 
       if (!active) return;
@@ -144,7 +151,7 @@ export default function Index() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#FBFAF5', '#F0F5EC', '#E6EFE7']}
+        colors={['#080B11', '#0C1420', '#151229']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFillObject}
@@ -153,7 +160,7 @@ export default function Index() {
       <View pointerEvents="none" style={styles.orbitBottom} />
       <Animated.View style={[styles.hero, { opacity: heroOpacity, transform: [{ translateY: heroLift }] }]}>
         <View style={styles.brandMark}>
-          <Ionicons name="pulse" size={30} color="#FFFFFF" />
+          <Ionicons name="pulse" size={30} color={COLORS.background} />
         </View>
         <Text style={styles.brand}>VYRN</Text>
         <Text style={styles.tagline}>YOUR DAY. YOUR GOALS. YOUR COACH.</Text>
@@ -176,9 +183,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   hero: { alignItems: 'center', justifyContent: 'center', padding: 28 },
-  brandMark: { width: 76, height: 76, borderRadius: 26, backgroundColor: COLORS.primaryGreen, alignItems: 'center', justifyContent: 'center', marginBottom: 20, shadowColor: '#176B4A', shadowOpacity: 0.2, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 6 },
-  orbitTop: { position: 'absolute', top: -130, right: -90, width: 320, height: 320, borderRadius: 160, borderWidth: 1, borderColor: '#C8DCCB', backgroundColor: '#E9F2E7' },
-  orbitBottom: { position: 'absolute', bottom: -150, left: -120, width: 340, height: 340, borderRadius: 170, borderWidth: 1, borderColor: '#E1DCC9', backgroundColor: '#F1EEDF' },
+  brandMark: { width: 76, height: 76, borderRadius: 26, backgroundColor: COLORS.primaryGreen, alignItems: 'center', justifyContent: 'center', marginBottom: 20, shadowColor: COLORS.primaryGreen, shadowOpacity: 0.2, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 6 },
+  orbitTop: { position: 'absolute', top: -130, right: -90, width: 320, height: 320, borderRadius: 160, borderWidth: 1, borderColor: 'rgba(208,255,85,0.16)', backgroundColor: 'rgba(208,255,85,0.055)' },
+  orbitBottom: { position: 'absolute', bottom: -150, left: -120, width: 340, height: 340, borderRadius: 170, borderWidth: 1, borderColor: 'rgba(183,160,255,0.18)', backgroundColor: 'rgba(183,160,255,0.07)' },
   brand: {
     color: COLORS.text,
     fontSize: 30,

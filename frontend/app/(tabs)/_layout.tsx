@@ -13,7 +13,6 @@ import { usePrefetchDashboard } from '../../src/hooks/useDashboardQueries';
 import { useReducedMotion } from '../../src/hooks/useReducedMotion';
 import { COLORS, alpha } from '../../src/theme/colors';
 import { FONTS } from '../../src/theme/typography';
-import ProfileAvatar from '../../src/components/shared/ProfileAvatar';
 
 type TabDef = {
   name: string;
@@ -69,15 +68,11 @@ function TabBarIcon({
         { transform: [{ scale }] },
       ]}
     >
-      {tab.name === 'profile' ? (
-        <ProfileAvatar size={25} />
-      ) : (
-        <Ionicons
-          name={focused ? tab.activeIcon : tab.icon}
-          size={tab.name === 'workout' ? 22 : 20}
-          color={isTrainActive ? COLORS.background : color}
-        />
-      )}
+      <Ionicons
+        name={focused ? tab.activeIcon : tab.icon}
+        size={tab.name === 'workout' ? 22 : 20}
+        color={isTrainActive ? COLORS.background : color}
+      />
       {focused && <View style={styles.activeIndicator} />}
     </Animated.View>
   );
@@ -260,19 +255,21 @@ export default function TabsLayout() {
           borderBottomWidth: 0,
           borderRadius: 0,
           paddingBottom: bottomInset,
-          paddingTop: 9,
-          height: 70 + bottomInset,
+          paddingTop: 6,
+          height: 66 + bottomInset,
           elevation: 0,
           shadowOpacity: 0,
         },
         tabBarActiveTintColor: COLORS.tabActive,
         tabBarInactiveTintColor: COLORS.tabInactive,
+        tabBarShowLabel: true,
         tabBarLabelStyle: {
           fontFamily: FONTS.semibold,
-          fontSize: 9,
+          fontSize: 10,
           fontWeight: '600',
           letterSpacing: 0.15,
-          marginTop: 3,
+          marginTop: 1,
+          lineHeight: 12,
         },
         tabBarHideOnKeyboard: true,
       }}
@@ -283,6 +280,8 @@ export default function TabsLayout() {
           name={tab.name}
           options={{
             title: tab.title,
+            tabBarLabel: ({ focused }) => focused ? tab.title : '',
+            tabBarAccessibilityLabel: tab.title,
             tabBarIcon: ({ color, focused }) => (
               <TabBarIcon tab={tab} color={color} focused={focused} />
             ),
