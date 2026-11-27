@@ -4,7 +4,7 @@ The plan version snapshot is the authoritative prescription. Workout sessions
 reference the approved version and copy its workout snapshot so history never
 changes when a later plan is approved.
 """
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -93,6 +93,7 @@ class PlanDraftRequest(BaseModel):
     workout: WorkoutPrescription | None = None
     workouts_by_day: dict[str, WorkoutPrescription] = Field(default_factory=dict)
     evidence: dict[str, Any] = Field(default_factory=dict)
+    session_date: date | None = None
     change_reason: str | None = Field(default=None, max_length=1000)
 
     @field_validator("schedule")
@@ -248,18 +249,132 @@ def _validated_plan_snapshot(
     payload: PlanDraftRequest,
     equipment: list[str],
     injuries: list[dict],
+    base_snapshot: dict | None = None,
+    base_schedule: dict | None = None,
 ) -> dict:
-    """Validate each day independently and build the versioned prescription."""
+    """Build a complete weekly snapshot while preserving day-specific plans.
+
+    A Coach-generated single workout is a proposal for one local calendar day,
+    not a replacement for the entire weekly program. Existing day-specific
+    prescriptions are carried forward. Legacy mixed schedules without
+    individual prescriptions fail closed rather than reusing one workout on
+    unrelated training days.
+    """
+    snapshot = payload.model_dump(
+        exclude={"workout", "workouts_by_day", "change_reason", "session_date"}
+    )
+    single_day_override = (
+        payload.workout is not None
+        and not payload.schedule
+        and not payload.workouts_by_day
+    )
+
+    if single_day_override:
+        target_date = payload.session_date or date.today()
+        week = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+        target_day = week[target_date.weekday()]
+        source = base_snapshot or {}
+        source_schedule = source.get("schedule") or base_schedule or {}
+        normalized = {
+            str(day).strip().lower(): str(kind).strip().lower()
+            for day, kind in source_schedule.items()
+            if str(day).strip().lower() in DAY_KEYS
+        }
+        schedule = {day: "rest" for day in week}
+        schedule.update(normalized)
+
+        raw_days = source.get("workouts_by_day")
+        day_models: dict[str, WorkoutPrescription] = {}
+        if isinstance(raw_days, dict) and raw_days:
+            for day, raw_workout in raw_days.items():
+                key = str(day).strip().lower()
+                if key not in DAY_KEYS:
+                    raise HTTPException(409, "The saved weekly plan contains an unsupported day key.")
+                try:
+                    day_models[key] = WorkoutPrescription.model_validate(raw_workout)
+                except Exception as exc:
+                    raise HTTPException(
+                        409,
+                        f"The saved {key} prescription is incomplete. Refresh the weekly plan before changing today.",
+                    ) from exc
+        else:
+            legacy_workout = source.get("workout")
+            active_days = [day for day, kind in schedule.items() if kind != "rest"]
+            if active_days and isinstance(legacy_workout, dict):
+                try:
+                    legacy_model = WorkoutPrescription.model_validate(legacy_workout)
+                except Exception as exc:
+                    raise HTTPException(
+                        409,
+                        "The saved workout prescription is incomplete. Refresh the weekly plan before changing today.",
+                    ) from exc
+                if any(schedule[day] != legacy_model.workout_type for day in active_days):
+                    raise HTTPException(
+                        409,
+                        "Your existing weekly plan has different workout types but no separate prescription for each day. Create a complete weekly plan before changing one day.",
+                    )
+                day_models = {day: legacy_model for day in active_days}
+            elif active_days:
+                raise HTTPException(
+                    409,
+                    "Your existing weekly plan does not contain day-specific exercise prescriptions. Create a complete weekly plan before changing one day.",
+                )
+
+        target_workout = payload.workout
+        schedule[target_day] = target_workout.workout_type
+        day_models[target_day] = target_workout
+        for day, kind in schedule.items():
+            if kind == "rest":
+                continue
+            prescription = day_models.get(day)
+            if prescription is None:
+                raise HTTPException(
+                    409,
+                    f"The saved {day} training day has no individual exercise prescription. Create a complete weekly plan before changing today.",
+                )
+            if prescription.workout_type != kind:
+                raise HTTPException(
+                    409,
+                    f"The saved {day} prescription does not match its scheduled workout type. Refresh the weekly plan before changing today.",
+                )
+
+        snapshot["schedule"] = schedule
+        snapshot["workouts_by_day"] = {
+            day: validate_workout_constraints(workout, equipment, injuries)
+            for day, workout in day_models.items()
+        }
+        snapshot["target_session_date"] = str(target_date)
+        snapshot.pop("workout", None)
+        return snapshot
+
+    week = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+    schedule = {day: "rest" for day in week}
+    schedule.update(payload.schedule)
     day_prescriptions = {
         day: validate_workout_constraints(workout, equipment, injuries)
         for day, workout in payload.workouts_by_day.items()
     }
-    snapshot = payload.model_dump(exclude={"workout", "workouts_by_day", "change_reason"})
-    snapshot["workouts_by_day"] = day_prescriptions
-    if payload.workout is not None:
-        snapshot["workout"] = validate_workout_constraints(payload.workout, equipment, injuries)
-    return snapshot
+    for day, kind in schedule.items():
+        if kind == "rest":
+            continue
+        prescription = day_prescriptions.get(day)
+        if prescription is None:
+            raise HTTPException(
+                422,
+                f"A separate exercise prescription is required for scheduled {day} ({kind}).",
+            )
+        if prescription.get("workout_type") != kind:
+            raise HTTPException(
+                422,
+                f"The {day} prescription does not match its scheduled workout type.",
+            )
 
+    snapshot["schedule"] = schedule
+    snapshot["workouts_by_day"] = day_prescriptions
+    snapshot.pop("workout", None)
+    if payload.session_date:
+        snapshot["target_session_date"] = str(payload.session_date)
+    return snapshot
 
 def _with_previous_snapshot(sb, user_id: str, version: dict) -> dict:
     """Resolve the before-state from the immutable parent-version reference."""
@@ -356,7 +471,43 @@ async def create_plan_draft(
     user_id = current_user["user_id"]
     sb = get_supabase()
     equipment, injuries = _load_athlete_constraints(sb, user_id)
-    snapshot = _validated_plan_snapshot(payload, equipment, injuries)
+
+    active = (
+        sb.table("workout_plans")
+        .select("id, current_version_id, schedule")
+        .eq("user_id", user_id)
+        .eq("is_active", True)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    active_plan = active.data[0] if active.data else None
+    active_version_id = active_plan.get("current_version_id") if active_plan else None
+    base_snapshot = None
+    if active_version_id:
+        version_result = (
+            sb.table("workout_plan_versions")
+            .select("id, status, snapshot")
+            .eq("id", active_version_id)
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        if not version_result.data or version_result.data[0].get("status") != "approved":
+            raise HTTPException(409, "The active training plan has no valid approved version.")
+        base_snapshot = version_result.data[0].get("snapshot") or {}
+
+    snapshot = _validated_plan_snapshot(
+        payload,
+        equipment,
+        injuries,
+        base_snapshot=base_snapshot,
+        base_schedule=active_plan.get("schedule") if active_plan else None,
+    )
+    if active_version_id:
+        # The SQL RPC checks this under the per-user advisory lock. A concurrent
+        # approval cannot be silently overwritten by a stale proposal.
+        snapshot["_expected_base_version_id"] = active_version_id
 
     try:
         result = sb.rpc(
@@ -367,12 +518,18 @@ async def create_plan_draft(
                 "p_name": payload.name,
                 "p_phase": payload.phase,
                 "p_weeks": payload.weeks,
-                "p_schedule": payload.schedule,
+                "p_schedule": snapshot["schedule"],
                 "p_snapshot": snapshot,
                 "p_change_reason": payload.change_reason or "New Coach-generated workout",
             },
         ).execute()
     except Exception as exc:
+        message = str(exc).upper()
+        if "PLAN_DRAFT_STALE" in message:
+            raise HTTPException(
+                409,
+                "The active plan changed while this proposal was being prepared. Refresh and try again.",
+            ) from exc
         raise HTTPException(500, "Could not create the workout draft") from exc
     if not result.data:
         raise HTTPException(500, "Could not save the workout draft")
@@ -453,9 +610,13 @@ async def update_plan_draft(
         raise HTTPException(409, "This draft is based on an older plan version. Create a fresh proposal.")
 
     equipment, injuries = _load_athlete_constraints(sb, user_id)
-    snapshot = _validated_plan_snapshot(payload, equipment, injuries)
-    if not snapshot.get("schedule"):
-        snapshot["schedule"] = plan.get("schedule") or {}
+    snapshot = _validated_plan_snapshot(
+        payload,
+        equipment,
+        injuries,
+        base_snapshot=draft.get("snapshot") or {},
+        base_schedule=plan.get("schedule") or {},
+    )
     updated = (
         sb.table("workout_plan_versions")
         .update({
