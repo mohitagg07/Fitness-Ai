@@ -862,7 +862,7 @@ export default function CoachScreen() {
                   <View style={[S.suggestionIcon, { backgroundColor: `${s.color}18` }]}>
                     <Ionicons name={s.icon as any} size={16} color={s.color} />
                   </View>
-                  <Ionicons name="arrow-up-right" size={15} color={COLORS.textDim} />
+                  <Ionicons name="arrow-forward-outline" size={15} color={COLORS.textDim} />
                 </View>
                 <Text style={S.suggestionText}>{s.text}</Text>
               </TouchableOpacity>
