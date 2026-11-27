@@ -185,10 +185,15 @@ export const coachApi = {
 export const workoutApi = {
   createSession: (data: any) => api.post('/workouts/sessions', data),
   getSessions: (limit = 10) => api.get(`/workouts/sessions?limit=${limit}`),
-  completeSession: (id: string, cns_fatigue?: number, mood?: string) =>
-    api.patch(`/workouts/sessions/${id}/complete`, null, {
-      params: { cns_fatigue_after: cns_fatigue, mood },
-    }),
+  completeSession: (id: string, feedback?: {
+    cns_fatigue_after?: number;
+    session_notes?: string;
+    mood?: string;
+    session_effort?: number;
+    energy_level?: number;
+    pain_status?: 'none' | 'mild' | 'sharp' | 'worsening';
+    pain_notes?: string;
+  }) => api.patch(`/workouts/sessions/${id}/complete`, feedback || {}),
   logSet: (sessionId: string, data: any) =>
     api.post(`/workouts/sessions/${sessionId}/logs`, data),
   getSessionLogs: (sessionId: string) =>

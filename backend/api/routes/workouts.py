@@ -132,13 +132,13 @@ async def create_session(
     payload: SessionCreate,
     current_user: dict = Depends(get_current_user)
 ):
-    sb = get_supabase()
     user_id = current_user["user_id"]
     if payload.plan_version_id and not payload.client_request_id:
         raise HTTPException(
             422,
             "A stable client_request_id is required to start a workout from an approved plan.",
         )
+    sb = get_supabase()
 
     if payload.client_request_id:
         try:

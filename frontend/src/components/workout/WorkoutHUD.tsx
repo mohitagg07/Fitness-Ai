@@ -520,7 +520,15 @@ function WorkoutHUD() {
     }
 
     const setNum = currentSetNum;
-    const logData = { exercise_name: name, set_number: setNum, weight_kg: w, reps: r, rpe };
+    const clientRequestId = `workout-set:${activeSession.id}:${activeIdx}:${setNum}`;
+    const logData = {
+      exercise_name: name,
+      set_number: setNum,
+      weight_kg: w,
+      reps: r,
+      rpe,
+      client_request_id: clientRequestId,
+    };
 
     // Brief re-entrancy guard only — cleared on the next tick rather than
     // held until the network settles, since there's no longer anything
@@ -597,7 +605,7 @@ function WorkoutHUD() {
     try {
       const res = await completeSessionMutation.mutateAsync({
         sessionId: activeSession.id,
-        mood: moodToSend,
+        feedback: { mood: moodToSend },
       });
       const summary = res.data;
       setActiveSession(null);
