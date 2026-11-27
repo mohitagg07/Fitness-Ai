@@ -35,6 +35,7 @@ import Logo from '../shared/Logo';
 import CoachMemoryModal from './CoachMemoryModal';
 import PressableScale from '../ui/PressableScale';
 import Reveal from '../shared/Reveal';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 // ─── Suggestion chips shown on empty state ────────────────────────────────────
 // Semantic color per topic (🟡 workout, 🔵 AI/logging, 🟢 recovery,
@@ -149,17 +150,25 @@ function ExercisePictogram({ pose, color }: { pose: ExercisePose; color: string 
 // instead of a fake photo would.
 function AnimatedPictogram({ pose, color }: { pose: ExercisePose; color: string }) {
   const breathe = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReducedMotion();
+
   useEffect(() => {
+    breathe.stopAnimation();
+    if (reduceMotion) {
+      breathe.setValue(0);
+      return undefined;
+    }
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(breathe, { toValue: 1, duration: 800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(breathe, { toValue: 0, duration: 800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(breathe, { toValue: 1, duration: 1000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(breathe, { toValue: 0, duration: 1000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
       ])
     );
     loop.start();
     return () => loop.stop();
-  }, []);
-  const scale = breathe.interpolate({ inputRange: [0, 1], outputRange: [1, 1.1] });
+  }, [breathe, reduceMotion]);
+
+  const scale = breathe.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
       <ExercisePictogram pose={pose} color={color} />
