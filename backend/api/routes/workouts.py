@@ -95,6 +95,7 @@ class SessionExerciseEventRequest(BaseModel):
     action: Literal["skip", "replace"]
     exercise_name: str = Field(min_length=1, max_length=120)
     replacement_exercise: Optional[str] = Field(None, min_length=1, max_length=120)
+    client_request_id: str = Field(min_length=1, max_length=360)
     reason: Optional[str] = Field(None, max_length=300)
 
     @model_validator(mode="after")
@@ -269,10 +270,39 @@ async def record_session_exercise_event(
     if not session_result.data:
         raise HTTPException(404, "Workout session not found")
     session = session_result.data[0]
+
+    def _same_request(event: dict) -> bool:
+        return (
+            event.get("action") == payload.action
+            and str(event.get("exercise_name") or "").strip().casefold()
+                == payload.exercise_name.strip().casefold()
+            and str(event.get("replacement_exercise") or "").strip().casefold()
+                == str(payload.replacement_exercise or "").strip().casefold()
+        )
+
+    # Resolve retries by immutable request identity before checking the
+    # current session state. A retry can arrive after the session has moved
+    # on, but it must return its original event and never overwrite a newer
+    # skip/replace decision for that exercise.
+    existing_request = (
+        sb.table("workout_session_exercise_events")
+        .select("*")
+        .eq("session_id", session_id)
+        .eq("user_id", user_id)
+        .eq("client_request_id", payload.client_request_id)
+        .limit(1)
+        .execute()
+    )
+    if existing_request.data:
+        event = existing_request.data[0]
+        if _same_request(event):
+            return event
+        raise HTTPException(409, "This client request ID was already used for a different exercise change")
+
     if session.get("completed") or session.get("status") != "active":
         raise HTTPException(409, "Exercises can only be changed in an active workout")
 
-    original_name = payload.exercise_name
+    original_name = payload.exercise_name.strip()
     planned = (session.get("planned_workout_snapshot") or {}).get("exercises") or []
     matching = next(
         (
@@ -284,24 +314,6 @@ async def record_session_exercise_event(
     )
     if matching is None:
         raise HTTPException(404, "That exercise is not in this session's approved prescription")
-
-    existing_result = (
-        sb.table("workout_session_exercise_events")
-        .select("*")
-        .eq("session_id", session_id)
-        .eq("user_id", user_id)
-        .eq("exercise_name", original_name)
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-    )
-    if existing_result.data:
-        latest_event = existing_result.data[0]
-        if (
-            latest_event.get("action") == payload.action
-            and latest_event.get("replacement_exercise") == payload.replacement_exercise
-        ):
-            return latest_event
 
     replacement_name = None
     if payload.action == "replace":
@@ -336,9 +348,24 @@ async def record_session_exercise_event(
             "action": payload.action,
             "exercise_name": original_name,
             "replacement_exercise": replacement_name,
+            "client_request_id": payload.client_request_id,
             "reason": payload.reason,
         }).execute()
     except Exception as exc:
+        # Two identical requests can race between the initial lookup and
+        # insert. The unique index is the arbiter; read back and return the
+        # winner rather than surfacing a false failure to the client.
+        raced_request = (
+            sb.table("workout_session_exercise_events")
+            .select("*")
+            .eq("session_id", session_id)
+            .eq("user_id", user_id)
+            .eq("client_request_id", payload.client_request_id)
+            .limit(1)
+            .execute()
+        )
+        if raced_request.data and _same_request(raced_request.data[0]):
+            return raced_request.data[0]
         raise HTTPException(500, "Could not save the exercise change") from exc
     if not saved.data:
         raise HTTPException(500, "Could not save the exercise change")

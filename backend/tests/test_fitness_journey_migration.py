@@ -8,6 +8,8 @@ def test_complete_training_journey_migration_has_atomic_contracts_and_valid_doll
     required = [
         "create table if not exists public.workout_plan_versions",
         "create table if not exists public.workout_session_exercise_events",
+        "idx_workout_session_events_request_id",
+        "client_request_id text",
         "create or replace function public.save_workout_plan_draft",
         "create or replace function public.approve_workout_plan_version",
         "create or replace function public.rollback_workout_plan_version",

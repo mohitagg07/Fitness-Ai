@@ -156,10 +156,21 @@ create table if not exists public.workout_session_exercise_events (
     action text not null check (action in ('skip', 'replace')),
     exercise_name text not null check (char_length(btrim(exercise_name)) between 1 and 120),
     replacement_exercise text check (replacement_exercise is null or char_length(replacement_exercise) <= 120),
+    client_request_id text,
     reason text check (reason is null or char_length(reason) <= 300),
     created_at timestamptz not null default now(),
     check ((action = 'skip' and replacement_exercise is null) or (action = 'replace' and replacement_exercise is not null))
 );
+
+-- A client retry must resolve to the event created by that exact interaction.
+-- Partial uniqueness keeps older rows written by clients without request IDs valid.
+alter table public.workout_session_exercise_events
+    add column if not exists client_request_id text;
+
+create unique index if not exists idx_workout_session_events_request_id
+    on public.workout_session_exercise_events(session_id, user_id, client_request_id)
+    where client_request_id is not null;
+
 
 create index if not exists idx_workout_exercise_events_session
     on public.workout_session_exercise_events(session_id, created_at);
