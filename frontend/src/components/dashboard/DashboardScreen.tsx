@@ -27,6 +27,7 @@ import ProfileAvatar from '../shared/ProfileAvatar';
 import AmbientGlow from '../shared/AmbientGlow';
 import PressableScale from '../ui/PressableScale';
 import RecoveryCheckInModal, { RecoveryCheckInValues } from './RecoveryCheckInModal';
+import ProgramEvolutionCard from './ProgramEvolutionCard';
 
 interface DashboardSummary {
   mission_text?: string;
@@ -369,6 +370,8 @@ export default function DashboardScreen() {
           <Text style={styles.primaryButtonText}>{workoutType ? 'Open workout' : 'Plan a workout'}</Text>
           <Ionicons name="arrow-forward" size={18} color={COLORS.background} />
         </PressableScale>
+
+        <ProgramEvolutionCard />
 
         {coachMessage ? (
           <View style={styles.coachPanel}>

@@ -423,6 +423,7 @@ export const programApi = {
   getVersions: (limit = 10) => api.get('/program/versions', { params: { limit } }),
   getLatest: () => api.get('/program/latest'),
   triggerRewrite: () => api.post('/program/rewrite'),
+  proposeRewrite: () => api.post('/program/propose-rewrite'),
 };
 
 // Admin — manual trigger for the nightly background job suite (pattern
