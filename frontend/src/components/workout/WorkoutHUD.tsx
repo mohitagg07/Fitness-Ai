@@ -628,9 +628,16 @@ function WorkoutHUD() {
         setDraftPlan(approvedDraft);
       }
 
+      const now = new Date();
+      const localSessionDate = [
+        now.getFullYear(),
+        String(now.getMonth() + 1).padStart(2, '0'),
+        String(now.getDate()).padStart(2, '0'),
+      ].join('-');
       const created = await workoutApi.createSession({
         plan_id: approvedDraft.planId,
         plan_version_id: approvedDraft.versionId,
+        session_date: localSessionDate,
       });
       const serverSession = created.data;
       const startedAtValue = serverSession?.started_at || serverSession?.created_at;
