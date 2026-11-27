@@ -352,6 +352,9 @@ begin
     if not found then
         raise exception 'PLAN_VERSION_NOT_FOUND' using errcode = 'P0002';
     end if;
+    if v_source.status not in ('approved', 'superseded') then
+        raise exception 'PLAN_VERSION_NOT_ROLLBACKABLE' using errcode = '22023';
+    end if;
 
     select coalesce(max(version_number), 0) + 1
       into v_next
