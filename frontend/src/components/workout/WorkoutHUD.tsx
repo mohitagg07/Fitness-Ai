@@ -369,6 +369,7 @@ function WorkoutHUD() {
   const [historyVisible, setHistoryVisible] = useState(false);
   const [isLogging, setIsLogging]       = useState(false);
   const [pendingSetCount, setPendingSetCount] = useState(0);
+  const [pendingSyncBlocked, setPendingSyncBlocked] = useState(false);
   const [isFinishing, setIsFinishing]   = useState(false);
   const [streakVisible, setStreakVisible] = useState(false);
   const [streakData, setStreakData]     = useState<MilestoneInfo | null>(null);
@@ -536,6 +537,7 @@ function WorkoutHUD() {
     const sessionId = activeSession?.id;
     if (!sessionId) {
       setPendingSetCount(0);
+      setPendingSyncBlocked(false);
       return undefined;
     }
 
@@ -549,7 +551,10 @@ function WorkoutHUD() {
         if (alive) setPendingSetCount(before.length);
         if (before.length > 0 && !isSessionPaused) {
           const result = await syncPendingWorkoutSets(sessionId);
-          if (alive) setPendingSetCount(result.remaining);
+          if (alive) {
+            setPendingSetCount(result.remaining);
+            setPendingSyncBlocked(result.blocked);
+          }
         }
       } catch {
         // Never discard unreadable pending writes. Keep a visible warning so
@@ -859,10 +864,14 @@ function WorkoutHUD() {
     pendingSetWrites.current.add(write);
     void write.then(async (result) => {
       if (result.pending) {
-        setPendingSetCount((count) => count + 1);
+        const queued = await getPendingWorkoutSets(activeSession.id).catch(() => null);
+        setPendingSetCount(queued ? queued.length : 1);
+        setPendingSyncBlocked(Boolean(result.blocked));
         Alert.alert(
-          'Set saved on this device',
-          'This set is safely queued on this device. Tap SYNC when your connection is back, or return to the app to retry. Keep this workout open until it syncs.'
+          result.blocked ? 'Set needs attention' : 'Set saved on this device',
+          result.blocked
+            ? `The set is safely retained on this device, but the server rejected the write. Keep this workout open and resolve the server response before finishing. ${result.errorMessage || 'Retry sync after checking your session.'}`
+            : 'This set is safely queued on this device. Tap SYNC when your connection is back, or return to the app to retry. Keep this workout open until it syncs.'
         );
         return;
       }
@@ -871,6 +880,7 @@ function WorkoutHUD() {
       try {
         const queued = await getPendingWorkoutSets(activeSession.id);
         setPendingSetCount(queued.length);
+        if (queued.length === 0) setPendingSyncBlocked(false);
       } catch {
         setPendingSetCount((count) => Math.max(count, 1));
       }
@@ -1078,10 +1088,13 @@ function WorkoutHUD() {
     try {
       const sync = await syncPendingWorkoutSets(activeSession.id);
       setPendingSetCount(sync.remaining);
+      setPendingSyncBlocked(sync.blocked);
       if (sync.remaining > 0) {
         Alert.alert(
-          'Sets still waiting to sync',
-          'Your workout is still safe on this device, but the server has not confirmed every set. Reconnect and sync before completing the session.'
+          sync.blocked ? 'Server rejected a saved set' : 'Sets still waiting to sync',
+          sync.blocked
+            ? `The workout cannot be completed until this saved set is accepted by the server. ${sync.errorMessage || 'Check the set and session, then retry SYNC.'}`
+            : 'Your workout is still safe on this device, but the server has not confirmed every set. Reconnect and sync before completing the session.'
         );
         return;
       }
@@ -1136,10 +1149,13 @@ function WorkoutHUD() {
       }
       const sync = await syncPendingWorkoutSets(activeSession.id);
       setPendingSetCount(sync.remaining);
+      setPendingSyncBlocked(sync.blocked);
       if (sync.remaining > 0) {
         Alert.alert(
-          'Sets still waiting to sync',
-          'VYRN has kept your unsynced sets on this device. Reconnect and tap SYNC before finishing the workout.'
+          sync.blocked ? 'Server rejected a saved set' : 'Sets still waiting to sync',
+          sync.blocked
+            ? `VYRN has kept the set on this device, but the server rejected it. Resolve this response before finishing. ${sync.errorMessage || 'Check the session and retry SYNC.'}`
+            : 'VYRN has kept your unsynced sets on this device. Reconnect and tap SYNC before finishing the workout.'
         );
         return;
       }
@@ -1347,7 +1363,16 @@ function WorkoutHUD() {
           onPress={() => {
             if (!activeSession?.id) return;
             void syncPendingWorkoutSets(activeSession.id)
-              .then((result) => setPendingSetCount(result.remaining))
+              .then((result) => {
+                setPendingSetCount(result.remaining);
+                setPendingSyncBlocked(result.blocked);
+                if (result.blocked) {
+                  Alert.alert(
+                    'Server rejected a saved set',
+                    result.errorMessage || 'The set remains saved on this device. Check the session and set details before retrying.'
+                  );
+                }
+              })
               .catch(() => setPendingSetCount((count) => Math.max(count, 1)));
           }}
           accessibilityRole="button"
@@ -1355,7 +1380,7 @@ function WorkoutHUD() {
         >
           <Ionicons name="cloud-upload-outline" size={16} color={COLORS.recoveryMed} />
           <Text style={S.pendingSyncText}>
-            {pendingSetCount} set{pendingSetCount === 1 ? '' : 's'} saved on this device · waiting to sync
+            {pendingSetCount} set{pendingSetCount === 1 ? '' : 's'} saved on this device · {pendingSyncBlocked ? 'server needs attention' : 'waiting to sync'}
           </Text>
           <Text style={S.pendingSyncAction}>SYNC</Text>
         </PressableScale>
