@@ -10,7 +10,8 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://neurofit-ai-backend.onrender.com/api"
+        "EXPO_PUBLIC_API_URL": "https://neurofit-ai-backend.onrender.com/api",
+        "EXPO_PUBLIC_VYRN_QA_BUILD": "false"
       }
     },
     "ios-simulator": {
@@ -25,7 +26,8 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://neurofit-ai-backend.onrender.com/api"
+        "EXPO_PUBLIC_API_URL": "https://neurofit-ai-backend.onrender.com/api",
+        "EXPO_PUBLIC_VYRN_QA_BUILD": "false"
       }
     }
   },
