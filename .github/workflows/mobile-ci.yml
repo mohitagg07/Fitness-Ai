@@ -90,6 +90,61 @@ jobs:
         run: npx expo export --platform ios --output-dir $RUNNER_TEMP/vyrn-ios
 
 
+
+  # A Metro export cannot catch native Gradle / Android manifest / autolinking
+  # failures. Compile a real debug APK so Android's native modules are checked.
+  build-android-native:
+    name: Compile Android debug APK
+    runs-on: ubuntu-latest
+    env:
+      EXPO_PUBLIC_API_URL: https://neurofit-ai-backend.onrender.com/api
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 16 build platform
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Generate native Android project
+        run: npx expo prebuild --platform android --clean --no-install
+
+      - name: Compile native Android debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Upload Android debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: vyrn-android-debug-apk
+          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+
+
   validate-backend:
     runs-on: ubuntu-latest
     defaults:
