@@ -31,7 +31,7 @@ import WorkoutSummaryCard from './WorkoutSummaryCard';
 import WorkoutPlanPreview, { WorkoutExerciseDraft } from './WorkoutPlanPreview';
 import WorkoutHistoryModal from './WorkoutHistoryModal';
 import MilestoneCelebration from './MilestoneCelebration';
-import MoodPickerModal, { MoodValue } from './MoodPickerModal';
+import MoodPickerModal, { WorkoutFeedback } from './MoodPickerModal';
 import PressableScale from '../ui/PressableScale';
 import Reveal from '../shared/Reveal';
 import ProfileAvatar from '../shared/ProfileAvatar';
@@ -347,7 +347,6 @@ function WorkoutHUD() {
   const [streakVisible, setStreakVisible] = useState(false);
   const [streakData, setStreakData]     = useState<MilestoneInfo | null>(null);
   const [moodPickerVisible, setMoodPickerVisible] = useState(false);
-  const [pendingMood, setPendingMood]   = useState<MoodValue | undefined>(undefined);
   const [isRestoringSession, setIsRestoringSession] = useState(true);
   const [isBuildingPlan, setIsBuildingPlan] = useState(false);
   const [isApprovingPlan, setIsApprovingPlan] = useState(false);
@@ -667,7 +666,7 @@ function WorkoutHUD() {
   // callback passed here surfaces the alert — the failure path is a beat
   // later, not the success path.
   const logSet = () => {
-    if (!activeSession) return;
+    if (!activeSession || isSessionPaused) return;
     // Guards against a fast double-tap firing two requests before the store
     // updates — without this, both calls read the same currentSetNum and
     // both succeed, logging two sets with an identical set_number and
@@ -703,19 +702,22 @@ function WorkoutHUD() {
     setIsLogging(true);
     setTimeout(() => setIsLogging(false), 250);
 
-    logSetMutation.mutate(
-      { sessionId: activeSession.id, ...logData },
-      {
-        onError: () => {
-          setExercises((previous) => previous.map((exercise, index) =>
-            index === activeIdx
-              ? { ...exercise, completed_sets: Math.max(0, exercise.completed_sets - 1) }
-              : exercise
-          ));
-          Alert.alert('Error', 'Could not log set. It has been removed from your session.');
-        },
-      }
-    );
+    const write = logSetMutation.mutateAsync({
+      sessionId: activeSession.id,
+      ...logData,
+      client_request_id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    });
+    pendingSetWrites.current.add(write);
+    void write.catch(() => {
+      setExercises((previous) => previous.map((exercise, index) =>
+        index === activeIdx
+          ? { ...exercise, completed_sets: Math.max(0, exercise.completed_sets - 1) }
+          : exercise
+      ));
+      Alert.alert('Set not saved', 'The set could not be saved. Please retry when your connection is stable.');
+    }).finally(() => {
+      pendingSetWrites.current.delete(write);
+    });
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -761,23 +763,19 @@ function WorkoutHUD() {
   // this were redefined on workout state changes, the memo on those three would
   // silently defeated the entire time a workout is active, which is
   // exactly when it matters most.
-  const completeAndShowSummary = useCallback(async (moodOverride?: MoodValue) => {
+  const completeAndShowSummary = useCallback(async (feedback?: WorkoutFeedback) => {
     if (!activeSession || isFinishing) return;
     setIsFinishing(true);
-    // moodOverride avoids a stale-closure read of `pendingMood` right after
-    // setPendingMood() — state updates aren't synchronous, so the caller
-    // passes the freshly-picked value directly instead of relying on it
-    // having already landed in state by the time this runs.
-    const moodToSend = moodOverride ?? pendingMood;
     try {
       const res = await completeSessionMutation.mutateAsync({
         sessionId: activeSession.id,
-        mood: moodToSend,
+        feedback,
       });
       const summary = res.data;
       setActiveSession(null);
       setExercises([]);
       setActiveIdx(0);
+      setIsSessionPaused(false);
       setRestStartedAt(null);
       setSummaryData(summary || {
         total_volume_kg: Math.round(totalVolume),
@@ -787,47 +785,52 @@ function WorkoutHUD() {
         best_set: null,
         session_minutes: Math.round((Date.now() - (activeSession.startedAt || Date.now())) / 60000),
       });
-      // Queue a milestone card (if this session hit a streak milestone) to
-      // show right after the summary card is dismissed, so the two
-      // celebrations don't compete for attention at once.
       setStreakData(computeMilestone(summary));
       setSummaryVisible(true);
     } catch {
-      // Local session state is left untouched here on purpose — the sets
-      // already logged during the session live server-side (each logSet
-      // call already persisted), so nothing is lost and Retry can safely
-      // call the same idempotent endpoint again.
-      // BUG FIX: same web/Alert.alert button-array issue as finishWorkout()
-      // above — use confirmAsync so Retry actually fires on web.
       const retry = await confirmAsync(
         'Error',
         'Could not complete session. Check your connection and try again.',
         'Retry',
         'Cancel'
       );
-      if (retry) await completeAndShowSummary(moodToSend);
+      if (retry) await completeAndShowSummary(feedback);
     } finally {
       setIsFinishing(false);
     }
-  }, [activeSession, isFinishing, pendingMood, totalVolume, totalSets, completeSessionMutation.mutateAsync]);
+  }, [activeSession, isFinishing, totalVolume, totalSets, completeSessionMutation.mutateAsync]);
 
   const finishWorkout = async () => {
-    if (!activeSession) return;
-    // BUG FIX: this used to call Alert.alert(title, message, [buttons]) directly.
-    // react-native-web renders NOTHING for the multi-button form and never
-    // fires onPress, so on web (this build) tapping "Finish Workout" looked
-    // like the button did nothing at all. confirmAsync() is the cross-platform
-    // helper built for exactly this (see utils/confirm.ts) — use it here too.
+    if (!activeSession || isFinishing) return;
     const ok = await confirmAsync(
       'Finish Workout?',
       'This will end your session and save all sets.',
       'Finish',
       'Cancel'
     );
-    // One optional tap before the summary — see MoodPickerModal for why
-    // this is the moment it's asked, and why it's skippable.
-    if (ok) setMoodPickerVisible(true);
+    if (!ok) return;
+
+    // Do not close the session while an optimistic set write is unresolved.
+    setIsFinishing(true);
+    try {
+      while (pendingSetWrites.current.size > 0) {
+        await Promise.allSettled(Array.from(pendingSetWrites.current));
+      }
+      setMoodPickerVisible(true);
+    } finally {
+      setIsFinishing(false);
+    }
   };
+
+  const handleFeedbackSelect = useCallback((feedback: WorkoutFeedback) => {
+    setMoodPickerVisible(false);
+    void completeAndShowSummary(feedback);
+  }, [completeAndShowSummary]);
+
+  const handleFeedbackSkip = useCallback(() => {
+    setMoodPickerVisible(false);
+    void completeAndShowSummary(undefined);
+  }, [completeAndShowSummary]);
 
   // Group logs by exercise for display. This screen re-renders every
   // second (live workout clock) — groupedLogs() was previously a plain
@@ -976,8 +979,8 @@ function WorkoutHUD() {
       <AmbientGlow variant="workout" />
       <MoodPickerModal
         visible={moodPickerVisible}
-        onSelect={handleMoodSelect}
-        onSkip={handleMoodSkip}
+        onSelect={handleFeedbackSelect}
+        onSkip={handleFeedbackSkip}
       />
       <WorkoutSummaryCard
         visible={summaryVisible}
@@ -1118,7 +1121,7 @@ function WorkoutHUD() {
             <Text style={S.inputUnit}>reps</Text>
           </View>
         </View>
-        <Text style={S.inputHint}>Use 0 kg for bodyweight exercises.</Text>
+        <Text style={S.inputHint}>{isSessionPaused ? 'This workout is paused. Resume to log another set.' : 'Use 0 kg for bodyweight exercises.'}</Text>
 
         {/* Previous set ghost */}
         <PrevSetGhost log={prevSet} />
@@ -1149,15 +1152,15 @@ function WorkoutHUD() {
         </View>
 
         <PressableScale
-          style={[S.logBtn, isLogging && S.logBtnDisabled]}
+          style={[S.logBtn, (isLogging || isSessionPaused) && S.logBtnDisabled]}
           onPress={logSet}
-          disabled={isLogging}
+          disabled={isLogging || isSessionPaused}
           accessibilityRole="button"
           accessibilityLabel="Log set and start rest timer"
           accessibilityState={{ disabled: isLogging }}
         >
           <Ionicons name="add-circle-outline" size={16} color={COLORS.background} />
-          <Text style={S.logBtnText}>{isLogging ? 'LOGGING…' : 'LOG SET + START REST'}</Text>
+          <Text style={S.logBtnText}>{isSessionPaused ? 'RESUME TO LOG SETS' : isLogging ? 'LOGGING…' : 'LOG SET + START REST'}</Text>
         </PressableScale>
       </View></Reveal>
 
