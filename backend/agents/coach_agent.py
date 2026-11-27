@@ -528,7 +528,7 @@ OUTPUT FORMAT — return ONLY valid JSON, no markdown fences, no text outside th
   "next_action": "The single most important next step. Short.",
   "coach_insight": "One memorable coaching line. Always filled.",
   "follow_up_question": "One question only, or null when no clarification is needed.",
-  "question_options": ["Choice A", "Choice B"] or [],
+  "question_options": ["Choice A", "Choice B"],
   "question_key": "short stable key for this missing detail, or null.",
   "recovery": {recovery_pct},
   "intensity": "High" | "Moderate" | "Low" | "Rest" | null
