@@ -11,6 +11,7 @@ import { authApi, profileApi } from '../../utils/api';
 import { actions } from '../../store';
 import { COLORS } from '../../theme/colors';
 import Logo from '../shared/Logo';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 // Free-to-use Unsplash photo (Victor Freitas) — purely decorative hero backdrop,
 // dimmed by the gradient overlay so it never competes with the form.
@@ -33,13 +34,25 @@ export default function AuthScreen() {
 
   const fade = useRef(new Animated.Value(0)).current;
   const rise = useRef(new Animated.Value(16)).current;
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
-    Animated.parallel([
+    fade.stopAnimation();
+    rise.stopAnimation();
+    if (reduceMotion) {
+      fade.setValue(1);
+      rise.setValue(0);
+      return undefined;
+    }
+    fade.setValue(0);
+    rise.setValue(16);
+    const animation = Animated.parallel([
       Animated.timing(fade, { toValue: 1, duration: 420, useNativeDriver: true }),
       Animated.spring(rise, { toValue: 0, friction: 8, tension: 60, useNativeDriver: true }),
-    ]).start();
-  }, []);
+    ]);
+    animation.start();
+    return () => animation.stop();
+  }, [fade, rise, reduceMotion]);
 
   const handleLogin = async () => {
     if (!loginEmail.trim() || !loginPassword.trim()) {
@@ -181,7 +194,7 @@ export default function AuthScreen() {
               value={loginEmail}
               onChangeText={setLoginEmail}
               placeholder="you@email.com"
-              placeholderTextColor="#555"
+              placeholderTextColor={COLORS.textMuted}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -201,7 +214,7 @@ export default function AuthScreen() {
               disabled={loading}
             >
               {loading
-                ? <ActivityIndicator color="#000" />
+                ? <ActivityIndicator color={COLORS.background} />
                 : <Text style={styles.btnText}>LOG IN</Text>}
             </TouchableOpacity>
           </View>

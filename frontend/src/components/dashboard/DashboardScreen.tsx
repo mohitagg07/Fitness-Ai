@@ -36,6 +36,7 @@ import PatternInsightsCard from './PatternInsightsCard';
 import Logo from '../shared/Logo';
 import PressableScale from '../ui/PressableScale';
 import Reveal from '../shared/Reveal';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -77,15 +78,24 @@ function ReadinessDial({ score, color }: { score: number | null; color: string }
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const progress = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReducedMotion();
   useEffect(() => {
     progress.stopAnimation();
-    Animated.timing(progress, {
-      toValue: score === null ? 0 : Math.max(0, Math.min(100, score)),
+    const value = score === null ? 0 : Math.max(0, Math.min(100, score));
+    if (reduceMotion) {
+      progress.setValue(value);
+      return undefined;
+    }
+    progress.setValue(0);
+    const animation = Animated.timing(progress, {
+      toValue: value,
       duration: 760,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
-    }).start();
-  }, [progress, score]);
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [progress, score, reduceMotion]);
 
   const dashOffset = progress.interpolate({
     inputRange: [0, 100],
@@ -156,6 +166,7 @@ function Metric({ label, value, detail, accent }: { label: string; value: string
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
+  const reduceMotion = useReducedMotion();
   const responsive = useResponsiveLayout();
   const { user, profile } = useStore((state) => ({ user: state.user, profile: state.profile }));
   const [showFullReport, setShowFullReport] = useState(false);
@@ -448,7 +459,7 @@ export default function DashboardScreen() {
           accessibilityState={{ expanded: showFullReport }}
           style={styles.reportToggle}
           onPress={() => {
-            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+            if (!reduceMotion) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
             setShowFullReport((current) => !current);
           }}
         >

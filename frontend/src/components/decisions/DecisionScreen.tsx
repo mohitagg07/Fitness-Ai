@@ -23,6 +23,7 @@ import PressableScale from '../ui/PressableScale';
 import Reveal from '../shared/Reveal';
 import api, { describeApiError } from '../../utils/api';
 import EmptyState from '../shared/EmptyState';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Signal {
@@ -86,6 +87,7 @@ function formatDate(iso: string) {
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function DecisionScreen() {
   const insets = useSafeAreaInsets();
+  const reduceMotion = useReducedMotion();
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [accuracy, setAccuracy] = useState<Accuracy | null>(null);
   const [loading, setLoading] = useState(true);
@@ -146,7 +148,7 @@ export default function DecisionScreen() {
   };
 
   const toggleExpand = (id: string) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    if (!reduceMotion) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpandedId(prev => prev === id ? null : id);
   };
 

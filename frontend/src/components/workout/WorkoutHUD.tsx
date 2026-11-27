@@ -31,6 +31,7 @@ import MilestoneCelebration from './MilestoneCelebration';
 import MoodPickerModal, { MoodValue } from './MoodPickerModal';
 import PressableScale from '../ui/PressableScale';
 import Reveal from '../shared/Reveal';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 interface ExerciseCard {
   name: string;
@@ -126,6 +127,7 @@ function RestTimerBar({
 }) {
   const [seconds, setSeconds] = useState(total);
   const ringProgress = useRef(new Animated.Value(1)).current;
+  const reduceMotion = useReducedMotion();
 
   // Derive remaining time from an absolute deadline. This avoids countdown
   // drift if the JS thread is busy or the app briefly moves to the background.
@@ -151,6 +153,11 @@ function RestTimerBar({
   const urgent = seconds <= 10;
   const barColor = urgent ? COLORS.recoveryLow : COLORS.primaryGreen;
   useEffect(() => {
+    ringProgress.stopAnimation();
+    if (reduceMotion) {
+      ringProgress.setValue(pct);
+      return undefined;
+    }
     const animation = Animated.timing(ringProgress, {
       toValue: pct,
       duration: 220,
@@ -158,7 +165,7 @@ function RestTimerBar({
     });
     animation.start();
     return () => animation.stop();
-  }, [pct, ringProgress]);
+  }, [pct, ringProgress, reduceMotion]);
   const ringSize = 58;
   const ringStroke = 4;
   const ringRadius = (ringSize - ringStroke) / 2;

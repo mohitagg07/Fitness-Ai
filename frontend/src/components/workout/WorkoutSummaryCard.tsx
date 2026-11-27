@@ -37,6 +37,7 @@ import Text from '../ui/Text';
 import Button from '../ui/Button';
 import CountUpNumber from '../shared/CountUpNumber';
 import ConfettiBurst from './ConfettiBurst';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 interface NewPR {
   exercise_name: string;
@@ -128,34 +129,45 @@ function WorkoutSummaryCard({ visible, data, onClose }: Props) {
   // Drives the staggered Reveal sections below the hero (0 → 1).
   const mount = useRef(new Animated.Value(0)).current;
   const [confettiActive, setConfettiActive] = React.useState(false);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     if (!visible || !data) return;
-    scaleIn.setValue(0.9);
-    badgeScale.setValue(0);
-    badgeRotate.setValue(-1);
-    mount.setValue(0);
+    scaleIn.stopAnimation();
+    badgeScale.stopAnimation();
+    badgeRotate.stopAnimation();
+    mount.stopAnimation();
 
-    Animated.spring(scaleIn, { toValue: 1, useNativeDriver: true, friction: 7, tension: 70 }).start();
-    Animated.sequence([
-      Animated.delay(120),
-      Animated.parallel([
-        Animated.spring(badgeScale, { toValue: 1, useNativeDriver: true, friction: 5, tension: 60 }),
-        Animated.spring(badgeRotate, { toValue: 0, useNativeDriver: true, friction: 6, tension: 50 }),
-        Animated.timing(mount, { toValue: 1, duration: 520, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      ]),
-    ]).start();
+    if (reduceMotion) {
+      scaleIn.setValue(1);
+      badgeScale.setValue(1);
+      badgeRotate.setValue(0);
+      mount.setValue(1);
+      setConfettiActive(false);
+    } else {
+      scaleIn.setValue(0.9);
+      badgeScale.setValue(0);
+      badgeRotate.setValue(-1);
+      mount.setValue(0);
+      Animated.spring(scaleIn, { toValue: 1, useNativeDriver: true, friction: 7, tension: 70 }).start();
+      Animated.sequence([
+        Animated.delay(120),
+        Animated.parallel([
+          Animated.spring(badgeScale, { toValue: 1, useNativeDriver: true, friction: 5, tension: 60 }),
+          Animated.spring(badgeRotate, { toValue: 0, useNativeDriver: true, friction: 6, tension: 50 }),
+          Animated.timing(mount, { toValue: 1, duration: 520, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        ]),
+      ]).start();
+    }
 
     const hasPRs = (data.new_prs?.length || 0) > 0;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    if (hasPRs) {
-      // Small delay so the burst reads as a reaction to the PR row appearing,
-      // not a generic "modal opened" flourish.
+    if (hasPRs && !reduceMotion) {
       const t = setTimeout(() => setConfettiActive(true), 320);
       return () => clearTimeout(t);
     }
     setConfettiActive(false);
-  }, [visible, data]);
+  }, [visible, data, reduceMotion, scaleIn, badgeScale, badgeRotate, mount]);
 
   const badgeSpin = badgeRotate.interpolate({ inputRange: [-1, 0], outputRange: ['-25deg', '0deg'] });
 
@@ -175,7 +187,7 @@ function WorkoutSummaryCard({ visible, data, onClose }: Props) {
     : [COLORS.primaryGreen, alpha(COLORS.primaryGreen, 0.7)];
 
   return (
-    <Modal visible={visible} transparent animationType="slide">
+    <Modal visible={visible} transparent animationType={reduceMotion ? "none" : "slide"}>
       <View style={styles.backdrop}>
         <ConfettiBurst active={confettiActive} />
         <Animated.View style={[styles.card, { transform: [{ scale: scaleIn }] }]}>

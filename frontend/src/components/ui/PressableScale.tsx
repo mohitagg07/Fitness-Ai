@@ -7,6 +7,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { MOTION } from '../../theme/motion';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 type Props = Omit<PressableProps, 'style'> & {
   style?: StyleProp<ViewStyle>;
@@ -24,24 +25,33 @@ export default function PressableScale({
   ...props
 }: Props) {
   const scale = useRef(new Animated.Value(1)).current;
+  const reduceMotion = useReducedMotion();
 
   const handlePressIn: NonNullable<PressableProps['onPressIn']> = (event) => {
-    Animated.spring(scale, {
-      toValue: pressScale,
-      useNativeDriver: true,
-      speed: MOTION.pressSpeed,
-      bounciness: 2,
-    }).start();
+    if (reduceMotion) {
+      scale.setValue(1);
+    } else {
+      Animated.spring(scale, {
+        toValue: pressScale,
+        useNativeDriver: true,
+        speed: MOTION.pressSpeed,
+        bounciness: 2,
+      }).start();
+    }
     onPressIn?.(event);
   };
 
   const handlePressOut: NonNullable<PressableProps['onPressOut']> = (event) => {
-    Animated.spring(scale, {
-      toValue: 1,
-      useNativeDriver: true,
-      speed: MOTION.pressReleaseSpeed,
-      bounciness: 3,
-    }).start();
+    if (reduceMotion) {
+      scale.setValue(1);
+    } else {
+      Animated.spring(scale, {
+        toValue: 1,
+        useNativeDriver: true,
+        speed: MOTION.pressReleaseSpeed,
+        bounciness: 3,
+      }).start();
+    }
     onPressOut?.(event);
   };
 

@@ -1,21 +1,18 @@
 import { useEffect, useState, useRef } from 'react';
 import { Tabs, router } from 'expo-router';
-import { View, ActivityIndicator, StyleSheet, Animated } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Animated, InteractionManager } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { storage } from '../../src/utils/storage';
 import { profileApi } from '../../src/utils/api';
-import { actions } from '../../src/store';
+import { actions, useStore } from '../../src/store';
 import { queryClient, hydrated } from '../../src/lib/queryClient';
 import { qk } from '../../src/lib/queryKeys';
 import { clearAuthData } from '../../src/utils/auth';
 import { usePrefetchDashboard } from '../../src/hooks/useDashboardQueries';
+import { useReducedMotion } from '../../src/hooks/useReducedMotion';
 import { COLORS, alpha } from '../../src/theme/colors';
 import { FONTS } from '../../src/theme/typography';
-import {
-  registerForPushNotificationsAsync,
-  attachNotificationResponseHandler,
-} from '../../src/utils/pushNotifications';
 
 type TabDef = {
   name: string;
@@ -44,8 +41,14 @@ function TabBarIcon({
   focused: boolean;
 }) {
   const scale = useRef(new Animated.Value(focused ? 1.04 : 1)).current;
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
+    scale.stopAnimation();
+    if (reduceMotion) {
+      scale.setValue(focused ? 1.04 : 1);
+      return undefined;
+    }
     const animation = Animated.spring(scale, {
       toValue: focused ? 1.05 : 1,
       useNativeDriver: true,
@@ -54,7 +57,7 @@ function TabBarIcon({
     });
     animation.start();
     return () => animation.stop();
-  }, [focused, scale]);
+  }, [focused, scale, reduceMotion]);
 
   const isTrainActive = tab.name === 'workout' && focused;
 
@@ -79,9 +82,11 @@ export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const [authChecked, setAuthChecked] = useState(false);
   const prefetchDashboard = usePrefetchDashboard();
+  const authSession = useStore((state) => ({ token: state.token, user: state.user }));
 
   useEffect(() => {
     let cancelled = false;
+    let notificationTask: ReturnType<typeof InteractionManager.runAfterInteractions> | null = null;
 
     const applyProfile = (payload: any) => {
       const profile = payload?.profile ?? payload ?? {};
@@ -121,9 +126,12 @@ export default function TabsLayout() {
     };
 
     const bootstrap = async () => {
-      let token: string | null = null;
+      // app/index.tsx already restores this session into the in-memory store.
+      // Reuse it rather than doing a second secure-storage round trip on every
+      // cold launch. Direct tab entry still has the native-storage fallback.
+      let token: string | null = authSession.token;
       try {
-        token = await storage.getItem('vyrn_token');
+        if (!token) token = await storage.getItem('vyrn_token');
       } catch {
         router.replace('/login');
         return;
@@ -135,12 +143,14 @@ export default function TabsLayout() {
         return;
       }
 
-      let savedUser: any = null;
-      try {
-        const rawUser = await storage.getItem('vyrn_user');
-        savedUser = rawUser ? JSON.parse(rawUser) : null;
-      } catch {
-        savedUser = null;
+      let savedUser: any = authSession.user ?? null;
+      if (!savedUser) {
+        try {
+          const rawUser = await storage.getItem('vyrn_user');
+          savedUser = rawUser ? JSON.parse(rawUser) : null;
+        } catch {
+          savedUser = null;
+        }
       }
       if (cancelled) return;
 
@@ -159,32 +169,63 @@ export default function TabsLayout() {
       }
 
       setAuthChecked(true);
-      void registerForPushNotificationsAsync();
-      prefetchDashboard();
 
+      // Do not race persisted-cache restoration with prefetch/profile writes.
+      // The shell is already visible while this resolves, so cold-start UI is
+      // not blocked by cache hydration or a sleeping API.
       void hydrated.then(() => {
         if (cancelled) return;
         const restored = queryClient.getQueryData(qk.profile.me()) as any;
-        if (!restored) return;
-        const profile = applyProfile(restored);
-        redirectForOnboarding(profile);
+        if (restored) {
+          const profile = applyProfile(restored);
+          if (redirectForOnboarding(profile)) return;
+        }
+        prefetchDashboard();
+        void refreshProfileInBackground();
       });
 
-      // A live validation still happens on every fresh shell entry, but it no
-      // longer gates first paint. The app can render cached data immediately
-      // while the backend wakes up or the device changes networks.
-      void refreshProfileInBackground();
+      // Native notification imports and the permission prompt are not on the
+      // first-paint path. Run them only after the opening interactions settle.
+      notificationTask = InteractionManager.runAfterInteractions(() => {
+        if (cancelled) return;
+        // Defer evaluating expo-notifications itself until the first shell
+        // interactions have settled, not merely its permission request.
+        void import('../../src/utils/pushNotifications')
+          .then(({ registerForPushNotificationsAsync }) => {
+            if (!cancelled) return registerForPushNotificationsAsync();
+            return undefined;
+          })
+          .catch((error) => {
+            if (__DEV__) console.warn('[VYRN] Push registration could not start', error);
+          });
+      });
     };
 
     void bootstrap();
     return () => {
       cancelled = true;
+      notificationTask?.cancel();
     };
-  }, [prefetchDashboard]);
+  }, [prefetchDashboard, authSession.token, authSession.user]);
 
   useEffect(() => {
-    const cleanup = attachNotificationResponseHandler();
-    return cleanup;
+    let cancelled = false;
+    let cleanup: (() => void) | undefined;
+    const task = InteractionManager.runAfterInteractions(() => {
+      void import('../../src/utils/pushNotifications')
+        .then(({ attachNotificationResponseHandler }) => {
+          if (cancelled) return;
+          cleanup = attachNotificationResponseHandler();
+        })
+        .catch((error) => {
+          if (__DEV__) console.warn('[VYRN] Notification response listener could not start', error);
+        });
+    });
+    return () => {
+      cancelled = true;
+      task.cancel();
+      cleanup?.();
+    };
   }, []);
 
   if (!authChecked) {

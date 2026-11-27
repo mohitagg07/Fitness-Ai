@@ -1,9 +1,10 @@
 import React, { Component, MutableRefObject, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, PanResponder, Platform, StyleSheet, View } from 'react-native';
-import { Canvas, useFrame } from '@react-three/fiber/native';
+import { ActivityIndicator, PanResponder, Platform, StyleSheet, View } from 'react-native';
+import { Canvas, useFrame, useThree } from '@react-three/fiber/native';
 import * as THREE from 'three';
 
 import { COLORS } from '../../theme/colors';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import Text from '../ui/Text';
 
 type MuscleKey = 'Chest' | 'Back' | 'Shoulders' | 'Arms' | 'Core' | 'Legs';
@@ -69,8 +70,8 @@ function MuscleBelly({
   const isSelected = selected === muscle;
 
   return (
-    <mesh position={position} rotation={rotation} scale={[1, 1, depth]} castShadow receiveShadow>
-      <latheGeometry args={[profile, 28]} />
+    <mesh position={position} rotation={rotation} scale={[1, 1, depth]}>
+      <latheGeometry args={[profile, 20]} />
       <meshStandardMaterial
         color={color}
         roughness={0.48}
@@ -92,8 +93,8 @@ function BodyVolume({
   color?: string;
 }) {
   return (
-    <mesh position={position} scale={scale} castShadow receiveShadow>
-      <sphereGeometry args={[1, 32, 24]} />
+    <mesh position={position} scale={scale}>
+      <sphereGeometry args={[1, 20, 16]} />
       <meshStandardMaterial color={color} roughness={0.72} metalness={0.025} />
     </mesh>
   );
@@ -104,20 +105,45 @@ function RecoveryAvatar({
   musclePalette,
   controls,
   reduceMotion,
+  onFirstFrame,
+  onInteraction,
 }: {
   selectedMuscle: MuscleKey;
   musclePalette: MusclePalette;
   controls: MutableRefObject<SceneControls>;
   reduceMotion: boolean;
+  onFirstFrame?: () => void;
+  onInteraction?: () => void;
 }) {
   const root = useRef<THREE.Group>(null);
+  const firstFrameReported = useRef(false);
+  const dragFrameReported = useRef(false);
+  const lastDragRotation = useRef(controls.current.rotationY);
 
   useFrame((_, delta) => {
+    if (!firstFrameReported.current) {
+      firstFrameReported.current = true;
+      onFirstFrame?.();
+    }
     if (!root.current) return;
     const step = Math.min(delta, 0.05);
     if (!reduceMotion && !controls.current.dragging) controls.current.rotationY += step * 0.115;
     root.current.rotation.y = controls.current.rotationY;
     root.current.rotation.x = controls.current.rotationX;
+
+    // Report interaction only after the Three.js group has consumed the new
+    // control value in a rendered frame. The Android smoke test therefore
+    // verifies actual model rotation, not just PanResponder event delivery.
+    if (controls.current.dragging) {
+      if (!dragFrameReported.current && Math.abs(root.current.rotation.y - lastDragRotation.current) > 0.01) {
+        dragFrameReported.current = true;
+        lastDragRotation.current = root.current.rotation.y;
+        onInteraction?.();
+      }
+    } else {
+      dragFrameReported.current = false;
+      lastDragRotation.current = root.current.rotation.y;
+    }
   });
 
   const m = (muscle: MuscleKey, position: [number, number, number], length: number, radius: number,
@@ -141,8 +167,8 @@ function RecoveryAvatar({
         {/* Neutral structural silhouette: head, neck, torso, pelvis and limb foundations. */}
         <BodyVolume position={[0, 1.64, 0]} scale={[0.22, 0.28, 0.19]} color={BODY_BASE} />
         <BodyVolume position={[0, 1.30, 0]} scale={[0.13, 0.22, 0.13]} color={BODY_DARK} />
-        <mesh position={[0, 0.28, 0]} castShadow receiveShadow>
-          <latheGeometry args={[TORSO_PROFILE, 48]} />
+        <mesh position={[0, 0.28, 0]}>
+          <latheGeometry args={[TORSO_PROFILE, 32]} />
           <meshStandardMaterial color={BODY_BASE} roughness={0.68} metalness={0.035} />
         </mesh>
         <BodyVolume position={[0, -0.52, 0]} scale={[0.38, 0.26, 0.23]} color={BODY_DARK} />
@@ -202,19 +228,36 @@ function RecoveryAvatar({
 
       {/* A restrained instrument platform gives the model depth and a clear centre. */}
       <mesh position={[0, -2.22, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.88, 0.012, 10, 88]} />
+        <torusGeometry args={[0.88, 0.012, 8, 56]} />
         <meshBasicMaterial color="#63816A" transparent opacity={0.62} />
       </mesh>
       <mesh position={[0, -2.24, 0]}>
-        <cylinderGeometry args={[0.70, 0.78, 0.055, 64]} />
+        <cylinderGeometry args={[0.70, 0.78, 0.055, 40]} />
         <meshStandardMaterial color="#17271D" roughness={0.62} metalness={0.16} />
       </mesh>
       <mesh position={[0, 0.12, -0.78]} rotation={[0, 0, 0]}>
-        <torusGeometry args={[1.72, 0.007, 8, 96]} />
+        <torusGeometry args={[1.72, 0.007, 8, 64]} />
         <meshBasicMaterial color="#335441" transparent opacity={0.36} />
       </mesh>
     </>
   );
+}
+
+function SceneInvalidationBridge({
+  invalidateRef,
+}: {
+  invalidateRef: MutableRefObject<(() => void) | null>;
+}) {
+  const invalidate = useThree((state) => state.invalidate);
+  useEffect(() => {
+    invalidateRef.current = invalidate;
+    // A demand-rendered Canvas does not render until invalidated. Request one
+    // mount frame so first-frame readiness, initial layout and accessibility
+    // status can settle even when Reduce Motion is enabled.
+    invalidate();
+    return () => { invalidateRef.current = null; };
+  }, [invalidate, invalidateRef]);
+  return null;
 }
 
 function RecoveryScene({
@@ -222,11 +265,15 @@ function RecoveryScene({
   musclePalette,
   controls,
   reduceMotion,
+  onFirstFrame,
+  onInteraction,
 }: {
   selectedMuscle: MuscleKey;
   musclePalette: MusclePalette;
   controls: MutableRefObject<SceneControls>;
   reduceMotion: boolean;
+  onFirstFrame?: () => void;
+  onInteraction?: () => void;
 }) {
   return (
     <>
@@ -236,7 +283,14 @@ function RecoveryScene({
       <directionalLight position={[3.8, 5.5, 5]} intensity={2.0} color="#F2FFF2" />
       <directionalLight position={[-4, 1.5, -4]} intensity={1.45} color="#8DCB9A" />
       <pointLight position={[0, -1.2, 3.2]} intensity={0.62} distance={8} color="#B9DE72" />
-      <RecoveryAvatar selectedMuscle={selectedMuscle} musclePalette={musclePalette} controls={controls} reduceMotion={reduceMotion} />
+      <RecoveryAvatar
+        selectedMuscle={selectedMuscle}
+        musclePalette={musclePalette}
+        controls={controls}
+        reduceMotion={reduceMotion}
+        onFirstFrame={onFirstFrame}
+        onInteraction={onInteraction}
+      />
     </>
   );
 }
@@ -274,13 +328,20 @@ export default function ThreeMuscleScene({
   selectedMuscle,
   musclePalette,
   onFailure,
+  onReady,
+  onInteraction,
 }: {
   selectedMuscle: MuscleKey;
   musclePalette: MusclePalette;
   onFailure: () => void;
+  onReady?: () => void;
+  onInteraction?: () => void;
 }) {
   const [loading, setLoading] = useState(true);
-  const [reduceMotion, setReduceMotion] = useState(false);
+  const reduceMotion = useReducedMotion();
+  const onInteractionRef = useRef(onInteraction);
+  onInteractionRef.current = onInteraction;
+  const invalidateRef = useRef<(() => void) | null>(null);
   const controls = useRef<SceneControls>({
     rotationX: 0,
     rotationY: 0,
@@ -288,18 +349,6 @@ export default function ThreeMuscleScene({
     startY: 0,
     dragging: false,
   });
-
-  useEffect(() => {
-    let active = true;
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then((enabled) => { if (active) setReduceMotion(enabled); })
-      .catch(() => undefined);
-    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
-    return () => {
-      active = false;
-      subscription.remove();
-    };
-  }, []);
 
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => false,
@@ -321,6 +370,7 @@ export default function ThreeMuscleScene({
         -0.36,
         Math.min(0.36, controls.current.startX - gesture.dy * 0.0035),
       );
+      invalidateRef.current?.();
     },
     onPanResponderRelease: () => { controls.current.dragging = false; },
     onPanResponderTerminate: () => { controls.current.dragging = false; },
@@ -331,6 +381,7 @@ export default function ThreeMuscleScene({
       <SceneBoundary onFailure={onFailure}>
         <Canvas
           style={styles.canvas}
+          frameloop={reduceMotion ? 'demand' : 'always'}
           // Keep GPU work predictable on Android. Native R3F manages pixel
           // ratio through React Native's PixelRatio and does not expose web dpr.
           gl={{ antialias: Platform.OS !== 'android' }}
@@ -340,7 +391,15 @@ export default function ThreeMuscleScene({
             setLoading(false);
           }}
         >
-          <RecoveryScene selectedMuscle={selectedMuscle} musclePalette={musclePalette} controls={controls} reduceMotion={reduceMotion} />
+          <SceneInvalidationBridge invalidateRef={invalidateRef} />
+          <RecoveryScene
+            selectedMuscle={selectedMuscle}
+            musclePalette={musclePalette}
+            controls={controls}
+            reduceMotion={reduceMotion}
+            onFirstFrame={onReady}
+            onInteraction={() => onInteractionRef.current?.()}
+          />
         </Canvas>
       </SceneBoundary>
       <View style={styles.dragLayer} {...panResponder.panHandlers}>
