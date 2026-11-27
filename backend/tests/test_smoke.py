@@ -821,3 +821,15 @@ def test_workout_completion_rpc_is_present_in_migration_and_uses_session_row_loc
     assert "paused_duration_seconds" in body
     assert "duration_minutes" in body
     assert "log_workout_set_idempotent" in migration
+
+
+def test_set_logging_requires_an_idempotency_key():
+    from fastapi import HTTPException
+    from api.routes.workouts import SetLogRequest, log_set
+    import asyncio
+
+    payload = SetLogRequest(exercise_name="Bench Press", weight_kg=60, reps=8)
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(log_set("session-1", payload, {"user_id": "user-1"}))
+    assert error.value.status_code == 422
+    assert "client_request_id" in error.value.detail

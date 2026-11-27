@@ -1072,6 +1072,11 @@ async def log_set(
     payload: SetLogRequest,
     current_user: dict = Depends(get_current_user)
 ):
+    if not payload.client_request_id or not payload.client_request_id.strip():
+        raise HTTPException(
+            422,
+            "A stable client_request_id is required so retries cannot create duplicate sets.",
+        )
     sb = get_supabase()
     user_id = current_user["user_id"]
 
