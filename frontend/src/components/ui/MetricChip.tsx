@@ -42,18 +42,15 @@ export default function MetricChip({ icon, label, value, color = COLORS.textSeco
       >
         {label}
       </Text>
-      {/* Values can also run long ("Not logged today") — shrink to fit
-          rather than clipping into an ellipsis, so the number/word is
-          always fully readable at a glance. */}
+      {/* Long values can wrap to a second line instead of shrinking to an
+          unreadable font size or clipping into an ellipsis. */}
       <Text
         variant="body"
         weight="bold"
         numeric
         color={COLORS.text}
         style={styles.value}
-        numberOfLines={1}
-        adjustsFontSizeToFit
-        minimumFontScale={0.72}
+        numberOfLines={2}
       >
         {value}
       </Text>
@@ -70,9 +67,9 @@ const styles = StyleSheet.create({
   label: {
     textTransform: 'uppercase',
     letterSpacing: 0.3,
-    fontSize: 9,
-    lineHeight: 12,
+    fontSize: 11,
+    lineHeight: 14,
     textAlign: 'center',
   },
-  value: { fontSize: 13, textAlign: 'center' },
+  value: { fontSize: 14, lineHeight: 18, textAlign: 'center' },
 });

@@ -989,7 +989,7 @@ const C = StyleSheet.create({
   },
   exMetric: { flex: 1, alignItems: 'center', gap: 2 },
   exMetricValue: { fontFamily: FONTS.numericSemibold,  color: COLORS.text, fontSize: 13, fontWeight: '800' },
-  exMetricLabel: { fontFamily: FONTS.bold,  color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
+  exMetricLabel: { fontFamily: FONTS.bold,  color: COLORS.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
   exMetricDivider: { width: 1, height: 20, backgroundColor: 'rgba(255,255,255,0.08)' },
 
   reasonRow:  { paddingHorizontal: 14, paddingVertical: 10,
@@ -998,7 +998,7 @@ const C = StyleSheet.create({
 
   // Live set card
   nextActionBlock: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8 },
-  nextActionLabel: { fontFamily: FONTS.bold,  color: COLORS.strainGlow, fontSize: 9, fontWeight: '800',
+  nextActionLabel: { fontFamily: FONTS.bold,  color: COLORS.strainGlow, fontSize: 10, fontWeight: '800',
                      letterSpacing: 1.5, marginBottom: 4 },
   nextActionText: { fontFamily: FONTS.bold,  color: COLORS.text, fontSize: 20, fontWeight: '800', lineHeight: 26 },
   insightBlock:    { paddingHorizontal: 14, paddingVertical: 10,
@@ -1012,7 +1012,7 @@ const C = StyleSheet.create({
   recoveryScoreUnit: { fontFamily: FONTS.semibold,  color: COLORS.textMuted, fontSize: 14, fontWeight: '600', marginTop: -6 },
   recoveryZonePill:   { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8,
                         paddingVertical: 3, marginTop: 6 },
-  recoveryZoneText: { fontFamily: FONTS.bold,  fontSize: 9, fontWeight: '800', letterSpacing: 1.2 },
+  recoveryZoneText: { fontFamily: FONTS.bold,  fontSize: 10, fontWeight: '800', letterSpacing: 1.2 },
   recoveryDivider:    { width: 1, height: 52, backgroundColor: COLORS.border },
   recoveryTips:       { flex: 1, gap: 6 },
 
@@ -1022,12 +1022,12 @@ const C = StyleSheet.create({
                  borderRadius: 10, padding: 10, alignItems: 'center',
                  borderWidth: 1, borderColor: COLORS.border },
   macroVal: { fontFamily: FONTS.numericSemibold,  fontSize: 18, fontWeight: '800', color: COLORS.text },
-  macroLabel: { fontFamily: FONTS.bold,  color: COLORS.textMuted, fontSize: 9, fontWeight: '700',
+  macroLabel: { fontFamily: FONTS.bold,  color: COLORS.textMuted, fontSize: 10, fontWeight: '700',
                  letterSpacing: 1, marginTop: 2 },
 
   // Progress card
   prBlock:      { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8 },
-  prBlockLabel: { fontFamily: FONTS.bold,  color: COLORS.gold, fontSize: 9, fontWeight: '800', letterSpacing: 1.5, marginBottom: 8 },
+  prBlockLabel: { fontFamily: FONTS.bold,  color: COLORS.gold, fontSize: 10, fontWeight: '800', letterSpacing: 1.5, marginBottom: 8 },
   prRow:        { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   prText: { fontFamily: FONTS.semibold,  color: COLORS.text, fontSize: 13, fontWeight: '600' },
   trendRow:     { flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -1040,11 +1040,11 @@ const C = StyleSheet.create({
   weeklyStatChip:  { flex: 1, backgroundColor: COLORS.cardElevated, borderRadius: 10,
                      padding: 10, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
   weeklyStatVal: { fontFamily: FONTS.numericSemibold,  fontSize: 20, fontWeight: '800', color: COLORS.text },
-  weeklyStatLabel: { fontFamily: FONTS.bold,  color: COLORS.textMuted, fontSize: 8, fontWeight: '700',
+  weeklyStatLabel: { fontFamily: FONTS.bold,  color: COLORS.textMuted, fontSize: 10, fontWeight: '700',
                      letterSpacing: 1, marginTop: 2 },
   weekDays:        { flexDirection: 'row', paddingHorizontal: 14, paddingBottom: 14, gap: 6 },
   weekDay:         { flex: 1, alignItems: 'center', gap: 5 },
-  weekDayLabel: { fontFamily: FONTS.semibold,  color: COLORS.textMuted, fontSize: 9, fontWeight: '600' },
+  weekDayLabel: { fontFamily: FONTS.semibold,  color: COLORS.textMuted, fontSize: 10, fontWeight: '600' },
   weekDayDot:      { width: 8, height: 8, borderRadius: 4 },
 
   // Chat tips
@@ -1070,7 +1070,7 @@ const S = StyleSheet.create({
     backgroundColor: COLORS.recoveryHigh + '20', borderRadius: 6,
     paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: COLORS.recoveryHigh + '50',
   },
-  proBadgeText: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 8, fontWeight: '800', letterSpacing: 0.9 },
+  proBadgeText: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 10, fontWeight: '800', letterSpacing: 0.9 },
   headerSub: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 11, letterSpacing: 0.1, marginTop: 1 },
   headerIcons: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   notifDot: {
@@ -1079,7 +1079,7 @@ const S = StyleSheet.create({
   },
   // Live training context stays secondary to the actual coaching actions.
   briefCard: { minHeight: 38, paddingHorizontal: 12, paddingVertical: 8, marginTop: 2, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.card, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border },
-  briefContextTitle: { fontFamily: FONTS.bold, color: COLORS.textMuted, fontSize: 8, letterSpacing: 0.8 },
+  briefContextTitle: { fontFamily: FONTS.bold, color: COLORS.textMuted, fontSize: 10, letterSpacing: 0.8 },
   briefDividerVertical: { width: 1, height: 15, backgroundColor: COLORS.border },
   briefMetricInline: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 10 },
   offlineBanner: {
@@ -1105,11 +1105,11 @@ const S = StyleSheet.create({
     position: 'absolute', right: -3, bottom: -3, width: 13, height: 13, borderRadius: 7,
     backgroundColor: COLORS.recoveryHigh, borderWidth: 3, borderColor: COLORS.background,
   },
-  emptyEyebrow: { fontFamily: FONTS.bold,  color: COLORS.primaryGreen, fontSize: 9, fontWeight: '800', letterSpacing: 1.8, marginBottom: 9 },
+  emptyEyebrow: { fontFamily: FONTS.bold,  color: COLORS.primaryGreen, fontSize: 10, fontWeight: '800', letterSpacing: 1.8, marginBottom: 9 },
   emptyTitle: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 28, lineHeight: 33, fontWeight: '700', letterSpacing: -0.8, marginBottom: 9, maxWidth: 310 },
   emptySubtitle: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 12, lineHeight: 19, maxWidth: 340 },
   suggestionsHeading: { marginBottom: 11 },
-  suggestionsHeadingLabel: { fontFamily: FONTS.bold, color: COLORS.textSecondary, fontSize: 9, fontWeight: '800', letterSpacing: 1.2 },
+  suggestionsHeadingLabel: { fontFamily: FONTS.bold, color: COLORS.textSecondary, fontSize: 10, fontWeight: '800', letterSpacing: 1.2 },
   suggestions: { gap: 9 },
   suggestion: { width: '100%', minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 13, backgroundColor: COLORS.card, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: COLORS.border },
   suggestionIcon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
@@ -1124,7 +1124,7 @@ const S = StyleSheet.create({
   aiBubble:    { backgroundColor: COLORS.card, alignSelf: 'flex-start',
                  borderWidth: 1, borderColor: COLORS.border, maxWidth: '97%' },
   roleLabelRow:{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 },
-  roleLabel: { fontFamily: FONTS.bold,  color: COLORS.recoveryHigh, fontSize: 9, fontWeight: '800', letterSpacing: 1.5 },
+  roleLabel: { fontFamily: FONTS.bold,  color: COLORS.recoveryHigh, fontSize: 10, fontWeight: '800', letterSpacing: 1.5 },
   messageText: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 14, lineHeight: 22 },
   userText:    { color: COLORS.text },
   questionCard: { marginTop: 13, padding: 12, borderRadius: 15, backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.cardBorder, gap: 10 },

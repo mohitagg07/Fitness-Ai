@@ -540,7 +540,7 @@ const pillStyles = StyleSheet.create({
     backgroundColor: COLORS.cardElevated, borderRadius: 12, borderWidth: 1, gap: 4,
   },
   value: { fontSize: 16, fontWeight: '800' },
-  label: { color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 0.6 },
+  label: { color: COLORS.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 0.6 },
 });
 
 const styles = StyleSheet.create({
@@ -556,7 +556,7 @@ const styles = StyleSheet.create({
   manualWrap: { paddingHorizontal: 20, paddingTop: 18, gap: 10 },
   manualTitle: { color: COLORS.text, fontSize: 25, lineHeight: 30, fontWeight: '800', marginTop: 4 },
   manualSubtitle: { color: COLORS.textMuted, fontSize: 13, lineHeight: 19, marginBottom: 8 },
-  manualLabel: { color: COLORS.textMuted, fontSize: 9, fontWeight: '800', letterSpacing: 1.1, marginTop: 5 },
+  manualLabel: { color: COLORS.textMuted, fontSize: 10, fontWeight: '800', letterSpacing: 1.1, marginTop: 5 },
   manualInput: { color: COLORS.text, backgroundColor: COLORS.inputBg, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 14, paddingVertical: 13, fontSize: 14, minHeight: 48 },
   portionSuggestions: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 9 },
   portionChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardElevated },
@@ -572,10 +572,10 @@ const styles = StyleSheet.create({
   confidencePill: { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 6, borderWidth: 1 },
   confidenceMedium: { backgroundColor: alpha(COLORS.recoveryHigh, 0.12), borderColor: alpha(COLORS.recoveryHigh, 0.4) },
   confidenceLow: { backgroundColor: alpha(COLORS.recoveryMed, 0.12), borderColor: alpha(COLORS.recoveryMed, 0.4) },
-  confidenceText: { color: COLORS.textSecondary, fontSize: 8, fontWeight: '800', letterSpacing: 0.5 },
+  confidenceText: { color: COLORS.textSecondary, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
   estimatedMacros: { flexDirection: 'row', gap: 7 },
   assumptionBlock: { paddingTop: 9, borderTopWidth: 1, borderTopColor: COLORS.border, gap: 5 },
-  assumptionHeading: { color: COLORS.textMuted, fontSize: 9, fontWeight: '800', letterSpacing: 1 },
+  assumptionHeading: { color: COLORS.textMuted, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
   assumptionText: { color: COLORS.textSecondary, fontSize: 11, lineHeight: 16 },
   estimateDisclaimer: { color: COLORS.textMuted, fontSize: 10, lineHeight: 15 },
   manualLaunch: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 7, marginHorizontal: 20, marginTop: 12, paddingVertical: 7 },

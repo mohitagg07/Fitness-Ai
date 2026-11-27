@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     paddingTop: SPACING.md,
   },
   statCol: { flex: 1, alignItems: 'center' },
-  statLabel: { fontSize: 9, letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 2 },
+  statLabel: { fontSize: 10, letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 2 },
   statValue: { fontSize: 14 },
   statCaption: { fontSize: 10, marginTop: 2 },
 });

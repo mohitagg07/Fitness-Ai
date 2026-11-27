@@ -19,7 +19,7 @@ export const COLORS = {
   text:           '#F4F5EF',
   textSecondary:  '#B3BECA',
   textMuted:      '#7F8D9C',
-  textDim:        '#596878',
+  textDim:        '#77889A',
 
   // Borders carry structure without looking like wireframes.
   border:         '#263342',

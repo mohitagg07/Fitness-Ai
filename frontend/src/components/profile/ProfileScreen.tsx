@@ -713,7 +713,7 @@ const styles = StyleSheet.create({
   header: { alignItems: 'center', paddingBottom: 20, paddingHorizontal: 20 },
   logoBar: { alignSelf: 'stretch', marginBottom: 20 },
   profileIntro: { alignSelf: 'stretch', alignItems: 'flex-start', marginBottom: 22 },
-  profileEyebrow: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 9, letterSpacing: 1.4, marginBottom: 5 },
+  profileEyebrow: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 10, letterSpacing: 1.4, marginBottom: 5 },
   profileIntroTitle: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 27, lineHeight: 33, letterSpacing: -0.6 },
   profileIntroText: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 12, lineHeight: 18, marginTop: 4, maxWidth: 360 },
 
@@ -735,7 +735,7 @@ const styles = StyleSheet.create({
   name: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 27, fontWeight: '600', marginBottom: 4, letterSpacing: -0.5 },
   email: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 12, marginBottom: 12 },
   goalBadge: { borderRadius: 999, paddingHorizontal: 13, paddingVertical: 7, marginBottom: 16 },
-  goalText: { fontFamily: FONTS.bold, fontSize: 9, fontWeight: '700', letterSpacing: 0.9 },
+  goalText: { fontFamily: FONTS.bold, fontSize: 10, fontWeight: '700', letterSpacing: 0.9 },
 
   editBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: COLORS.primaryGreen + '50', borderRadius: 16, paddingHorizontal: 17, paddingVertical: 10, backgroundColor: COLORS.primaryGreen + '12' },
   editBtnText: { color: COLORS.primaryGreen, fontFamily: FONTS.semibold, fontSize: 12, fontWeight: '600' },
@@ -756,14 +756,14 @@ const styles = StyleSheet.create({
   },
   stat: { alignItems: 'center' },
   statValue: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 17, fontWeight: '600' },
-  statLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, marginTop: 3, letterSpacing: 0.7 },
+  statLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 10, marginTop: 3, letterSpacing: 0.7 },
 
   card: {
     backgroundColor: COLORS.cardElevated, borderRadius: 25,
     padding: 18, marginHorizontal: 16, marginBottom: 14,
     borderWidth: 1, borderColor: COLORS.borderLight,
   },
-  cardLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 9, fontWeight: '700', letterSpacing: 1.2 },
+  cardLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 10, fontWeight: '700', letterSpacing: 1.2 },
   cardLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
 
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: COLORS.border },
@@ -818,7 +818,7 @@ const styles = StyleSheet.create({
   modalCancel: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 13 },
   modalSave: { color: COLORS.primaryGreen, fontFamily: FONTS.semibold, fontSize: 13, fontWeight: '600' },
 
-  sectionTitle: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 9, fontWeight: '700', letterSpacing: 1.2, marginBottom: 12 },
+  sectionTitle: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 10, fontWeight: '700', letterSpacing: 1.2, marginBottom: 12 },
   fieldLabel: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 11, marginBottom: 6, marginTop: 12 },
   input: { backgroundColor: COLORS.inputBg, borderRadius: 16, paddingHorizontal: 15, paddingVertical: 13, color: COLORS.text, fontFamily: FONTS.regular, fontSize: 14, borderWidth: 1, borderColor: COLORS.border },
 

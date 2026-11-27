@@ -82,7 +82,7 @@ const P = StyleSheet.create({
   barCol: { flex: 1, alignItems: 'center', gap: 4 },
   barTrack: { flex: 1, width: '100%', backgroundColor: COLORS.border, borderRadius: 4, justifyContent: 'flex-end', overflow: 'hidden', borderWidth: 1, borderColor: COLORS.border },
   barFill: { width: '100%', borderRadius: 4 },
-  dayLabel: { fontFamily: FONTS.semibold,  color: COLORS.textMuted, fontSize: 9, fontWeight: '600' },
+  dayLabel: { fontFamily: FONTS.semibold,  color: COLORS.textMuted, fontSize: 10, fontWeight: '600' },
   empty: { paddingVertical: 16, alignItems: 'center' },
   emptyText: { fontFamily: FONTS.regular,  color: COLORS.textMuted, fontSize: 13 },
 });
@@ -116,7 +116,7 @@ function MacroRing({ pct, color, label, value }: { pct: number; color: string; l
         </Svg>
       </View>
       <Text style={{ color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 12, fontWeight: '700' }}>{value}</Text>
-      <Text style={{ color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, fontWeight: '700', letterSpacing: 1 }}>{label}</Text>
+      <Text style={{ color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 10, fontWeight: '700', letterSpacing: 1 }}>{label}</Text>
     </View>
   );
 }
@@ -551,7 +551,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   header: { paddingHorizontal: 20, paddingBottom: 18, borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 7 },
   headerTopRow: { flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: 7 },
-  headerEyebrow: { fontFamily: FONTS.bold,  color: COLORS.primaryGreen, fontSize: 9, fontWeight: '800', letterSpacing: 1.75 },
+  headerEyebrow: { fontFamily: FONTS.bold,  color: COLORS.primaryGreen, fontSize: 10, fontWeight: '800', letterSpacing: 1.75 },
   headerDescription: { fontFamily: FONTS.regular,  color: COLORS.textMuted, fontSize: 12, lineHeight: 18, marginTop: 1 },
   headerSub: { fontFamily: FONTS.semibold,  color: COLORS.text, fontSize: 27, lineHeight: 32, fontWeight: '600', letterSpacing: -0.7 },
   tabBarScroll: { borderBottomWidth: 0, flexGrow: 0, backgroundColor: 'transparent' },
@@ -586,14 +586,14 @@ const styles = StyleSheet.create({
   statsGrid: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   statCard: { flex: 1, backgroundColor: COLORS.card, borderRadius: 21, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
   statVal: { fontFamily: FONTS.numericSemibold,  color: COLORS.primaryGreen, fontSize: 18, fontWeight: '800' },
-  statLabel: { fontFamily: FONTS.bold,  color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 1, marginTop: 2 },
+  statLabel: { fontFamily: FONTS.bold,  color: COLORS.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 1, marginTop: 2 },
   chartCard: { backgroundColor: COLORS.card, borderRadius: 19, padding: 17, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
   logFoodBtn: { backgroundColor: COLORS.primaryGreen, borderRadius: 15, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 16 },
   logFoodBtnText: { fontFamily: FONTS.bold,  color: COLORS.background, fontSize: 14, fontWeight: '800', letterSpacing: 0.5 },
   streaksRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
   streakCard: { flex: 1, backgroundColor: COLORS.card, borderRadius: 22, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
   streakVal: { fontFamily: FONTS.numericSemibold,  color: COLORS.text, fontSize: 22, fontWeight: '800', marginTop: 4 },
-  streakLabel: { fontFamily: FONTS.bold,  color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 0.5, marginTop: 2 },
+  streakLabel: { fontFamily: FONTS.bold,  color: COLORS.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 0.5, marginTop: 2 },
   recoveryRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
   recoveryDate: { fontFamily: FONTS.regular,  color: COLORS.textMuted, fontSize: 11, width: 36 },
   recoveryTrack: { flex: 1, height: 4, backgroundColor: COLORS.inputBg, borderRadius: 2, overflow: 'hidden' },

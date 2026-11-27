@@ -265,11 +265,11 @@ export default function TabsLayout() {
         tabBarShowLabel: true,
         tabBarLabelStyle: {
           fontFamily: FONTS.semibold,
-          fontSize: 10,
+          fontSize: 11,
           fontWeight: '600',
           letterSpacing: 0.15,
           marginTop: 1,
-          lineHeight: 12,
+          lineHeight: 14,
         },
         tabBarHideOnKeyboard: true,
       }}
@@ -280,7 +280,7 @@ export default function TabsLayout() {
           name={tab.name}
           options={{
             title: tab.title,
-            tabBarLabel: ({ focused }) => (focused ? tab.title : null),
+            tabBarLabel: tab.title,
             tabBarAccessibilityLabel: tab.title,
             tabBarIcon: ({ color, focused }) => (
               <TabBarIcon tab={tab} color={color} focused={focused} />

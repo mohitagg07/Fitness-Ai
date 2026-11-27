@@ -103,7 +103,7 @@ function DashboardHeader({ firstName, aiSentence, recoveryScore0to10, avatarUrl 
             center={
               <View style={{ alignItems: 'center' }}>
                 <Text variant="h1" numeric color={COLORS.text}>{score100}</Text>
-                <Text variant="caption" color={COLORS.textMuted} style={{ fontSize: 9 }}>/100</Text>
+                <Text variant="caption" color={COLORS.textMuted} style={{ fontSize: 10 }}>/100</Text>
               </View>
             }
           />
