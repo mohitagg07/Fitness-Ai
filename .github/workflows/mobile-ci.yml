@@ -158,6 +158,7 @@ jobs:
           profile: pixel_2
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-audio
           emulator-boot-timeout: 900
+          env: ANDROID_I_WANT_MY_TCG=yes
           disable-animations: true
           script: |
             set -euo pipefail
