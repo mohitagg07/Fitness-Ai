@@ -10,16 +10,25 @@ import { StyleSheet, Dimensions } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 import Svg, { Line } from 'react-native-svg';
 import { COLORS, alpha } from '../../theme/colors';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 const { width, height } = Dimensions.get('window');
 const STEP = 32;
 
 export default function AmbientGrid() {
   const offset = useSharedValue(0);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
+    if (reduceMotion) {
+      offset.value = 0;
+      return undefined;
+    }
     offset.value = withRepeat(withTiming(STEP, { duration: 7000, easing: Easing.linear }), -1, false);
-  }, []);
+    return () => {
+      offset.value = 0;
+    };
+  }, [offset, reduceMotion]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: offset.value }],
