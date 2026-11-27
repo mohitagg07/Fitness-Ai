@@ -190,6 +190,15 @@ async def propose_program_rewrite(
         proposed_snapshot["adaptive_trigger"] = result.get("trigger")
         proposed_snapshot["adaptive_changes"] = result.get("changes") or []
         proposed_snapshot["change_reason"] = result.get("explanation")
+        guardrails = []
+        change_types = {str(change.get("type") or "") for change in (result.get("changes") or [])}
+        if "intensity_hold" in change_types:
+            guardrails.append("Hold working loads. Do not increase load targets until nutrition and recovery signals improve.")
+        if "nutrition_flag" in change_types:
+            guardrails.append("Nutrition intake is a limiting recovery signal. Prioritise consistent fueling before adding training volume.")
+        if "deload" in change_types:
+            guardrails.append("Deload prescription: no PR attempts; keep movement controlled and stop sets with substantial reserve.")
+        proposed_snapshot["adaptive_guardrails"] = guardrails
 
         saved = sb.rpc(
             "save_workout_plan_draft",
