@@ -35,9 +35,16 @@ async function performPendingWorkoutSync(sessionId: string): Promise<PendingSync
   // Replay in order. The backend makes each client_request_id idempotent,
   // including the case where the original server response was lost.
   for (const item of pending) {
-    const { sessionId: queuedSessionId, queued_at: _queuedAt, ...data } = item;
+    const data = {
+      exercise_name: item.exercise_name,
+      set_number: item.set_number,
+      weight_kg: item.weight_kg,
+      reps: item.reps,
+      ...(item.rpe !== undefined ? { rpe: item.rpe } : {}),
+      client_request_id: item.client_request_id,
+    };
     try {
-      const response = await workoutApi.logSet(queuedSessionId, data);
+      const response = await workoutApi.logSet(item.sessionId, data);
       await removePendingWorkoutSet(item.client_request_id);
       actions.replaceLogInSession(item, response.data, sessionId);
       synced += 1;
