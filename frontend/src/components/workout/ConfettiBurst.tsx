@@ -9,6 +9,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { View, Animated, StyleSheet, Dimensions } from 'react-native';
 import { COLORS } from '../../theme/colors';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 const { width: SCREEN_W } = Dimensions.get('window');
 const COLORS_POOL = [COLORS.primaryGreen, COLORS.strain, COLORS.recoveryMed, COLORS.strainGlow, '#FFFFFF'];
 const PARTICLE_COUNT = 28;
@@ -23,6 +24,7 @@ interface Particle {
 }
 function ConfettiBurst({ active }: { active: boolean }) {
   const anims = useRef<Animated.Value[]>([]).current;
+  const reduceMotion = useReducedMotion();
   const particles: Particle[] = useMemo(() => {
     return Array.from({ length: PARTICLE_COUNT }).map((_, i) => ({
       id: i,
@@ -38,7 +40,7 @@ function ConfettiBurst({ active }: { active: boolean }) {
     particles.forEach(() => anims.push(new Animated.Value(0)));
   }
   useEffect(() => {
-    if (!active) return;
+    if (!active || reduceMotion) return;
     const animations = particles.map((p, i) =>
       Animated.timing(anims[i], {
         toValue: 1,
@@ -48,8 +50,8 @@ function ConfettiBurst({ active }: { active: boolean }) {
       }),
     );
     Animated.stagger(15, animations).start();
-  }, [active]);
-  if (!active) return null;
+  }, [active, reduceMotion]);
+  if (!active || reduceMotion) return null;
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       {particles.map((p, i) => {
