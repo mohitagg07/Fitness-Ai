@@ -25,6 +25,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nutritionApi, progressApi, describeApiError } from '../../utils/api';
 import { COLORS } from '../../theme/colors';
+import ProfileAvatar from '../shared/ProfileAvatar';
 
 interface FoodResult {
   food_id: string;
@@ -282,7 +283,7 @@ export default function NutritionSearchModal({
             <Ionicons name="close" size={22} color={COLORS.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Log Food</Text>
-          <View style={{ width: 36 }} />
+          <ProfileAvatar size={34} />
         </View>
 
         {manualMode ? (
