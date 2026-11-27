@@ -139,6 +139,29 @@ update public.workout_sessions
  where started_at is null
     or (completed = true and status <> 'completed');
 
+create table if not exists public.workout_session_exercise_events (
+    id uuid primary key default gen_random_uuid(),
+    session_id uuid not null references public.workout_sessions(id) on delete cascade,
+    user_id uuid not null references public.profiles(id) on delete cascade,
+    action text not null check (action in ('skip', 'replace')),
+    exercise_name text not null check (char_length(btrim(exercise_name)) between 1 and 120),
+    replacement_exercise text check (replacement_exercise is null or char_length(replacement_exercise) <= 120),
+    reason text check (reason is null or char_length(reason) <= 300),
+    created_at timestamptz not null default now(),
+    check ((action = 'skip' and replacement_exercise is null) or (action = 'replace' and replacement_exercise is not null))
+);
+
+create index if not exists idx_workout_exercise_events_session
+    on public.workout_session_exercise_events(session_id, created_at);
+
+alter table public.workout_session_exercise_events enable row level security;
+drop policy if exists "Users own workout exercise events" on public.workout_session_exercise_events;
+create policy "Users own workout exercise events"
+    on public.workout_session_exercise_events
+    for all
+    using (auth.uid() = user_id)
+    with check (auth.uid() = user_id);
+
 alter table public.workout_sessions
     add column if not exists client_request_id text;
 create unique index if not exists idx_workout_sessions_idempotency
