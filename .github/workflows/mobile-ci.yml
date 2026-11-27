@@ -151,6 +151,8 @@ jobs:
 
       - name: Launch app and verify 3D rendering and rotation on Android emulator
         uses: ReactiveCircus/android-emulator-runner@v2
+        env:
+          ANDROID_I_WANT_MY_TCG: 'yes'
         with:
           api-level: 35
           target: google_apis
@@ -158,7 +160,6 @@ jobs:
           profile: pixel_2
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-audio
           emulator-boot-timeout: 900
-          env: ANDROID_I_WANT_MY_TCG=yes
           disable-animations: true
           script: |
             set -euo pipefail
