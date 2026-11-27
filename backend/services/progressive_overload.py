@@ -57,8 +57,12 @@ def recommend_progression(
         reps = [int(row.get("reps") or 0) for row in latest["sets"]]
         effort = [float(row["rpe"]) for row in latest["sets"] if row.get("rpe") is not None]
         avg_rpe = round(sum(effort) / len(effort), 1) if effort else None
-        if current_load is not None and current_load > 0 and avg_rpe is not None:
-            if avg_rpe >= 9.5 and reps and min(reps) < low_reps:
+        if current_load == 0:
+            reason = "This is a bodyweight or unloaded movement. Build reps within the target range before adding resistance."
+        elif current_load is not None and current_load > 0:
+            if avg_rpe is None:
+                reason = "Effort ratings are missing. Maintain the load until VYRN can verify that the target reps were comfortable."
+            elif avg_rpe >= 9.5 and reps and min(reps) < low_reps:
                 status = "reduce"
                 suggested_load = round(max(0, current_load * 0.95) * 2) / 2
                 reason = "Recent sets were above the intended effort and below the rep floor. Reduce load slightly and rebuild clean reps."
@@ -70,10 +74,6 @@ def recommend_progression(
                 reason = "You reached the top of the rep range in two consecutive sessions with controlled effort. A small load increase is appropriate."
             elif avg_rpe > 8.5:
                 reason = "Effort was high. Keep the load steady or reduce it if technique deteriorates."
-            elif not effort:
-                reason = "Effort ratings are missing. Maintain the load until VYRN can verify that the target reps were comfortable."
-        elif current_load == 0:
-            reason = "This is a bodyweight or unloaded movement. Build reps within the target range before adding resistance."
         elif not effort:
             reason = "Log RPE for working sets before VYRN recommends increasing resistance."
 
