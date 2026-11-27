@@ -13,6 +13,7 @@ import { COLORS } from '../../theme/colors';
 import { FONTS } from '../../theme/typography';
 import { SPACING, RADIUS } from '../../theme/spacing';
 import Button from '../ui/Button';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 interface EmptyStateProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -23,15 +24,24 @@ interface EmptyStateProps {
 }
 
 export default function EmptyState({ icon, title, body, actionLabel, onAction }: EmptyStateProps) {
-  const mount = useRef(new Animated.Value(0)).current;
+  const mount = useRef(new Animated.Value(1)).current;
+  const reduceMotion = useReducedMotion();
   useEffect(() => {
-    Animated.timing(mount, {
+    mount.stopAnimation();
+    if (reduceMotion) {
+      mount.setValue(1);
+      return;
+    }
+    mount.setValue(0);
+    const animation = Animated.timing(mount, {
       toValue: 1,
       duration: 420,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
-    }).start();
-  }, []);
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [mount, reduceMotion]);
 
   return (
     <Animated.View
