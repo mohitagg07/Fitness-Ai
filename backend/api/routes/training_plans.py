@@ -300,6 +300,29 @@ async def create_plan_draft(
     }
 
 
+@router.get("/{plan_id}/versions")
+async def list_training_plan_versions(
+    plan_id: str,
+    limit: int = 20,
+    current_user: dict = Depends(get_current_user),
+):
+    if limit < 1 or limit > 50:
+        raise HTTPException(422, "Version history limit must be between 1 and 50")
+    sb = get_supabase()
+    user_id = current_user["user_id"]
+    _owned_plan(sb, user_id, plan_id)
+    result = (
+        sb.table("workout_plan_versions")
+        .select("id, plan_id, version_number, status, snapshot, change_reason, approved_at, created_at")
+        .eq("plan_id", plan_id)
+        .eq("user_id", user_id)
+        .order("version_number", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return {"versions": result.data or []}
+
+
 @router.patch("/{plan_id}/versions/{version_id}")
 async def update_plan_draft(
     plan_id: str,
