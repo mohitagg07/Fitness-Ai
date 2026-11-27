@@ -1,6 +1,6 @@
 import React, { Component, MutableRefObject, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, ActivityIndicator, PanResponder, Platform, StyleSheet, View } from 'react-native';
-import { Canvas, useFrame } from '@react-three/fiber/native';
+import { Canvas, useFrame, useThree } from '@react-three/fiber/native';
 import * as THREE from 'three';
 
 import { COLORS } from '../../theme/colors';
@@ -224,6 +224,19 @@ function RecoveryAvatar({
   );
 }
 
+function SceneInvalidationBridge({
+  invalidateRef,
+}: {
+  invalidateRef: MutableRefObject<(() => void) | null>;
+}) {
+  const invalidate = useThree((state) => state.invalidate);
+  useEffect(() => {
+    invalidateRef.current = invalidate;
+    return () => { invalidateRef.current = null; };
+  }, [invalidate, invalidateRef]);
+  return null;
+}
+
 function RecoveryScene({
   selectedMuscle,
   musclePalette,
@@ -296,6 +309,7 @@ export default function ThreeMuscleScene({
   const [reduceMotion, setReduceMotion] = useState(false);
   const onInteractionRef = useRef(onInteraction);
   onInteractionRef.current = onInteraction;
+  const invalidateRef = useRef<(() => void) | null>(null);
   const controls = useRef<SceneControls>({
     rotationX: 0,
     rotationY: 0,
@@ -336,6 +350,7 @@ export default function ThreeMuscleScene({
         -0.36,
         Math.min(0.36, controls.current.startX - gesture.dy * 0.0035),
       );
+      invalidateRef.current?.();
       onInteractionRef.current?.();
     },
     onPanResponderRelease: () => { controls.current.dragging = false; },
@@ -357,6 +372,7 @@ export default function ThreeMuscleScene({
             setLoading(false);
           }}
         >
+          <SceneInvalidationBridge invalidateRef={invalidateRef} />
           <RecoveryScene selectedMuscle={selectedMuscle} musclePalette={musclePalette} controls={controls} reduceMotion={reduceMotion} onFirstFrame={onReady} />
         </Canvas>
       </SceneBoundary>
