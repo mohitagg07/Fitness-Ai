@@ -22,8 +22,8 @@ from schemas.models import SetLog
 from core.security import get_current_user
 from db.supabase_client import get_supabase, upsert_agent_state, get_full_user_context
 from services.pr_validator import validate_logged_weight, find_new_personal_records
-from typing import Optional
-from pydantic import BaseModel, Field, field_validator
+from typing import Optional, Literal
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 router = APIRouter(tags=["Workouts"])
 
@@ -89,6 +89,24 @@ class SessionCompleteRequest(BaseModel):
 
 class SessionTransitionRequest(BaseModel):
     action: str = Field(pattern="^(pause|resume|abandon)$")
+
+
+class SessionExerciseEventRequest(BaseModel):
+    action: Literal["skip", "replace"]
+    exercise_name: str = Field(min_length=1, max_length=120)
+    replacement_exercise: Optional[str] = Field(None, min_length=1, max_length=120)
+    reason: Optional[str] = Field(None, max_length=300)
+
+    @model_validator(mode="after")
+    def validate_replacement(self):
+        if self.action == "replace" and not self.replacement_exercise:
+            raise ValueError("A replacement exercise is required.")
+        if self.action == "skip" and self.replacement_exercise:
+            raise ValueError("A skipped exercise cannot include a replacement.")
+        self.exercise_name = self.exercise_name.strip()
+        if self.replacement_exercise:
+            self.replacement_exercise = self.replacement_exercise.strip()
+        return self
 
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
@@ -221,6 +239,82 @@ async def transition_session_state(
     if not result.data:
         raise HTTPException(409, "Could not update the workout session state")
     return result.data[0]
+
+
+@router.post("/sessions/{session_id}/exercise-events", status_code=201)
+async def record_session_exercise_event(
+    session_id: str,
+    payload: SessionExerciseEventRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    sb = get_supabase()
+    user_id = current_user["user_id"]
+    session_result = (
+        sb.table("workout_sessions")
+        .select("id, status, completed, planned_workout_snapshot, workout_type")
+        .eq("id", session_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+    if not session_result.data:
+        raise HTTPException(404, "Workout session not found")
+    session = session_result.data[0]
+    if session.get("completed") or session.get("status") != "active":
+        raise HTTPException(409, "Exercises can only be changed in an active workout")
+
+    original_name = payload.exercise_name
+    planned = (session.get("planned_workout_snapshot") or {}).get("exercises") or []
+    matching = next(
+        (
+            item for item in planned
+            if isinstance(item, dict)
+            and str(item.get("name") or "").strip().casefold() == original_name.casefold()
+        ),
+        None,
+    )
+    if matching is None:
+        raise HTTPException(404, "That exercise is not in this session's approved prescription")
+
+    replacement_name = None
+    if payload.action == "replace":
+        from api.routes.training_plans import (
+            PlannedExercise,
+            WorkoutPrescription,
+            _load_athlete_constraints,
+            validate_workout_constraints,
+        )
+        equipment, injuries = _load_athlete_constraints(sb, user_id)
+        workout_type = str(session.get("workout_type") or "full_body").lower()
+        allowed_types = {"push", "pull", "legs", "upper", "lower", "full_body", "cardio", "mobility", "recovery"}
+        if workout_type not in allowed_types:
+            workout_type = "full_body"
+        validated = validate_workout_constraints(
+            WorkoutPrescription(
+                label="In-session exercise replacement",
+                workout_type=workout_type,
+                exercises=[PlannedExercise(name=payload.replacement_exercise, sets=1, reps="1")],
+            ),
+            equipment,
+            injuries,
+        )
+        replacement_name = validated["exercises"][0]["name"]
+        if replacement_name.casefold() == original_name.casefold():
+            raise HTTPException(422, "Choose a different exercise to replace this movement")
+
+    try:
+        saved = sb.table("workout_session_exercise_events").insert({
+            "session_id": session_id,
+            "user_id": user_id,
+            "action": payload.action,
+            "exercise_name": original_name,
+            "replacement_exercise": replacement_name,
+            "reason": payload.reason,
+        }).execute()
+    except Exception as exc:
+        raise HTTPException(500, "Could not save the exercise change") from exc
+    if not saved.data:
+        raise HTTPException(500, "Could not save the exercise change")
+    return saved.data[0]
 
 
 @router.get("/history")
