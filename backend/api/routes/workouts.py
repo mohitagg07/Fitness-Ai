@@ -281,16 +281,17 @@ async def record_session_exercise_event(
         .eq("session_id", session_id)
         .eq("user_id", user_id)
         .eq("exercise_name", original_name)
+        .order("created_at", desc=True)
+        .limit(1)
         .execute()
     )
     if existing_result.data:
-        existing = existing_result.data[0]
+        latest_event = existing_result.data[0]
         if (
-            existing.get("action") == payload.action
-            and existing.get("replacement_exercise") == payload.replacement_exercise
+            latest_event.get("action") == payload.action
+            and latest_event.get("replacement_exercise") == payload.replacement_exercise
         ):
-            return existing
-        raise HTTPException(409, "This exercise has already been changed in the current workout")
+            return latest_event
 
     replacement_name = None
     if payload.action == "replace":
