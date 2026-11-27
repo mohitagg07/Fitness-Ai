@@ -371,12 +371,15 @@ export const programApi = {
   getVersions: (limit = 10) => api.get('/program/versions', { params: { limit } }),
   getLatest: () => api.get('/program/latest'),
   triggerRewrite: () => api.post('/program/rewrite'),
+  proposeRewrite: () => api.post('/program/propose-rewrite'),
 };
 
 // Versioned workout plans — a plan remains a draft until the athlete approves
 // its exact snapshot. Sessions are created from the approved version ID.
 export const trainingPlanApi = {
   getActive: () => api.get('/training-plans/active'),
+  getVersions: (planId: string, limit = 20) =>
+    api.get(`/training-plans/${planId}/versions`, { params: { limit } }),
   createDraft: (data: any) => api.post('/training-plans/drafts', data),
   updateDraft: (planId: string, versionId: string, data: any) =>
     api.patch(`/training-plans/${planId}/versions/${versionId}`, data),
