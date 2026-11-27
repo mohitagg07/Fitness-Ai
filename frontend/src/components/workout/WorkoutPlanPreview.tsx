@@ -286,12 +286,12 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
   },
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.md, marginBottom: SPACING.lg },
-  eyebrow: { ...EYEBROW, color: COLORS.primaryGreen, fontSize: 8, letterSpacing: 1.3 },
+  eyebrow: { ...EYEBROW, color: COLORS.primaryGreen, fontSize: 10, letterSpacing: 1.3 },
   title: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 24, lineHeight: 29, marginTop: 5 },
   subtitle: { ...BODY, color: COLORS.textSecondary, fontSize: 12, lineHeight: 18, marginTop: 6 },
   close: { padding: 8, borderRadius: 24, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border },
   reason: { ...BODY, color: COLORS.textSecondary, fontSize: 11, lineHeight: 16, marginTop: SPACING.sm },
-  muscles: { ...EYEBROW, color: COLORS.primaryGreen, fontSize: 8, letterSpacing: 0.8, marginTop: SPACING.xs },
+  muscles: { ...EYEBROW, color: COLORS.primaryGreen, fontSize: 10, letterSpacing: 0.8, marginTop: SPACING.xs },
   summary: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     padding: SPACING.md, borderRadius: RADIUS.card, backgroundColor: alpha(COLORS.primaryGreen, 0.07),
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
   },
   summaryText: { flex: 1, gap: 4 },
   planName: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 14 },
-  planMeta: { ...EYEBROW, color: COLORS.textMuted, fontSize: 8, letterSpacing: 0.7 },
+  planMeta: { ...EYEBROW, color: COLORS.textMuted, fontSize: 10, letterSpacing: 0.7 },
   scroll: { flexGrow: 0, flexShrink: 1 },
   list: { paddingBottom: SPACING.md, gap: SPACING.md },
   exerciseCard: {
@@ -315,7 +315,7 @@ const styles = StyleSheet.create({
   iconButton: { minWidth: 27, minHeight: 27, alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: COLORS.cardElevated },
   prescriptionRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.md },
   field: { flex: 1, minWidth: 0, gap: 5 },
-  fieldLabel: { ...EYEBROW, color: COLORS.textMuted, fontSize: 8 },
+  fieldLabel: { ...EYEBROW, color: COLORS.textMuted, fontSize: 10 },
   stepper: {
     minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.button, borderWidth: 1, borderColor: COLORS.border,
