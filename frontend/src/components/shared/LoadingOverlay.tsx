@@ -8,6 +8,7 @@ import {
   View, Text, StyleSheet, ActivityIndicator, Modal,
 } from 'react-native';
 import { COLORS } from '../../theme/colors';
+import { FONTS } from '../../theme/typography';
 
 interface Props {
   visible: boolean;
@@ -44,26 +45,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   box: {
-    backgroundColor: '#1C1C1C',
+    backgroundColor: COLORS.card,
     borderRadius: 16,
     padding: 28,
     alignItems: 'center',
     gap: 14,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: COLORS.cardBorder,
     minWidth: 140,
   },
   text: {
-    color: '#AAA',
-    fontSize: 13,
+    color: COLORS.textSecondary,
+    fontFamily: FONTS.medium,
+    fontSize: 12,
     textAlign: 'center',
   },
   skeleton: {
-    backgroundColor: '#1C1C1C',
+    backgroundColor: COLORS.cardElevated,
     borderRadius: 12,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#222',
+    borderColor: COLORS.cardBorder,
     opacity: 0.6,
   },
 });

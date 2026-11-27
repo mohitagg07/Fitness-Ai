@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Text,
+  Animated,
+  Easing,
   LayoutAnimation,
   Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
-  TouchableOpacity,
+
   UIManager,
   View,
 } from 'react-native';
@@ -31,6 +33,9 @@ import AchievementCard from './AchievementCard';
 import ProgramHealthCard from './ProgramHealthCard';
 import TimelineCard from './TimelineCard';
 import PatternInsightsCard from './PatternInsightsCard';
+import Logo from '../shared/Logo';
+import PressableScale from '../ui/PressableScale';
+import Reveal from '../shared/Reveal';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -71,7 +76,21 @@ function ReadinessDial({ score, color }: { score: number | null; color: string }
   const stroke = 7;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
-  const progress = score === null ? 0 : Math.max(0, Math.min(100, score));
+  const progress = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    progress.stopAnimation();
+    Animated.timing(progress, {
+      toValue: score === null ? 0 : Math.max(0, Math.min(100, score)),
+      duration: 760,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [progress, score]);
+
+  const dashOffset = progress.interpolate({
+    inputRange: [0, 100],
+    outputRange: [circumference, 0],
+  });
 
   return (
     <View style={styles.dial}>
@@ -84,14 +103,14 @@ function ReadinessDial({ score, color }: { score: number | null; color: string }
           strokeWidth={stroke}
           fill="none"
         />
-        <Circle
+        <AnimatedCircle
           cx={size / 2}
           cy={size / 2}
           r={radius}
           stroke={color}
           strokeWidth={stroke}
           strokeDasharray={`${circumference} ${circumference}`}
-          strokeDashoffset={circumference * (1 - progress / 100)}
+          strokeDashoffset={dashOffset as any}
           strokeLinecap="round"
           fill="none"
           rotation="-90"
@@ -190,10 +209,10 @@ export default function DashboardScreen() {
         <View style={styles.errorIcon}><Ionicons name="cloud-offline-outline" size={24} color={COLORS.textSecondary} /></View>
         <TextLike style={styles.errorTitle}>Your training data is taking a break.</TextLike>
         <TextLike style={styles.errorBody}>{errorMessage}</TextLike>
-        <TouchableOpacity style={styles.retryButton} onPress={() => void refreshDashboard()}>
+        <PressableScale style={styles.retryButton} onPress={() => void refreshDashboard()}>
           <Ionicons name="refresh" size={16} color={COLORS.background} />
           <TextLike style={styles.retryText}>Try again</TextLike>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     );
   }
@@ -223,30 +242,30 @@ export default function DashboardScreen() {
       >
         <View style={styles.topline}>
           <View style={styles.brandLockup}>
-            <View style={styles.brandMark}><TextLike style={styles.brandMarkText}>V</TextLike></View>
+            <Logo size="sm" />
             <View>
               <TextLike style={styles.brandName}>VYRN</TextLike>
               <TextLike style={styles.brandSub}>PERFORMANCE SYSTEM</TextLike>
             </View>
           </View>
-          <TouchableOpacity
+          <PressableScale
             accessibilityRole="button"
             accessibilityLabel="Open profile"
             onPress={() => router.push('/(tabs)/profile')}
             style={styles.profileButton}
           >
             <Ionicons name="person-outline" size={19} color={COLORS.text} />
-          </TouchableOpacity>
+          </PressableScale>
         </View>
 
-        <View style={styles.greetingBlock}>
+        <Reveal delay={20}><View style={styles.greetingBlock}>
           <TextLike style={styles.dateLabel}>{todayLabel}</TextLike>
           <TextLike style={styles.greeting}>{greeting},</TextLike>
           <TextLike style={styles.name}>{firstName}.</TextLike>
           <TextLike style={styles.greetingSub}>Your training, recovery and progress. In one place.</TextLike>
-        </View>
+        </View></Reveal>
 
-        <View style={styles.readinessPanel}>
+        <Reveal delay={65}><View style={styles.readinessPanel}>
           <View style={styles.readinessTopline}>
             <TextLike style={styles.eyebrow}>RECOVERY / READINESS</TextLike>
             <View style={[styles.livePill, { borderColor: alpha(scoreColor, 0.45) }]}>
@@ -278,9 +297,9 @@ export default function DashboardScreen() {
             </View>
             <TextLike style={styles.panelFooterText}>PERSONAL BASELINE</TextLike>
           </View>
-        </View>
+        </View></Reveal>
 
-        <View style={styles.section}>
+        <Reveal delay={110}><View style={styles.section}>
           <SectionHeading eyebrow="THE PLAN" title="Today's training" right={summary?.workout_today?.rescheduled ? 'RESCHEDULED' : undefined} />
           <View style={styles.trainingPanel}>
             <View style={styles.trainingIcon}>
@@ -294,8 +313,7 @@ export default function DashboardScreen() {
               </TextLike>
             </View>
           </View>
-          <TouchableOpacity
-            activeOpacity={0.86}
+          <PressableScale
             style={styles.primaryButton}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
@@ -304,10 +322,10 @@ export default function DashboardScreen() {
           >
             <TextLike style={styles.primaryButtonText}>Open training session</TextLike>
             <Ionicons name="arrow-forward" size={18} color={COLORS.background} />
-          </TouchableOpacity>
-        </View>
+          </PressableScale>
+        </View></Reveal>
 
-        <View style={styles.section}>
+        <Reveal delay={155}><View style={styles.section}>
           <SectionHeading eyebrow="CONSISTENCY" title="The work adds up" />
           <View style={styles.metricsPanel}>
             <Metric
@@ -324,10 +342,44 @@ export default function DashboardScreen() {
               accent={COLORS.gold}
             />
           </View>
-        </View>
+          {weeklyStats?.has_data && (
+            <View style={styles.weeklyPulse}>
+              <View style={styles.weeklyPulseTop}>
+                <TextLike style={styles.weeklyPulseEyebrow}>WEEKLY LOAD</TextLike>
+                <TextLike style={styles.weeklyPulseMeta}>LOGGED SO FAR</TextLike>
+              </View>
+              <View style={styles.weeklyPulseMetrics}>
+                <View style={styles.weeklyPulseMetric}>
+                  <TextLike style={styles.weeklyPulseValue}>
+                    {typeof weeklyStats.total_volume_kg === 'number'
+                      ? weeklyStats.total_volume_kg >= 1000
+                        ? (weeklyStats.total_volume_kg / 1000).toFixed(1) + ' t'
+                        : Math.round(weeklyStats.total_volume_kg).toLocaleString() + ' kg'
+                      : '—'}
+                  </TextLike>
+                  <TextLike style={styles.weeklyPulseLabel}>TOTAL VOLUME</TextLike>
+                </View>
+                <View style={styles.weeklyPulseDivider} />
+                <View style={styles.weeklyPulseMetric}>
+                  <TextLike style={styles.weeklyPulseValue}>
+                    {typeof weeklyStats.total_minutes === 'number' ? weeklyStats.total_minutes + ' min' : '—'}
+                  </TextLike>
+                  <TextLike style={styles.weeklyPulseLabel}>TIME TRAINING</TextLike>
+                </View>
+                <View style={styles.weeklyPulseDivider} />
+                <View style={styles.weeklyPulseMetric}>
+                  <TextLike style={styles.weeklyPulseValue}>
+                    {weeklyStats.avg_rpe == null ? '—' : weeklyStats.avg_rpe}
+                  </TextLike>
+                  <TextLike style={styles.weeklyPulseLabel}>AVG RPE</TextLike>
+                </View>
+              </View>
+            </View>
+          )}
+        </View></Reveal>
 
         {coachMessage && (
-          <View style={styles.section}>
+          <Reveal delay={200}><View style={styles.section}>
             <SectionHeading eyebrow="FROM YOUR COACH" title="A note for today" />
             <View style={styles.coachPanel}>
               <View style={styles.coachPanelTop}>
@@ -350,48 +402,48 @@ export default function DashboardScreen() {
                   <TextLike style={styles.topSet}>{summary.proactive_brief.suggested_top_set}</TextLike>
                 </View>
               )}
-              <TouchableOpacity style={styles.textLink} onPress={() => router.push('/(tabs)/coach')}>
+              <PressableScale style={styles.textLink} onPress={() => router.push('/(tabs)/coach')}>
                 <TextLike style={styles.textLinkLabel}>Continue with Coach</TextLike>
                 <Ionicons name="arrow-forward" size={15} color={COLORS.primaryGreen} />
-              </TouchableOpacity>
+              </PressableScale>
             </View>
-          </View>
+          </View></Reveal>
         )}
 
-        <View style={styles.quickActions}>
-          <TouchableOpacity style={styles.quickAction} onPress={() => router.push('/(tabs)/coach')}>
+        <Reveal delay={235}><View style={styles.quickActions}>
+          <PressableScale style={styles.quickAction} onPress={() => router.push('/(tabs)/coach')}>
             <Ionicons name="chatbubble-ellipses-outline" size={18} color={COLORS.text} />
             <TextLike style={styles.quickActionLabel}>Coach</TextLike>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.quickAction} onPress={() => router.push('/(tabs)/workout')}>
+          </PressableScale>
+          <PressableScale style={styles.quickAction} onPress={() => router.push('/(tabs)/workout')}>
             <Ionicons name="barbell-outline" size={18} color={COLORS.text} />
             <TextLike style={styles.quickActionLabel}>Train</TextLike>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.quickAction} onPress={() => router.push({ pathname: '/(tabs)/progress', params: { tab: 'nutrition' } } as any)}>
+          </PressableScale>
+          <PressableScale style={styles.quickAction} onPress={() => router.push({ pathname: '/(tabs)/progress', params: { tab: 'nutrition' } } as any)}>
             <Ionicons name="nutrition-outline" size={18} color={COLORS.text} />
             <TextLike style={styles.quickActionLabel}>Nutrition</TextLike>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.quickAction} onPress={() => router.push('/(tabs)/progress')}>
+          </PressableScale>
+          <PressableScale style={styles.quickAction} onPress={() => router.push('/(tabs)/progress')}>
             <Ionicons name="analytics-outline" size={18} color={COLORS.text} />
             <TextLike style={styles.quickActionLabel}>Progress</TextLike>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.moreTools}>
-          <TouchableOpacity style={styles.moreTool} onPress={() => router.push('/(tabs)/decisions')}>
+          </PressableScale>
+        </View></Reveal>
+        <Reveal delay={260}><View style={styles.moreTools}>
+          <PressableScale style={styles.moreTool} onPress={() => router.push('/(tabs)/decisions')}>
             <Ionicons name="git-branch-outline" size={14} color={COLORS.textMuted} />
             <TextLike style={styles.moreToolText}>Decisions</TextLike>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.moreTool} onPress={() => router.push('/(tabs)/simulate')}>
+          </PressableScale>
+          <PressableScale style={styles.moreTool} onPress={() => router.push('/(tabs)/simulate')}>
             <Ionicons name="flask-outline" size={14} color={COLORS.textMuted} />
             <TextLike style={styles.moreToolText}>What If?</TextLike>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.moreTool} onPress={() => router.push('/(tabs)/formanalysis')}>
+          </PressableScale>
+          <PressableScale style={styles.moreTool} onPress={() => router.push('/(tabs)/formanalysis')}>
             <Ionicons name="body-outline" size={14} color={COLORS.textMuted} />
             <TextLike style={styles.moreToolText}>Form Check</TextLike>
-          </TouchableOpacity>
-        </View>
+          </PressableScale>
+        </View></Reveal>
 
-        <TouchableOpacity
+        <PressableScale
           accessibilityRole="button"
           accessibilityState={{ expanded: showFullReport }}
           style={styles.reportToggle}
@@ -405,7 +457,7 @@ export default function DashboardScreen() {
             <TextLike style={styles.reportHint}>Trends, achievements, predictions and training history</TextLike>
           </View>
           <Ionicons name={showFullReport ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.primaryGreen} />
-        </TouchableOpacity>
+        </PressableScale>
 
         {showFullReport && (
           <View style={styles.fullReport}>
@@ -428,17 +480,14 @@ export default function DashboardScreen() {
   );
 }
 
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.background },
   scroll: { flex: 1 },
   content: { width: '100%', alignSelf: 'center', gap: 0 },
   topline: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 34 },
   brandLockup: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  brandMark: {
-    width: 36, height: 36, borderRadius: 11, backgroundColor: COLORS.primaryGreen,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  brandMarkText: { color: COLORS.background, fontFamily: FONTS.numericBold, fontSize: 23, lineHeight: 27 },
   brandName: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 15, letterSpacing: 3.4 },
   brandSub: { color: COLORS.textMuted, fontFamily: FONTS.semibold, fontSize: 8, letterSpacing: 1.35, marginTop: 2 },
   profileButton: {
@@ -451,7 +500,7 @@ const styles = StyleSheet.create({
   name: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 43, lineHeight: 48, letterSpacing: -1.8 },
   greetingSub: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 13, lineHeight: 19, marginTop: 7 },
   readinessPanel: {
-    borderRadius: 25, backgroundColor: '#101C15', borderWidth: 1, borderColor: '#26372B',
+    borderRadius: 25, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder,
     padding: 19, marginBottom: 31, overflow: 'hidden',
   },
   readinessTopline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -495,13 +544,22 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: { color: COLORS.background, fontFamily: FONTS.bold, fontSize: 13, letterSpacing: 0.1 },
   metricsPanel: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 19, borderWidth: 1, borderColor: COLORS.border, paddingVertical: 17, paddingHorizontal: 16 },
+  weeklyPulse: { marginTop: 9, padding: 15, borderRadius: 18, backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.border },
+  weeklyPulseTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 13 },
+  weeklyPulseEyebrow: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1.3 },
+  weeklyPulseMeta: { color: COLORS.textDim, fontFamily: FONTS.semibold, fontSize: 7, letterSpacing: 0.9 },
+  weeklyPulseMetrics: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  weeklyPulseMetric: { flex: 1, minWidth: 0, gap: 5 },
+  weeklyPulseValue: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 16, lineHeight: 20 },
+  weeklyPulseLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 7, letterSpacing: 0.5 },
+  weeklyPulseDivider: { width: 1, height: 29, backgroundColor: COLORS.border },
   metric: { flex: 1, gap: 5 },
   metricMarker: { width: 18, height: 2, borderRadius: 2, marginBottom: 3 },
   metricLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1.1 },
   metricValue: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 30, lineHeight: 34 },
   metricDetail: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 10 },
   metricDivider: { width: 1, height: 65, backgroundColor: COLORS.border, marginHorizontal: 18 },
-  coachPanel: { borderRadius: 20, padding: 17, backgroundColor: '#101C15', borderWidth: 1, borderColor: COLORS.border },
+  coachPanel: { borderRadius: 20, padding: 17, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder },
   coachPanelTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 13 },
   coachIcon: { width: 30, height: 30, borderRadius: 10, backgroundColor: alpha(COLORS.primaryGreen, 0.12), alignItems: 'center', justifyContent: 'center' },
   coachLabel: { color: COLORS.textSecondary, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1.1, flex: 1 },

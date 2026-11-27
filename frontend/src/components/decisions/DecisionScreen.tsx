@@ -9,13 +9,18 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, TouchableOpacity,
+  View, Text, ScrollView, StyleSheet,
   ActivityIndicator, RefreshControl, LayoutAnimation,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { COLORS } from '../../theme/colors';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COLORS, alpha } from '../../theme/colors';
+import { FONTS } from '../../theme/typography';
+import { RADIUS, SPACING } from '../../theme/spacing';
+import PressableScale from '../ui/PressableScale';
+import Reveal from '../shared/Reveal';
 import api, { describeApiError } from '../../utils/api';
 import EmptyState from '../shared/EmptyState';
 
@@ -52,7 +57,7 @@ function outcomeColor(outcome: Decision['outcome']) {
   if (outcome === 'correct') return COLORS.recoveryHigh;
   if (outcome === 'incorrect') return COLORS.recoveryLow;
   if (outcome === 'partial') return COLORS.recoveryMed;
-  return '#5C6B6E';
+  return COLORS.textMuted;
 }
 
 function outcomeLabel(outcome: Decision['outcome']) {
@@ -80,6 +85,7 @@ function formatDate(iso: string) {
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function DecisionScreen() {
+  const insets = useSafeAreaInsets();
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [accuracy, setAccuracy] = useState<Accuracy | null>(null);
   const [loading, setLoading] = useState(true);
@@ -171,7 +177,7 @@ export default function DecisionScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.recoveryHigh} />}
     >
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + SPACING.lg }]} >
         <Text style={styles.headerTitle}>DECISION HISTORY</Text>
         <Text style={styles.headerSub}>Every AI recommendation, tracked with evidence</Text>
       </View>
@@ -208,14 +214,15 @@ export default function DecisionScreen() {
       )}
 
       {/* Decision cards */}
-      {decisions.map((d) => (
-        <DecisionCard
-          key={d.id}
-          decision={d}
-          expanded={expandedId === d.id}
-          onToggle={() => toggleExpand(d.id)}
-          onMarkOutcome={(outcome) => markOutcome(d.id, outcome)}
-        />
+      {decisions.map((d, index) => (
+        <Reveal key={d.id} delay={Math.min(index * 42, 240)}>
+          <DecisionCard
+            decision={d}
+            expanded={expandedId === d.id}
+            onToggle={() => toggleExpand(d.id)}
+            onMarkOutcome={(outcome) => markOutcome(d.id, outcome)}
+          />
+        </Reveal>
       ))}
 
       <View style={{ height: 32 }} />
@@ -266,18 +273,18 @@ function DecisionCard({
                 color={s.favorable ? COLORS.recoveryHigh : COLORS.recoveryLow}
               />
               <Text style={styles.signalLabel}>{s.label}</Text>
-              <Text style={[styles.signalValue, { color: s.favorable ? COLORS.recoveryHigh : '#C8D2D4' }]}>{s.value}</Text>
+              <Text style={[styles.signalValue, { color: s.favorable ? COLORS.recoveryHigh : COLORS.textSecondary }]}>{s.value}</Text>
             </View>
           ))}
         </View>
       )}
 
       {/* "Why?" expandable panel */}
-      <TouchableOpacity style={styles.whyBtn} onPress={onToggle} activeOpacity={0.7}>
+      <PressableScale style={styles.whyBtn} onPress={onToggle}>
         <Ionicons name="help-circle-outline" size={14} color={COLORS.strainGlow} />
         <Text style={styles.whyBtnText}>Why?</Text>
         <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={12} color={COLORS.strainGlow} />
-      </TouchableOpacity>
+      </PressableScale>
 
       {expanded && (
         <View style={styles.whyPanel}>
@@ -301,24 +308,24 @@ function DecisionCard({
           {decision.outcome === 'pending' && (
             <View style={styles.markOutcomeRow}>
               <Text style={styles.markOutcomeLabel}>Was this right?</Text>
-              <TouchableOpacity
+              <PressableScale
                 style={[styles.markBtn, { borderColor: COLORS.recoveryHigh }]}
                 onPress={() => onMarkOutcome('correct')}
               >
                 <Text style={[styles.markBtnText, { color: COLORS.recoveryHigh }]}>✓ Yes</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              </PressableScale>
+              <PressableScale
                 style={[styles.markBtn, { borderColor: COLORS.recoveryLow }]}
                 onPress={() => onMarkOutcome('incorrect')}
               >
                 <Text style={[styles.markBtnText, { color: COLORS.recoveryLow }]}>✗ No</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              </PressableScale>
+              <PressableScale
                 style={[styles.markBtn, { borderColor: COLORS.recoveryMed }]}
                 onPress={() => onMarkOutcome('partial')}
               >
                 <Text style={[styles.markBtnText, { color: COLORS.recoveryMed }]}>~ Partial</Text>
-              </TouchableOpacity>
+              </PressableScale>
             </View>
           )}
         </View>
@@ -329,75 +336,75 @@ function DecisionCard({
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  center: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
-  loadingLabel: { color: '#5C6B6E', fontSize: 13, marginTop: 14 },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  center: { flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' },
+  loadingLabel: { color: COLORS.textMuted, fontFamily: FONTS.medium, fontSize: 12, marginTop: 14 },
   header: { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 16 },
-  headerTitle: { color: '#FFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.5 },
-  headerSub: { color: '#5C6B6E', fontSize: 13, marginTop: 4 },
+  headerTitle: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 22, fontWeight: '700', letterSpacing: 0.2 },
+  headerSub: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 12, lineHeight: 18, marginTop: 5 },
   accuracyCard: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: '#0C1714', borderRadius: 16, marginHorizontal: 16,
+    backgroundColor: COLORS.card, borderRadius: 16, marginHorizontal: 16,
     marginBottom: 12, padding: 16, borderWidth: 1, borderColor: COLORS.recoveryHigh + '30',
   },
   accuracyLeft: { flexDirection: 'row', alignItems: 'center' },
-  accuracyPct: { color: COLORS.recoveryHigh, fontSize: 28, fontWeight: '800' },
-  accuracyLabel: { color: '#5C6B6E', fontSize: 10, fontWeight: '700', letterSpacing: 1 },
-  accuracySub: { color: '#5C6B6E', fontSize: 12 },
+  accuracyPct: { color: COLORS.recoveryHigh, fontFamily: FONTS.numericBold, fontSize: 28, fontWeight: '700' },
+  accuracyLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 9, fontWeight: '700', letterSpacing: 1 },
+  accuracySub: { color: COLORS.textMuted, fontFamily: FONTS.medium, fontSize: 11 },
   errorBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#1A1606', paddingVertical: 8, paddingHorizontal: 16, marginBottom: 8,
+    backgroundColor: alpha(COLORS.recoveryMed, 0.10), paddingVertical: 8, paddingHorizontal: 16, marginBottom: 8,
   },
-  errorText: { color: COLORS.recoveryMed, fontSize: 11, flex: 1 },
+  errorText: { color: COLORS.recoveryMed, fontFamily: FONTS.medium, fontSize: 11, flex: 1 },
   emptyState: { alignItems: 'center', padding: 40, gap: 12 },
-  emptyTitle: { color: '#5C6B6E', fontSize: 16, fontWeight: '700' },
-  emptyBody: { color: '#3F4A4C', fontSize: 13, textAlign: 'center', lineHeight: 19 },
+  emptyTitle: { color: COLORS.textMuted, fontFamily: FONTS.semibold, fontSize: 15, fontWeight: '600' },
+  emptyBody: { color: COLORS.textDim, fontFamily: FONTS.regular, fontSize: 12, textAlign: 'center', lineHeight: 19 },
   card: {
-    backgroundColor: '#0E0E0E', borderRadius: 18, marginHorizontal: 16, marginBottom: 12,
-    padding: 18, borderWidth: 1, borderColor: '#1C1C1C',
+    backgroundColor: COLORS.card, borderRadius: RADIUS.card, marginHorizontal: SPACING.lg, marginBottom: SPACING.md,
+    padding: SPACING.lg, borderWidth: 1, borderColor: COLORS.cardBorder,
   },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
   cardTopLeft: { flex: 1 },
-  cardDate: { color: '#5C6B6E', fontSize: 11, fontWeight: '600', letterSpacing: 0.5, marginBottom: 4 },
-  cardDecision: { color: '#FFF', fontSize: 20, fontWeight: '800' },
+  cardDate: { color: COLORS.textMuted, fontFamily: FONTS.medium, fontSize: 10, fontWeight: '500', letterSpacing: 0.4, marginBottom: 4 },
+  cardDecision: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 19, fontWeight: '600', lineHeight: 25 },
   confidenceBadge: { alignItems: 'center', justifyContent: 'center' },
-  confidencePct: { fontSize: 22, fontWeight: '800' },
-  confidenceLabel: { color: '#5C6B6E', fontSize: 8, fontWeight: '700', letterSpacing: 0.5 },
+  confidencePct: { fontFamily: FONTS.numericBold, fontSize: 21, fontWeight: '700' },
+  confidenceLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, fontWeight: '700', letterSpacing: 0.5 },
   outcomeBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     borderWidth: 1, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10,
     alignSelf: 'flex-start', marginBottom: 12,
   },
   outcomeDot: { width: 6, height: 6, borderRadius: 3 },
-  outcomeText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  outcomeText: { fontFamily: FONTS.bold, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
   signalsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
   signalPill: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     borderWidth: 1, borderRadius: 8, paddingVertical: 3, paddingHorizontal: 8,
-    backgroundColor: '#121212',
+    backgroundColor: COLORS.cardElevated,
   },
-  signalLabel: { color: '#7A8A8E', fontSize: 10, fontWeight: '600' },
-  signalValue: { fontSize: 10, fontWeight: '700' },
+  signalLabel: { color: COLORS.textMuted, fontFamily: FONTS.medium, fontSize: 9, fontWeight: '500' },
+  signalValue: { fontFamily: FONTS.numericSemibold, fontSize: 10, fontWeight: '600' },
   whyBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start',
     paddingVertical: 4,
   },
-  whyBtnText: { color: COLORS.strainGlow, fontSize: 12, fontWeight: '700' },
+  whyBtnText: { color: COLORS.strainGlow, fontFamily: FONTS.semibold, fontSize: 11, fontWeight: '600' },
   whyPanel: {
-    marginTop: 12, backgroundColor: '#0A0A0A', borderRadius: 12,
-    padding: 14, borderWidth: 1, borderColor: '#1C1C1C',
+    marginTop: 12, backgroundColor: COLORS.backgroundTop, borderRadius: 14,
+    padding: 14, borderWidth: 1, borderColor: COLORS.border,
     gap: 10,
   },
-  whyReasoning: { color: '#C8D2D4', fontSize: 13, lineHeight: 20 },
+  whyReasoning: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 12, lineHeight: 20 },
   whyRow: { gap: 3 },
-  whyRowLabel: { color: '#5C6B6E', fontSize: 9, fontWeight: '700', letterSpacing: 1 },
-  whyRowText: { color: '#C8D2D4', fontSize: 12, lineHeight: 18 },
+  whyRowLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, fontWeight: '700', letterSpacing: 1 },
+  whyRowText: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 11, lineHeight: 18 },
   markOutcomeRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4,
   },
-  markOutcomeLabel: { color: '#5C6B6E', fontSize: 11, flex: 1 },
+  markOutcomeLabel: { color: COLORS.textMuted, fontFamily: FONTS.medium, fontSize: 10, flex: 1 },
   markBtn: {
-    borderWidth: 1, borderRadius: 8, paddingVertical: 5, paddingHorizontal: 12,
+    minHeight: 40, justifyContent: 'center', borderWidth: 1, borderRadius: 10, paddingVertical: 7, paddingHorizontal: 12,
   },
-  markBtnText: { fontSize: 11, fontWeight: '700' },
+  markBtnText: { fontFamily: FONTS.semibold, fontSize: 10, fontWeight: '600' },
 });

@@ -9,11 +9,12 @@
 // the only left-side content (the five tab roots).
 
 import React from 'react';
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../theme/colors';
 import { SPACING } from '../../theme/spacing';
-import { LAYOUT, ICON_SIZE, ELEVATION } from '../../theme/layout';
+import { LAYOUT, ICON_SIZE } from '../../theme/layout';
+import PressableScale from './PressableScale';
 import Logo from '../shared/Logo';
 
 interface HeaderProps {
@@ -31,9 +32,9 @@ export default function Header({ onBack, right, bordered = true }: HeaderProps) 
       <View style={styles.row}>
         <View style={styles.left}>
           {onBack ? (
-            <TouchableOpacity onPress={onBack} activeOpacity={0.6} style={styles.backBtn} hitSlop={8}>
+            <PressableScale onPress={onBack} style={styles.backBtn} hitSlop={8}>
               <Ionicons name="chevron-back" size={ICON_SIZE.md} color={COLORS.text} />
-            </TouchableOpacity>
+            </PressableScale>
           ) : null}
           <Logo size="sm" />
         </View>
@@ -48,15 +49,17 @@ export function HeaderIconButton({
   icon,
   onPress,
   color = COLORS.text,
+  accessibilityLabel,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   onPress?: () => void;
   color?: string;
+  accessibilityLabel?: string;
 }) {
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.6} style={styles.iconBtn} hitSlop={8}>
+    <PressableScale onPress={onPress} style={styles.iconBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={accessibilityLabel}>
       <Ionicons name={icon} size={ICON_SIZE.md} color={color} />
-    </TouchableOpacity>
+    </PressableScale>
   );
 }
 

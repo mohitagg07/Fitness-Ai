@@ -1,12 +1,10 @@
-/**
- * WeightChart
- * Renders a 14-day bodyweight trend line chart.
- * Data comes from progress_metrics rows already loaded in ProgressScreen.
- */
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path, Circle, Line, Text as SvgText, Defs, LinearGradient, Stop } from 'react-native-svg';
+
 import { COLORS } from '../../theme/colors';
+import { FONTS } from '../../theme/typography';
+import { RADIUS, SPACING } from '../../theme/spacing';
 
 interface MetricPoint {
   weight_kg?: number | null;
@@ -15,139 +13,119 @@ interface MetricPoint {
 
 interface Props {
   metrics: MetricPoint[];
-  goal?: string; // 'cut' | 'bulk' | 'maintain' | 'recomp'
 }
 
-const W = 320;
-const H = 110;
-const PAD = { top: 16, bottom: 24, left: 32, right: 12 };
+const HEIGHT = 132;
+const PAD = { top: 18, bottom: 25, left: 38, right: 12 };
 
-export default function WeightChart({ metrics, goal }: Props) {
-  // Filter to only points with weight, last 14 entries, oldest first
+export default function WeightChart({ metrics }: Props) {
+  const [chartWidth, setChartWidth] = useState(320);
+  const onLayout = (event: LayoutChangeEvent) => {
+    const next = Math.round(event.nativeEvent.layout.width - SPACING.lg * 2);
+    if (next > 0 && next !== chartWidth) setChartWidth(next);
+  };
   const points = metrics
-    .filter(m => m.weight_kg != null)
+    .filter((metric) => metric.weight_kg != null && Number.isFinite(Number(metric.weight_kg)))
     .slice(0, 14)
     .reverse();
 
   if (points.length < 2) {
     return (
-      <View style={styles.empty}>
-        <Text style={styles.emptyText}>Log at least 2 weigh-ins to see the trend.</Text>
+      <View style={styles.empty} onLayout={onLayout}>
+        <Text style={styles.label}>BODYWEIGHT TREND</Text>
+        <Text style={styles.emptyText}>Log at least two weigh-ins to see your trend.</Text>
       </View>
     );
   }
 
-  const weights = points.map(p => p.weight_kg as number);
-  const minW = Math.min(...weights) - 0.5;
-  const maxW = Math.max(...weights) + 0.5;
-  const range = maxW - minW || 1;
-
-  const plotW = W - PAD.left - PAD.right;
-  const plotH = H - PAD.top - PAD.bottom;
-
-  const toX = (i: number) => PAD.left + (i / (points.length - 1)) * plotW;
-  const toY = (w: number) => PAD.top + plotH - ((w - minW) / range) * plotH;
-
-  // Build SVG path
+  const width = Math.max(240, chartWidth);
+  const weights = points.map((point) => Number(point.weight_kg));
+  const minWeight = Math.min(...weights) - 0.5;
+  const maxWeight = Math.max(...weights) + 0.5;
+  const range = maxWeight - minWeight || 1;
+  const plotWidth = width - PAD.left - PAD.right;
+  const plotHeight = HEIGHT - PAD.top - PAD.bottom;
+  const toX = (index: number) => PAD.left + (index / (points.length - 1)) * plotWidth;
+  const toY = (weight: number) => PAD.top + plotHeight - ((weight - minWeight) / range) * plotHeight;
   const pathD = points
-    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(i).toFixed(1)} ${toY(p.weight_kg as number).toFixed(1)}`)
+    .map((point, index) => (index === 0 ? 'M ' : 'L ') + toX(index).toFixed(1) + ' ' + toY(Number(point.weight_kg)).toFixed(1))
     .join(' ');
-
-  // Trend direction determines accent color
-  const trend = weights[weights.length - 1] - weights[0];
-  const isPositive = goal === 'bulk' ? trend >= 0 : trend <= 0;
-  const lineColor = isPositive ? '#4CAF50' : '#FF5252';
-
-  // Y-axis labels
-  const yLabels = [minW + range * 0, minW + range * 0.5, minW + range * 1.0].map(v =>
-    parseFloat(v.toFixed(1))
-  );
+  const lineColor = COLORS.strain;
+  const delta = weights[weights.length - 1] - weights[0];
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.label}>WEIGHT TREND (14 DAYS)</Text>
-      <Svg width={W} height={H}>
+    <View style={styles.container} onLayout={onLayout}>
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.label}>BODYWEIGHT TREND</Text>
+          <Text style={styles.subtitle}>Recent logged measurements</Text>
+        </View>
+        <View style={styles.periodPill}><Text style={styles.periodText}>14 ENTRIES MAX</Text></View>
+      </View>
+
+      <Svg width={width} height={HEIGHT} viewBox={'0 0 ' + width + ' ' + HEIGHT}>
         <Defs>
-          <LinearGradient id="wg" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0%" stopColor={lineColor} stopOpacity="0.2" />
-            <Stop offset="100%" stopColor={lineColor} stopOpacity="0" />
+          <LinearGradient id="vyrn-weight-area" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0%" stopColor={lineColor} stopOpacity="0.22" />
+            <Stop offset="100%" stopColor={lineColor} stopOpacity="0.01" />
           </LinearGradient>
         </Defs>
-
-        {/* Y-axis gridlines + labels */}
-        {yLabels.map((w, i) => {
-          const y = toY(w);
+        {[0, 0.5, 1].map((ratio) => {
+          const value = minWeight + range * ratio;
+          const y = toY(value);
           return (
-            <React.Fragment key={i}>
-              <Line x1={PAD.left} y1={y} x2={W - PAD.right} y2={y}
-                stroke="#2A2A2A" strokeWidth={1} strokeDasharray="3 3" />
-              <SvgText x={PAD.left - 4} y={y + 4} fill="#555" fontSize={9} textAnchor="end">
-                {w}
-              </SvgText>
+            <React.Fragment key={ratio}>
+              <Line x1={PAD.left} y1={y} x2={width - PAD.right} y2={y} stroke={COLORS.border} strokeWidth={1} strokeDasharray="3 5" />
+              <SvgText x={PAD.left - 7} y={y + 3} fill={COLORS.textDim} fontSize={9} textAnchor="end">{value.toFixed(1)}</SvgText>
             </React.Fragment>
           );
         })}
-
-        {/* Area fill */}
         <Path
-          d={`${pathD} L ${toX(points.length - 1).toFixed(1)} ${(PAD.top + plotH).toFixed(1)} L ${PAD.left.toFixed(1)} ${(PAD.top + plotH).toFixed(1)} Z`}
-          fill="url(#wg)"
+          d={pathD + ' L ' + toX(points.length - 1).toFixed(1) + ' ' + (PAD.top + plotHeight).toFixed(1) +
+            ' L ' + PAD.left.toFixed(1) + ' ' + (PAD.top + plotHeight).toFixed(1) + ' Z'}
+          fill="url(#vyrn-weight-area)"
         />
-
-        {/* Line */}
-        <Path d={pathD} fill="none" stroke={lineColor} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-
-        {/* Data points */}
-        {points.map((p, i) => (
+        <Path d={pathD} fill="none" stroke={lineColor} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+        {points.map((point, index) => (
           <Circle
-            key={i}
-            cx={toX(i)} cy={toY(p.weight_kg as number)}
-            r={i === points.length - 1 ? 4 : 2.5}
-            fill={i === points.length - 1 ? lineColor : '#1C1C1C'}
+            key={(point.recorded_date || 'point') + '-' + index}
+            cx={toX(index)}
+            cy={toY(Number(point.weight_kg))}
+            r={index === points.length - 1 ? 4.5 : 2.7}
+            fill={index === points.length - 1 ? COLORS.primaryGreen : COLORS.card}
             stroke={lineColor}
-            strokeWidth={1.5}
+            strokeWidth={1.7}
           />
         ))}
-
-        {/* First + last date labels */}
-        {[0, points.length - 1].map(i => (
-          <SvgText
-            key={i} x={toX(i)} y={H - 4}
-            fill="#555" fontSize={8} textAnchor={i === 0 ? 'start' : 'end'}
-          >
-            {(points[i].recorded_date || '').slice(5)}
+        {[0, points.length - 1].map((index) => (
+          <SvgText key={index} x={toX(index)} y={HEIGHT - 5} fill={COLORS.textMuted} fontSize={9} textAnchor={index === 0 ? 'start' : 'end'}>
+            {(points[index].recorded_date || '').slice(5) || '—'}
           </SvgText>
         ))}
       </Svg>
 
-      {/* Delta stat */}
       <View style={styles.deltaRow}>
-        <Text style={styles.deltaLabel}>Change over period</Text>
-        <Text style={[styles.deltaVal, isPositive ? styles.green : styles.red]}>
-          {trend >= 0 ? '+' : ''}{trend.toFixed(1)} kg
-        </Text>
+        <View>
+          <Text style={styles.deltaLabel}>Change across recorded period</Text>
+          <Text style={styles.deltaHint}>Direction is not scored as good or bad.</Text>
+        </View>
+        <Text style={styles.deltaValue}>{delta > 0 ? '+' : ''}{delta.toFixed(1)} kg</Text>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: '#1C1C1C', borderRadius: 12, padding: 14,
-    borderWidth: 1, borderColor: '#2A2A2A', marginBottom: 16,
-  },
-  label: {
-    color: '#555', fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 10,
-  },
-  empty: { alignItems: 'center', paddingVertical: 16 },
-  emptyText: { color: '#555', fontSize: 13 },
-  deltaRow: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginTop: 8,
-    borderTopWidth: 1, borderTopColor: '#2A2A2A', paddingTop: 8,
-  },
-  deltaLabel: { color: '#666', fontSize: 12 },
-  deltaVal: { fontSize: 14, fontWeight: '700' },
-  green: { color: '#4CAF50' },
-  red: { color: '#FF5252' },
+  container: { backgroundColor: COLORS.card, borderRadius: RADIUS.card, padding: SPACING.lg, borderWidth: 1, borderColor: COLORS.cardBorder, marginBottom: SPACING.lg },
+  empty: { backgroundColor: COLORS.card, borderRadius: RADIUS.card, padding: SPACING.lg, borderWidth: 1, borderColor: COLORS.cardBorder, marginBottom: SPACING.lg },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 },
+  label: { color: COLORS.textSecondary, fontFamily: FONTS.bold, fontSize: 9, letterSpacing: 1.2 },
+  subtitle: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 10, marginTop: 4 },
+  periodPill: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardElevated },
+  periodText: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 7, letterSpacing: 0.55 },
+  emptyText: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 12, marginTop: 9 },
+  deltaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginTop: 6, paddingTop: 12, borderTopWidth: 1, borderTopColor: COLORS.border },
+  deltaLabel: { color: COLORS.textSecondary, fontFamily: FONTS.semibold, fontSize: 10 },
+  deltaHint: { color: COLORS.textDim, fontFamily: FONTS.regular, fontSize: 9, marginTop: 3 },
+  deltaValue: { color: COLORS.strain, fontFamily: FONTS.numericBold, fontSize: 16 },
 });

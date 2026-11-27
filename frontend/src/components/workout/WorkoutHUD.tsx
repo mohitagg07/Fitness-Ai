@@ -8,9 +8,9 @@
 //   • Next exercise flow: auto-advances index on tap
 //   • Rest timer now shows circular progress ring (SVG-free: pure View)
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView,
+  View, Text, StyleSheet, ScrollView,
   TextInput, Alert, Animated, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -29,6 +29,8 @@ import WorkoutSummaryCard from './WorkoutSummaryCard';
 import WorkoutHistoryModal from './WorkoutHistoryModal';
 import MilestoneCelebration from './MilestoneCelebration';
 import MoodPickerModal, { MoodValue } from './MoodPickerModal';
+import PressableScale from '../ui/PressableScale';
+import Reveal from '../shared/Reveal';
 
 interface ExerciseCard {
   name: string;
@@ -49,6 +51,7 @@ interface SetLog {
 }
 
 const RPE_LEVELS = [6, 7, 7.5, 8, 8.5, 9, 9.5, 10];
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 // ─── Milestone detection ────────────────────────────────────────────────────
 // The backend has tracked workout_streak / protein_streak on agent_state for
@@ -122,6 +125,7 @@ function RestTimerBar({
   onComplete: () => void;
 }) {
   const [seconds, setSeconds] = useState(total);
+  const ringProgress = useRef(new Animated.Value(1)).current;
 
   // Derive remaining time from an absolute deadline. This avoids countdown
   // drift if the JS thread is busy or the app briefly moves to the background.
@@ -146,10 +150,23 @@ function RestTimerBar({
   const pct = total > 0 ? Math.max(0, Math.min(1, seconds / total)) : 0;
   const urgent = seconds <= 10;
   const barColor = urgent ? COLORS.recoveryLow : COLORS.primaryGreen;
+  useEffect(() => {
+    const animation = Animated.timing(ringProgress, {
+      toValue: pct,
+      duration: 220,
+      useNativeDriver: false,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [pct, ringProgress]);
   const ringSize = 58;
   const ringStroke = 4;
   const ringRadius = (ringSize - ringStroke) / 2;
   const circumference = 2 * Math.PI * ringRadius;
+  const ringOffset = ringProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [circumference, 0],
+  });
 
   return (
     <View style={T.timerBar}>
@@ -163,7 +180,7 @@ function RestTimerBar({
             stroke={COLORS.borderLight}
             strokeWidth={ringStroke}
           />
-          <Circle
+          <AnimatedCircle
             cx={ringSize / 2}
             cy={ringSize / 2}
             r={ringRadius}
@@ -171,7 +188,7 @@ function RestTimerBar({
             stroke={barColor}
             strokeWidth={ringStroke}
             strokeDasharray={`${circumference} ${circumference}`}
-            strokeDashoffset={circumference * (1 - pct)}
+            strokeDashoffset={ringOffset as any}
             strokeLinecap="round"
             rotation="-90"
             origin={`${ringSize / 2}, ${ringSize / 2}`}
@@ -189,7 +206,7 @@ function RestTimerBar({
         <Text style={T.timerHint}>Timer stays accurate when you switch apps</Text>
       </View>
 
-      <TouchableOpacity
+      <PressableScale
         onPress={onSkip}
         style={T.skipBtn}
         accessibilityRole="button"
@@ -197,7 +214,7 @@ function RestTimerBar({
       >
         <Ionicons name="play" size={12} color={COLORS.textSecondary} />
         <Text style={T.skipText}>SKIP</Text>
-      </TouchableOpacity>
+      </PressableScale>
     </View>
   );
 }
@@ -695,17 +712,17 @@ function WorkoutHUD() {
             Track each set, manage your rest and keep your progress in one place.
             Start with a blank session or let your coach build today's plan.
           </Text>
-          <TouchableOpacity style={S.startBtn} onPress={startSession} disabled={isRestoringSession}>
+          <PressableScale style={S.startBtn} onPress={startSession} disabled={isRestoringSession}>
             <Text style={S.startBtnText}>{isRestoringSession ? 'Checking saved session…' : 'Start empty session'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={S.coachBtn} onPress={askCoachForWorkout} disabled={isRestoringSession}>
+          </PressableScale>
+          <PressableScale style={S.coachBtn} onPress={askCoachForWorkout} disabled={isRestoringSession}>
             <Ionicons name="flash" size={16} color={COLORS.primaryGreen} />
             <Text style={S.coachBtnText}>Build today's plan with Coach</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={S.historyBtn} onPress={() => setHistoryVisible(true)}>
+          </PressableScale>
+          <PressableScale style={S.historyBtn} onPress={() => setHistoryVisible(true)}>
             <Ionicons name="time-outline" size={16} color={COLORS.textSecondary} />
             <Text style={S.historyBtnText}>View workout history</Text>
-          </TouchableOpacity>
+          </PressableScale>
         </View>
       </KeyboardAvoidingView>
     );
@@ -736,13 +753,13 @@ function WorkoutHUD() {
       />
 
       {restStartedAt !== null && (
-        <RestTimerBar
+        <Reveal distance={5} duration={200}><RestTimerBar
           key={restStartedAt}
           startedAt={restStartedAt}
           total={restTotal}
           onSkip={clearRestTimer}
           onComplete={clearRestTimer}
-        />
+        /></Reveal>
       )}
 
       <SessionHeader
@@ -762,7 +779,7 @@ function WorkoutHUD() {
           {exercises.map((e, i) => {
             const done = e.completed_sets >= e.sets;
             return (
-              <TouchableOpacity
+              <PressableScale
                 key={i}
                 style={[S.exTab, i === activeIdx && S.exTabActive, done && S.exTabDone]}
                 onPress={() => setActiveIdx(i)}
@@ -773,14 +790,14 @@ function WorkoutHUD() {
                 <Text style={[S.exTabSets, done ? S.exTabSetsDone : i === activeIdx && S.exTabSetsActive]}>
                   {e.completed_sets}/{e.sets}
                 </Text>
-              </TouchableOpacity>
+              </PressableScale>
             );
           })}
         </ScrollView>
       )}
 
       {/* Log card */}
-      <View style={S.exerciseCard}>
+      <Reveal delay={35} distance={8}><View style={S.exerciseCard}>
         {ex ? (
           <>
             <View style={S.exCardHeader}>
@@ -791,10 +808,10 @@ function WorkoutHUD() {
               </View>
               {/* Next exercise button */}
               {activeIdx < exercises.length - 1 && (
-                <TouchableOpacity style={S.nextExInline} onPress={nextExercise}>
+                <PressableScale style={S.nextExInline} onPress={nextExercise}>
                   <Text style={S.nextExInlineText}>Next</Text>
                   <Ionicons name="arrow-forward" size={14} color={COLORS.strain} />
-                </TouchableOpacity>
+                </PressableScale>
               )}
             </View>
             {ex.cue ? (
@@ -870,7 +887,7 @@ function WorkoutHUD() {
                 const active = rpe === r;
                 const color  = rpeColor(r);
                 return (
-                  <TouchableOpacity
+                  <PressableScale
                     key={r}
                     style={[
                       S.rpeChip,
@@ -879,14 +896,14 @@ function WorkoutHUD() {
                     onPress={() => setRpe(r)}
                   >
                     <Text style={[S.rpeChipText, active && { color }]}>{r}</Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 );
               })}
             </View>
           </ScrollView>
         </View>
 
-        <TouchableOpacity
+        <PressableScale
           style={[S.logBtn, isLogging && S.logBtnDisabled]}
           onPress={logSet}
           disabled={isLogging}
@@ -894,13 +911,13 @@ function WorkoutHUD() {
           accessibilityLabel="Log set and start rest timer"
           accessibilityState={{ disabled: isLogging }}
         >
-          <Ionicons name="add-circle-outline" size={16} color="#000" />
+          <Ionicons name="add-circle-outline" size={16} color={COLORS.background} />
           <Text style={S.logBtnText}>{isLogging ? 'LOGGING…' : 'LOG SET + START REST'}</Text>
-        </TouchableOpacity>
-      </View>
+        </PressableScale>
+      </View></Reveal>
 
       {/* Sets logged */}
-      <ScrollView style={S.logsScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}>
+      <Reveal delay={85} style={S.logsReveal}><ScrollView style={S.logsScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}>
         <Text style={S.logsLabel}>SETS LOGGED</Text>
         {groupedLogs.length === 0 ? (
           <Text style={S.noLogs}>No sets yet — log your first set above</Text>
@@ -923,9 +940,9 @@ function WorkoutHUD() {
           ))
         )}
         <View style={{ height: 16 }} />
-      </ScrollView>
+      </ScrollView></Reveal>
 
-      <TouchableOpacity
+      <PressableScale
         style={[S.finishBtn, isFinishing && S.logBtnDisabled]}
         onPress={finishWorkout}
         disabled={isFinishing}
@@ -935,7 +952,7 @@ function WorkoutHUD() {
       >
         <Ionicons name="checkmark-circle-outline" size={18} color={COLORS.primaryGreen} />
         <Text style={S.finishBtnText}>{isFinishing ? 'SAVING…' : 'FINISH WORKOUT'}</Text>
-      </TouchableOpacity>
+      </PressableScale>
     </KeyboardAvoidingView>
   );
 }
@@ -998,7 +1015,7 @@ const H = StyleSheet.create({
     marginBottom: 3,
   },
   activeDot:  { width: 5, height: 5, borderRadius: 3, backgroundColor: COLORS.primaryGreen },
-  pillText:   { ...EYEBROW, color: COLORS.primaryGreen, fontSize: 8 },
+  pillText: { ...EYEBROW, color: COLORS.primaryGreen, fontSize: 8 },
   timeValue: { color: COLORS.text, fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 25, lineHeight: 29, letterSpacing: -0.7 },
   timeLabel: { ...EYEBROW, color: COLORS.textMuted, fontSize: 7, letterSpacing: 1.05 },
   metrics: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
@@ -1031,7 +1048,7 @@ const S = StyleSheet.create({
                  alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.xl },
   gymTitle:    { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 32, letterSpacing: -0.8, textAlign: 'left' },
   gymSubtitle: { ...BODY, color: COLORS.primaryGreen, fontSize: 15, fontFamily: FONTS.semibold, marginTop: SPACING.xs, marginBottom: SPACING.lg },
-  gymDesc:     { ...BODY, color: COLORS.textSecondary, fontSize: 14, textAlign: 'left', lineHeight: 22, marginBottom: SPACING.xxl, maxWidth: 340 },
+  gymDesc: { ...BODY, color: COLORS.textSecondary, fontSize: 14, textAlign: 'left', lineHeight: 22, marginBottom: SPACING.xxl, maxWidth: 340 },
   startBtn:    { backgroundColor: COLORS.primaryGreen, borderRadius: RADIUS.button,
                  paddingVertical: 17, paddingHorizontal: SPACING.xl, width: '100%',
                  alignItems: 'center', marginBottom: SPACING.md },
@@ -1054,7 +1071,7 @@ const S = StyleSheet.create({
   exTabDone:    { opacity: 0.45 },
   exTabText:    { ...BODY, color: COLORS.textMuted, fontSize: 11, fontFamily: FONTS.semibold },
   exTabTextActive:{ color: COLORS.primaryGreen },
-  exTabSets:    { ...BODY, color: COLORS.textMuted, fontSize: 10, marginTop: 2 },
+  exTabSets: { ...BODY, color: COLORS.textMuted, fontSize: 10, marginTop: 2 },
   exTabSetsActive:{ color: alpha(COLORS.primaryGreen, 0.7) },
   exTabSetsDone:{ color: COLORS.borderLight },
 
@@ -1065,7 +1082,7 @@ const S = StyleSheet.create({
                     marginTop: SPACING.sm, padding: SPACING.lg, borderWidth: 1, borderColor: COLORS.cardBorder },
   exCardHeader:   { flexDirection: 'row', justifyContent: 'space-between',
                     alignItems: 'flex-start', marginBottom: SPACING.sm },
-  setCount:       { ...EYEBROW, color: COLORS.primaryGreen, fontSize: 10, marginBottom: 2 },
+  setCount: { ...EYEBROW, color: COLORS.primaryGreen, fontSize: 10, marginBottom: 2 },
   exerciseName:   { color: COLORS.text, fontFamily: FONTS.extrabold, fontSize: 20 },
   exerciseTarget: { ...BODY, color: COLORS.textSecondary, fontSize: 13, marginTop: 2 },
   nextExInline:   { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs,
@@ -1073,7 +1090,7 @@ const S = StyleSheet.create({
                     paddingVertical: SPACING.sm, borderWidth: 1, borderColor: alpha(COLORS.strain, 0.25) },
   nextExInlineText:{ color: COLORS.strain, fontFamily: FONTS.semibold, fontSize: 12 },
   cueRow:         { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, marginBottom: SPACING.md },
-  cue:            { ...BODY, color: COLORS.textMuted, fontSize: 12, fontStyle: 'italic', flex: 1 },
+  cue: { ...BODY, color: COLORS.textMuted, fontSize: 12, fontStyle: 'italic', flex: 1 },
   manualEntry:    { marginBottom: SPACING.sm },
   manualTitle:    { color: COLORS.text, fontFamily: FONTS.bold, fontSize: 17, marginBottom: SPACING.sm },
   setCountManual: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 13, marginBottom: SPACING.sm },
@@ -1094,7 +1111,7 @@ const S = StyleSheet.create({
   inputHint: { color: COLORS.textMuted, fontSize: 11, marginTop: -SPACING.xs, marginBottom: SPACING.sm },
 
   rpeRow:    { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.md },
-  rpeLabel:  { ...EYEBROW, color: COLORS.textSecondary, fontSize: 10, width: 30 },
+  rpeLabel: { ...EYEBROW, color: COLORS.textSecondary, fontSize: 10, width: 30 },
   rpeChips:  { flexDirection: 'row', gap: SPACING.xs },
   rpeChip:   { paddingVertical: SPACING.sm, paddingHorizontal: SPACING.md, borderRadius: RADIUS.badge,
                backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.borderLight },
@@ -1106,13 +1123,14 @@ const S = StyleSheet.create({
   logBtn:     { backgroundColor: COLORS.primaryGreen, borderRadius: RADIUS.button, paddingVertical: SPACING.md,
                 flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm },
   logBtnDisabled: { opacity: 0.5 },
-  logBtnText: { color: '#000', fontFamily: FONTS.extrabold, fontSize: 13, letterSpacing: 0.5 },
+  logBtnText: { color: COLORS.background, fontFamily: FONTS.extrabold, fontSize: 13, letterSpacing: 0.5 },
 
   // Logs
   logsScroll:       { flex: 1, paddingHorizontal: SPACING.md },
-  logsLabel:        { ...EYEBROW, color: COLORS.textMuted, fontSize: 9,
+  logsReveal: { flex: 1 },
+  logsLabel: { ...EYEBROW, color: COLORS.textMuted, fontSize: 9,
                       marginBottom: SPACING.sm, marginTop: SPACING.xs },
-  noLogs:           { ...BODY, color: COLORS.textDim, fontSize: 13, textAlign: 'center', paddingTop: SPACING.md },
+  noLogs: { ...BODY, color: COLORS.textDim, fontSize: 13, textAlign: 'center', paddingTop: SPACING.md },
   exerciseGroup:    { marginBottom: SPACING.sm, backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.card,
                       overflow: 'hidden', borderWidth: 1, borderColor: COLORS.border },
   groupExerciseName:{ color: COLORS.text, fontFamily: FONTS.bold, fontSize: 13,
@@ -1122,7 +1140,7 @@ const S = StyleSheet.create({
                       paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm,
                       borderBottomWidth: 1, borderBottomColor: COLORS.cardBorder, gap: SPACING.md },
   setLabel:         { ...BODY, color: COLORS.textMuted, fontFamily: FONTS.semibold, fontSize: 11, width: 40 },
-  setDetails:       { ...BODY, color: COLORS.textSecondary, fontSize: 13, flex: 1 },
+  setDetails: { ...BODY, color: COLORS.textSecondary, fontSize: 13, flex: 1 },
   rpeBadge:         { borderRadius: RADIUS.badge, paddingHorizontal: 7, paddingVertical: 2,
                       backgroundColor: COLORS.cardElevated, borderWidth: 1 },
   rpeBadgeText:     { fontFamily: FONTS.semibold, fontSize: 11 },

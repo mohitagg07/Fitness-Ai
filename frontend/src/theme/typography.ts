@@ -1,18 +1,14 @@
 /**
  * VYRN — Typography
  *
- * WHOOP's actual brand uses Proxima Nova (words) and DIN Pro (numbers) —
- * both are commercial, licensed fonts we can't legally bundle into this
- * app. Inter and Space Grotesk are the real, free (MIT/OFL) replacements
- * actually wired in below — not a placeholder, these are loaded via
- * @expo-google-fonts and embedded as real font files through the
- * expo-font config plugin (see app.json).
+ * VYRN's type system pairs Inter for readable language with Space
+ * Grotesk for instrumented numeric data. The selection is an original
+ * product decision: use a clear editorial sans for language and a distinct,
+ * tabular geometric face for scores, weights and workout metrics. It does
+ * not reproduce another fitness brand's licensed typography or assets.
  *
- * - Inter: words — headlines, labels, body text. Closest free equivalent
- *   to Proxima Nova's clean, neutral, highly-legible geometry.
- * - Space Grotesk: numbers — scores, weights, reps, calories. Distinctive
- *   geometric digits with true tabular alignment, closer to DIN Pro's
- *   technical/instrumented feel than a generic system font.
+ * Both families are loaded through @expo-google-fonts and embedded by the
+ * Expo font config plugin (see app.json).
  *
  * IMPORTANT: these fontFamily strings only resolve correctly once
  * useFonts() in app/_layout.tsx has finished loading (see ensureFontsLoaded
@@ -67,7 +63,7 @@ export const FONT_ASSETS = {
   SpaceGrotesk_700Bold: require('@expo-google-fonts/space-grotesk/700Bold/SpaceGrotesk_700Bold.ttf'),
 };
 
-// WHOOP headline spec: Bold, ALL CAPS, ~10% letter-spacing.
+// VYRN display eyebrow: compact, high-contrast section label.
 export const HEADLINE = {
   fontFamily: FONTS.bold,
   fontWeight: '700' as const,
@@ -99,12 +95,13 @@ export const EYEBROW = {
 /**
  * VYRN — canonical type scale.
  *
- * These are the ONLY seven text styles that should exist anywhere in the
- * app. Every screen renders text through <Text variant="..."/> (see
+ * These are the canonical nine typography variants used throughout the
+ * app. The seven core reading levels plus display and small are defined here. Screens should use <Text variant="..."/> (see
  * components/ui/Text.tsx) instead of inventing a new fontSize/fontWeight
  * combination. If something doesn't fit one of these seven, it should be
  * reconsidered as one of these seven — not given an eighth.
  *
+ *   Display   — a rare, oversized hero value or brand moment.
  *   Hero      — the one big greeting/headline per screen ("Ready to
  *               train, Mohit?", workout-complete title).
  *   H1        — screen-level heading (rare; most screens use Header +
@@ -112,6 +109,7 @@ export const EYEBROW = {
  *   H2        — section heading ("Recent Workouts", "This Week").
  *   CardTitle — the title inside a card ("Light / Active Recovery").
  *   Body      — default paragraph/label/value text.
+ *   Small     — helper and sub-line copy between body and caption.
  *   Caption   — secondary/muted small text (helper copy, timestamps).
  *   Eyebrow   — small uppercase label above a card/section (alias of
  *               EYEBROW above, included here so the whole scale lives

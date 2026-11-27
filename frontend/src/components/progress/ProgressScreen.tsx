@@ -10,13 +10,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import {
-  View, Text, ScrollView, StyleSheet, TouchableOpacity,
+  View, Text, ScrollView, StyleSheet, Animated, LayoutAnimation, Platform, UIManager,
   TextInput, Alert, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import Svg, { Line, Path, Circle, Text as SvgT } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { progressApi, nutritionApi, profileApi, describeApiError } from '../../utils/api';
 import { COLORS, recoveryColor } from '../../theme/colors';
+import { FONTS } from '../../theme/typography';
+import PressableScale from '../ui/PressableScale';
+import Reveal from '../shared/Reveal';
 import { qk } from '../../lib/queryKeys';
 import NutritionSearchModal from './NutritionSearchModal';
 import WeightChart from './WeightChart';
@@ -27,6 +30,12 @@ import MuscleRecoveryMap from './MuscleRecoveryMap';
 import { SkeletonCard } from '../shared/LoadingOverlay';
 
 type Tab = 'body' | 'nutrition' | 'recovery' | 'review' | 'analytics';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 function ProteinAdherenceBar({ history }: { history: any[] }) {
   const days = history.slice(0, 7).reverse();
@@ -65,15 +74,15 @@ function ProteinAdherenceBar({ history }: { history: any[] }) {
 const P = StyleSheet.create({
   container: { backgroundColor: COLORS.cardElevated, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  label: { color: COLORS.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
-  pct: { fontSize: 13, fontWeight: '700' },
+  label: { fontFamily: FONTS.bold,  color: COLORS.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
+  pct: { fontFamily: FONTS.bold,  fontSize: 13, fontWeight: '700' },
   bars: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, height: 60 },
   barCol: { flex: 1, alignItems: 'center', gap: 4 },
   barTrack: { flex: 1, width: '100%', backgroundColor: COLORS.border, borderRadius: 4, justifyContent: 'flex-end', overflow: 'hidden', borderWidth: 1, borderColor: COLORS.border },
   barFill: { width: '100%', borderRadius: 4 },
-  dayLabel: { color: COLORS.textMuted, fontSize: 9, fontWeight: '600' },
+  dayLabel: { fontFamily: FONTS.semibold,  color: COLORS.textMuted, fontSize: 9, fontWeight: '600' },
   empty: { paddingVertical: 16, alignItems: 'center' },
-  emptyText: { color: COLORS.textMuted, fontSize: 13 },
+  emptyText: { fontFamily: FONTS.regular,  color: COLORS.textMuted, fontSize: 13 },
 });
 
 function MacroRing({ pct, color, label, value }: { pct: number; color: string; label: string; value: string }) {
@@ -81,19 +90,25 @@ function MacroRing({ pct, color, label, value }: { pct: number; color: string; l
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const safePct = Number.isFinite(pct) ? Math.max(0, Math.min(100, pct)) : 0;
-  const offset = circumference * (1 - safePct / 100);
+  const animatedPct = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const animation = Animated.timing(animatedPct, { toValue: safePct, duration: 720, useNativeDriver: false });
+    animation.start();
+    return () => animation.stop();
+  }, [animatedPct, safePct]);
+  const offset = animatedPct.interpolate({ inputRange: [0, 100], outputRange: [circumference, 0] });
   return (
     <View style={{ alignItems: 'center', gap: 4 }}>
       <View style={{ width: size, height: size }}>
         <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
           <Circle cx={size / 2} cy={size / 2} r={radius} stroke={COLORS.border} strokeWidth={stroke} fill="none" />
-          <Circle cx={size / 2} cy={size / 2} r={radius} stroke={color} strokeWidth={stroke} fill="none"
-            strokeDasharray={circumference + ' ' + circumference} strokeDashoffset={offset}
+          <AnimatedCircle cx={size / 2} cy={size / 2} r={radius} stroke={color} strokeWidth={stroke} fill="none"
+            strokeDasharray={circumference + ' ' + circumference} strokeDashoffset={offset as any}
             strokeLinecap="round" rotation={-90} origin={size / 2 + ',' + size / 2} />
         </Svg>
       </View>
-      <Text style={{ color: COLORS.text, fontSize: 12, fontWeight: '800' }}>{value}</Text>
-      <Text style={{ color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 1 }}>{label}</Text>
+      <Text style={{ color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 12, fontWeight: '700' }}>{value}</Text>
+      <Text style={{ color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, fontWeight: '700', letterSpacing: 1 }}>{label}</Text>
     </View>
   );
 }
@@ -169,7 +184,7 @@ function RecoveryTrend({ metrics }: { metrics: any[] }) {
     }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
         <Text style={styles.sectionLabel}>RECOVERY TREND (14 DAYS)</Text>
-        <Text style={{ color: recoveryColor(average), fontSize: 13, fontWeight: '700' }}>Avg {average}%</Text>
+        <Text style={{ color: recoveryColor(average), fontFamily: FONTS.numericSemibold, fontSize: 12, fontWeight: '600' }}>Avg {average}%</Text>
       </View>
       <Svg width={width} height={height}>
         <Path d={path} fill="none" stroke={COLORS.recoveryHigh} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
@@ -332,6 +347,7 @@ export default function ProgressScreen() {
   ];
 
   const selectTab = (tab: Tab) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setActiveTab(tab);
     const index = tabs.findIndex((item) => item.key === tab);
     const estimatedTabWidth = responsive.isTablet ? 128 : 112;
@@ -375,7 +391,7 @@ export default function ProgressScreen() {
         {tabs.map((tab) => {
           const selected = activeTab === tab.key;
           return (
-            <TouchableOpacity
+            <PressableScale
               key={tab.key}
               style={[styles.tab, responsive.isTablet && styles.tabWide, selected && styles.tabActive]}
               onPress={() => selectTab(tab.key)}
@@ -385,7 +401,7 @@ export default function ProgressScreen() {
             >
               <Ionicons name={tab.icon} size={14} color={selected ? COLORS.primaryGreen : COLORS.textMuted} />
               <Text style={[styles.tabText, selected && styles.tabTextActive]}>{tab.label}</Text>
-            </TouchableOpacity>
+            </PressableScale>
           );
         })}
       </ScrollView>
@@ -394,16 +410,16 @@ export default function ProgressScreen() {
         <View style={styles.errorBanner}>
           <Ionicons name="cloud-offline-outline" size={15} color={COLORS.recoveryMed} />
           <Text style={styles.errorBannerText}>{errorMsg}</Text>
-          <TouchableOpacity onPress={onRefresh} accessibilityRole="button" accessibilityLabel="Retry Progress data refresh">
+          <PressableScale onPress={onRefresh} accessibilityRole="button" accessibilityLabel="Retry Progress data refresh">
             <Text style={styles.errorRetry}>Retry</Text>
-          </TouchableOpacity>
+          </PressableScale>
         </View>
       )}
 
       {activeTab === 'review' ? (
-        <WeeklyReviewScreen />
+        <Reveal key={activeTab} distance={7}><WeeklyReviewScreen /></Reveal>
       ) : activeTab === 'analytics' ? (
-        <ScrollView
+        <Reveal key={activeTab} distance={7}><ScrollView
           contentContainerStyle={[styles.scroll, { width: '100%', maxWidth: responsive.pageMaxWidth, alignSelf: 'center', paddingBottom: responsive.gutter * 3 }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primaryGreen} />}
         >
@@ -416,9 +432,9 @@ export default function ProgressScreen() {
             balanceRange={analyticsBalanceRange}
             onBalanceRangeChange={setAnalyticsBalanceRange}
           />
-        </ScrollView>
+        </ScrollView></Reveal>
       ) : (
-        <ScrollView
+        <Reveal key={activeTab} distance={7}><ScrollView
           contentContainerStyle={[styles.scroll, { width: '100%', maxWidth: responsive.pageMaxWidth, alignSelf: 'center', paddingBottom: responsive.gutter * 3 }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primaryGreen} />}
         >
@@ -429,7 +445,7 @@ export default function ProgressScreen() {
                 <View style={styles.inputRow}>
                   <TextInput style={styles.numInput} placeholder="e.g. 78.5" placeholderTextColor={COLORS.textMuted} value={weightInput} onChangeText={setWeightInput} keyboardType="decimal-pad" returnKeyType="done" onSubmitEditing={logWeight} accessibilityLabel="Body weight in kilograms" />
                   <Text style={styles.unitLabel}>kg</Text>
-                  <TouchableOpacity style={styles.logBtn} onPress={logWeight} accessibilityRole="button"><Text style={styles.logBtnText}>LOG</Text></TouchableOpacity>
+                  <PressableScale style={styles.logBtn} onPress={logWeight} accessibilityRole="button"><Text style={styles.logBtnText}>LOG</Text></PressableScale>
                 </View>
               </View>
               <WeightChart metrics={metrics} />
@@ -453,10 +469,10 @@ export default function ProgressScreen() {
 
           {activeTab === 'nutrition' && (
             <>
-              <TouchableOpacity style={styles.logFoodBtn} onPress={() => setLogFoodVisible(true)}>
+              <PressableScale style={styles.logFoodBtn} onPress={() => setLogFoodVisible(true)}>
                 <Ionicons name="add-circle" size={18} color={COLORS.background} />
                 <Text style={styles.logFoodBtnText}>ADD FOOD</Text>
-              </TouchableOpacity>
+              </PressableScale>
               <TodayMacros todayData={todayData} />
               <CaloriesChart history={nutrition} targetCal={targetCal} />
               <ProteinAdherenceBar history={nutrition} />
@@ -479,7 +495,7 @@ export default function ProgressScreen() {
                 <View style={styles.inputRow}>
                   <TextInput style={styles.numInput} placeholder="e.g. 75" placeholderTextColor={COLORS.textMuted} value={recoveryInput} onChangeText={setRecoveryInput} keyboardType="numeric" returnKeyType="done" onSubmitEditing={logRecovery} accessibilityLabel="Self-reported recovery score from 0 to 100" />
                   <Text style={styles.unitLabel}>/ 100</Text>
-                  <TouchableOpacity style={styles.logBtn} onPress={logRecovery} accessibilityRole="button"><Text style={styles.logBtnText}>LOG</Text></TouchableOpacity>
+                  <PressableScale style={styles.logBtn} onPress={logRecovery} accessibilityRole="button"><Text style={styles.logBtnText}>LOG</Text></PressableScale>
                 </View>
               </View>
               <View style={styles.chartCard}>
@@ -500,7 +516,7 @@ export default function ProgressScreen() {
             </>
           )}
           <View style={{ height: 40 }} />
-        </ScrollView>
+        </ScrollView></Reveal>
       )}
     </View>
   );
@@ -510,54 +526,54 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   header: { paddingHorizontal: 20, paddingBottom: 18, borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 7 },
   headerTopRow: { flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: 7 },
-  headerEyebrow: { color: COLORS.primaryGreen, fontSize: 9, fontWeight: '800', letterSpacing: 1.75 },
-  headerDescription: { color: COLORS.textMuted, fontSize: 12, lineHeight: 18, marginTop: 1 },
-  headerSub: { color: COLORS.text, fontSize: 29, lineHeight: 34, fontWeight: '800', letterSpacing: -0.9 },
+  headerEyebrow: { fontFamily: FONTS.bold,  color: COLORS.primaryGreen, fontSize: 9, fontWeight: '800', letterSpacing: 1.75 },
+  headerDescription: { fontFamily: FONTS.regular,  color: COLORS.textMuted, fontSize: 12, lineHeight: 18, marginTop: 1 },
+  headerSub: { fontFamily: FONTS.semibold,  color: COLORS.text, fontSize: 27, lineHeight: 32, fontWeight: '600', letterSpacing: -0.7 },
   tabBarScroll: { borderBottomWidth: 1, borderBottomColor: COLORS.border, flexGrow: 0, backgroundColor: COLORS.background },
   tabBar: { paddingHorizontal: 18, paddingTop: 5, paddingBottom: 0, gap: 23, flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center' },
   tabBarWide: { justifyContent: 'center' },
   tab: { flexGrow: 0, flexShrink: 0, minWidth: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, paddingVertical: 13, paddingHorizontal: 1, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabWide: { minWidth: 120 },
   tabActive: { backgroundColor: 'transparent', borderBottomColor: COLORS.primaryGreen },
-  tabText: { color: COLORS.textMuted, fontSize: 11, fontWeight: '600', letterSpacing: 0.1 },
+  tabText: { fontFamily: FONTS.semibold,  color: COLORS.textMuted, fontSize: 11, fontWeight: '600', letterSpacing: 0.1 },
   tabTextActive: { color: COLORS.primaryGreen },
   errorBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 10, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardElevated },
-  errorBannerText: { color: COLORS.textSecondary, flex: 1, fontSize: 10, lineHeight: 15 },
-  errorRetry: { color: COLORS.primaryGreen, fontSize: 11, fontWeight: '700' },
+  errorBannerText: { fontFamily: FONTS.regular,  color: COLORS.textSecondary, flex: 1, fontSize: 10, lineHeight: 15 },
+  errorRetry: { fontFamily: FONTS.bold,  color: COLORS.primaryGreen, fontSize: 11, fontWeight: '700' },
   scroll: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40 },
   logCard: { backgroundColor: COLORS.card, borderRadius: 19, padding: 17, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
-  sectionLabel: { color: COLORS.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 10 },
-  helperText: { color: COLORS.textMuted, fontSize: 11, lineHeight: 16, marginBottom: 10 },
+  sectionLabel: { fontFamily: FONTS.bold,  color: COLORS.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 10 },
+  helperText: { fontFamily: FONTS.regular,  color: COLORS.textMuted, fontSize: 11, lineHeight: 16, marginBottom: 10 },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  numInput: { flex: 1, backgroundColor: COLORS.inputBg, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: COLORS.text, fontSize: 20, fontWeight: '700', borderWidth: 1, borderColor: COLORS.border },
-  unitLabel: { color: COLORS.textMuted, fontSize: 14, fontWeight: '600' },
+  numInput: { fontFamily: FONTS.numericSemibold,  flex: 1, backgroundColor: COLORS.inputBg, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: COLORS.text, fontSize: 20, fontWeight: '700', borderWidth: 1, borderColor: COLORS.border },
+  unitLabel: { fontFamily: FONTS.semibold,  color: COLORS.textMuted, fontSize: 14, fontWeight: '600' },
   logBtn: { backgroundColor: COLORS.primaryGreen, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 13 },
-  logBtnText: { color: COLORS.background, fontSize: 13, fontWeight: '800', letterSpacing: 1 },
+  logBtnText: { fontFamily: FONTS.bold,  color: COLORS.background, fontSize: 13, fontWeight: '800', letterSpacing: 1 },
   macrosCard: { backgroundColor: COLORS.card, borderRadius: 20, padding: 18, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
   remainingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 10 },
-  remainingLabel: { color: COLORS.textMuted, fontSize: 11, fontWeight: '600' },
-  remainingVal: { color: COLORS.textSecondary, fontSize: 11 },
+  remainingLabel: { fontFamily: FONTS.semibold,  color: COLORS.textMuted, fontSize: 11, fontWeight: '600' },
+  remainingVal: { fontFamily: FONTS.regular,  color: COLORS.textSecondary, fontSize: 11 },
   statsGrid: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   statCard: { flex: 1, backgroundColor: COLORS.card, borderRadius: 16, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
-  statVal: { color: COLORS.primaryGreen, fontSize: 18, fontWeight: '800' },
-  statLabel: { color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 1, marginTop: 2 },
+  statVal: { fontFamily: FONTS.numericSemibold,  color: COLORS.primaryGreen, fontSize: 18, fontWeight: '800' },
+  statLabel: { fontFamily: FONTS.bold,  color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 1, marginTop: 2 },
   chartCard: { backgroundColor: COLORS.card, borderRadius: 19, padding: 17, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
   logFoodBtn: { backgroundColor: COLORS.primaryGreen, borderRadius: 15, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 16 },
-  logFoodBtnText: { color: COLORS.background, fontSize: 14, fontWeight: '800', letterSpacing: 0.5 },
+  logFoodBtnText: { fontFamily: FONTS.bold,  color: COLORS.background, fontSize: 14, fontWeight: '800', letterSpacing: 0.5 },
   streaksRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
   streakCard: { flex: 1, backgroundColor: COLORS.card, borderRadius: 17, padding: 15, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
-  streakVal: { color: COLORS.text, fontSize: 22, fontWeight: '800', marginTop: 4 },
-  streakLabel: { color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 0.5, marginTop: 2 },
+  streakVal: { fontFamily: FONTS.numericSemibold,  color: COLORS.text, fontSize: 22, fontWeight: '800', marginTop: 4 },
+  streakLabel: { fontFamily: FONTS.bold,  color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 0.5, marginTop: 2 },
   recoveryRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
-  recoveryDate: { color: COLORS.textMuted, fontSize: 11, width: 36 },
+  recoveryDate: { fontFamily: FONTS.regular,  color: COLORS.textMuted, fontSize: 11, width: 36 },
   recoveryTrack: { flex: 1, height: 4, backgroundColor: COLORS.inputBg, borderRadius: 2, overflow: 'hidden' },
   recoveryFill: { height: 4, borderRadius: 2 },
-  recoveryScore: { width: 36, fontSize: 12, fontWeight: '700', textAlign: 'right' },
+  recoveryScore: { fontFamily: FONTS.numericSemibold,  width: 36, fontSize: 12, fontWeight: '700', textAlign: 'right' },
   prRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  prName: { color: COLORS.textSecondary, fontSize: 13, flex: 1 },
-  prWeight: { color: COLORS.text, fontSize: 14, fontWeight: '800' },
-  prReps: { color: COLORS.textMuted, fontSize: 12 },
-  emptyNote: { color: COLORS.textMuted, fontSize: 13, textAlign: 'center', paddingVertical: 16 },
+  prName: { fontFamily: FONTS.regular,  color: COLORS.textSecondary, fontSize: 13, flex: 1 },
+  prWeight: { fontFamily: FONTS.numericSemibold,  color: COLORS.text, fontSize: 14, fontWeight: '800' },
+  prReps: { fontFamily: FONTS.regular,  color: COLORS.textMuted, fontSize: 12 },
+  emptyNote: { fontFamily: FONTS.regular,  color: COLORS.textMuted, fontSize: 13, textAlign: 'center', paddingVertical: 16 },
   emptyCard: { alignItems: 'center', paddingVertical: 32, gap: 12 },
 });
 

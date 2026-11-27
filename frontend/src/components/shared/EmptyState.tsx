@@ -10,6 +10,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../theme/colors';
+import { FONTS } from '../../theme/typography';
 import { SPACING, RADIUS } from '../../theme/spacing';
 import Button from '../ui/Button';
 
@@ -80,13 +81,15 @@ const styles = StyleSheet.create({
   },
   title: {
     color: COLORS.text,
+    fontFamily: FONTS.semibold,
     fontSize: 15,
     fontWeight: '600',
     textAlign: 'center',
   },
   body: {
     color: COLORS.textMuted,
-    fontSize: 13,
+    fontFamily: FONTS.regular,
+    fontSize: 12,
     textAlign: 'center',
     lineHeight: 19,
     maxWidth: 260,

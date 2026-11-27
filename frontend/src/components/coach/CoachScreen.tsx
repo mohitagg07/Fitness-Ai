@@ -11,11 +11,12 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
+  View, Text, TextInput,
   StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
   Alert, ScrollView, Animated, Easing,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { FlashList, FlashListRef } from '@shopify/flash-list';
 import Svg, { Circle, Path, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -27,10 +28,13 @@ import { useMissionSummary } from '../../hooks/useDashboardQueries';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { useStore } from '../../store';
 import { COLORS, alpha, recoveryColor } from '../../theme/colors';
+import { FONTS } from '../../theme/typography';
 import { RADIUS } from '../../theme/spacing';
 import Logo from '../shared/Logo';
 
 import CoachMemoryModal from './CoachMemoryModal';
+import PressableScale from '../ui/PressableScale';
+import Reveal from '../shared/Reveal';
 
 // ─── Suggestion chips shown on empty state ────────────────────────────────────
 // Semantic color per topic (🟡 workout, 🔵 AI/logging, 🟢 recovery,
@@ -54,17 +58,17 @@ const SUGGESTIONS = [
 // demo visual rather than a generic outline icon in a flat box.
 type ExercisePose = 'press' | 'row' | 'lateral' | 'curl' | 'tricep' | 'squat' | 'core';
 const EXERCISE_VISUAL_RULES: Array<{ match: RegExp; pose: ExercisePose; from: string; to: string }> = [
-  { match: /bench|chest|press|push.?up|fly/i,  pose: 'press',   from: COLORS.recoveryHigh, to: '#0B3D02' },
-  { match: /row|pull|lat|back|deadlift/i,       pose: 'row',     from: COLORS.strain,       to: '#04283F' },
-  { match: /shoulder|lateral|delt|overhead/i,   pose: 'lateral', from: COLORS.coachPurple,  to: '#2A1B4D' },
-  { match: /curl|bicep/i,                       pose: 'curl',    from: COLORS.recoveryMed,  to: '#3D3300' },
-  { match: /tricep|pushdown|dip/i,              pose: 'tricep',  from: COLORS.strainGlow,   to: '#043D2C' },
-  { match: /squat|leg|lunge|calf|glute|hip/i,   pose: 'squat',   from: COLORS.recoveryLow,  to: '#3D0410' },
-  { match: /plank|core|ab|crunch/i,             pose: 'core',    from: COLORS.water,        to: '#0B2A3D' },
+  { match: /bench|chest|press|push.?up|fly/i,  pose: 'press',   from: COLORS.recoveryHigh, to: COLORS.movementTileEnd },
+  { match: /row|pull|lat|back|deadlift/i,       pose: 'row',     from: COLORS.strain,       to: COLORS.movementTileEnd },
+  { match: /shoulder|lateral|delt|overhead/i,   pose: 'lateral', from: COLORS.coachPurple,  to: COLORS.movementTileEnd },
+  { match: /curl|bicep/i,                       pose: 'curl',    from: COLORS.recoveryMed,  to: COLORS.movementTileEnd },
+  { match: /tricep|pushdown|dip/i,              pose: 'tricep',  from: COLORS.strainGlow,   to: COLORS.movementTileEnd },
+  { match: /squat|leg|lunge|calf|glute|hip/i,   pose: 'squat',   from: COLORS.recoveryLow,  to: COLORS.movementTileEnd },
+  { match: /plank|core|ab|crunch/i,             pose: 'core',    from: COLORS.water,        to: COLORS.movementTileEnd },
 ];
 function exerciseVisual(name: string) {
   const found = EXERCISE_VISUAL_RULES.find(r => r.match.test(name || ''));
-  return found || { pose: 'press' as ExercisePose, from: COLORS.recoveryHigh, to: '#0B3D02' };
+  return found || { pose: 'press' as ExercisePose, from: COLORS.recoveryHigh, to: COLORS.movementTileEnd };
 }
 
 // Minimal stick-figure pictograms — original line art, one per movement
@@ -719,6 +723,7 @@ export default function CoachScreen() {
     if (!message || isStreaming) return;
 
     setInput('');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
     addChatMessage('user', message);
     pendingUserMessageRef.current = message;
 
@@ -764,20 +769,20 @@ export default function CoachScreen() {
           <Logo size="sm" />
           <View style={S.headerTitleCol}>
             <View style={S.headerTitleRow}>
-              <Text style={S.headerTitle}>AI Coach</Text>
+              <Text style={S.headerTitle}>Coach</Text>
               <View style={S.proBadge}>
-                <Text style={S.proBadgeText}>AI</Text>
+                <Text style={S.proBadgeText}>VYRN AI</Text>
               </View>
             </View>
-            <Text style={S.headerSub}>Your performance partner</Text>
+            <Text style={S.headerSub}>Your training, in context</Text>
           </View>
           <View style={S.headerIcons}>
-            <TouchableOpacity hitSlop={10} onPress={() => setMemoryVisible(true)} accessibilityRole="button" accessibilityLabel="Open coach memory">
+            <PressableScale hitSlop={10} onPress={() => setMemoryVisible(true)} accessibilityRole="button" accessibilityLabel="Open coach memory">
               <Ionicons name="bookmark-outline" size={21} color={COLORS.textSecondary} />
-            </TouchableOpacity>
-            <TouchableOpacity hitSlop={10} onPress={() => router.push('/(tabs)/profile')} accessibilityRole="button" accessibilityLabel="Open profile">
+            </PressableScale>
+            <PressableScale hitSlop={10} onPress={() => router.push('/(tabs)/profile')} accessibilityRole="button" accessibilityLabel="Open profile">
               <Ionicons name="person-outline" size={21} color={COLORS.textSecondary} />
-            </TouchableOpacity>
+            </PressableScale>
           </View>
         </View>
 
@@ -839,9 +844,9 @@ export default function CoachScreen() {
               <View style={S.coachOrbStatus} />
             </View>
             <Text style={S.emptyEyebrow}>YOUR TRAINING PARTNER</Text>
-            <Text style={S.emptyTitle}>What are we working on?</Text>
+            <Text style={S.emptyTitle}>Your next best move starts here.</Text>
             <Text style={S.emptySubtitle}>
-              Ask about your plan, a difficult set, recovery or what to eat. Your training history gives the conversation context.
+              Ask about your plan, a difficult set, recovery or nutrition. Your saved training history gives the conversation context.
             </Text>
           </View>
           <View style={S.suggestionsHeading}>
@@ -850,9 +855,9 @@ export default function CoachScreen() {
           </View>
           <View style={S.suggestions}>
             {SUGGESTIONS.map((s, i) => (
-              <TouchableOpacity
+              <Reveal key={'suggestion-' + i} delay={i * 42}>
+              <PressableScale
                 key={i}
-                activeOpacity={0.82}
                 style={S.suggestion}
                 onPress={() => sendMessage(s.text)}
                 accessibilityRole="button"
@@ -865,7 +870,8 @@ export default function CoachScreen() {
                   <Ionicons name="arrow-forward-outline" size={15} color={COLORS.textDim} />
                 </View>
                 <Text style={S.suggestionText}>{s.text}</Text>
-              </TouchableOpacity>
+              </PressableScale>
+              </Reveal>
             ))}
           </View>
         </ScrollView>
@@ -888,13 +894,13 @@ export default function CoachScreen() {
           the reply well before the full response has finished. */}
       {isStreaming && (
         streamingText ? (
-          <View style={[S.bubble, S.aiBubble]}>
+          <Reveal distance={5} duration={220}><View style={[S.bubble, S.aiBubble]}>
             <View style={S.roleLabelRow}>
               <Ionicons name="flash" size={10} color={COLORS.recoveryHigh} />
               <Text style={S.roleLabel}>COACH</Text>
             </View>
             <Text style={[S.messageText]}>{streamingText}</Text>
-          </View>
+          </View></Reveal>
         ) : (
           <ThinkingDots />
         )
@@ -916,7 +922,7 @@ export default function CoachScreen() {
           selectionColor={COLORS.primaryGreen}
           underlineColorAndroid="transparent"
         />
-        <TouchableOpacity
+        <PressableScale
           style={[S.sendBtn, (!input.trim() || isStreaming) && S.sendBtnOff]}
           onPress={() => sendMessage()}
           disabled={!input.trim() || isStreaming}
@@ -926,7 +932,7 @@ export default function CoachScreen() {
             size={18}
             color={input.trim() && !isStreaming ? COLORS.background : COLORS.textDim}
           />
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     </KeyboardAvoidingView>
   );
@@ -936,63 +942,63 @@ export default function CoachScreen() {
 const C = StyleSheet.create({
   // Shell
   shell:       { borderRadius: RADIUS.card, overflow: 'hidden', marginTop: 12, borderWidth: 1,
-                 shadowColor: '#000000', shadowOpacity: 0.14, shadowRadius: 14,
+                 shadowColor: COLORS.background, shadowOpacity: 0.14, shadowRadius: 14,
                  shadowOffset: { width: 0, height: 6 }, elevation: 4 },
   shellHeader: { flexDirection: 'row', alignItems: 'center', gap: 7,
                  paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1 },
-  shellLabel:  { fontSize: 10, fontWeight: '700', letterSpacing: 1.6 },
+  shellLabel: { fontFamily: FONTS.bold,  fontSize: 10, fontWeight: '700', letterSpacing: 1.6 },
 
   // Tips
   tipsBlock: { paddingHorizontal: 14, paddingVertical: 10, gap: 6 },
   tipRow:    { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   tipDot:    { width: 5, height: 5, borderRadius: 3, marginTop: 6 },
-  tipText:   { color: COLORS.textSecondary, fontSize: 12, flex: 1, lineHeight: 18 },
-  emptyTip:  { color: COLORS.textMuted, fontSize: 12 },
+  tipText: { fontFamily: FONTS.regular,  color: COLORS.textSecondary, fontSize: 12, flex: 1, lineHeight: 18 },
+  emptyTip: { fontFamily: FONTS.regular,  color: COLORS.textMuted, fontSize: 12 },
 
   // Workout card
   wMeta:         { flexDirection: 'row', alignItems: 'center', gap: 10,
                    paddingHorizontal: 14, paddingVertical: 10 },
   metaItem:      { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  metaItemText:  { color: COLORS.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 0.3 },
+  metaItemText: { fontFamily: FONTS.bold,  color: COLORS.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 0.3 },
   metaDivider:   { width: 1, height: 12, backgroundColor: 'rgba(255,255,255,0.10)' },
 
   tableWrap:  { borderTopWidth: 1, borderTopColor: COLORS.border },
   exRow:      { paddingHorizontal: 14, paddingVertical: 12, gap: 10 },
   exHeaderRow:{ flexDirection: 'row', alignItems: 'center', gap: 12 },
   tableRowAlt:{ backgroundColor: COLORS.backgroundTop },
-  exName:     { color: COLORS.text, fontSize: 14, fontWeight: '700', lineHeight: 18 },
+  exName: { fontFamily: FONTS.bold,  color: COLORS.text, fontSize: 14, fontWeight: '700', lineHeight: 18 },
   exThumb:    { width: 56, height: 56, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  exFocus:    { color: COLORS.textMuted, fontSize: 11, marginTop: 3, fontStyle: 'italic' },
+  exFocus: { fontFamily: FONTS.regular,  color: COLORS.textMuted, fontSize: 11, marginTop: 3, fontStyle: 'italic' },
   exMetricRow: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.03)',
     borderRadius: 12, paddingVertical: 8,
   },
   exMetric: { flex: 1, alignItems: 'center', gap: 2 },
-  exMetricValue: { color: COLORS.text, fontSize: 13, fontWeight: '800' },
-  exMetricLabel: { color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
+  exMetricValue: { fontFamily: FONTS.numericSemibold,  color: COLORS.text, fontSize: 13, fontWeight: '800' },
+  exMetricLabel: { fontFamily: FONTS.bold,  color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
   exMetricDivider: { width: 1, height: 20, backgroundColor: 'rgba(255,255,255,0.08)' },
 
   reasonRow:  { paddingHorizontal: 14, paddingVertical: 10,
-                borderTopWidth: 1, borderTopColor: '#1A1A1A' },
-  reasonText: { color: COLORS.textMuted, fontSize: 12, lineHeight: 18 },
+                borderTopWidth: 1, borderTopColor: COLORS.border },
+  reasonText: { fontFamily: FONTS.regular,  color: COLORS.textMuted, fontSize: 12, lineHeight: 18 },
 
   // Live set card
   nextActionBlock: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8 },
-  nextActionLabel: { color: COLORS.strainGlow, fontSize: 9, fontWeight: '800',
+  nextActionLabel: { fontFamily: FONTS.bold,  color: COLORS.strainGlow, fontSize: 9, fontWeight: '800',
                      letterSpacing: 1.5, marginBottom: 4 },
-  nextActionText:  { color: COLORS.text, fontSize: 20, fontWeight: '800', lineHeight: 26 },
+  nextActionText: { fontFamily: FONTS.bold,  color: COLORS.text, fontSize: 20, fontWeight: '800', lineHeight: 26 },
   insightBlock:    { paddingHorizontal: 14, paddingVertical: 10,
-                     borderTopWidth: 1, borderTopColor: '#111' },
-  insightText:     { color: COLORS.textMuted, fontSize: 12, fontStyle: 'italic' },
+                     borderTopWidth: 1, borderTopColor: COLORS.border },
+  insightText: { fontFamily: FONTS.regular,  color: COLORS.textMuted, fontSize: 12, fontStyle: 'italic' },
 
   // Recovery card
   recoveryBody:       { flexDirection: 'row', padding: 14, alignItems: 'center', gap: 14 },
   recoveryScoreBlock: { alignItems: 'center', minWidth: 72 },
-  recoveryScoreNum:   { fontSize: 42, fontWeight: '800', lineHeight: 48 },
-  recoveryScoreUnit:  { color: COLORS.textMuted, fontSize: 14, fontWeight: '600', marginTop: -6 },
+  recoveryScoreNum: { fontFamily: FONTS.numericSemibold,  fontSize: 42, fontWeight: '800', lineHeight: 48 },
+  recoveryScoreUnit: { fontFamily: FONTS.semibold,  color: COLORS.textMuted, fontSize: 14, fontWeight: '600', marginTop: -6 },
   recoveryZonePill:   { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8,
                         paddingVertical: 3, marginTop: 6 },
-  recoveryZoneText:   { fontSize: 9, fontWeight: '800', letterSpacing: 1.2 },
+  recoveryZoneText: { fontFamily: FONTS.bold,  fontSize: 9, fontWeight: '800', letterSpacing: 1.2 },
   recoveryDivider:    { width: 1, height: 52, backgroundColor: COLORS.border },
   recoveryTips:       { flex: 1, gap: 6 },
 
@@ -1001,30 +1007,30 @@ const C = StyleSheet.create({
   macroChip:   { flex: 1, minWidth: 60, backgroundColor: COLORS.cardElevated,
                  borderRadius: 10, padding: 10, alignItems: 'center',
                  borderWidth: 1, borderColor: COLORS.border },
-  macroVal:    { fontSize: 18, fontWeight: '800', color: COLORS.text },
-  macroLabel:  { color: COLORS.textMuted, fontSize: 9, fontWeight: '700',
+  macroVal: { fontFamily: FONTS.numericSemibold,  fontSize: 18, fontWeight: '800', color: COLORS.text },
+  macroLabel: { fontFamily: FONTS.bold,  color: COLORS.textMuted, fontSize: 9, fontWeight: '700',
                  letterSpacing: 1, marginTop: 2 },
 
   // Progress card
   prBlock:      { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8 },
-  prBlockLabel: { color: COLORS.gold, fontSize: 9, fontWeight: '800', letterSpacing: 1.5, marginBottom: 8 },
+  prBlockLabel: { fontFamily: FONTS.bold,  color: COLORS.gold, fontSize: 9, fontWeight: '800', letterSpacing: 1.5, marginBottom: 8 },
   prRow:        { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  prText:       { color: COLORS.text, fontSize: 13, fontWeight: '600' },
+  prText: { fontFamily: FONTS.semibold,  color: COLORS.text, fontSize: 13, fontWeight: '600' },
   trendRow:     { flexDirection: 'row', alignItems: 'center', gap: 8,
                   paddingHorizontal: 14, paddingVertical: 10,
-                  borderTopWidth: 1, borderTopColor: '#1A1A1A' },
-  trendText:    { color: COLORS.textSecondary, fontSize: 13, fontWeight: '600' },
+                  borderTopWidth: 1, borderTopColor: COLORS.border },
+  trendText: { fontFamily: FONTS.semibold,  color: COLORS.textSecondary, fontSize: 13, fontWeight: '600' },
 
   // Weekly card
   weeklyStats:     { flexDirection: 'row', padding: 14, gap: 8 },
   weeklyStatChip:  { flex: 1, backgroundColor: COLORS.cardElevated, borderRadius: 10,
                      padding: 10, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
-  weeklyStatVal:   { fontSize: 20, fontWeight: '800', color: COLORS.text },
-  weeklyStatLabel: { color: COLORS.textMuted, fontSize: 8, fontWeight: '700',
+  weeklyStatVal: { fontFamily: FONTS.numericSemibold,  fontSize: 20, fontWeight: '800', color: COLORS.text },
+  weeklyStatLabel: { fontFamily: FONTS.bold,  color: COLORS.textMuted, fontSize: 8, fontWeight: '700',
                      letterSpacing: 1, marginTop: 2 },
   weekDays:        { flexDirection: 'row', paddingHorizontal: 14, paddingBottom: 14, gap: 6 },
   weekDay:         { flex: 1, alignItems: 'center', gap: 5 },
-  weekDayLabel:    { color: COLORS.textMuted, fontSize: 9, fontWeight: '600' },
+  weekDayLabel: { fontFamily: FONTS.semibold,  color: COLORS.textMuted, fontSize: 9, fontWeight: '600' },
   weekDayDot:      { width: 8, height: 8, borderRadius: 4 },
 
   // Chat tips
@@ -1045,13 +1051,13 @@ const S = StyleSheet.create({
   headerTopRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerTitleCol: { flex: 1 },
   headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  headerTitle: { color: COLORS.text, fontSize: 16, fontWeight: '700' },
+  headerTitle: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 19, fontWeight: '600', letterSpacing: -0.35 },
   proBadge: {
     backgroundColor: COLORS.recoveryHigh + '20', borderRadius: 6,
     paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: COLORS.recoveryHigh + '50',
   },
-  proBadgeText: { color: COLORS.recoveryHigh, fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
-  headerSub: { color: COLORS.textMuted, fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
+  proBadgeText: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 8, fontWeight: '800', letterSpacing: 0.9 },
+  headerSub: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 11, letterSpacing: 0.1, marginTop: 1 },
   headerIcons: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   notifDot: {
     position: 'absolute', top: -1, right: -1, width: 7, height: 7, borderRadius: 4,
@@ -1063,22 +1069,22 @@ const S = StyleSheet.create({
     padding: 14, gap: 12,
   },
   briefContextRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
-  briefContextTitle: { color: COLORS.text, fontSize: 12, fontWeight: '700', letterSpacing: 0.25 },
+  briefContextTitle: { fontFamily: FONTS.bold,  color: COLORS.text, fontSize: 12, fontWeight: '700', letterSpacing: 0.25 },
   briefTextCol: { flex: 1, minWidth: 0, gap: 4 },
-  briefMessage: { color: COLORS.textMuted, fontSize: 12, lineHeight: 17 },
+  briefMessage: { fontFamily: FONTS.regular,  color: COLORS.textMuted, fontSize: 12, lineHeight: 17 },
   briefDivider: { height: 1, backgroundColor: COLORS.border },
   briefMetrics: { flexDirection: 'row', alignItems: 'center', gap: 18 },
   briefMetric: { flex: 1, gap: 3 },
-  briefMetricLabel: { color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 1.1 },
-  briefMetricValue: { fontSize: 20, lineHeight: 24, fontWeight: '700' },
-  briefMetricUnit: { color: COLORS.textMuted, fontSize: 11, fontWeight: '500' },
+  briefMetricLabel: { fontFamily: FONTS.bold,  color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 1.1 },
+  briefMetricValue: { fontFamily: FONTS.numericSemibold,  fontSize: 20, lineHeight: 24, fontWeight: '700' },
+  briefMetricUnit: { fontFamily: FONTS.medium,  color: COLORS.textMuted, fontSize: 11, fontWeight: '500' },
   briefMetricDivider: { width: 1, height: 34, backgroundColor: COLORS.border },
   offlineBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: alpha(COLORS.recoveryMed, 0.10), paddingVertical: 9, paddingHorizontal: 16,
     borderBottomWidth: 1, borderBottomColor: alpha(COLORS.recoveryMed, 0.24),
   },
-  offlineBannerText: { color: COLORS.recoveryMed, fontSize: 11, flex: 1, lineHeight: 16 },
+  offlineBannerText: { fontFamily: FONTS.regular,  color: COLORS.recoveryMed, fontSize: 11, flex: 1, lineHeight: 16 },
 
   emptyScroll: { flex: 1 },
   emptyContent: { paddingHorizontal: 20, paddingTop: 28, paddingBottom: 24 },
@@ -1096,15 +1102,15 @@ const S = StyleSheet.create({
     position: 'absolute', right: -3, bottom: -3, width: 13, height: 13, borderRadius: 7,
     backgroundColor: COLORS.recoveryHigh, borderWidth: 3, borderColor: COLORS.background,
   },
-  emptyEyebrow: { color: COLORS.primaryGreen, fontSize: 9, fontWeight: '800', letterSpacing: 1.8, marginBottom: 9 },
-  emptyTitle: { color: COLORS.text, fontSize: 27, lineHeight: 32, fontWeight: '800', letterSpacing: -0.8, marginBottom: 9, maxWidth: 310 },
-  emptySubtitle: { color: COLORS.textMuted, fontSize: 13, lineHeight: 20, maxWidth: 340 },
+  emptyEyebrow: { fontFamily: FONTS.bold,  color: COLORS.primaryGreen, fontSize: 9, fontWeight: '800', letterSpacing: 1.8, marginBottom: 9 },
+  emptyTitle: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 28, lineHeight: 33, fontWeight: '700', letterSpacing: -0.8, marginBottom: 9, maxWidth: 310 },
+  emptySubtitle: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 12, lineHeight: 19, maxWidth: 340 },
   suggestionsHeading: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     marginBottom: 11,
   },
-  suggestionsHeadingLabel: { color: COLORS.textSecondary, fontSize: 9, fontWeight: '800', letterSpacing: 1.35 },
-  suggestionsHeadingMeta: { color: COLORS.textDim, fontSize: 8, fontWeight: '700', letterSpacing: 1 },
+  suggestionsHeadingLabel: { fontFamily: FONTS.bold,  color: COLORS.textSecondary, fontSize: 9, fontWeight: '800', letterSpacing: 1.35 },
+  suggestionsHeadingMeta: { fontFamily: FONTS.bold,  color: COLORS.textDim, fontSize: 8, fontWeight: '700', letterSpacing: 1 },
   suggestions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
   suggestion: {
     width: '48.5%', minHeight: 106, backgroundColor: COLORS.card,
@@ -1116,7 +1122,7 @@ const S = StyleSheet.create({
     width: 34, height: 34, borderRadius: 11,
     alignItems: 'center', justifyContent: 'center',
   },
-  suggestionText: { color: COLORS.text, fontSize: 12, lineHeight: 17, fontWeight: '600', marginTop: 10 },
+  suggestionText: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 12, lineHeight: 18, fontWeight: '600', marginTop: 10 },
 
   messageList: { padding: 16, paddingBottom: 12 },
   bubble:      { marginBottom: 12, borderRadius: 18, padding: 15, maxWidth: '92%' },
@@ -1125,8 +1131,8 @@ const S = StyleSheet.create({
   aiBubble:    { backgroundColor: COLORS.card, alignSelf: 'flex-start',
                  borderWidth: 1, borderColor: COLORS.border, maxWidth: '97%' },
   roleLabelRow:{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 },
-  roleLabel:   { color: COLORS.recoveryHigh, fontSize: 9, fontWeight: '800', letterSpacing: 1.5 },
-  messageText: { color: COLORS.text, fontSize: 15, lineHeight: 23 },
+  roleLabel: { fontFamily: FONTS.bold,  color: COLORS.recoveryHigh, fontSize: 9, fontWeight: '800', letterSpacing: 1.5 },
+  messageText: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 14, lineHeight: 22 },
   userText:    { color: COLORS.text },
 
   thinkingRow:    { flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -1137,14 +1143,14 @@ const S = StyleSheet.create({
                     borderWidth: 1, borderColor: COLORS.recoveryHigh + '30' },
   thinkingBubble: { backgroundColor: COLORS.card, borderRadius: 12, paddingHorizontal: 14,
                     paddingVertical: 8, borderWidth: 1, borderColor: COLORS.border },
-  thinkingText:   { color: COLORS.textMuted, fontSize: 13 },
+  thinkingText: { fontFamily: FONTS.regular,  color: COLORS.textMuted, fontSize: 13 },
 
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10,
               paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10,
               backgroundColor: COLORS.background, borderTopWidth: 1, borderTopColor: COLORS.border },
   input:    { flex: 1, backgroundColor: COLORS.inputBg, borderRadius: 16,
               paddingHorizontal: 16, paddingVertical: 11, color: COLORS.text,
-              fontSize: 15, maxHeight: 110, borderWidth: 1, borderColor: COLORS.border },
+              fontFamily: FONTS.regular, fontSize: 14, maxHeight: 110, borderWidth: 1, borderColor: COLORS.border },
   sendBtn:  { width: 44, height: 44, borderRadius: 15,
               backgroundColor: COLORS.primaryGreen, alignItems: 'center', justifyContent: 'center' },
   sendBtnOff: { backgroundColor: COLORS.cardElevated, shadowOpacity: 0, elevation: 0 },

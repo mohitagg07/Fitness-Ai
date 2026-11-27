@@ -9,7 +9,7 @@
 
 import React, { useState } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator,
+  View, Text, ScrollView, StyleSheet, ActivityIndicator, LayoutAnimation, Platform, UIManager,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
@@ -22,8 +22,15 @@ import AmbientGrid from '../shared/AmbientGrid';
 import { COLORS, alpha } from '../../theme/colors';
 import { qk, STALE } from '../../lib/queryKeys';
 import { FONTS } from '../../theme/typography';
+import StrengthProgressionChart from './StrengthProgressionChart';
+import PressableScale from '../ui/PressableScale';
+import Reveal from '../shared/Reveal';
 
-export type AnalyticsChartTab = 'heatmap' | 'radar' | 'prs';
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+export type AnalyticsChartTab = 'heatmap' | 'radar' | 'prs' | 'strength';
 
 interface HeatmapDay {
   date: string;
@@ -69,6 +76,7 @@ const CHART_TABS: { id: AnalyticsChartTab; label: string; caption: string; icon:
   { id: 'heatmap', label: 'Activity', caption: 'Working-set activity', icon: 'grid-outline' },
   { id: 'radar', label: 'Muscle balance', caption: 'Primary-muscle exposure', icon: 'body-outline' },
   { id: 'prs', label: 'PR timeline', caption: 'Saved personal records', icon: 'trophy-outline' },
+  { id: 'strength', label: 'Strength', caption: 'Weekly best working weight', icon: 'trending-up' },
 ];
 
 function EmptyState({ icon, title, text }: {
@@ -136,7 +144,7 @@ function VolumeHeatmap({ data, weeks }: { data: HeatmapResponse; weeks: number }
               : day.date + ', ' + day.sets + ' working sets, ' +
                 (day.session_count ?? (day.has_session ? 1 : 0)) + ' completed sessions';
             return (
-              <TouchableOpacity
+              <PressableScale
                 key={day.date}
                 style={[
                   styles.heatmapCell,
@@ -161,14 +169,14 @@ function VolumeHeatmap({ data, weeks }: { data: HeatmapResponse; weeks: number }
         <View style={styles.heatmapDetail}>
           <View style={styles.heatmapDetailHeader}>
             <Text style={styles.heatmapDetailDate}>{selected.date}</Text>
-            <TouchableOpacity
+            <PressableScale
               onPress={() => setTooltip(null)}
               accessibilityRole="button"
               accessibilityLabel="Close selected day details"
               hitSlop={8}
             >
               <Ionicons name="close-circle" size={17} color={COLORS.textMuted} />
-            </TouchableOpacity>
+            </PressableScale>
           </View>
           <View style={styles.heatmapDetailMetrics}>
             <View style={styles.detailMetric}>
@@ -360,7 +368,7 @@ function RangeSelector({ value, onChange }: { value: AnalyticsRangeOption; onCha
   return (
     <View style={styles.rangeSelector} accessibilityRole="tablist">
       {RANGE_OPTIONS.map((range) => (
-        <TouchableOpacity
+        <PressableScale
           key={range}
           style={[styles.rangeOption, value === range && styles.rangeOptionActive]}
           onPress={() => onChange(range)}
@@ -369,7 +377,7 @@ function RangeSelector({ value, onChange }: { value: AnalyticsRangeOption; onCha
           accessibilityState={{ selected: value === range }}
         >
           <Text style={[styles.rangeOptionText, value === range && styles.rangeOptionTextActive]}>{range}W</Text>
-        </TouchableOpacity>
+        </PressableScale>
       ))}
     </View>
   );
@@ -402,6 +410,7 @@ export default function AnalyticsScreen({
   const activeChart = controlledChart ?? internalChart;
 
   const selectChart = (next: AnalyticsChartTab) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     if (onActiveChartChange) onActiveChartChange(next);
     else setInternalChart(next);
   };
@@ -442,7 +451,7 @@ export default function AnalyticsScreen({
         {CHART_TABS.map((tab) => {
           const selected = activeChart === tab.id;
           return (
-            <TouchableOpacity
+            <PressableScale
               key={tab.id}
               style={[styles.chartTab, selected && styles.chartTabActive]}
               onPress={() => selectChart(tab.id)}
@@ -452,7 +461,7 @@ export default function AnalyticsScreen({
             >
               <Ionicons name={tab.icon} size={15} color={selected ? COLORS.primaryGreen : COLORS.textMuted} />
               <Text style={[styles.chartTabText, selected && styles.chartTabTextActive]}>{tab.label}</Text>
-            </TouchableOpacity>
+            </PressableScale>
           );
         })}
       </ScrollView>
@@ -470,7 +479,9 @@ export default function AnalyticsScreen({
         </View>
       )}
 
-      {currentQuery.isPending && currentQuery.fetchStatus === 'fetching' && !currentData ? (
+      {activeChart === 'strength' ? (
+        <Reveal key={activeChart} delay={35}><StrengthProgressionChart /></Reveal>
+      ) : currentQuery.isPending && currentQuery.fetchStatus === 'fetching' && !currentData ? (
         <ChartLoadingState />
       ) : !currentData ? (
         <View style={styles.stateCard}>
@@ -479,13 +490,13 @@ export default function AnalyticsScreen({
             title={currentQuery.fetchStatus === 'paused' ? 'Waiting for connection' : 'Analytics could not load'}
             text={errorMessage || 'The chart has no response yet. Check your connection and try again.'}
           />
-          <TouchableOpacity style={styles.retryButton} onPress={() => { void currentQuery.refetch(); }} accessibilityRole="button" accessibilityLabel="Retry loading this analytics chart">
+          <PressableScale style={styles.retryButton} onPress={() => { void currentQuery.refetch(); }} accessibilityRole="button" accessibilityLabel="Retry loading this analytics chart">
             <Ionicons name="refresh" size={14} color={COLORS.background} />
             <Text style={styles.retryButtonText}>Try again</Text>
-          </TouchableOpacity>
+          </PressableScale>
         </View>
       ) : (
-        <View style={styles.chartCard}>
+        <Reveal key={activeChart} delay={35}><View style={styles.chartCard}>
           {activeChart === 'heatmap' && heatmapQuery.data && (
             <>
               <Text style={styles.cardEyebrow}>TRAINING FREQUENCY</Text>
@@ -518,12 +529,12 @@ export default function AnalyticsScreen({
             <View style={styles.staleNotice}>
               <Ionicons name="cloud-offline-outline" size={14} color={COLORS.recoveryMed} />
               <Text style={styles.staleNoticeText}>Could not refresh. Showing the last saved result.</Text>
-              <TouchableOpacity onPress={() => { void currentQuery.refetch(); }} accessibilityRole="button" accessibilityLabel="Retry chart refresh">
+              <PressableScale onPress={() => { void currentQuery.refetch(); }} accessibilityRole="button" accessibilityLabel="Retry chart refresh">
                 <Text style={styles.retryInline}>Retry</Text>
-              </TouchableOpacity>
+              </PressableScale>
             </View>
           )}
-        </View>
+        </View></Reveal>
       )}
     </View>
   );
