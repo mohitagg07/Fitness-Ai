@@ -65,10 +65,8 @@ jobs:
       - name: Report all production dependency advisories
         run: npm audit --omit=dev || true
 
-      # Expo SDK 54 still pulls a few upstream build-time advisories whose
-      # safe resolution requires a major Expo upgrade or a not-yet-published
-      # image-size fix. Do not force an SDK migration in this reliability PR.
-      # Critical findings remain a hard failure.
+      # Safe, semver-compatible updates are applied above. High and critical
+      # production dependency advisories remaining after those updates block CI.
       - name: Block high-severity production dependency vulnerabilities
         run: npm audit --omit=dev --audit-level=high
 
@@ -171,7 +169,8 @@ jobs:
             printf '%s\n' "$launch_output"
             total_ms="$(printf '%s\n' "$launch_output" | awk -F': ' '/TotalTime/ {print $2}')"
             test -n "$total_ms"
-            test "$total_ms" -lt 20000
+            echo "Cold activity launch: ${total_ms}ms (budget: 10000ms)"
+            test "$total_ms" -lt 10000
 
             # The QA route is unlocked only in this internal smoke-test build.
             adb shell am force-stop com.vyrn.app
