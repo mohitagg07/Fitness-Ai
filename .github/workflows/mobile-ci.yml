@@ -7,8 +7,6 @@ on:
   push:
     branches:
       - main
-      - "fix/**"
-      - "feat/**"
     paths:
       - "frontend/**"
       - "backend/**"
