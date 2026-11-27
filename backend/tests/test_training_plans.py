@@ -5,8 +5,12 @@ from api.routes.training_plans import PlanDraftRequest, WorkoutPrescription
 
 
 def _workout(kind: str, label: str | None = None) -> WorkoutPrescription:
-    # The weekly validator needs only the prescription day/type relation;
-    # catalogue and exercise-level safety validation runs in the API helper.
+    if kind == "rest":
+        return WorkoutPrescription(
+            label=label or "Rest",
+            workout_type="rest",
+            exercises=[],
+        )
     exercise_name = {
         "push": "Bench Press",
         "pull": "Lat Pulldown",
@@ -16,21 +20,16 @@ def _workout(kind: str, label: str | None = None) -> WorkoutPrescription:
         "full_body": "Goblet Squat",
         "cardio": "Treadmill",
         "mobility": "Hip Flexor Stretch",
-        "rest": None,
+        "recovery": "Hip Flexor Stretch",
     }[kind]
-    exercises = [] if kind == "rest" else [{
-        "name": exercise_name,
-        "sets": 3,
-        "reps": "8-12",
-    }]
-    return WorkoutPrescription.model_construct(
+    return WorkoutPrescription(
         label=label or kind.title(),
         workout_type=kind,
-        muscle_groups=[],
-        estimated_duration_minutes=None,
-        warmup_notes=None,
-        cooldown_notes=None,
-        exercises=exercises,
+        exercises=[{
+            "name": exercise_name,
+            "sets": 3,
+            "reps": "8-12",
+        }],
     )
 
 
