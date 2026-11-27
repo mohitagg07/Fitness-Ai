@@ -166,6 +166,7 @@ function Metric({ label, value, detail, accent }: { label: string; value: string
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
+  const reduceMotion = useReducedMotion();
   const responsive = useResponsiveLayout();
   const { user, profile } = useStore((state) => ({ user: state.user, profile: state.profile }));
   const [showFullReport, setShowFullReport] = useState(false);
@@ -458,7 +459,7 @@ export default function DashboardScreen() {
           accessibilityState={{ expanded: showFullReport }}
           style={styles.reportToggle}
           onPress={() => {
-            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+            if (!reduceMotion) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
             setShowFullReport((current) => !current);
           }}
         >
