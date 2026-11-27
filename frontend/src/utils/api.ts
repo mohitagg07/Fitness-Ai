@@ -186,6 +186,7 @@ export const workoutApi = {
   createSession: (data: any) => api.post('/workouts/sessions', data),
   getSessions: (limit = 10) => api.get(`/workouts/sessions?limit=${limit}`),
   getSessionExerciseEvents: (id: string) => api.get(`/workouts/sessions/${id}/exercise-events`),
+  getExerciseDetails: (exercise: string) => api.get('/workouts/exercise-details', { params: { exercise } }),
   getExercisePerformance: (
     exercise: string,
     targetReps = '8-12',
