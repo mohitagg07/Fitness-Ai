@@ -100,9 +100,8 @@ export function useLogSet() {
         return { optimistic: log, persisted, pending: true };
       }
     },
-    // Runs synchronously before the network call — this is the entire
-    // optimistic-update contract: the store already reflects the logged
-    // set by the time this function returns, well before any response.
+    // Persist the write before the network call, then update the store.
+    // The AsyncStorage write is the durability boundary for offline logging.
     onMutate: async (log) => {
       const { sessionId, ...data } = log;
       // Persist first. If local storage fails, do not display a set that
