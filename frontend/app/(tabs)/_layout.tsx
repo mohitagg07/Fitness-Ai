@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { storage } from '../../src/utils/storage';
 import { profileApi } from '../../src/utils/api';
 import { actions } from '../../src/store';
-import { queryClient } from '../../src/lib/queryClient';
+import { queryClient, hydrated } from '../../src/lib/queryClient';
 import { qk } from '../../src/lib/queryKeys';
 import { clearAuthData } from '../../src/utils/auth';
 import { usePrefetchDashboard } from '../../src/hooks/useDashboardQueries';
@@ -23,21 +23,14 @@ type TabDef = {
   activeIcon: React.ComponentProps<typeof Ionicons>['name'];
 };
 
-// ── 5-tab nav — Decisions, Simulate, Form AI moved to Dashboard cards ──
-// Eight tabs was too many; 4-5 is the mobile-nav sweet spot. The removed
-// tabs are still real screens — they're now reachable via the Quick Start
-// grid and new dashboard feature cards on the Home tab instead of a
-// permanent bottom slot. This frees up visible space and makes the nav
-// instantly scannable.
 const TABS: TabDef[] = [
-  { name: 'index',    title: 'Home',      icon: 'home-outline',        activeIcon: 'home'        },
-  { name: 'coach',   title: 'Coach',     icon: 'flash-outline',       activeIcon: 'flash'       },
-  { name: 'workout', title: 'Train',     icon: 'barbell-outline',     activeIcon: 'barbell'     },
+  { name: 'index', title: 'Home', icon: 'home-outline', activeIcon: 'home' },
+  { name: 'coach', title: 'Coach', icon: 'flash-outline', activeIcon: 'flash' },
+  { name: 'workout', title: 'Train', icon: 'barbell-outline', activeIcon: 'barbell' },
   { name: 'progress', title: 'Progress', icon: 'stats-chart-outline', activeIcon: 'stats-chart' },
-  { name: 'profile', title: 'Profile',   icon: 'person-outline',      activeIcon: 'person'      },
+  { name: 'profile', title: 'Profile', icon: 'person-outline', activeIcon: 'person' },
 ];
 
-// Hidden tabs — still routable via router.push(), just not in the bar
 const HIDDEN_TABS = ['decisions', 'simulate', 'formanalysis', 'prs'];
 
 export default function TabsLayout() {
@@ -48,30 +41,58 @@ export default function TabsLayout() {
   useEffect(() => {
     let cancelled = false;
 
-    (async () => {
-      // This is a defensive re-check, not the primary auth gate — the
-      // authoritative validation against /profile/me happens once in
-      // app/index.tsx's boot state machine. This exists only because this
-      // route is reachable *without* passing through index.tsx first: a
-      // deep link from a push notification (see attachNotificationResponseHandler
-      // below) or a restored native navigation state can land here
-      // directly. Every branch here still resolves to a single outcome —
-      // it never leaves `authChecked` false forever.
+    const applyProfile = (payload: any) => {
+      const profile = payload?.profile ?? payload ?? {};
+      actions.setProfile(
+        profile,
+        Array.isArray(payload?.injuries) ? payload.injuries : [],
+        Array.isArray(payload?.personal_records) ? payload.personal_records : []
+      );
+      return profile;
+    };
+
+    const redirectForOnboarding = (profile: any) => {
+      if (profile?.onboarding_complete !== false) return false;
+      router.replace('/onboarding');
+      return true;
+    };
+
+    const refreshProfileInBackground = async () => {
+      try {
+        const response = await profileApi.getMe();
+        if (cancelled) return;
+        const payload = response.data;
+        queryClient.setQueryData(qk.profile.me(), payload);
+        const profile = applyProfile(payload);
+        redirectForOnboarding(profile);
+      } catch (error: any) {
+        if (cancelled) return;
+        // 401 is handled centrally by api.ts and redirects to Login.
+        // 403 is handled here because it can represent a blocked profile.
+        if (error?.response?.status === 403) {
+          await clearAuthData();
+          if (!cancelled) router.replace('/login');
+        }
+        // Network/timeout errors do not block the app shell. Cached data stays
+        // visible and feature screens communicate their own offline state.
+      }
+    };
+
+    const bootstrap = async () => {
       let token: string | null = null;
       try {
         token = await storage.getItem('vyrn_token');
       } catch {
-        router.replace('/');
+        router.replace('/login');
         return;
       }
+
       if (cancelled) return;
       if (!token) {
         router.replace('/login');
         return;
       }
 
-      // Restore the persisted identity immediately; profile data can be
-      // hydrated from the query cache while the network check runs.
       let savedUser: any = null;
       try {
         const rawUser = await storage.getItem('vyrn_user');
@@ -80,65 +101,45 @@ export default function TabsLayout() {
         savedUser = null;
       }
       if (cancelled) return;
+
       actions.hydrateAuth(
         savedUser && typeof savedUser === 'object' ? savedUser : { id: null },
         token
       );
 
+      // Use a previously restored profile immediately when it exists. Cache
+      // hydration can finish just after this navigator mounts, so subscribe to
+      // the hydration promise as well instead of forcing a second screen wait.
       const cachedPayload = queryClient.getQueryData(qk.profile.me()) as any;
       if (cachedPayload) {
-        const cachedProfile = cachedPayload?.profile ?? cachedPayload ?? {};
-        actions.setProfile(
-          cachedProfile,
-          Array.isArray(cachedPayload?.injuries) ? cachedPayload.injuries : [],
-          Array.isArray(cachedPayload?.personal_records) ? cachedPayload.personal_records : []
-        );
-      }
-
-      try {
-        const res = await profileApi.getMe();
-        if (cancelled) return;
-        const payload = res.data;
-        const profile = payload?.profile ?? payload ?? {};
-        if (profile?.onboarding_complete !== true) {
-          router.replace('/onboarding');
-          return;
-        }
-        actions.setProfile(
-          profile,
-          Array.isArray(payload?.injuries) ? payload.injuries : [],
-          Array.isArray(payload?.personal_records) ? payload.personal_records : []
-        );
-      } catch (err: any) {
-        if (cancelled) return;
-        const status = err?.response?.status;
-        if (status === 401 || status === 403) {
-          // Token invalid — clear it (token + user + cached profile data)
-          // and redirect to login rather than letting a dead session sit
-          // behind the tab bar.
-          await clearAuthData();
-          if (cancelled) return;
-          router.replace('/login');
-          return;
-        }
-        // Network error / slow backend — retain the persisted identity and
-        // cached profile if available. The dashboard will show its explicit
-        // offline/error state rather than an endless auth spinner.
+        const cachedProfile = applyProfile(cachedPayload);
+        if (redirectForOnboarding(cachedProfile)) return;
       }
 
       setAuthChecked(true);
-      registerForPushNotificationsAsync();
+      void registerForPushNotificationsAsync();
       prefetchDashboard();
-    })();
 
+      void hydrated.then(() => {
+        if (cancelled) return;
+        const restored = queryClient.getQueryData(qk.profile.me()) as any;
+        if (!restored) return;
+        const profile = applyProfile(restored);
+        redirectForOnboarding(profile);
+      });
+
+      // A live validation still happens on every fresh shell entry, but it no
+      // longer gates first paint. The app can render cached data immediately
+      // while the backend wakes up or the device changes networks.
+      void refreshProfileInBackground();
+    };
+
+    void bootstrap();
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [prefetchDashboard]);
 
-  // Tap-to-deep-link: a pushed notification's `cta` (e.g. "/workout")
-  // routes here on tap, even from a killed/backgrounded app state.
   useEffect(() => {
     const cleanup = attachNotificationResponseHandler();
     return cleanup;
@@ -147,69 +148,67 @@ export default function TabsLayout() {
   if (!authChecked) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator color={COLORS.primaryGreen} size="large" />
+        <ActivityIndicator color={COLORS.primaryGreen} size="small" />
       </View>
     );
   }
+
+  const bottomInset = Math.max(insets.bottom, 4);
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          // Keep the tab bar in normal layout flow so it reserves its own
-          // space instead of covering the last card/action on short screens.
-          marginHorizontal: 12,
-          backgroundColor: alpha(COLORS.cardElevated, 0.97),
-          borderColor: COLORS.tabBorder,
-          borderWidth: 1,
-          borderRadius: 22,
-          paddingBottom: Math.max(insets.bottom, 8),
-          paddingTop: 8,
-          height: 62 + Math.max(insets.bottom, 8),
-          elevation: 8,
-          shadowColor: '#000000',
-          shadowOpacity: 0.24,
-          shadowRadius: 16,
-          shadowOffset: { width: 0, height: 6 },
+          // Full-width bottom navigation: no floating pill and no exposed
+          // side gutters. This aligns the app with native Android geometry.
+          marginHorizontal: 0,
+          marginBottom: 0,
+          backgroundColor: COLORS.background,
+          borderTopColor: COLORS.cardBorder,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderLeftWidth: 0,
+          borderRightWidth: 0,
+          borderBottomWidth: 0,
+          borderRadius: 0,
+          paddingBottom: bottomInset,
+          paddingTop: 7,
+          height: 58 + bottomInset,
+          elevation: 0,
+          shadowOpacity: 0,
         },
         tabBarActiveTintColor: COLORS.tabActive,
         tabBarInactiveTintColor: COLORS.tabInactive,
         tabBarLabelStyle: {
           fontSize: 10,
           fontWeight: '600',
-          letterSpacing: 0.15,
-          marginTop: 3,
+          letterSpacing: 0.1,
+          marginTop: 2,
         },
         tabBarHideOnKeyboard: true,
       }}
     >
-      {TABS.map((t) => (
+      {TABS.map((tab) => (
         <Tabs.Screen
-          key={t.name}
-          name={t.name}
+          key={tab.name}
+          name={tab.name}
           options={{
-            title: t.title,
+            title: tab.title,
             tabBarIcon: ({ color, focused }) => (
-              <View style={focused ? styles.activeWrap : styles.iconWrap}>
+              <View style={focused ? styles.activeIcon : styles.icon}>
                 <Ionicons
-                  name={focused ? t.activeIcon : t.icon}
-                  size={22}
+                  name={focused ? tab.activeIcon : tab.icon}
+                  size={21}
                   color={color}
                 />
-                {focused && <View style={[styles.indicator, { backgroundColor: color }]} />}
+                {focused && <View style={styles.activeIndicator} />}
               </View>
             ),
           }}
         />
       ))}
-      {/* Hidden tabs — routable but not visible in the bottom bar */}
       {HIDDEN_TABS.map((name) => (
-        <Tabs.Screen
-          key={name}
-          name={name}
-          options={{ href: null }}
-        />
+        <Tabs.Screen key={name} name={name} options={{ href: null }} />
       ))}
     </Tabs>
   );
@@ -219,26 +218,27 @@ const styles = StyleSheet.create({
   loading: {
     flex: 1,
     backgroundColor: COLORS.background,
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
   },
-  iconWrap: { padding: 4, alignItems: 'center' },
-  activeWrap: {
-    padding: 6,
-    backgroundColor: alpha(COLORS.primaryGreen, 0.12),
-    borderRadius: 12,
+  icon: {
+    minWidth: 44,
     alignItems: 'center',
-    shadowColor: COLORS.primaryGreen,
-    shadowOpacity: 0.16,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 4,
+    justifyContent: 'center',
+    paddingVertical: 3,
   },
-  indicator: {
+  activeIcon: {
+    minWidth: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 3,
+  },
+  activeIndicator: {
     position: 'absolute',
-    bottom: -6,
-    width: 4,
-    height: 4,
+    top: -7,
+    width: 16,
+    height: 2,
     borderRadius: 2,
+    backgroundColor: COLORS.tabActive,
   },
 });
