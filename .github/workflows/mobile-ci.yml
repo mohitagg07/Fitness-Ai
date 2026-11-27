@@ -135,6 +135,11 @@ jobs:
       - name: Install Android build platform
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
+      - name: Regenerate lockfile from the pinned Expo SDK dependency graph
+        run: |
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
       - name: Install locked dependencies
         run: npm ci
 
