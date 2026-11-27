@@ -484,7 +484,7 @@ const styles = StyleSheet.create({
   },
   chipActive: { backgroundColor: COLORS.strain + '20', borderColor: COLORS.strain + '80' },
   chipLatest: { borderColor: COLORS.strain + '40' },
-  chipText: { color: '#5C6B6E', fontSize: 10, fontWeight: '700' },
+  chipText: { color: COLORS.textMuted, fontSize: 10, fontWeight: '700' },
   chipTextActive: { color: COLORS.strain },
   triggerRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 },
   triggerText: { color: COLORS.recoveryMed, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
