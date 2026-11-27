@@ -11,7 +11,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { router } from 'expo-router';
 import {
-  View, Text, StyleSheet, ScrollView, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, ActivityIndicator, AppState,
   TextInput, Alert, Animated, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -21,7 +21,8 @@ import { workoutApi, coachApi, trainingPlanApi } from '../../utils/api';
 import { useMissionSummary } from '../../hooks/useDashboardQueries';
 import { confirmAsync } from '../../utils/confirm';
 import { useStore } from '../../store';
-import { useCompleteSession, useLogSet } from '../../hooks/useWorkoutMutations';
+import { useCompleteSession, useLogSet, syncPendingWorkoutSets } from '../../hooks/useWorkoutMutations';
+import { getPendingWorkoutSets } from '../../utils/workoutOutbox';
 import { COLORS, alpha } from '../../theme/colors';
 import { FONTS, EYEBROW, BODY } from '../../theme/typography';
 import { SPACING, RADIUS } from '../../theme/spacing';
@@ -57,6 +58,7 @@ interface SetLog {
   weight_kg: number;
   reps: number;
   rpe: number;
+  client_request_id?: string;
 }
 
 interface DraftPlanReference {
@@ -366,6 +368,8 @@ function WorkoutHUD() {
   const [summaryData, setSummaryData]       = useState<any>(null);
   const [historyVisible, setHistoryVisible] = useState(false);
   const [isLogging, setIsLogging]       = useState(false);
+  const [pendingSetCount, setPendingSetCount] = useState(0);
+  const [pendingSyncBlocked, setPendingSyncBlocked] = useState(false);
   const [isFinishing, setIsFinishing]   = useState(false);
   const [streakVisible, setStreakVisible] = useState(false);
   const [streakData, setStreakData]     = useState<MilestoneInfo | null>(null);
@@ -410,16 +414,39 @@ function WorkoutHUD() {
         const session = pending[0];
         if (!alive || !session) return;
 
-        const logs: SetLog[] = (Array.isArray(session.exercise_logs) ? session.exercise_logs : [])
+        const serverLogs: SetLog[] = (Array.isArray(session.exercise_logs) ? session.exercise_logs : [])
           .map((log: any) => ({
             exercise_name: String(log.exercise_name || ''),
             set_number: Number(log.set_number || 1),
             weight_kg: Number(log.weight_kg || 0),
             reps: Number(log.reps || 0),
             rpe: Number(log.rpe ?? 8),
+            client_request_id: log.client_request_id || undefined,
           }))
-          .filter((log: SetLog) => log.exercise_name.length > 0)
-          .sort((a: SetLog, b: SetLog) => a.set_number - b.set_number);
+          .filter((log: SetLog) => log.exercise_name.length > 0);
+        // A damaged/unreadable local queue must not prevent the server
+        // session itself from being restored. Keep a visible fail-closed
+        // pending marker; sync and completion will continue to reject until
+        // the queue can be read safely.
+        const queuedPending = await getPendingWorkoutSets(session.id).catch(() => null);
+        if (queuedPending === null) setPendingSetCount(1);
+        else setPendingSetCount(queuedPending.length);
+        const serverRequestIds = new Set(serverLogs.map((log) => log.client_request_id).filter(Boolean));
+        const queuedLogs: SetLog[] = (queuedPending || [])
+          .filter((item) => !serverRequestIds.has(item.client_request_id))
+          .map((item) => ({
+            exercise_name: item.exercise_name,
+            set_number: item.set_number,
+            weight_kg: item.weight_kg,
+            reps: item.reps,
+            rpe: item.rpe ?? 8,
+            client_request_id: item.client_request_id,
+          }));
+        const logs: SetLog[] = [...serverLogs, ...queuedLogs]
+          .sort((a: SetLog, b: SetLog) => {
+            const byExercise = a.exercise_name.localeCompare(b.exercise_name);
+            return byExercise || a.set_number - b.set_number;
+          });
 
         const plannedExercises = session.planned_workout_snapshot?.exercises;
         const eventResponse = await workoutApi.getSessionExerciseEvents(session.id).catch(() => ({ data: { events: [] } }));
@@ -505,6 +532,48 @@ function WorkoutHUD() {
 
     return () => { alive = false; };
   }, []);
+
+  useEffect(() => {
+    const sessionId = activeSession?.id;
+    if (!sessionId) {
+      setPendingSetCount(0);
+      setPendingSyncBlocked(false);
+      return undefined;
+    }
+
+    let alive = true;
+    let syncing = false;
+    const sync = async () => {
+      if (syncing) return;
+      syncing = true;
+      try {
+        const before = await getPendingWorkoutSets(sessionId);
+        if (alive) setPendingSetCount(before.length);
+        if (before.length > 0 && !isSessionPaused) {
+          const result = await syncPendingWorkoutSets(sessionId);
+          if (alive) {
+            setPendingSetCount(result.remaining);
+            setPendingSyncBlocked(result.blocked);
+          }
+        }
+      } catch {
+        // Never discard unreadable pending writes. Keep a visible warning so
+        // the athlete knows not to finish or clear app data.
+        if (alive) setPendingSetCount((count) => Math.max(count, 1));
+      } finally {
+        syncing = false;
+      }
+    };
+
+    void sync();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void sync();
+    });
+    return () => {
+      alive = false;
+      subscription.remove();
+    };
+  }, [activeSession?.id, isSessionPaused]);
 
   // The elapsed clock and rest countdown update inside isolated child components.
 
@@ -793,13 +862,37 @@ function WorkoutHUD() {
       client_request_id: `${activeSession.id}:${String(logData.exercise_name).toLowerCase()}:${logData.set_number}`,
     });
     pendingSetWrites.current.add(write);
-    void write.catch(() => {
+    void write.then(async (result) => {
+      if (result.pending) {
+        const queued = await getPendingWorkoutSets(activeSession.id).catch(() => null);
+        setPendingSetCount(queued ? queued.length : 1);
+        setPendingSyncBlocked(Boolean(result.blocked));
+        Alert.alert(
+          result.blocked ? 'Set needs attention' : 'Set saved on this device',
+          result.blocked
+            ? `The set is safely retained on this device, but the server rejected the write. Keep this workout open and resolve the server response before finishing. ${result.errorMessage || 'Retry sync after checking your session.'}`
+            : 'This set is safely queued on this device. Tap SYNC when your connection is back, or return to the app to retry. Keep this workout open until it syncs.'
+        );
+        return;
+      }
+      // A queue-read failure after a successful network write must never be
+      // mistaken for a failed set or decrement the visible exercise count.
+      try {
+        const queued = await getPendingWorkoutSets(activeSession.id);
+        setPendingSetCount(queued.length);
+        if (queued.length === 0) setPendingSyncBlocked(false);
+      } catch {
+        setPendingSetCount((count) => Math.max(count, 1));
+      }
+    }).catch(() => {
+      // A local outbox write failure is not an offline save. The mutation
+      // rejects before the optimistic log is added, so roll back the card count.
       setExercises((previous) => previous.map((exercise, index) =>
         index === activeIdx
           ? { ...exercise, completed_sets: Math.max(0, exercise.completed_sets - 1) }
           : exercise
       ));
-      Alert.alert('Set not saved', 'The set could not be saved. Please retry when your connection is stable.');
+      Alert.alert('Set not saved', 'VYRN could not save this set to the device queue. Check device storage and try again.');
     }).finally(() => {
       pendingSetWrites.current.delete(write);
     });
@@ -946,6 +1039,14 @@ function WorkoutHUD() {
 
   const abandonSession = async () => {
     if (!activeSession || isFinishing) return;
+    const queued = await getPendingWorkoutSets(activeSession.id).catch(() => null);
+    if (queued === null || queued.length > 0) {
+      Alert.alert(
+        'Sets still waiting to sync',
+        'Reconnect and sync the pending sets before abandoning this workout. The local queue will be retained.'
+      );
+      return;
+    }
     const confirmed = await confirmAsync(
       'Abandon this workout?',
       'The session will be marked abandoned. Your already-saved set history will be retained.',
@@ -985,6 +1086,18 @@ function WorkoutHUD() {
     if (!activeSession || isFinishing) return;
     setIsFinishing(true);
     try {
+      const sync = await syncPendingWorkoutSets(activeSession.id);
+      setPendingSetCount(sync.remaining);
+      setPendingSyncBlocked(sync.blocked);
+      if (sync.remaining > 0) {
+        Alert.alert(
+          sync.blocked ? 'Server rejected a saved set' : 'Sets still waiting to sync',
+          sync.blocked
+            ? `The workout cannot be completed until this saved set is accepted by the server. ${sync.errorMessage || 'Check the set and session, then retry SYNC.'}`
+            : 'Your workout is still safe on this device, but the server has not confirmed every set. Reconnect and sync before completing the session.'
+        );
+        return;
+      }
       const res = await completeSessionMutation.mutateAsync({
         sessionId: activeSession.id,
         feedback,
@@ -1034,7 +1147,24 @@ function WorkoutHUD() {
       while (pendingSetWrites.current.size > 0) {
         await Promise.allSettled(Array.from(pendingSetWrites.current));
       }
+      const sync = await syncPendingWorkoutSets(activeSession.id);
+      setPendingSetCount(sync.remaining);
+      setPendingSyncBlocked(sync.blocked);
+      if (sync.remaining > 0) {
+        Alert.alert(
+          sync.blocked ? 'Server rejected a saved set' : 'Sets still waiting to sync',
+          sync.blocked
+            ? `VYRN has kept the set on this device, but the server rejected it. Resolve this response before finishing. ${sync.errorMessage || 'Check the session and retry SYNC.'}`
+            : 'VYRN has kept your unsynced sets on this device. Reconnect and tap SYNC before finishing the workout.'
+        );
+        return;
+      }
       setMoodPickerVisible(true);
+    } catch {
+      Alert.alert(
+        'Could not sync workout sets',
+        'Your pending sets remain saved on this device. Check the connection and try SYNC again before finishing.'
+      );
     } finally {
       setIsFinishing(false);
     }
@@ -1226,6 +1356,35 @@ function WorkoutHUD() {
         pausedAt={activeSession?.paused_at || null}
         pausedDurationSeconds={Number(activeSession?.paused_duration_seconds || 0)}
       />
+
+      {pendingSetCount > 0 && (
+        <PressableScale
+          style={S.pendingSyncBanner}
+          onPress={() => {
+            if (!activeSession?.id) return;
+            void syncPendingWorkoutSets(activeSession.id)
+              .then((result) => {
+                setPendingSetCount(result.remaining);
+                setPendingSyncBlocked(result.blocked);
+                if (result.blocked) {
+                  Alert.alert(
+                    'Server rejected a saved set',
+                    result.errorMessage || 'The set remains saved on this device. Check the session and set details before retrying.'
+                  );
+                }
+              })
+              .catch(() => setPendingSetCount((count) => Math.max(count, 1)));
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Retry syncing saved workout sets"
+        >
+          <Ionicons name="cloud-upload-outline" size={16} color={COLORS.recoveryMed} />
+          <Text style={S.pendingSyncText}>
+            {pendingSetCount} set{pendingSetCount === 1 ? '' : 's'} saved on this device · {pendingSyncBlocked ? 'server needs attention' : 'waiting to sync'}
+          </Text>
+          <Text style={S.pendingSyncAction}>SYNC</Text>
+        </PressableScale>
+      )}
 
       {/* Exercise plan tabs */}
       {exercises.length > 0 && (
@@ -1737,6 +1896,9 @@ const S = StyleSheet.create({
   // Secondary/closing action — kept visually quieter than the green Log
   // Set CTA above (tinted, not solid) since it ends the session rather
   // than driving it.
+  pendingSyncBanner: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginHorizontal: SPACING.lg, marginTop: SPACING.sm, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderRadius: RADIUS.button, backgroundColor: alpha(COLORS.recoveryMed, 0.09), borderWidth: 1, borderColor: alpha(COLORS.recoveryMed, 0.28) },
+  pendingSyncText: { ...BODY, color: COLORS.textSecondary, fontSize: 11, flex: 1 },
+  pendingSyncAction: { color: COLORS.recoveryMed, fontFamily: FONTS.bold, fontSize: 10, letterSpacing: 0.8 },
   sessionActions: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingHorizontal: SPACING.lg, paddingTop: SPACING.sm },
   pauseBtn: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: RADIUS.button, borderWidth: 1, borderColor: COLORS.borderLight, backgroundColor: COLORS.card },
   pauseBtnText: { color: COLORS.text, fontFamily: FONTS.bold, fontSize: 9, letterSpacing: 0.5 },
