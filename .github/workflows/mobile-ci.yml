@@ -158,8 +158,11 @@ jobs:
           cd android
           chmod +x gradlew
           ./gradlew :app:assembleRelease --no-daemon --stacktrace
+          QA_APK="app/build/outputs/apk/release/app-release.apk"
+          unzip -l "$QA_APK" | grep -q "assets/index.android.bundle"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$QA_APK" | grep -q "package: name='com.vyrn.app'"
           mkdir -p "$RUNNER_TEMP/vyrn"
-          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/vyrn/vyrn-3d-qa.apk"
+          cp "$QA_APK" "$RUNNER_TEMP/vyrn/vyrn-3d-qa.apk"
 
       - name: Install and verify native 3D scene on Android emulator
         uses: reactivecircus/android-emulator-runner@v2
@@ -246,6 +249,9 @@ jobs:
         run: |
           cd android
           ./gradlew clean :app:assembleRelease --no-daemon --stacktrace
+          PREVIEW_APK="app/build/outputs/apk/release/app-release.apk"
+          unzip -l "$PREVIEW_APK" | grep -q "assets/index.android.bundle"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$PREVIEW_APK" | grep -q "package: name='com.vyrn.app'"
 
       - name: Upload standalone Android preview APK
         uses: actions/upload-artifact@v4
