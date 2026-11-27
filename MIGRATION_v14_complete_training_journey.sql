@@ -744,4 +744,116 @@ revoke all on function public.log_workout_set_idempotent(uuid, uuid, text, jsonb
 grant execute on function public.log_workout_set_idempotent(uuid, uuid, text, jsonb)
     to service_role;
 
+
+-- Atomic completion shares the same workout_sessions row lock as
+-- log_workout_set_idempotent. The aggregate is computed after acquiring it,
+-- so no in-flight set write can be silently omitted from the review.
+create or replace function public.complete_workout_session_atomic(
+    p_user_id uuid,
+    p_session_id uuid,
+    p_feedback jsonb default '{}'::jsonb
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+    v_session public.workout_sessions;
+    v_finished_at timestamptz := now();
+    v_duration_seconds numeric;
+    v_paused_seconds integer;
+    v_volume numeric;
+    v_calories integer;
+begin
+    if p_user_id is null or p_session_id is null then
+        raise exception 'SESSION_IDENTIFIERS_REQUIRED' using errcode = '22023';
+    end if;
+
+    select * into v_session
+      from public.workout_sessions
+     where id = p_session_id
+       and user_id = p_user_id
+     for update;
+    if not found then
+        raise exception 'SESSION_NOT_FOUND' using errcode = 'P0002';
+    end if;
+
+    if v_session.status = 'completed' or v_session.completed = true then
+        return jsonb_build_object(
+            'session', to_jsonb(v_session),
+            'already_completed', true
+        );
+    end if;
+    if v_session.status not in ('active', 'paused') then
+        raise exception 'SESSION_NOT_COMPLETABLE' using errcode = '22023';
+    end if;
+
+    select coalesce(
+        round(sum(coalesce(weight_kg, 0) * coalesce(reps, 0))::numeric, 1),
+        0
+    )
+      into v_volume
+      from public.exercise_logs
+     where session_id = p_session_id
+       and user_id = p_user_id
+       and coalesce(is_warmup, false) = false;
+
+    v_paused_seconds := greatest(coalesce(v_session.paused_duration_seconds, 0), 0);
+    if v_session.status = 'paused' and v_session.paused_at is not null then
+        v_paused_seconds := v_paused_seconds
+            + greatest(0, floor(extract(epoch from (v_finished_at - v_session.paused_at)))::integer);
+    end if;
+
+    if coalesce(v_session.started_at, v_session.created_at) is not null then
+        v_duration_seconds := greatest(
+            0,
+            extract(epoch from (v_finished_at - coalesce(v_session.started_at, v_session.created_at)))
+                - v_paused_seconds
+        );
+    else
+        v_duration_seconds := null;
+    end if;
+
+    v_calories := case when v_volume > 0 then round(v_volume * 0.1)::integer else null end;
+
+    update public.workout_sessions
+       set completed = true,
+           status = 'completed',
+           finished_at = v_finished_at,
+           started_at = coalesce(started_at, created_at, v_finished_at),
+           paused_at = null,
+           paused_duration_seconds = v_paused_seconds,
+           duration_minutes = case
+               when v_duration_seconds is null then null
+               else greatest(0, round(v_duration_seconds / 60)::integer)
+           end,
+           total_volume_kg = v_volume,
+           calories_burned = v_calories,
+           cns_fatigue_after = coalesce(nullif(p_feedback->>'cns_fatigue_after', '')::integer, cns_fatigue_after),
+           notes = coalesce(nullif(p_feedback->>'session_notes', ''), notes),
+           session_effort = coalesce(nullif(p_feedback->>'session_effort', '')::integer, session_effort),
+           energy_level = coalesce(nullif(p_feedback->>'energy_level', '')::integer, energy_level),
+           pain_status = coalesce(nullif(p_feedback->>'pain_status', ''), pain_status),
+           pain_notes = coalesce(nullif(p_feedback->>'pain_notes', ''), pain_notes),
+           mood = case
+               when p_feedback->>'mood' in ('great', 'good', 'okay', 'bad') then p_feedback->>'mood'
+               else mood
+           end
+     where id = p_session_id
+       and user_id = p_user_id
+     returning * into v_session;
+
+    return jsonb_build_object(
+        'session', to_jsonb(v_session),
+        'already_completed', false
+    );
+end;
+$$;
+
+revoke all on function public.complete_workout_session_atomic(uuid, uuid, jsonb)
+    from public, anon, authenticated;
+grant execute on function public.complete_workout_session_atomic(uuid, uuid, jsonb)
+    to service_role;
+
 commit;

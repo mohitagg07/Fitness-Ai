@@ -788,3 +788,36 @@ def test_program_version_writer_fails_closed_when_rpc_write_fails(monkeypatch) -
         "Reduce volume.",
         None,
     ) is None
+
+
+def test_plan_based_session_requires_idempotency_key_before_database_access():
+    from fastapi import HTTPException
+    from api.routes.workouts import SessionCreate, create_session
+    import asyncio
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(create_session(
+            SessionCreate(plan_version_id="version-1"),
+            {"user_id": "user-1"},
+        ))
+    assert exc.value.status_code == 422
+    assert "client_request_id" in exc.value.detail
+
+
+def test_workout_completion_rpc_is_present_in_migration_and_uses_session_row_lock():
+    from pathlib import Path
+
+    migration = (
+        Path(__file__).resolve().parents[2]
+        / "MIGRATION_v14_complete_training_journey.sql"
+    ).read_text(encoding="utf-8").lower()
+
+    start = migration.index("create or replace function public.complete_workout_session_atomic")
+    end = migration.index("revoke all on function public.complete_workout_session_atomic", start)
+    body = migration[start:end]
+    assert "for update" in body
+    assert "from public.exercise_logs" in body
+    assert "finished_at" in body
+    assert "paused_duration_seconds" in body
+    assert "duration_minutes" in body
+    assert "log_workout_set_idempotent" in migration

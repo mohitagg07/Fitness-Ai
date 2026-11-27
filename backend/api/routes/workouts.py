@@ -134,6 +134,12 @@ async def create_session(
 ):
     sb = get_supabase()
     user_id = current_user["user_id"]
+    if payload.plan_version_id and not payload.client_request_id:
+        raise HTTPException(
+            422,
+            "A stable client_request_id is required to start a workout from an approved plan.",
+        )
+
     if payload.client_request_id:
         try:
             result = sb.rpc(
@@ -150,8 +156,12 @@ async def create_session(
             ).execute()
         except Exception as exc:
             message = str(exc).upper()
-            if "PLAN_VERSION_NOT_APPROVED" in message:
+            if "PLAN_VERSION_NOT_APPROVED" in message or "PLAN_VERSION_NOT_ACTIVE" in message:
                 raise HTTPException(409, "This workout plan version is not approved or is no longer active") from exc
+            if "SESSION_ON_REST_DAY" in message:
+                raise HTTPException(409, "Today is a scheduled rest day. No workout session was created.") from exc
+            if "DAY_PRESCRIPTION_MISSING" in message or "DAY_PRESCRIPTION_MISMATCH" in message:
+                raise HTTPException(409, "The approved plan has no valid prescription for this scheduled day.") from exc
             raise HTTPException(500, "Could not create the workout session safely") from exc
         if not result.data:
             raise HTTPException(500, "Could not create the workout session")
@@ -537,6 +547,59 @@ async def complete_session(
         pain_status = None
         pain_notes = None
 
+    # Finish under the same row lock used by set logging. The database
+    # computes duration and volume after all earlier set writes have settled;
+    # no new set can be inserted once this transaction changes status.
+    feedback = {}
+    if cns_fatigue_after is not None:
+        feedback["cns_fatigue_after"] = cns_fatigue_after
+    if session_notes is not None:
+        feedback["session_notes"] = session_notes
+    if mood in ("great", "good", "okay", "bad"):
+        feedback["mood"] = mood
+    if session_effort is not None:
+        feedback["session_effort"] = session_effort
+    if energy_level is not None:
+        feedback["energy_level"] = energy_level
+    if pain_status is not None:
+        feedback["pain_status"] = pain_status
+    if pain_notes is not None:
+        feedback["pain_notes"] = pain_notes
+
+    try:
+        completion_result = sb.rpc(
+            "complete_workout_session_atomic",
+            {
+                "p_user_id": user_id,
+                "p_session_id": session_id,
+                "p_feedback": feedback,
+            },
+        ).execute().data
+    except Exception as exc:
+        message = str(exc).upper()
+        if "SESSION_NOT_FOUND" in message:
+            raise HTTPException(404, "Workout session not found") from exc
+        if "SESSION_NOT_COMPLETABLE" in message:
+            raise HTTPException(409, "This workout is not in a completable state.") from exc
+        raise HTTPException(500, "Workout completion could not be saved atomically.") from exc
+
+    if isinstance(completion_result, list):
+        completion_result = completion_result[0] if completion_result else None
+    if not isinstance(completion_result, dict) or not isinstance(completion_result.get("session"), dict):
+        raise HTTPException(500, "The database did not return the completed workout session.")
+    session = completion_result["session"]
+    if completion_result.get("already_completed"):
+        cached = session.get("completion_result")
+        if isinstance(cached, dict):
+            return cached
+        raise HTTPException(409, "This workout was already completed. Refresh Workout History.")
+
+    total_volume_kg = float(session.get("total_volume_kg") or 0)
+    duration_minutes = session.get("duration_minutes")
+    calories_burned = session.get("calories_burned")
+
+    # This read occurs after the completion transaction has locked the session
+    # and marked it complete. The set logger cannot append after this point.
     # ── Compute real session stats from actual logged sets ──────────────
     # workout_sessions.total_volume_kg/duration_minutes/calories_burned
     # have existed in the schema since the original migration but were
@@ -561,84 +624,6 @@ async def complete_session(
     working_logs = [l for l in logs if not l.get("is_warmup")]
 
     total_volume_kg = round(sum((l.get("weight_kg") or 0) * (l.get("reps") or 0) for l in working_logs), 1)
-
-    finished_at = datetime.now(timezone.utc)
-    duration_minutes = None
-    try:
-        started_value = session.get("started_at") or session.get("created_at")
-        if started_value:
-            started_at = datetime.fromisoformat(str(started_value).replace("Z", "+00:00"))
-            if started_at.tzinfo is None:
-                started_at = started_at.replace(tzinfo=timezone.utc)
-            elapsed_seconds = max(0, (finished_at - started_at).total_seconds())
-            paused_seconds = max(0, int(session.get("paused_duration_seconds") or 0))
-            if session.get("status") == "paused" and session.get("paused_at"):
-                paused_at = datetime.fromisoformat(str(session["paused_at"]).replace("Z", "+00:00"))
-                if paused_at.tzinfo is None:
-                    paused_at = paused_at.replace(tzinfo=timezone.utc)
-                paused_seconds += max(0, int((finished_at - paused_at).total_seconds()))
-            duration_minutes = max(0, round(max(0, elapsed_seconds - paused_seconds) / 60))
-    except (TypeError, ValueError, OverflowError):
-        if len(logs) >= 2:
-            try:
-                first_ts = datetime.fromisoformat(logs[0]["logged_at"].replace("Z", "+00:00"))
-                last_ts = datetime.fromisoformat(logs[-1]["logged_at"].replace("Z", "+00:00"))
-                duration_minutes = max(0, round((last_ts - first_ts).total_seconds() / 60))
-            except Exception:
-                duration_minutes = None
-
-    # Rough calorie estimate: ~0.1 kcal per kg of volume moved is a crude
-    # but directionally-honest approximation for resistance training (not
-    # a substitute for a real MET-based calculation, which would need
-    # bodyweight + exercise-specific MET values this schema doesn't track
-    # yet). Flagged clearly as an estimate wherever it's shown.
-    calories_burned = round(total_volume_kg * 0.1) if total_volume_kg else None
-
-    update_data = {
-        "completed": True,
-        "status": "completed",
-        "finished_at": finished_at.isoformat(),
-        "started_at": session.get("started_at") or session.get("created_at") or finished_at.isoformat(),
-        "paused_at": None,
-    }
-    if cns_fatigue_after is not None:
-        update_data["cns_fatigue_after"] = cns_fatigue_after
-    if session_notes is not None:
-        update_data["notes"] = session_notes
-    if session_effort is not None:
-        update_data["session_effort"] = session_effort
-    if energy_level is not None:
-        update_data["energy_level"] = energy_level
-    if pain_status is not None:
-        update_data["pain_status"] = pain_status
-    if pain_notes is not None:
-        update_data["pain_notes"] = pain_notes
-    # Mood was already a schema column (workout_sessions.mood) but had no
-    # writer anywhere in the app — this is the one place a session actually
-    # finishes, so it's the natural point to capture it. Purely optional,
-    # never blocks completion, and only feeds a descriptive summary (see
-    # consistency_agent.py) rather than the consistency score itself.
-    if mood in ("great", "good", "okay", "bad"):
-        update_data["mood"] = mood
-    if total_volume_kg:
-        update_data["total_volume_kg"] = total_volume_kg
-    if duration_minutes is not None:
-        update_data["duration_minutes"] = duration_minutes
-    if calories_burned:
-        update_data["calories_burned"] = calories_burned
-
-    res = (
-        sb.table("workout_sessions")
-        .update(update_data)
-        .eq("id", session_id)
-        .eq("user_id", user_id)
-        .eq("completed", False)
-        .select("*")
-        .execute()
-    )
-    if not res.data:
-        raise HTTPException(409, "This workout was completed by another request. Refresh Workout History.")
-    session = res.data[0]
 
     # ── Detect new PRs set during this specific session ──────────────────
     # Compares each exercise's heaviest set THIS session against the
