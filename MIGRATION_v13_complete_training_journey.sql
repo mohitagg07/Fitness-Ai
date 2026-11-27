@@ -68,6 +68,7 @@ begin
 end $$;
 
 alter table public.workout_sessions
+    add column if not exists completion_result jsonb,
     add column if not exists plan_version_id uuid,
     add column if not exists planned_workout_snapshot jsonb,
     add column if not exists status text not null default 'active',
