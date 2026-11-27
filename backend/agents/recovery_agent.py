@@ -210,6 +210,36 @@ def _sessions_last_7_days(user_id: str, target_date: date | None = None) -> int:
 
 
 # ── Main entry point ──────────────────────────────────────────────────────────
+def _today_recovery_checkin(user_id: str, target_date: date | None = None) -> dict | None:
+    """Fetch an actual recovery check-in for the athlete's local calendar day."""
+    sb = get_supabase()
+    local_day = str(target_date or date.today())
+    try:
+        result = (
+            sb.table("recovery_checkins")
+            .select("sleep_hours, soreness_level, energy_level, notes, local_date, updated_at")
+            .eq("user_id", user_id)
+            .eq("local_date", local_day)
+            .limit(1)
+            .execute()
+        )
+    except Exception:
+        # Until the additive migration is applied, a missing table must remain
+        # "no check-in", never fall back to the stale onboarding sleep value.
+        return None
+    rows = result.data or []
+    return rows[0] if rows else None
+
+
+def _soreness_component(soreness_level: int | None) -> int | None:
+    """0-15 pts: lower reported soreness means greater recovery readiness."""
+    if soreness_level is None:
+        return None
+    if soreness_level < 1 or soreness_level > 5:
+        return None
+    return round(15 - ((soreness_level - 1) * 3.75))
+
+
 def _recent_rpe_stats(
     user_id: str,
     target_date: date | None = None,
@@ -295,6 +325,11 @@ def run_recovery_agent(
       sub_scores      — {"sleep", "volume", "nutrition", "rpe", "cns"}
     """
     agent_state = get_agent_state(user_id)
+    check_in = _today_recovery_checkin(user_id, target_date)
+    # The onboarding sleep field is a long-term baseline, not last night's
+    # measured sleep. Only a dated check-in contributes to daily readiness.
+    sleep_hours = check_in.get("sleep_hours") if check_in else None
+    soreness_level = check_in.get("soreness_level") if check_in else None
     cns_fatigue = _last_explicit_cns_fatigue(user_id)
     recent_volume = _last_session_volume(user_id)
     protein_pct, calorie_pct = _nutrition_ratios_today(
@@ -304,18 +339,20 @@ def run_recovery_agent(
 
     # Missing sources are excluded from the weighted score, never replaced
     # with midpoint values that could look like measured readiness.
-    sleep_pts = _sleep_component(sleep_hours)
+    sleep_pts = round(_sleep_component(sleep_hours) * (25 / 30)) if _sleep_component(sleep_hours) is not None else None
+    soreness_pts = _soreness_component(soreness_level)
     vol_pts = _volume_component(recent_volume)
     nutr_pts = _nutrition_component(protein_pct, calorie_pct)
     rpe_pts = _rpe_component(high_rpe_days)
-    cns_pts = _cns_component(cns_fatigue)
+    cns_pts = round(_cns_component(cns_fatigue) * (10 / 15)) if _cns_component(cns_fatigue) is not None else None
 
     weighted = [
-        (sleep_pts, 30, "profile_sleep_baseline"),
+        (sleep_pts, 25, "last_night_sleep_checkin"),
+        (soreness_pts, 15, "today_soreness_checkin"),
         (vol_pts, 20, "recent_session_volume"),
         (nutr_pts, 20, "logged_nutrition"),
-        (rpe_pts, 15, "rated_training_effort"),
-        (cns_pts, 15, "explicit_post_session_fatigue"),
+        (rpe_pts, 10, "rated_training_effort"),
+        (cns_pts, 10, "explicit_post_session_fatigue"),
     ]
     confidence_pct = sum(weight for value, weight, _ in weighted if value is not None)
     available_score = sum(value for value, _, _ in weighted if value is not None)
@@ -407,10 +444,12 @@ def run_recovery_agent(
     decision.__dict__["cns_load"] = cns_load
     decision.__dict__["sub_scores"] = {
         "sleep": sleep_pts,
+        "soreness": soreness_pts,
         "volume": vol_pts,
         "nutrition": nutr_pts,
         "rpe": rpe_pts,
         "cns": cns_pts,
     }
+    decision.__dict__["check_in"] = check_in
 
     return decision
