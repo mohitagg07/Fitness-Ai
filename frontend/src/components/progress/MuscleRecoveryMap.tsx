@@ -4,7 +4,7 @@
 // explicitly presented as time-based estimates; sets, tonnage, exercises,
 // and last-trained timestamps are descriptive data from the user's logs.
 
-import React, { useMemo, useState } from 'react';
+import React, { Suspense, lazy, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -21,7 +21,7 @@ import { SPACING, RADIUS } from '../../theme/spacing';
 import { qk, STALE } from '../../lib/queryKeys';
 import Text from '../ui/Text';
 import SectionLabel from '../ui/SectionLabel';
-import ThreeMuscleScene from './ThreeMuscleScene';
+const ThreeMuscleScene = lazy(() => import('./ThreeMuscleScene'));
 
 type MuscleName = 'Chest' | 'Back' | 'Shoulders' | 'Arms' | 'Core' | 'Legs';
 type RecoveryStatus = 'green' | 'yellow' | 'red' | 'no_data';
@@ -305,11 +305,20 @@ export default function MuscleRecoveryMap() {
       <View style={styles.explorerLayout}>
         <View style={styles.figureWrap}>
           {view === '3d' ? (
-            <ThreeMuscleScene
-              selectedMuscle={selectedMuscle}
-              musclePalette={musclePalette}
-              onFailure={() => setView('front')}
-            />
+            <Suspense
+              fallback={
+                <View style={styles.sceneFallback}>
+                  <ActivityIndicator color={COLORS.primaryGreen} />
+                  <Text variant="caption" color={COLORS.textMuted}>Loading 3D recovery model…</Text>
+                </View>
+              }
+            >
+              <ThreeMuscleScene
+                selectedMuscle={selectedMuscle}
+                musclePalette={musclePalette}
+                onFailure={() => setView('front')}
+              />
+            </Suspense>
           ) : (
             <AnatomyFigure
               view={view}
@@ -484,6 +493,7 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
     flexWrap: 'wrap',
   },
+  sceneFallback: { width: '100%', height: 374, alignItems: 'center', justifyContent: 'center', gap: 10, borderRadius: 22, backgroundColor: COLORS.cardElevated },
   figureWrap: {
     flex: 1,
     minWidth: 170,
