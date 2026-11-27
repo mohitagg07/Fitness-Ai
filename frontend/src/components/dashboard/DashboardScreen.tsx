@@ -86,6 +86,7 @@ function ReadinessDial({ score, color }: { score: number | null; color: string }
       progress.setValue(value);
       return undefined;
     }
+    progress.setValue(0);
     const animation = Animated.timing(progress, {
       toValue: value,
       duration: 760,
