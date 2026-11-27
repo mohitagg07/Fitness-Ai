@@ -367,6 +367,32 @@ export const workoutHistoryApi = {
 };
 
 // Program Evolution — version history + on-demand adaptive rewrite.
+export const recoveryApi = {
+  getTodayCheckIn: () => {
+    let timezone = 'UTC';
+    try {
+      timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    } catch {
+      // UTC is an explicit fallback when IANA timezone discovery is unavailable.
+    }
+    return api.get('/recovery/check-in/today', { params: { timezone_name: timezone } });
+  },
+  saveTodayCheckIn: (data: {
+    sleep_hours?: number;
+    soreness_level?: number;
+    energy_level?: number;
+    notes?: string;
+  }) => {
+    let timezone = 'UTC';
+    try {
+      timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    } catch {
+      // UTC is an explicit fallback when IANA timezone discovery is unavailable.
+    }
+    return api.put('/recovery/check-in/today', data, { params: { timezone_name: timezone } });
+  },
+};
+
 export const programApi = {
   getVersions: (limit = 10) => api.get('/program/versions', { params: { limit } }),
   getLatest: () => api.get('/program/latest'),
