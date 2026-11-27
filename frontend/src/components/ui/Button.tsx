@@ -39,9 +39,9 @@ interface ButtonProps {
 }
 
 const SIZE_MAP: Record<ButtonSize, { height: number; paddingH: number; fontSize: number; iconSize: number }> = {
-  sm: { height: 40, paddingH: 14, fontSize: 12, iconSize: ICON_SIZE.xs },
-  md: { height: 48, paddingH: 18, fontSize: 14, iconSize: ICON_SIZE.sm },
-  lg: { height: 54, paddingH: 22, fontSize: 15, iconSize: ICON_SIZE.sm },
+  sm: { height: 42, paddingH: 15, fontSize: 12, iconSize: ICON_SIZE.xs },
+  md: { height: 50, paddingH: 20, fontSize: 14, iconSize: ICON_SIZE.sm },
+  lg: { height: 58, paddingH: 24, fontSize: 15, iconSize: ICON_SIZE.sm },
 };
 
 // Rendered dozens of times per screen (every CTA, card action, and form
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: FONTS.bold,
     fontWeight: '700',
-    letterSpacing: 0.3,
+    letterSpacing: 0.55,
   },
 });
 

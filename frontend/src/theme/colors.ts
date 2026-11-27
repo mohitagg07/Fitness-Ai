@@ -1,74 +1,75 @@
 /**
- * VYRN — Adaptive Performance System
- * A bright, premium performance palette: warm ivory canvas, clean white
- * surfaces, deep forest-green identity and clear semantic data accents.
- * Recovery/strain colors remain distinct so meaning stays legible.
+ * VYRN — Quiet Performance visual system.
+ *
+ * A near-black mineral canvas gives training data depth. Acid-lime is reserved
+ * for actions and positive readiness; ultraviolet and ice-blue are secondary
+ * intelligence signals, never competing for the same visual priority.
  */
 export const COLORS = {
-  // Canvas — warm mineral ivory, lifted surfaces and clear separation.
-  background:     '#F5F3EA',
-  backgroundTop:  '#FBFAF5',
-  backgroundBot:  '#EAF0E8',
-  card:           '#FFFFFF',
-  cardElevated:   '#F1F6EF',
-  cardBorder:     '#DDE7DC',
-  inputBg:        '#F2F5F0',
+  // Deep ink canvas and layered graphite surfaces.
+  background:     '#080B11',
+  backgroundTop:  '#101722',
+  backgroundBot:  '#080D14',
+  card:           '#111823',
+  cardElevated:   '#182230',
+  cardBorder:     '#293747',
+  inputBg:        '#0D141E',
 
-  // Text — deep forest ink with legible secondary hierarchy.
-  text:           '#1B2B21',
-  textSecondary:  '#526458',
-  textMuted:      '#738276',
-  textDim:        '#929E93',
+  // Warm, high-contrast type with restrained secondary hierarchy.
+  text:           '#F4F5EF',
+  textSecondary:  '#B3BECA',
+  textMuted:      '#7F8D9C',
+  textDim:        '#596878',
 
-  // Borders
-  border:         '#DCE5DC',
-  borderLight:    '#C9D8CB',
+  // Borders carry structure without looking like wireframes.
+  border:         '#263342',
+  borderLight:    '#35475A',
 
-  // Semantic states use darker tones that remain legible on light surfaces.
-  recoveryHigh:   '#2F855A',
-  recoveryMed:    '#A66B18',
-  recoveryLow:    '#B94646',
+  // Recovery semantics: lime / amber / coral.
+  recoveryHigh:   '#CFFF66',
+  recoveryMed:    '#FFC66D',
+  recoveryLow:    '#FF7487',
 
-  // Activity / strain / sleep data
-  strain:         '#2B7898',
-  strainGlow:     '#6F963A',
-  sleep:          '#657D91',
-  recoveryBlue:   '#347DA0',
+  // Performance / recovery data families.
+  strain:         '#69D5F5',
+  strainGlow:     '#D7FF55',
+  sleep:          '#B5A2FF',
+  recoveryBlue:   '#70BFFF',
 
-  // VYRN brand — confident forest green with a fresh, bright accent system.
-  primaryGreen:   '#176B4A',
-  primaryBlue:    '#286F91',
+  // VYRN action accent — luminous, not radioactive.
+  primaryGreen:   '#D0FF55',
+  primaryBlue:    '#69D5F5',
 
-  // Coach / intelligence
-  coachPurple:    '#7557A6',
+  // Intelligence is deliberately violet, distinct from performance.
+  coachPurple:    '#B7A0FF',
 
-  // Semantic
-  success: '#2F855A',
-  warning: '#A66B18',
-  danger:  '#B94646',
-  info:    '#286F91',
+  // Semantic aliases.
+  success: '#CFFF66',
+  warning: '#FFC66D',
+  danger:  '#FF7487',
+  info:    '#69D5F5',
 
-  // Navigation
-  tabActive:   '#176B4A',
-  tabInactive: '#7A897E',
-  tabBg:       '#FBFCF8',
-  tabBorder:   '#DCE5DC',
+  // Floating bottom navigation.
+  tabActive:   '#D0FF55',
+  tabInactive: '#778596',
+  tabBg:       '#0B111A',
+  tabBorder:   '#202C3A',
 
-  // Chat
-  userBubble: '#E4EFF5',
+  // Chat.
+  userBubble: '#1C2A3A',
 
-  // Achievements
-  gold: '#9C6A1B',
+  // Achievements.
+  gold: '#EBC977',
 
-  // Nutrition — distinct and readable
-  calories: '#B9623A',
-  protein:  '#A94E6A',
-  carbs:    '#54863C',
-  fat:      '#3D779A',
-  water:    '#27799E',
+  // Nutrition data — distinct hues that stay readable on graphite.
+  calories: '#FF9C78',
+  protein:  '#F08CB6',
+  carbs:    '#D0FF55',
+  fat:      '#72C9F4',
+  water:    '#62D0F4',
 
-  // Shared depth for movement pictogram tiles and 3D detail wells.
-  movementTileEnd: '#173B2B',
+  // Movement visual wells.
+  movementTileEnd: '#09131C',
 };
 
 /** Returns the semantic recovery color for a 0–100 score. */

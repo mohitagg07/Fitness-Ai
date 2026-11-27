@@ -1,6 +1,6 @@
 /**
- * VYRN — 4pt spacing and geometry scale.
- * Dense enough for real training data, generous enough to feel considered.
+ * VYRN — 4pt spacing and expressive geometry scale.
+ * Cards use a confident radius; controls stay tactile and compact.
  */
 export const SPACING = {
   xs: 4,
@@ -12,7 +12,7 @@ export const SPACING = {
 };
 
 export const RADIUS = {
-  badge: 8,
-  button: 14,
-  card: 20,
+  badge: 999,
+  button: 16,
+  card: 26,
 };

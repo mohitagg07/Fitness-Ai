@@ -12,6 +12,7 @@ import { StyleSheet, Dimensions } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, alpha } from '../../theme/colors';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 export type AmbientVariant = 'recovery' | 'workout' | 'coach';
 
@@ -36,19 +37,25 @@ function colorFor(variant: AmbientVariant, recoveryScore0to100?: number): string
 
 export default function AmbientGlow({ variant, recoveryScore0to100 }: Props) {
   const pulse = useSharedValue(0);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
+    if (reduceMotion) {
+      pulse.value = 0;
+      return undefined;
+    }
     pulse.value = withRepeat(
       withTiming(1, { duration: 3400, easing: Easing.inOut(Easing.sin) }),
       -1,
       true, // reverse — breathe in, breathe out, never a hard cut
     );
-  }, []);
+    return () => { pulse.value = 0; };
+  }, [pulse, reduceMotion]);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    opacity: 0.10 + pulse.value * 0.06,
-    transform: [{ scale: 1 + pulse.value * 0.05 }],
-  }));
+    opacity: reduceMotion ? 0.10 : 0.07 + pulse.value * 0.045,
+    transform: [{ scale: 1 + pulse.value * 0.035 }],
+  }), [reduceMotion]);
 
   const color = colorFor(variant, recoveryScore0to100);
 

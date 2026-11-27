@@ -33,7 +33,8 @@ const styles = StyleSheet.create({
   wrap: {
     borderRadius: RADIUS.card,
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
+    borderColor: COLORS.cardBorder,
+    backgroundColor: alpha(COLORS.cardElevated, 0.84),
     overflow: 'hidden',
   },
 });

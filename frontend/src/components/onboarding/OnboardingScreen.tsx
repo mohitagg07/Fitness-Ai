@@ -1020,8 +1020,8 @@ const SelectRow = React.memo(function SelectRow({
 
 const styles = StyleSheet.create({
   bg: { flex: 1, backgroundColor: COLORS.background },
-  ambientGlowTop: { position: 'absolute', top: -110, right: -80, width: 250, height: 250, borderRadius: 125, backgroundColor: '#DCEBD9', opacity: 0.72 },
-  ambientGlowBottom: { position: 'absolute', bottom: 70, left: -115, width: 230, height: 230, borderRadius: 115, backgroundColor: '#E9E2CE', opacity: 0.62 },
+  ambientGlowTop: { position: 'absolute', top: -110, right: -80, width: 250, height: 250, borderRadius: 125, backgroundColor: 'rgba(208,255,85,0.07)', opacity: 1 },
+  ambientGlowBottom: { position: 'absolute', bottom: 70, left: -115, width: 230, height: 230, borderRadius: 115, backgroundColor: 'rgba(183,160,255,0.075)', opacity: 1 },
   container: { flex: 1, backgroundColor: 'transparent' },
   pager: { flex: 1 },
   slide: { flex: 1 },
@@ -1039,7 +1039,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.text,
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
+    borderColor: COLORS.border,
   },
   fieldError: { color: COLORS.danger, fontSize: 12, marginTop: 6, fontWeight: '500' },
   row2: { flexDirection: 'row', gap: 12 },
@@ -1066,7 +1066,7 @@ const styles = StyleSheet.create({
   shimmerBar: { width: 28, height: 8, borderRadius: 4, backgroundColor: COLORS.border },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   chip: {
-    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 16, minHeight: 36,
+    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18, minHeight: 40,
     backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.borderLight,
     alignItems: 'center', justifyContent: 'center',
   },
@@ -1079,8 +1079,8 @@ const styles = StyleSheet.create({
   pill: {
     paddingHorizontal: 16,
     paddingVertical: 13,
-    minHeight: 44,
-    borderRadius: 20,
+    minHeight: 46,
+    borderRadius: 23,
     backgroundColor: COLORS.cardElevated,
     borderWidth: 1,
     borderColor: COLORS.borderLight,

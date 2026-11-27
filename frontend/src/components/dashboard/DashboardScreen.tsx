@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
@@ -35,6 +36,7 @@ import ProgramHealthCard from './ProgramHealthCard';
 import TimelineCard from './TimelineCard';
 import PatternInsightsCard from './PatternInsightsCard';
 import ProfileAvatar from '../shared/ProfileAvatar';
+import AmbientGlow from '../shared/AmbientGlow';
 import PressableScale from '../ui/PressableScale';
 import Reveal from '../shared/Reveal';
 
@@ -229,6 +231,7 @@ export default function DashboardScreen() {
 
   return (
     <View style={styles.root}>
+      <AmbientGlow variant="recovery" recoveryScore0to100={score ?? undefined} />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[
@@ -268,6 +271,8 @@ export default function DashboardScreen() {
         </View></Reveal>
 
         <Reveal delay={65}><View style={styles.readinessPanel}>
+          <LinearGradient colors={[COLORS.cardElevated, COLORS.card, COLORS.backgroundTop]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFillObject} />
+          <View pointerEvents="none" style={styles.readinessAura} />
           <View style={styles.readinessTopline}>
             <TextLike style={styles.eyebrow}>RECOVERY / READINESS</TextLike>
             <View style={[styles.livePill, { borderColor: alpha(scoreColor, 0.45) }]}>
@@ -322,6 +327,7 @@ export default function DashboardScreen() {
               router.push('/(tabs)/workout');
             }}
           >
+            <LinearGradient colors={[COLORS.primaryGreen, '#B4ED4A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFillObject} />
             <TextLike style={styles.primaryButtonText}>Open training session</TextLike>
             <Ionicons name="arrow-forward" size={18} color={COLORS.background} />
           </PressableScale>
@@ -488,20 +494,21 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.background },
   scroll: { flex: 1 },
   content: { width: '100%', alignSelf: 'center', gap: 0 },
-  topline: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 34 },
+  topline: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30 },
   brandLockup: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  brandName: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 15, letterSpacing: 3.4 },
+  brandName: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 15, letterSpacing: 4.6 },
   brandSub: { color: COLORS.textMuted, fontFamily: FONTS.semibold, fontSize: 8, letterSpacing: 1.35, marginTop: 2 },
 
-  greetingBlock: { marginBottom: 25 },
+  greetingBlock: { marginBottom: 30 },
   dateLabel: { color: COLORS.primaryGreen, fontFamily: FONTS.semibold, fontSize: 10, letterSpacing: 1.45, marginBottom: 12 },
   greeting: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 18, lineHeight: 23 },
-  name: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 43, lineHeight: 48, letterSpacing: -1.8 },
+  name: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 48, lineHeight: 54, letterSpacing: -2.2 },
   greetingSub: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 13, lineHeight: 19, marginTop: 7 },
   readinessPanel: {
-    borderRadius: 25, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder,
-    padding: 19, marginBottom: 31, overflow: 'hidden',
+    borderRadius: 30, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.borderLight,
+    padding: 21, marginBottom: 34, overflow: 'hidden',
   },
+  readinessAura: { position: 'absolute', width: 190, height: 190, borderRadius: 95, top: -112, right: -74, backgroundColor: alpha(COLORS.primaryGreen, 0.075), borderWidth: 1, borderColor: alpha(COLORS.primaryGreen, 0.12) }, 
   readinessTopline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   eyebrow: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 9, letterSpacing: 1.65 },
   livePill: {
@@ -510,7 +517,7 @@ const styles = StyleSheet.create({
   },
   liveDot: { width: 6, height: 6, borderRadius: 3 },
   liveText: { fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1.1 },
-  readinessBody: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingTop: 22, paddingBottom: 19 },
+  readinessBody: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingTop: 25, paddingBottom: 21 },
   readinessCopy: { flex: 1, paddingRight: 4 },
   readinessHeadline: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 24, lineHeight: 29, letterSpacing: -0.7, marginBottom: 8 },
   readinessDescription: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 12, lineHeight: 18 },
@@ -526,24 +533,24 @@ const styles = StyleSheet.create({
   panelFooterText: { color: COLORS.textMuted, fontFamily: FONTS.medium, fontSize: 9, letterSpacing: 0.55 },
   section: { marginBottom: 29 },
   sectionHeading: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 13 },
-  sectionTitle: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 21, lineHeight: 26, letterSpacing: -0.45, marginTop: 4 },
+  sectionTitle: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 22, lineHeight: 28, letterSpacing: -0.55, marginTop: 4 },
   sectionRight: { color: COLORS.recoveryMed, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 0.8, marginBottom: 4 },
   trainingPanel: {
-    flexDirection: 'row', alignItems: 'center', gap: 13, padding: 16, borderRadius: 19,
-    backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, marginBottom: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, borderRadius: 24,
+    backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.borderLight, marginBottom: 11,
   },
-  trainingIcon: { width: 48, height: 48, borderRadius: 15, backgroundColor: alpha(COLORS.primaryGreen, 0.1), alignItems: 'center', justifyContent: 'center' },
+  trainingIcon: { width: 52, height: 52, borderRadius: 18, backgroundColor: alpha(COLORS.primaryGreen, 0.11), borderWidth: 1, borderColor: alpha(COLORS.primaryGreen, 0.16), alignItems: 'center', justifyContent: 'center' },
   trainingCopy: { flex: 1 },
   trainingLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1.35, marginBottom: 4 },
   trainingName: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 18, lineHeight: 22 },
   trainingDetail: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 11, lineHeight: 16, marginTop: 4 },
   primaryButton: {
-    minHeight: 52, borderRadius: 16, backgroundColor: COLORS.primaryGreen,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18,
+    minHeight: 56, borderRadius: 19, backgroundColor: COLORS.primaryGreen, overflow: 'hidden',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20,
   },
   primaryButtonText: { color: COLORS.background, fontFamily: FONTS.bold, fontSize: 13, letterSpacing: 0.1 },
-  metricsPanel: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 19, borderWidth: 1, borderColor: COLORS.border, paddingVertical: 17, paddingHorizontal: 16 },
-  weeklyPulse: { marginTop: 9, padding: 15, borderRadius: 18, backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.border },
+  metricsPanel: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.cardElevated, borderRadius: 24, borderWidth: 1, borderColor: COLORS.borderLight, paddingVertical: 19, paddingHorizontal: 18 },
+  weeklyPulse: { marginTop: 10, padding: 17, borderRadius: 22, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border },
   weeklyPulseTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 13 },
   weeklyPulseEyebrow: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1.3 },
   weeklyPulseMeta: { color: COLORS.textDim, fontFamily: FONTS.semibold, fontSize: 7, letterSpacing: 0.9 },
@@ -558,7 +565,7 @@ const styles = StyleSheet.create({
   metricValue: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 30, lineHeight: 34 },
   metricDetail: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 10 },
   metricDivider: { width: 1, height: 65, backgroundColor: COLORS.border, marginHorizontal: 18 },
-  coachPanel: { borderRadius: 20, padding: 17, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder },
+  coachPanel: { borderRadius: 25, padding: 19, backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.borderLight },
   coachPanelTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 13 },
   coachIcon: { width: 30, height: 30, borderRadius: 10, backgroundColor: alpha(COLORS.primaryGreen, 0.12), alignItems: 'center', justifyContent: 'center' },
   coachLabel: { color: COLORS.textSecondary, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1.1, flex: 1 },
@@ -572,12 +579,12 @@ const styles = StyleSheet.create({
   textLink: { flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'flex-start', marginTop: 17 },
   textLinkLabel: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 11 },
   quickActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 9, marginBottom: 13 },
-  quickAction: { width: '48%', minHeight: 54, borderRadius: 15, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  quickAction: { width: '48%', minHeight: 58, borderRadius: 19, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardElevated, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   moreTools: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, paddingHorizontal: 2 },
   moreTool: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 7, paddingHorizontal: 3 },
   moreToolText: { color: COLORS.textMuted, fontFamily: FONTS.medium, fontSize: 10 },
   quickActionLabel: { color: COLORS.textSecondary, fontFamily: FONTS.semibold, fontSize: 10 },
-  reportToggle: { flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderBottomWidth: 1, borderColor: COLORS.border, paddingVertical: 17, marginBottom: 10 },
+  reportToggle: { flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderBottomWidth: 1, borderColor: COLORS.border, paddingVertical: 19, marginBottom: 10 },
   reportTitle: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 13 },
   reportHint: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 10, marginTop: 4 },
   fullReport: { paddingTop: 13 },

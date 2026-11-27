@@ -127,7 +127,7 @@ export default function AuthScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <LinearGradient
-        colors={['#FBFAF5', '#F1F5EC', '#E6EFE7']}
+        colors={['#0B111A', '#0A0F17', '#121327']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFillObject}
@@ -253,37 +253,37 @@ export default function AuthScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  orbitTop: { position: 'absolute', top: -120, right: -105, width: 290, height: 290, borderRadius: 145, backgroundColor: '#E3EEE0', borderWidth: 1, borderColor: '#CEDFCF' },
-  orbitBottom: { position: 'absolute', bottom: -165, left: -105, width: 320, height: 320, borderRadius: 160, backgroundColor: '#F1EBD9', borderWidth: 1, borderColor: '#E6DFC9' },
+  orbitTop: { position: 'absolute', top: -120, right: -105, width: 290, height: 290, borderRadius: 145, backgroundColor: 'rgba(208,255,85,0.055)', borderWidth: 1, borderColor: 'rgba(208,255,85,0.14)' },
+  orbitBottom: { position: 'absolute', bottom: -165, left: -105, width: 320, height: 320, borderRadius: 160, backgroundColor: 'rgba(183,160,255,0.07)', borderWidth: 1, borderColor: 'rgba(183,160,255,0.16)' },
   inner: { flexGrow: 1, justifyContent: 'center', padding: 28, paddingTop: 56, paddingBottom: 40 },
-  brandHeader: { alignItems: 'center', justifyContent: 'center', marginBottom: 22 },
-  brandMark: { width: 62, height: 62, borderRadius: 21, backgroundColor: COLORS.primaryGreen, alignItems: 'center', justifyContent: 'center', marginBottom: 12, shadowColor: COLORS.primaryGreen, shadowOpacity: 0.18, shadowRadius: 16, shadowOffset: { width: 0, height: 7 }, elevation: 5 },
-  brandName: { color: COLORS.text, fontSize: 22, fontWeight: '900', letterSpacing: 5 },
-  headline: { color: COLORS.text, fontSize: 24, fontWeight: '800', letterSpacing: -0.7, textAlign: 'center', marginBottom: 7 },
+  brandHeader: { alignItems: 'center', justifyContent: 'center', marginBottom: 27 },
+  brandMark: { width: 66, height: 66, borderRadius: 23, backgroundColor: COLORS.primaryGreen, alignItems: 'center', justifyContent: 'center', marginBottom: 12, shadowColor: COLORS.primaryGreen, shadowOpacity: 0.24, shadowRadius: 24, shadowOffset: { width: 0, height: 7 }, elevation: 5 },
+  brandName: { color: COLORS.text, fontSize: 23, fontWeight: '900', letterSpacing: 6 },
+  headline: { color: COLORS.text, fontSize: 28, fontWeight: '800', letterSpacing: -0.9, textAlign: 'center', marginBottom: 7 },
   subtitle: { color: COLORS.textSecondary, fontSize: 13, lineHeight: 20, textAlign: 'center', marginBottom: 28, letterSpacing: 0.1, paddingHorizontal: 10 },
   toggle: {
     flexDirection: 'row',
     backgroundColor: COLORS.cardElevated,
-    borderRadius: 14,
-    padding: 4,
-    marginBottom: 28,
+    borderRadius: 18,
+    padding: 5,
+    marginBottom: 30,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  toggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
+  toggleBtn: { flex: 1, paddingVertical: 12, borderRadius: 14, alignItems: 'center' },
   toggleBtnActive: { backgroundColor: COLORS.primaryGreen },
   toggleText: { color: COLORS.textMuted, fontSize: 13, fontWeight: '600', letterSpacing: 0.1 },
   toggleTextActive: { color: COLORS.background },
   form: { gap: 10 },
   label: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '700', letterSpacing: 1.1, marginBottom: 3 },
   input: {
-    backgroundColor: COLORS.inputBg, borderRadius: 14,
-    padding: 16, color: COLORS.text, fontSize: 15,
-    borderWidth: 1, borderColor: COLORS.borderLight, marginBottom: 8,
+    backgroundColor: COLORS.inputBg, borderRadius: 17,
+    padding: 17, color: COLORS.text, fontSize: 15,
+    borderWidth: 1, borderColor: COLORS.border, marginBottom: 8,
   },
   btn: {
-    backgroundColor: COLORS.primaryGreen, borderRadius: 14,
-    padding: 16, alignItems: 'center', marginTop: 6,
+    backgroundColor: COLORS.primaryGreen, borderRadius: 18,
+    padding: 17, alignItems: 'center', marginTop: 8,
     shadowColor: COLORS.recoveryHigh, shadowOpacity: 0.35, shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 }, elevation: 5,
   },

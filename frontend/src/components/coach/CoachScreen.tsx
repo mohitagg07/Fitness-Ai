@@ -31,6 +31,7 @@ import { COLORS, alpha, recoveryColor } from '../../theme/colors';
 import { FONTS } from '../../theme/typography';
 import { RADIUS } from '../../theme/spacing';
 import ProfileAvatar from '../shared/ProfileAvatar';
+import AmbientGlow from '../shared/AmbientGlow';
 
 import CoachMemoryModal from './CoachMemoryModal';
 import PressableScale from '../ui/PressableScale';
@@ -799,6 +800,7 @@ export default function CoachScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={0}
     >
+      <AmbientGlow variant="coach" />
       {/* Header */}
       <View style={[S.header, { paddingTop: insets.top + 12 }]}>
         <View style={S.headerTopRow}>
@@ -1077,14 +1079,14 @@ const S = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
 
   header: {
-    paddingHorizontal: 20, paddingBottom: 12,
+    paddingHorizontal: 20, paddingBottom: 14,
     backgroundColor: COLORS.background,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 12,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 13,
   },
   headerTopRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerTitleCol: { flex: 1 },
   headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  headerTitle: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 19, fontWeight: '600', letterSpacing: -0.35 },
+  headerTitle: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 21, fontWeight: '600', letterSpacing: -0.45 },
   proBadge: {
     backgroundColor: COLORS.recoveryHigh + '20', borderRadius: 6,
     paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: COLORS.recoveryHigh + '50',

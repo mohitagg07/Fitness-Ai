@@ -39,7 +39,7 @@ export default function RootLayout() {
       onError={markHydrationComplete}
     >
       <ErrorBoundary>
-        <StatusBar style="dark" backgroundColor={COLORS.background} />
+        <StatusBar style="light" backgroundColor={COLORS.background} />
         <Stack
           screenOptions={{
             headerShown: false,

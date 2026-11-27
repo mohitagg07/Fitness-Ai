@@ -80,7 +80,7 @@ export default function Card({
   };
 
   const heroShadow: ViewStyle = isHero
-    ? { shadowColor: COLORS.background, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.18, shadowRadius: 18, elevation: 5 }
+    ? { shadowColor: COLORS.primaryGreen, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.08, shadowRadius: 22, elevation: 5 }
     : {};
 
   const InnerWrapper = onPress ? PressableScale : Animated.View;

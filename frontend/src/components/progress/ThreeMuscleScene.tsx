@@ -29,9 +29,9 @@ type MuscleProps = {
   depth?: number;
 };
 
-const CANVAS_BACKGROUND = '#09130E';
-const BODY_BASE = '#35483D';
-const BODY_DARK = '#28392F';
+const CANVAS_BACKGROUND = '#0B111A';
+const BODY_BASE = '#3A4656';
+const BODY_DARK = '#222E3B';
 
 const TORSO_PROFILE = [
   new THREE.Vector2(0, -0.78),
@@ -364,7 +364,7 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     height: 374,
-    borderRadius: 22,
+    borderRadius: 28,
     overflow: 'hidden',
     backgroundColor: CANVAS_BACKGROUND,
     borderWidth: 1,
@@ -386,17 +386,17 @@ const styles = StyleSheet.create({
     gap: 7,
     paddingHorizontal: 10,
     paddingVertical: 7,
-    backgroundColor: 'rgba(5, 14, 9, 0.76)',
+    backgroundColor: 'rgba(8, 13, 21, 0.84)',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(185, 222, 114, 0.16)',
+    borderColor: 'rgba(208, 255, 85, 0.22)',
   },
   sceneDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.primaryGreen },
   dragHint: {
     paddingHorizontal: 11,
     paddingVertical: 6,
     borderRadius: 20,
-    backgroundColor: 'rgba(5, 13, 8, 0.78)',
+    backgroundColor: 'rgba(8, 13, 21, 0.86)',
     borderWidth: 1,
     borderColor: 'rgba(185, 222, 114, 0.16)',
   },
