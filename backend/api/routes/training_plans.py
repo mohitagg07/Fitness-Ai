@@ -155,68 +155,47 @@ async def create_plan_draft(
     payload: PlanDraftRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    sb = get_supabase()
     user_id = current_user["user_id"]
     data = payload.model_dump()
     workout = data.pop("workout")
+    change_reason = data.pop("change_reason", None)
     snapshot = {**data, "workout": workout}
-    snapshot.pop("change_reason", None)
-
-    active_result = (
-        sb.table("workout_plans")
-        .select("*")
-        .eq("user_id", user_id)
-        .eq("is_active", True)
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-    )
-    plan = active_result.data[0] if active_result.data else None
-    if plan:
-        plan_id = plan["id"]
-    else:
-        created = (
-            sb.table("workout_plans")
-            .insert({
-                "user_id": user_id,
-                "name": data["name"],
-                "phase": data.get("phase"),
-                "weeks": data["weeks"],
-                "schedule": data["schedule"],
-                "is_active": False,
-            })
-            .execute()
-        )
-        if not created.data:
-            raise HTTPException(500, "Could not create the workout plan")
-        plan = created.data[0]
-        plan_id = plan["id"]
-
-    latest = (
-        sb.table("workout_plan_versions")
-        .select("version_number")
-        .eq("plan_id", plan_id)
-        .eq("user_id", user_id)
-        .order("version_number", desc=True)
-        .limit(1)
-        .execute()
-    )
-    next_version = int(latest.data[0]["version_number"]) + 1 if latest.data else 1
-    inserted = (
-        sb.table("workout_plan_versions")
-        .insert({
-            "plan_id": plan_id,
-            "user_id": user_id,
-            "version_number": next_version,
-            "status": "draft",
-            "snapshot": snapshot,
-            "change_reason": payload.change_reason or "New Coach-generated workout",
-        })
-        .execute()
-    )
-    if not inserted.data:
+    try:
+        result = get_supabase().rpc(
+            "save_workout_plan_draft",
+            {
+                "p_user_id": user_id,
+                "p_plan_id": None,
+                "p_name": payload.name,
+                "p_phase": payload.phase,
+                "p_weeks": payload.weeks,
+                "p_schedule": payload.schedule,
+                "p_snapshot": snapshot,
+                "p_change_reason": change_reason or "New Coach-generated workout",
+            },
+        ).execute()
+    except Exception as exc:
+        raise HTTPException(500, "Could not create the workout draft") from exc
+    if not result.data:
         raise HTTPException(500, "Could not save the workout draft")
-    return {"plan": plan, "version": inserted.data[0]}
+    saved = result.data[0]
+    plan_result = (
+        get_supabase().table("workout_plans")
+        .select("*")
+        .eq("id", saved["out_plan_id"])
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
+    )
+    return {
+        "plan": plan_result.data[0] if plan_result.data else {"id": saved["out_plan_id"]},
+        "version": {
+            "id": saved["out_version_id"],
+            "version_number": saved["out_version_number"],
+            "status": saved["out_status"],
+            "snapshot": saved["out_snapshot"],
+        },
+    }
 
 
 @router.patch("/{plan_id}/versions/{version_id}")
