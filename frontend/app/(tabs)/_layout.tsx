@@ -280,7 +280,7 @@ export default function TabsLayout() {
           name={tab.name}
           options={{
             title: tab.title,
-            tabBarLabel: ({ focused }) => focused ? tab.title : '',
+            tabBarLabel: ({ focused }) => (focused ? tab.title : null),
             tabBarAccessibilityLabel: tab.title,
             tabBarIcon: ({ color, focused }) => (
               <TabBarIcon tab={tab} color={color} focused={focused} />
