@@ -18,7 +18,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { FlashList } from '@shopify/flash-list';
 import {
-  View, Text, TextInput, TouchableOpacity,
+  View, Text, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, ActivityIndicator, Alert, Modal, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -166,8 +166,10 @@ export default function NutritionSearchModal({
       Alert.alert('Food name required', 'Enter the food or meal you want to log.');
       return;
     }
-    if (Object.values(values).some((value) => !Number.isFinite(value) || value < 0)) {
-      Alert.alert('Check the nutrition values', 'Enter valid, non-negative calories, protein, carbohydrates and fat.');
+    const rawValues = [manualCalories, manualProtein, manualCarbs, manualFat];
+    if (rawValues.some((value) => value.trim() === '') ||
+        Object.values(values).some((value) => !Number.isFinite(value) || value < 0)) {
+      Alert.alert('Check the nutrition values', 'Enter calories, protein, carbohydrates and fat as non-negative numbers.');
       return;
     }
 
@@ -266,7 +268,7 @@ export default function NutritionSearchModal({
 
             <Text style={styles.manualTitle}>Create a food entry</Text>
             <Text style={styles.manualSubtitle}>
-              Enter the nutrition for the amount you actually ate. Use the packet label or your recipe when available.
+              Enter the total nutrition for the amount you ate. Use a packet label, recipe calculation or a trusted food-composition reference when available.
             </Text>
 
             <Text style={styles.manualLabel}>FOOD OR MEAL NAME</Text>
