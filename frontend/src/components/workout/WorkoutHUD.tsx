@@ -246,10 +246,16 @@ function SessionHeader({
   startedAt,
   totalVolume,
   setCount,
+  paused,
+  pausedAt,
+  pausedDurationSeconds,
 }: {
   startedAt: number;
   totalVolume: number;
   setCount: number;
+  paused: boolean;
+  pausedAt?: string | null;
+  pausedDurationSeconds?: number;
 }) {
   const [now, setNow] = useState(() => Date.now());
 
@@ -260,7 +266,11 @@ function SessionHeader({
     return () => clearInterval(id);
   }, [startedAt]);
 
-  const elapsedSeconds = Math.max(0, Math.floor((now - startedAt) / 1000));
+  const pausedAtMs = pausedAt ? new Date(pausedAt).getTime() : null;
+  const clockEnd = paused && pausedAtMs && Number.isFinite(pausedAtMs) ? pausedAtMs : now;
+  const elapsedSeconds = Math.max(0, Math.floor(
+    (clockEnd - startedAt) / 1000 - Math.max(0, pausedDurationSeconds || 0)
+  ));
   const hours = Math.floor(elapsedSeconds / 3600);
   const minutes = Math.floor((elapsedSeconds % 3600) / 60);
   const seconds = elapsedSeconds % 60;
@@ -273,7 +283,7 @@ function SessionHeader({
       <View style={H.timeBlock}>
         <View style={H.pill}>
           <View style={H.activeDot} />
-          <Text style={H.pillText}>LIVE SESSION</Text>
+          <Text style={H.pillText}>{paused ? 'SESSION PAUSED' : 'LIVE SESSION'}</Text>
         </View>
         <Text style={H.timeValue}>{elapsed}</Text>
         <Text style={H.timeLabel}>ELAPSED TIME</Text>
@@ -749,6 +759,43 @@ function WorkoutHUD() {
     }
   };
 
+  const toggleSessionPause = async () => {
+    if (!activeSession || isFinishing) return;
+    try {
+      const action = isSessionPaused ? 'resume' : 'pause';
+      const response = await workoutApi.transitionSession(activeSession.id, action);
+      const next = response.data;
+      setActiveSession({ ...activeSession, ...next });
+      setIsSessionPaused(next.status === 'paused');
+      if (next.status === 'paused') setRestStartedAt(null);
+    } catch (error: any) {
+      Alert.alert('Workout not updated', error?.response?.data?.detail || 'Could not change the workout state. Your saved sets are still available.');
+    }
+  };
+
+  const abandonSession = async () => {
+    if (!activeSession || isFinishing) return;
+    const confirmed = await confirmAsync(
+      'Abandon this workout?',
+      'The session will be marked abandoned. Your already-saved set history will be retained.',
+      'Abandon',
+      'Keep training'
+    );
+    if (!confirmed) return;
+    try {
+      await workoutApi.transitionSession(activeSession.id, 'abandon');
+      setActiveSession(null);
+      setExercises([]);
+      setActiveIdx(0);
+      setIsSessionPaused(false);
+      setRestStartedAt(null);
+      setWeight('');
+      setReps('');
+    } catch (error: any) {
+      Alert.alert('Could not abandon workout', error?.response?.data?.detail || 'Try again. The session has not been changed.');
+    }
+  };
+
   // Extracted so a failed completion can be retried directly — without this,
   // a network blip meant the only way to retry was dismissing the alert and
   // going back through the destructive "Finish Workout?" confirm again.
@@ -1014,6 +1061,9 @@ function WorkoutHUD() {
         startedAt={Number(activeSession?.startedAt) || Date.now()}
         totalVolume={Math.round(totalVolume)}
         setCount={totalSets}
+        paused={isSessionPaused}
+        pausedAt={activeSession?.paused_at || null}
+        pausedDurationSeconds={Number(activeSession?.paused_duration_seconds || 0)}
       />
 
       {/* Exercise plan tabs */}
@@ -1190,17 +1240,45 @@ function WorkoutHUD() {
         <View style={{ height: 16 }} />
       </ScrollView></Reveal>
 
-      <PressableScale
-        style={[S.finishBtn, isFinishing && S.logBtnDisabled]}
-        onPress={finishWorkout}
-        disabled={isFinishing}
-        accessibilityRole="button"
-        accessibilityLabel="Finish workout and save session"
-        accessibilityState={{ disabled: isFinishing }}
-      >
-        <Ionicons name="checkmark-circle-outline" size={18} color={COLORS.primaryGreen} />
-        <Text style={S.finishBtnText}>{isFinishing ? 'SAVING…' : 'FINISH WORKOUT'}</Text>
-      </PressableScale>
+      {isSessionPaused && (
+        <View style={S.pausedBanner}>
+          <Ionicons name="pause-circle-outline" size={16} color={COLORS.recoveryMed} />
+          <Text style={S.pausedBannerText}>Workout paused. Resume when you are ready to continue.</Text>
+        </View>
+      )}
+      <View style={S.sessionActions}>
+        <PressableScale
+          style={S.pauseBtn}
+          onPress={toggleSessionPause}
+          disabled={isFinishing}
+          accessibilityRole="button"
+          accessibilityLabel={isSessionPaused ? 'Resume workout' : 'Pause workout'}
+        >
+          <Ionicons name={isSessionPaused ? 'play-outline' : 'pause-outline'} size={16} color={COLORS.text} />
+          <Text style={S.pauseBtnText}>{isSessionPaused ? 'RESUME' : 'PAUSE'}</Text>
+        </PressableScale>
+        <PressableScale
+          style={S.abandonBtn}
+          onPress={abandonSession}
+          disabled={isFinishing}
+          accessibilityRole="button"
+          accessibilityLabel="Abandon workout"
+        >
+          <Ionicons name="exit-outline" size={16} color={COLORS.recoveryLow} />
+          <Text style={S.abandonBtnText}>ABANDON</Text>
+        </PressableScale>
+        <PressableScale
+          style={[S.finishBtn, { flex: 1.8 }, isFinishing && S.logBtnDisabled]}
+          onPress={finishWorkout}
+          disabled={isFinishing}
+          accessibilityRole="button"
+          accessibilityLabel="Finish workout and save session"
+          accessibilityState={{ disabled: isFinishing }}
+        >
+          <Ionicons name="checkmark-circle-outline" size={18} color={COLORS.primaryGreen} />
+          <Text style={S.finishBtnText}>{isFinishing ? 'SAVING…' : 'FINISH'}</Text>
+        </PressableScale>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -1399,6 +1477,13 @@ const S = StyleSheet.create({
   // Secondary/closing action — kept visually quieter than the green Log
   // Set CTA above (tinted, not solid) since it ends the session rather
   // than driving it.
+  sessionActions: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingHorizontal: SPACING.lg, paddingTop: SPACING.sm },
+  pauseBtn: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: RADIUS.button, borderWidth: 1, borderColor: COLORS.borderLight, backgroundColor: COLORS.card },
+  pauseBtnText: { color: COLORS.text, fontFamily: FONTS.bold, fontSize: 9, letterSpacing: 0.5 },
+  abandonBtn: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderRadius: RADIUS.button, borderWidth: 1, borderColor: alpha(COLORS.recoveryLow, 0.35), backgroundColor: COLORS.card },
+  abandonBtnText: { color: COLORS.recoveryLow, fontFamily: FONTS.bold, fontSize: 9, letterSpacing: 0.4 },
+  pausedBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: SPACING.lg, marginTop: SPACING.sm, padding: SPACING.sm, borderRadius: RADIUS.input, backgroundColor: alpha(COLORS.recoveryMed, 0.1), borderWidth: 1, borderColor: alpha(COLORS.recoveryMed, 0.25) },
+  pausedBannerText: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 10, flex: 1 },
   finishBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
                    gap: SPACING.sm, margin: SPACING.md, backgroundColor: alpha(COLORS.primaryGreen, 0.08), borderRadius: RADIUS.button,
                    paddingVertical: SPACING.lg, borderWidth: 1, borderColor: alpha(COLORS.primaryGreen, 0.25) },
