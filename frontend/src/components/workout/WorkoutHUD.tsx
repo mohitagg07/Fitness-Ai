@@ -25,7 +25,6 @@ import { FONTS, EYEBROW, BODY } from '../../theme/typography';
 import { SPACING, RADIUS } from '../../theme/spacing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
-import AmbientGlow from '../shared/AmbientGlow';
 import WorkoutSummaryCard from './WorkoutSummaryCard';
 import WorkoutHistoryModal from './WorkoutHistoryModal';
 import MilestoneCelebration from './MilestoneCelebration';
@@ -720,7 +719,6 @@ function WorkoutHUD() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={0}
     >
-      <AmbientGlow variant="workout" />
       <MoodPickerModal
         visible={moodPickerVisible}
         onSelect={handleMoodSelect}
