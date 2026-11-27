@@ -191,7 +191,23 @@ def _build_changes_for_under_eating(insights: list) -> tuple[list[dict], str]:
     return changes, "under_eating"
 
 
-def run_program_rewriter(user_id: str, profile: dict) -> dict:
+def _serialize_pattern_evidence(insights: list) -> list[dict]:
+    """Preserve the measured trigger, severity, confidence and source values."""
+    return [
+        {
+            "category": insight.category,
+            "severity": insight.severity,
+            "title": insight.title,
+            "detail": insight.detail,
+            "recommendation": insight.recommendation,
+            "confidence": insight.confidence,
+            "data": insight.data or {},
+        }
+        for insight in insights
+    ]
+
+
+def run_program_rewriter(user_id: str, profile: dict, persist: bool = True) -> dict:
     """
     Main entry point. Detects patterns, decides if a rewrite is warranted,
     builds the change set, saves a version row, and returns the full result.
@@ -215,15 +231,28 @@ def run_program_rewriter(user_id: str, profile: dict) -> dict:
         from schemas.models import Goal as GoalEnum
         goal = profile.get("goal") or "maintain"
         goal_enum = GoalEnum(goal) if goal in GoalEnum._value2member_map_ else GoalEnum.maintain
+        required_metrics = ("weight_kg", "height_cm", "age", "gender")
+        missing_metrics = [key for key in required_metrics if profile.get(key) in (None, "", 0)]
+        if missing_metrics:
+            return {
+                "rewrite_triggered": False,
+                "trigger": None,
+                "changes": [],
+                "explanation": "A program change cannot be evaluated until the missing profile measurements are confirmed.",
+                "missing_profile_fields": missing_metrics,
+                "evidence": [],
+                "version_id": None,
+            }
         targets = calculate_macros(
-            weight_kg=profile.get("weight_kg") or 75,
-            height_cm=profile.get("height_cm") or 175,
-            age=profile.get("age") or 28,
-            gender=profile.get("gender") or "male",
+            weight_kg=profile["weight_kg"],
+            height_cm=profile["height_cm"],
+            age=profile["age"],
+            gender=profile["gender"],
             goal=goal_enum,
             is_training_day=is_training_day_for_user(user_id),
         )
         insights = run_pattern_engine(user_id, protein_target_g=targets["protein_g"])
+        all_evidence = _serialize_pattern_evidence(insights)
     except Exception as e:
         logger.error(f"Pattern engine failed for {user_id}: {e}")
         return {
@@ -232,6 +261,7 @@ def run_program_rewriter(user_id: str, profile: dict) -> dict:
             "version_number": 0,
             "changes": [],
             "explanation": "Could not run pattern detection.",
+            "evidence": [],
             "version_id": None,
         }
 
@@ -247,6 +277,7 @@ def run_program_rewriter(user_id: str, profile: dict) -> dict:
             "version_number": _get_program_version_count(user_id),
             "changes": [],
             "explanation": "No rewrite needed — all patterns within normal range.",
+            "evidence": all_evidence,
             "version_id": None,
         }
 
@@ -277,6 +308,25 @@ def run_program_rewriter(user_id: str, profile: dict) -> dict:
             "An exercise variation is swapped in to expose the muscles to a new "
             "stimulus — the same pattern elite coaches use to restart stalled progress."
         )
+
+    # Proposal mode preserves the measured trigger evidence. The API layer
+    # converts this into a versioned plan draft that remains inactive until
+    # the athlete approves the exact snapshot.
+    relevant_categories = {i.category for i in (recovery_decline or under_eating or plateaus)}
+    trigger_evidence = [
+        item for item in all_evidence if item.get("category") in relevant_categories
+    ]
+    if not persist:
+        return {
+            "rewrite_triggered": True,
+            "already_applied": False,
+            "trigger": trigger,
+            "version_number": None,
+            "changes": changes,
+            "explanation": reason_text,
+            "evidence": trigger_evidence,
+            "version_id": None,
+        }
 
     # 4. Get the active plan id (optional — plan may not exist yet).
     # Version allocation and deduplication are deliberately delegated to
@@ -333,5 +383,6 @@ def run_program_rewriter(user_id: str, profile: dict) -> dict:
         "version_number": version_number,
         "changes": saved.get("changes") or changes,
         "explanation": saved.get("explanation") or reason_text,
+        "evidence": trigger_evidence,
         "version_id": version_id,
     }

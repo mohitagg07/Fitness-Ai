@@ -247,6 +247,7 @@ declare
     v_snapshot jsonb;
     v_next integer;
     v_base_version_id uuid;
+    v_expected_base_version_id uuid;
 begin
     if p_user_id is null or p_snapshot is null or jsonb_typeof(p_snapshot) is distinct from 'object' then
         raise exception 'A user and valid plan snapshot are required' using errcode = '22023';
@@ -296,11 +297,18 @@ begin
     end if;
 
     v_base_version_id := v_plan.current_version_id;
+    if p_snapshot ? '_expected_base_version_id' then
+        v_expected_base_version_id := nullif(p_snapshot->>'_expected_base_version_id', '')::uuid;
+        if v_expected_base_version_id is distinct from v_plan.current_version_id then
+            raise exception 'PLAN_DRAFT_STALE' using errcode = '40001';
+        end if;
+    end if;
+
     v_schedule := case
         when jsonb_typeof(p_schedule) = 'object' and p_schedule <> '{}'::jsonb then p_schedule
         else coalesce(v_plan.schedule, '{}'::jsonb)
     end;
-    v_snapshot := p_snapshot || jsonb_build_object(
+    v_snapshot := (p_snapshot - '_expected_base_version_id') || jsonb_build_object(
         'schedule', v_schedule,
         'name', coalesce(nullif(btrim(p_name), ''), v_plan.name),
         'phase', coalesce(p_phase, v_plan.phase),
