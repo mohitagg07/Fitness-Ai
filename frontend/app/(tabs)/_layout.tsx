@@ -1,17 +1,18 @@
 import { useEffect, useState, useRef } from 'react';
 import { Tabs, router } from 'expo-router';
-import { View, ActivityIndicator, StyleSheet, Animated } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Animated, InteractionManager } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { storage } from '../../src/utils/storage';
 import { profileApi } from '../../src/utils/api';
-import { actions } from '../../src/store';
+import { actions, useStore } from '../../src/store';
 import { queryClient, hydrated } from '../../src/lib/queryClient';
 import { qk } from '../../src/lib/queryKeys';
 import { clearAuthData } from '../../src/utils/auth';
 import { usePrefetchDashboard } from '../../src/hooks/useDashboardQueries';
 import { COLORS, alpha } from '../../src/theme/colors';
 import { FONTS } from '../../src/theme/typography';
+import { useReducedMotion } from '../../src/hooks/useReducedMotion';
 import {
   registerForPushNotificationsAsync,
   attachNotificationResponseHandler,
@@ -44,8 +45,13 @@ function TabBarIcon({
   focused: boolean;
 }) {
   const scale = useRef(new Animated.Value(focused ? 1.04 : 1)).current;
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
+    if (reduceMotion) {
+      scale.setValue(focused ? 1.05 : 1);
+      return undefined;
+    }
     const animation = Animated.spring(scale, {
       toValue: focused ? 1.05 : 1,
       useNativeDriver: true,
@@ -54,7 +60,7 @@ function TabBarIcon({
     });
     animation.start();
     return () => animation.stop();
-  }, [focused, scale]);
+  }, [focused, scale, reduceMotion]);
 
   const isTrainActive = tab.name === 'workout' && focused;
 
@@ -79,9 +85,12 @@ export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const [authChecked, setAuthChecked] = useState(false);
   const prefetchDashboard = usePrefetchDashboard();
+  const storedToken = useStore((state) => state.token);
+  const storedUser = useStore((state) => state.user);
 
   useEffect(() => {
     let cancelled = false;
+    let notificationTask: { cancel: () => void } | null = null;
 
     const applyProfile = (payload: any) => {
       const profile = payload?.profile ?? payload ?? {};
@@ -121,12 +130,14 @@ export default function TabsLayout() {
     };
 
     const bootstrap = async () => {
-      let token: string | null = null;
-      try {
-        token = await storage.getItem('vyrn_token');
-      } catch {
-        router.replace('/login');
-        return;
+      let token: string | null = storedToken;
+      if (!token) {
+        try {
+          token = await storage.getItem('vyrn_token');
+        } catch {
+          router.replace('/login');
+          return;
+        }
       }
 
       if (cancelled) return;
@@ -135,12 +146,14 @@ export default function TabsLayout() {
         return;
       }
 
-      let savedUser: any = null;
-      try {
-        const rawUser = await storage.getItem('vyrn_user');
-        savedUser = rawUser ? JSON.parse(rawUser) : null;
-      } catch {
-        savedUser = null;
+      let savedUser: any = storedUser;
+      if (!savedUser || typeof savedUser !== 'object') {
+        try {
+          const rawUser = await storage.getItem('vyrn_user');
+          savedUser = rawUser ? JSON.parse(rawUser) : null;
+        } catch {
+          savedUser = null;
+        }
       }
       if (cancelled) return;
 
@@ -159,15 +172,20 @@ export default function TabsLayout() {
       }
 
       setAuthChecked(true);
-      void registerForPushNotificationsAsync();
-      prefetchDashboard();
+      notificationTask = InteractionManager.runAfterInteractions(() => {
+        if (!cancelled) void registerForPushNotificationsAsync();
+      });
 
+      // Hydrate first; otherwise prefetchQuery can race the persisted cache
+      // and send unnecessary duplicate network requests on cold launch.
       void hydrated.then(() => {
         if (cancelled) return;
         const restored = queryClient.getQueryData(qk.profile.me()) as any;
-        if (!restored) return;
-        const profile = applyProfile(restored);
-        redirectForOnboarding(profile);
+        if (restored) {
+          const profile = applyProfile(restored);
+          if (redirectForOnboarding(profile)) return;
+        }
+        prefetchDashboard();
       });
 
       // A live validation still happens on every fresh shell entry, but it no
@@ -179,8 +197,9 @@ export default function TabsLayout() {
     void bootstrap();
     return () => {
       cancelled = true;
+      notificationTask?.cancel();
     };
-  }, [prefetchDashboard]);
+  }, [prefetchDashboard, storedToken, storedUser]);
 
   useEffect(() => {
     const cleanup = attachNotificationResponseHandler();
