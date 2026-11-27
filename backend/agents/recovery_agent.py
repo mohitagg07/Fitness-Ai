@@ -339,12 +339,15 @@ def run_recovery_agent(
 
     # Missing sources are excluded from the weighted score, never replaced
     # with midpoint values that could look like measured readiness.
-    sleep_pts = round(_sleep_component(sleep_hours) * (25 / 30)) if _sleep_component(sleep_hours) is not None else None
+    raw_sleep_pts = _sleep_component(sleep_hours)
+    raw_rpe_pts = _rpe_component(high_rpe_days)
+    raw_cns_pts = _cns_component(cns_fatigue)
+    sleep_pts = round(raw_sleep_pts * (25 / 30)) if raw_sleep_pts is not None else None
     soreness_pts = _soreness_component(soreness_level)
     vol_pts = _volume_component(recent_volume)
     nutr_pts = _nutrition_component(protein_pct, calorie_pct)
-    rpe_pts = _rpe_component(high_rpe_days)
-    cns_pts = round(_cns_component(cns_fatigue) * (10 / 15)) if _cns_component(cns_fatigue) is not None else None
+    rpe_pts = round(raw_rpe_pts * (10 / 15)) if raw_rpe_pts is not None else None
+    cns_pts = round(raw_cns_pts * (10 / 15)) if raw_cns_pts is not None else None
 
     weighted = [
         (sleep_pts, 25, "last_night_sleep_checkin"),
