@@ -99,6 +99,7 @@ function MacroRing({ pct, color, label, value }: { pct: number; color: string; l
       animatedPct.setValue(safePct);
       return undefined;
     }
+    animatedPct.setValue(0);
     const animation = Animated.timing(animatedPct, { toValue: safePct, duration: 720, useNativeDriver: false });
     animation.start();
     return () => animation.stop();
