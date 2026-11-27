@@ -33,11 +33,12 @@ The frontend ONLY reads this object.  No if/else on the client.
 """
 import asyncio
 from datetime import date, datetime
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from core.security import get_current_user
 from db.supabase_client import get_supabase, get_full_user_context
 from schemas.models import Goal
 from services.nutrition import calculate_macros, is_training_day_for_user
+from services.timezone import local_now, local_today
 from agents.nutrition_agent import run_nutrition_agent
 from agents.workout_agent import run_workout_agent
 from agents.progress_agent import run_progress_agent
@@ -52,9 +53,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Mission"])
 
 
-def _today_consumed(user_id: str) -> dict:
+def _today_consumed(user_id: str, target_date: date | None = None) -> dict:
     sb = get_supabase()
-    today = str(date.today())
+    today = str(target_date or date.today())
     res = (
         sb.table("nutrition_logs")
         .select("calories, protein_g, water_ml")
@@ -140,6 +141,7 @@ def _build_alerts(
 
 @router.get("/today")
 async def get_today_mission(
+    timezone_name: str = Query(default="UTC", min_length=1, max_length=64),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -147,6 +149,8 @@ async def get_today_mission(
     Returns a fully-resolved decision card — no client logic required.
     """
     user_id = current_user["user_id"]
+    local_day = local_today(timezone_name)
+    local_hour = local_now(timezone_name).hour
     profile, agent_state = await asyncio.to_thread(get_full_user_context, user_id)
 
     full_name = (profile.get("full_name") or "there").split()[0]
@@ -160,7 +164,7 @@ async def get_today_mission(
     food_pref = profile.get("food_preference") or "non-veg"
     coach_style = profile.get("coach_style") or "friendly"
 
-    training_day = is_training_day_for_user(user_id)
+    training_day = is_training_day_for_user(user_id, target_date=local_day)
 
     # ── Run independent agents concurrently ──────────────────────────────────
     (
@@ -179,9 +183,11 @@ async def get_today_mission(
             goal=goal,
             food_preference=food_pref,
             is_training_day=training_day,
+            target_date=local_day,
+            local_hour=local_hour,
         ),
-        asyncio.to_thread(_today_consumed, user_id),
-        asyncio.to_thread(run_workout_agent, user_id, preferred_time=profile.get("workout_time_preference")),
+        asyncio.to_thread(_today_consumed, user_id, local_day),
+        asyncio.to_thread(run_workout_agent, user_id, preferred_time=profile.get("workout_time_preference"), target_date=local_day),
         asyncio.to_thread(run_progress_agent, user_id, goal),
     )
 
@@ -193,6 +199,7 @@ async def get_today_mission(
         user_id,
         sleep_hours=profile.get("sleep_hours"),
         planned_workout_type=workout_decision.recommended_type,
+        target_date=local_day,
     )
 
     # ── Pattern Detection Engine + Proactive AI Brain ────────────────────────
