@@ -117,6 +117,7 @@ function RecoveryAvatar({
 }) {
   const root = useRef<THREE.Group>(null);
   const firstFrameReported = useRef(false);
+  const dragFrameReported = useRef(false);
   const lastDragRotation = useRef(controls.current.rotationY);
 
   useFrame((_, delta) => {
@@ -134,11 +135,13 @@ function RecoveryAvatar({
     // control value in a rendered frame. The Android smoke test therefore
     // verifies actual model rotation, not just PanResponder event delivery.
     if (controls.current.dragging) {
-      if (Math.abs(root.current.rotation.y - lastDragRotation.current) > 0.01) {
+      if (!dragFrameReported.current && Math.abs(root.current.rotation.y - lastDragRotation.current) > 0.01) {
+        dragFrameReported.current = true;
         lastDragRotation.current = root.current.rotation.y;
         onInteraction?.();
       }
     } else {
+      dragFrameReported.current = false;
       lastDragRotation.current = root.current.rotation.y;
     }
   });
