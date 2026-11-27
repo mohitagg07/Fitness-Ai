@@ -211,9 +211,18 @@ jobs:
 
             adb shell pidof com.vyrn.app
 
-            # Verify an ordinary cold launch reaches the signed-out login screen.
+            # Verify ordinary cold launch time and the signed-out login screen.
             adb shell pm clear com.vyrn.app
-            adb shell monkey -p com.vyrn.app 1
+            LAUNCH_OUTPUT="$(adb shell am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n com.vyrn.app/.MainActivity)"
+            printf '%s\n' "$LAUNCH_OUTPUT"
+            STARTUP_MS="$(printf '%s\n' "$LAUNCH_OUTPUT" | awk -F': ' '/TotalTime:/ {print $2; exit}')"
+            if [ -n "$STARTUP_MS" ]; then
+              echo "Android cold-launch TotalTime: ${STARTUP_MS} ms"
+              if [ "$STARTUP_MS" -gt 8000 ]; then
+                echo "Cold launch exceeded the 8-second startup budget."
+                exit 1
+              fi
+            fi
             for attempt in $(seq 1 20); do
               adb shell uiautomator dump /sdcard/vyrn-window.xml >/dev/null 2>&1 || true
               adb pull /sdcard/vyrn-window.xml "$RUNNER_TEMP/vyrn-window.xml" >/dev/null 2>&1 || true
