@@ -16,9 +16,13 @@ STALL_THRESHOLD_KG = 0.3
 ADJUSTMENT_KCAL = 150
 
 
-def _recent_weights(user_id: str, days: int) -> list[dict]:
+def _recent_weights(
+    user_id: str,
+    days: int,
+    target_date: date | None = None,
+) -> list[dict]:
     sb = get_supabase()
-    cutoff = str(date.today() - timedelta(days=days))
+    cutoff = str((target_date or date.today()) - timedelta(days=days))
     res = (
         sb.table("progress_metrics")
         .select("recorded_date, weight_kg")
@@ -31,8 +35,12 @@ def _recent_weights(user_id: str, days: int) -> list[dict]:
     return res.data or []
 
 
-def run_progress_agent(user_id: str, goal: Goal) -> ProgressDecision:
-    weights = _recent_weights(user_id, STALL_WINDOW_DAYS)
+def run_progress_agent(
+    user_id: str,
+    goal: Goal,
+    target_date: date | None = None,
+) -> ProgressDecision:
+    weights = _recent_weights(user_id, STALL_WINDOW_DAYS, target_date=target_date)
 
     if len(weights) < 2:
         return ProgressDecision(

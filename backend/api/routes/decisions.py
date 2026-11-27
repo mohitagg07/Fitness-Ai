@@ -17,12 +17,13 @@ import asyncio
 import logging
 from datetime import date
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from core.security import get_current_user
 from db.supabase_client import get_supabase
 from agents.decision_engine import build_decision_center
+from services.timezone import local_today
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Decision History"])
@@ -59,6 +60,7 @@ async def list_decisions(
 
 @router.post("/save")
 async def save_today_decision(
+    timezone_name: str = Query(default="UTC", min_length=1, max_length=64),
     current_user: dict = Depends(get_current_user),
 ):
     """
@@ -68,8 +70,9 @@ async def save_today_decision(
     user_id = current_user["user_id"]
     sb = get_supabase()
 
-    # Idempotency: one decision per day per user
-    today = str(date.today())
+    # One idempotent decision per athlete-local calendar day.
+    today_date = local_today(timezone_name)
+    today = str(today_date)
     existing = (
         sb.table("ai_decisions")
         .select("id, decision, confidence_pct")
@@ -85,7 +88,7 @@ async def save_today_decision(
     from db.supabase_client import get_full_user_context
     try:
         profile, _ = await asyncio.to_thread(get_full_user_context, user_id)
-        center = await asyncio.to_thread(build_decision_center, user_id, profile)
+        center = await asyncio.to_thread(build_decision_center, user_id, profile, today_date)
     except Exception as e:
         raise HTTPException(500, f"Decision engine error: {e}")
 

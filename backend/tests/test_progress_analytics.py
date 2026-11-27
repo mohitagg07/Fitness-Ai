@@ -65,3 +65,73 @@ def test_progress_heatmap_shows_logged_sets_even_before_session_completion():
     assert monday["has_session"] is False
     assert monday["session_count"] == 0
     assert monday["volume_kg"] == 0
+
+
+def test_progress_agent_weight_window_uses_explicit_athlete_local_date(monkeypatch):
+    from datetime import date
+    from types import SimpleNamespace
+
+    from agents import progress_agent
+
+    captured = {}
+
+    class Query:
+        def select(self, _fields):
+            return self
+        def eq(self, key, value):
+            captured[key] = value
+            return self
+        def gte(self, key, value):
+            captured[key] = value
+            return self
+        @property
+        def not_(self):
+            return self
+        def is_(self, key, value):
+            captured[key] = value
+            return self
+        def order(self, key):
+            captured["order"] = key
+            return self
+        def execute(self):
+            return SimpleNamespace(data=[])
+
+    class Supabase:
+        def table(self, name):
+            captured["table"] = name
+            return Query()
+
+    monkeypatch.setattr(progress_agent, "get_supabase", lambda: Supabase())
+    rows = progress_agent._recent_weights(
+        "athlete-1",
+        10,
+        target_date=date(2026, 11, 28),
+    )
+    assert rows == []
+    assert captured["gte"] == "2026-11-18"
+
+
+def test_progress_agent_keeps_server_today_default_for_legacy_callers(monkeypatch):
+    from datetime import date
+    from types import SimpleNamespace
+
+    from agents import progress_agent
+
+    captured = {}
+
+    class Query:
+        def select(self, _fields): return self
+        def eq(self, key, value): return self
+        def gte(self, key, value): captured["cutoff"] = value; return self
+        @property
+        def not_(self): return self
+        def is_(self, key, value): return self
+        def order(self, key): return self
+        def execute(self): return SimpleNamespace(data=[])
+
+    class Supabase:
+        def table(self, name): return Query()
+
+    monkeypatch.setattr(progress_agent, "get_supabase", lambda: Supabase())
+    progress_agent._recent_weights("athlete-1", 10)
+    assert captured["cutoff"] == str(date.today() - __import__("datetime").timedelta(days=10))

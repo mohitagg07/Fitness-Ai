@@ -373,7 +373,9 @@ export const reviewApi = {
 // POST /api/decisions/save (idempotent per-day), accuracy stat, outcome marking.
 export const decisionsApi = {
   list: (limit = 20) => api.get('/decisions/', { params: { limit } }),
-  saveToday: () => api.post('/decisions/save'),
+  saveToday: () => api.post('/decisions/save', {}, {
+    params: { timezone_name: getLocalTimezoneName() },
+  }),
   setOutcome: (decisionId: string, outcome: 'correct' | 'incorrect' | 'partial', note?: string) =>
     api.post(`/decisions/${decisionId}/outcome`, { outcome, outcome_note: note }),
   getAccuracy: () => api.get('/decisions/accuracy'),

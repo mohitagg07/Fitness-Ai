@@ -38,7 +38,11 @@ from services.nutrition import calculate_macros
 logger = logging.getLogger(__name__)
 
 
-def _recent_bench_style_trend(user_id: str, days: int = 21) -> Optional[dict]:
+def _recent_bench_style_trend(
+    user_id: str,
+    days: int = 21,
+    target_date: date | None = None,
+) -> Optional[dict]:
     """
     Picks the user's most-logged barbell press-style exercise over the
     window and reports the delta between the earliest and heaviest set —
@@ -47,7 +51,7 @@ def _recent_bench_style_trend(user_id: str, days: int = 21) -> Optional[dict]:
     to omitting this signal rather than showing a fake "+0kg").
     """
     sb = get_supabase()
-    cutoff = str(date.today() - timedelta(days=days))
+    cutoff = str((target_date or date.today()) - timedelta(days=days))
     res = (
         sb.table("exercise_logs")
         .select("exercise_name, weight_kg, logged_at")
@@ -145,6 +149,7 @@ def _recovery_data_coverage(recovery_decision) -> int:
 def build_decision_center(
     user_id: str,
     profile: dict,
+    target_date: date | None = None,
 ) -> DecisionCenter:
     """
     Assembles the full Decision Center payload for the current user. Calls
@@ -153,10 +158,15 @@ def build_decision_center(
     implementation, so the decision shown here can never contradict what
     the Dashboard's own cards already say.
     """
+    today_date = target_date or date.today()
     agent_state = get_agent_state(user_id)
     goal = Goal(profile.get("goal")) if profile.get("goal") in Goal._value2member_map_ else Goal.maintain
 
-    workout_decision = run_workout_agent(user_id, preferred_time=profile.get("workout_time_preference"))
+    workout_decision = run_workout_agent(
+        user_id,
+        preferred_time=profile.get("workout_time_preference"),
+        target_date=today_date,
+    )
     measurements_complete = all(
         profile.get(key) is not None
         for key in ("weight_kg", "height_cm", "age", "gender")
@@ -169,7 +179,10 @@ def build_decision_center(
             age=profile["age"],
             gender=profile["gender"],
             goal=goal,
-            is_training_day=True,
+            is_training_day=bool(
+                workout_decision.recommended_type
+                and workout_decision.recommended_type.lower() != "rest"
+            ),
         )
     recovery_decision = run_recovery_agent(
         user_id,
@@ -177,11 +190,12 @@ def build_decision_center(
         planned_workout_type=workout_decision.recommended_type,
         protein_target_g=nutrition_targets["protein_g"] if nutrition_targets else None,
         calorie_target=nutrition_targets["calories"] if nutrition_targets else None,
+        target_date=today_date,
     )
-    progress_decision = run_progress_agent(user_id, goal)
+    progress_decision = run_progress_agent(user_id, goal, target_date=today_date)
 
     sb = get_supabase()
-    today = str(date.today())
+    today = str(today_date)
     nutrition_res = (
         sb.table("nutrition_logs")
         .select("protein_g")
@@ -201,7 +215,7 @@ def build_decision_center(
     # elsewhere in the app calls "on target."
     protein_target = nutrition_targets["protein_g"] if nutrition_targets else None
 
-    bench_trend = _recent_bench_style_trend(user_id)
+    bench_trend = _recent_bench_style_trend(user_id, target_date=today_date)
     injury = _injury_status(user_id)
 
     # ── Build the evidence list — every entry traceable to a real value ──
