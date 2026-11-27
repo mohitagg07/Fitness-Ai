@@ -243,6 +243,7 @@ async def get_today_mission(
                 "action": recovery_decision.action,
                 "message": recovery_decision.message,
             },
+            "recovery_checkin": getattr(recovery_decision, "check_in", None),
             "progress": {"stalled": False, "calorie_adjustment": None, "message": None},
             "cns_fatigue": agent_state.get("cns_fatigue_score", 0),
             "workout_streak": agent_state.get("workout_streak", 0),
@@ -427,6 +428,7 @@ async def get_today_mission(
             "action":    recovery_decision.action,
             "message":   recovery_decision.message,
         },
+        "recovery_checkin": getattr(recovery_decision, "check_in", None),
         "progress": {
             "stalled":            progress_decision.stalled,
             "calorie_adjustment": progress_decision.suggested_calorie_adjustment,
