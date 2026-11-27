@@ -83,6 +83,7 @@ export default function TabsLayout() {
 
   useEffect(() => {
     let cancelled = false;
+    let notificationTask: ReturnType<typeof InteractionManager.runAfterInteractions> | null = null;
 
     const applyProfile = (payload: any) => {
       const profile = payload?.profile ?? payload ?? {};
@@ -182,7 +183,7 @@ export default function TabsLayout() {
 
       // Native notification imports and the permission prompt are not on the
       // first-paint path. Run them only after the opening interactions settle.
-      const notificationTask = InteractionManager.runAfterInteractions(() => {
+      notificationTask = InteractionManager.runAfterInteractions(() => {
         if (!cancelled) void registerForPushNotificationsAsync();
       });
     };
@@ -190,6 +191,7 @@ export default function TabsLayout() {
     void bootstrap();
     return () => {
       cancelled = true;
+      notificationTask?.cancel();
     };
   }, [prefetchDashboard, authSession.token, authSession.user]);
 
