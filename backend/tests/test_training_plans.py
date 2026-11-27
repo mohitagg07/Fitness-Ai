@@ -268,11 +268,16 @@ def test_session_exercise_event_payload_requires_replacement_for_replace() -> No
         action="replace",
         exercise_name="Bench Press",
         replacement_exercise="Push Up",
+        client_request_id="session-replace-bench-001",
     )
     assert payload.action == "replace"
 
     with pytest.raises(ValidationError):
-        SessionExerciseEventRequest(action="replace", exercise_name="Bench Press")
+        SessionExerciseEventRequest(
+            action="replace",
+            exercise_name="Bench Press",
+            client_request_id="session-replace-bench-002",
+        )
 
     with pytest.raises(ValidationError):
         SessionExerciseEventRequest(
@@ -287,4 +292,8 @@ def test_session_exercise_event_rejects_unknown_action() -> None:
     from api.routes.workouts import SessionExerciseEventRequest
 
     with pytest.raises(ValidationError):
-        SessionExerciseEventRequest(action="delete", exercise_name="Bench Press")
+        SessionExerciseEventRequest(
+            action="delete",
+            exercise_name="Bench Press",
+            client_request_id="session-delete-bench-001",
+        )
