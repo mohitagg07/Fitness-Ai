@@ -108,6 +108,10 @@ function ReadinessDial({ score, color }: { score: number | null; color: string }
   );
 }
 
+function TextLike({ children, style }: { children: React.ReactNode; style?: any }) {
+  return <Text style={style}>{children}</Text>;
+}
+
 function SectionHeading({ eyebrow, title, right }: { eyebrow: string; title: string; right?: string }) {
   return (
     <View style={styles.sectionHeading}>
