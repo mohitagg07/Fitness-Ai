@@ -352,6 +352,13 @@ async def complete_session(
     if not session_res.data:
         raise HTTPException(404, "Workout session not found")
     session = session_res.data[0]
+    if session.get("completed") is True or session.get("status") == "completed":
+        cached = session.get("completion_result")
+        if isinstance(cached, dict):
+            return cached
+        raise HTTPException(409, "This workout was already completed. Open Workout History to view the saved session.")
+    if session.get("status") in ("abandoned", "skipped", "draft", "approved"):
+        raise HTTPException(409, "This workout is not in a completable state.")
 
     if payload is not None:
         cns_fatigue_after = payload.cns_fatigue_after if payload.cns_fatigue_after is not None else cns_fatigue_after
@@ -462,11 +469,12 @@ async def complete_session(
         .update(update_data)
         .eq("id", session_id)
         .eq("user_id", user_id)
+        .eq("completed", False)
         .select("*")
         .execute()
     )
     if not res.data:
-        raise HTTPException(404, "Workout session not found")
+        raise HTTPException(409, "This workout was completed by another request. Refresh Workout History.")
     session = res.data[0]
 
     # ── Detect new PRs set during this specific session ──────────────────
@@ -544,11 +552,36 @@ async def complete_session(
     try:
         from agents.recovery_agent import run_recovery_agent
         profile, _ = await asyncio.to_thread(get_full_user_context, user_id)
+        try:
+            session_local_date = date.fromisoformat(str(session.get("session_date")))
+        except (TypeError, ValueError):
+            session_local_date = date.today()
+        protein_target = None
+        calorie_target = None
+        required_metrics = ("weight_kg", "height_cm", "age", "gender")
+        if all(profile.get(field) not in (None, "", 0) for field in required_metrics):
+            from schemas.models import Goal
+            from services.nutrition import calculate_macros, is_training_day_for_user
+            goal_value = profile.get("goal") or "maintain"
+            goal = Goal(goal_value) if goal_value in Goal._value2member_map_ else Goal.maintain
+            targets = calculate_macros(
+                weight_kg=profile["weight_kg"],
+                height_cm=profile["height_cm"],
+                age=profile["age"],
+                gender=profile["gender"],
+                goal=goal,
+                is_training_day=is_training_day_for_user(user_id, target_date=session_local_date),
+            )
+            protein_target = targets.get("protein_g")
+            calorie_target = targets.get("calories")
         recovery_decision = await asyncio.to_thread(
             run_recovery_agent,
             user_id,
-            sleep_hours=profile.get("sleep_hours"),
+            sleep_hours=None,  # Daily readiness uses the dated check-in, not the onboarding baseline.
             planned_workout_type=None,
+            protein_target_g=protein_target,
+            calorie_target=calorie_target,
+            target_date=session_local_date,
         )
         # NOTE: recovery_decision.recovery_score is 0-10 (schema-constrained,
         # ge=0/le=10) — comparing it against 70/40 here was a pre-existing
@@ -557,9 +590,12 @@ async def complete_session(
         # already computes (attached as an extra attribute, see
         # recovery_agent.py's docstring) — use that for both the label and
         # the percentage the summary card shows.
-        score_pct_val = getattr(recovery_decision, "score_pct", recovery_decision.recovery_score * 10)
-        recovery_pct = round(score_pct_val)
-        recovery_prediction = "High" if score_pct_val >= 70 else "Medium" if score_pct_val >= 40 else "Low"
+        score_pct_val = getattr(recovery_decision, "score_pct", None)
+        if score_pct_val is not None:
+            recovery_pct = round(score_pct_val)
+            recovery_prediction = "High" if score_pct_val >= 70 else "Medium" if score_pct_val >= 40 else "Low"
+        else:
+            recovery_prediction = "Unavailable"
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(f"Recovery prediction failed: {e}")
@@ -569,8 +605,16 @@ async def complete_session(
     try:
         rated_session_rpe = [float(log["rpe"]) for log in working_logs if log.get("rpe") is not None]
         session_avg_rpe = round(sum(rated_session_rpe) / len(rated_session_rpe), 2) if rated_session_rpe else None
+        try:
+            session_local_date = date.fromisoformat(str(session.get("session_date")))
+        except (TypeError, ValueError):
+            session_local_date = date.today()
         workout_streak = await asyncio.to_thread(
-            _update_agent_state_on_completion, user_id, cns_fatigue_after, session_avg_rpe
+            _update_agent_state_on_completion,
+            user_id,
+            cns_fatigue_after,
+            session_avg_rpe,
+            session_local_date,
         )
     except Exception as e:
         import logging
@@ -711,11 +755,21 @@ async def complete_session(
         "protein_streak": protein_streak,
     }
 
-    return {
+    response_payload = {
         **session,
         **summary_flat,
         "summary": summary_flat,
     }
+    try:
+        sb.table("workout_sessions").update({
+            "completion_result": response_payload
+        }).eq("id", session_id).eq("user_id", user_id).execute()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            "Could not cache workout completion response for %s: %s", session_id, e
+        )
+    return response_payload
 
 
 def _log_timeline_event(user_id: str, event_type: str, message: str) -> None:
@@ -737,6 +791,7 @@ def _update_agent_state_on_completion(
     user_id: str,
     cns_fatigue_after: Optional[int],
     session_avg_rpe: Optional[float] = None,
+    target_date: Optional[date] = None,
 ):
     """
     Recompute and persist the agent_state fields that track longitudinal
@@ -744,7 +799,7 @@ def _update_agent_state_on_completion(
     is marked complete.
     """
     sb = get_supabase()
-    today = date.today()
+    today = target_date or date.today()
 
     # Load current agent state
     state_res = sb.table("agent_states").select("*").eq("user_id", user_id).execute()
