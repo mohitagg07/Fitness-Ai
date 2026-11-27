@@ -6,11 +6,12 @@
     "scheme": "vyrn",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
+    "backgroundColor": "#08110C",
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "cover",
-      "backgroundColor": "#08140E"
+      "backgroundColor": "#08110C"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -22,9 +23,10 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#08140E"
+        "backgroundColor": "#08110C"
       },
       "package": "com.vyrn.app",
+      "softwareKeyboardLayoutMode": "resize",
       "permissions": [
         "android.permission.RECORD_AUDIO"
       ]

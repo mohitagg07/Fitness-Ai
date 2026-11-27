@@ -563,54 +563,83 @@ async def search_food(
     if not q or len(q.strip()) < 2:
         raise HTTPException(400, "Query must be at least 2 characters")
 
-    token = await _get_fatsecret_token()
+    query = q.strip()
     clamp = min(max(1, max_results), 20)
+    remote_results = []
 
+    # Food search is an enhancement, not a hard dependency for logging food.
+    # FatSecret may be unconfigured, rate-limited or temporarily unreachable;
+    # still return the local Indian ingredient/dish catalogue in those cases.
     try:
+        token = await _get_fatsecret_token()
         async with _httpx.AsyncClient() as client:
             resp = await client.get(
                 "https://platform.fatsecret.com/rest/server.api",
                 params={
-                    "method":            "foods.search",
-                    "search_expression": q.strip(),
-                    "format":            "json",
-                    "max_results":       clamp,
-                    "page_number":       0,
+                    "method": "foods.search",
+                    "search_expression": query,
+                    "format": "json",
+                    "max_results": clamp,
+                    "page_number": 0,
                 },
                 headers={"Authorization": f"Bearer {token}"},
                 timeout=12,
             )
-    except _httpx.TimeoutException:
-        raise HTTPException(503, "Food search is temporarily unreachable (connection timed out). Please try again.")
-    except _httpx.HTTPError as e:
-        raise HTTPException(503, f"Food search is temporarily unreachable: {e}")
 
-    if resp.status_code != 200:
-        raise HTTPException(502, f"FatSecret search failed {resp.status_code}: {resp.text[:300]}")
+        if resp.status_code != 200:
+            raise HTTPException(502, f"FatSecret search failed: {resp.status_code}")
 
-    data       = resp.json()
-    raw_foods  = data.get("foods", {}).get("food", [])
-    if isinstance(raw_foods, dict):
-        raw_foods = [raw_foods]
+        raw_foods = resp.json().get("foods", {}).get("food", [])
+        if isinstance(raw_foods, dict):
+            raw_foods = [raw_foods]
 
-    results = []
-    for f in raw_foods:
-        desc = f.get("food_description", "")
-        results.append({
-            "food_id":             f.get("food_id"),
-            "name":                f.get("food_name", "Unknown"),
-            "brand":               f.get("brand_name") or "",
-            "food_type":           f.get("food_type", ""),
-            "serving_description": desc,
-            **_parse_fs_description(desc),
-        })
+        for food in raw_foods:
+            description = food.get("food_description", "")
+            remote_results.append({
+                "food_id": food.get("food_id"),
+                "name": food.get("food_name", "Unknown"),
+                "brand": food.get("brand_name") or "",
+                "food_type": food.get("food_type", ""),
+                "serving_description": description,
+                **_parse_fs_description(description),
+            })
+    except HTTPException as exc:
+        if exc.status_code not in (502, 503):
+            raise
+        logger.info("FatSecret unavailable; using local nutrition search for %r: %s", query, exc.detail)
+    except _httpx.HTTPError as exc:
+        logger.info("FatSecret request failed; using local nutrition search for %r: %s", query, exc)
 
-    # FIXED: FatSecret has poor Indian food coverage — supplement with local DB
-    if len(results) < 3:
-        indian = _search_indian_foods(q.strip(), max_results=clamp - len(results))
-        results = results + indian
+    local_results = _search_indian_foods(query, max_results=clamp)
 
-    return {"results": results, "total": len(results)}
+    # Put an exact generic ingredient ahead of branded dishes when a person
+    # searches for the ingredient itself (e.g. "paneer"). Keep provider
+    # results after that, then append relevant local Indian dishes. This
+    # preserves discovery without letting a short provider list hide basics.
+    normalized_query = " ".join(query.lower().split())
+    exact_local = [
+        food for food in local_results
+        if " ".join(food["name"].lower().split()) == normalized_query
+        or " ".join(food["name"].lower().split()).startswith(normalized_query + ",")
+        or " ".join(food["name"].lower().split()).startswith(normalized_query + " (")
+    ]
+    ordered = exact_local + remote_results + [
+        food for food in local_results if food not in exact_local
+    ]
+
+    # De-duplicate provider/local entries by display name, case-insensitively.
+    combined = []
+    seen = set()
+    for food in ordered:
+        key = " ".join(str(food.get("name") or "").lower().split())
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        combined.append(food)
+        if len(combined) >= clamp:
+            break
+
+    return {"results": combined, "total": len(combined)}
 
 # ── Indian food fallback database ─────────────────────────────────────────
 # FatSecret has very limited Indian food coverage. When a search query
@@ -662,19 +691,50 @@ INDIAN_FOODS = [
     {"food_id": "IND015", "name": "Mutton Curry", "brand": "", "food_type": "Generic",
      "serving_description": "Per 100g | Calories: 178 | Fat: 10g | Carbs: 3g | Protein: 19g",
      "calories": 178, "protein_g": 19.0, "carbs_g": 3.0, "fat_g": 10.0},
+    {"food_id": "IND016", "name": "Paneer, plain", "brand": "ICMR-NIN IFCT 2017", "food_type": "Generic",
+     "serving_description": "Per 100g | Calories: 305 | Fat: 24.78g | Carbs: 2.41g | Protein: 18.86g | Source: IFCT 2017, food code L003",
+     "calories": 305, "protein_g": 18.86, "carbs_g": 2.41, "fat_g": 24.78},
 ]
 
 
 def _search_indian_foods(query: str, max_results: int = 8) -> list:
-    """Fuzzy match against local Indian food database."""
-    q = query.lower().strip()
-    results = []
+    """Rank local Indian foods by ingredient/name relevance."""
+    q = " ".join(query.lower().strip().split())
+    words = [word for word in q.split() if len(word) > 2]
+    if not words:
+        return []
+
+    # Common Indian ingredient wording; aliases let people search naturally
+    # without forcing the exact spelling used by the local food catalogue.
+    aliases = {
+        "cottage cheese": "paneer",
+        "indian cottage cheese": "paneer",
+        "chapati": "roti",
+        "curd": "yogurt",
+        "dahi": "yogurt",
+    }
+    search_terms = [aliases.get(q, q)]
+    if q in aliases:
+        search_terms = [aliases[q]]
+    query_words = [word for term in search_terms for word in term.split() if len(word) > 2]
+
+    ranked = []
     for food in INDIAN_FOODS:
-        name_lower = food["name"].lower()
-        # Match on any word in the query appearing in the food name
-        words = q.split()
-        if any(w in name_lower for w in words if len(w) > 2):
-            results.append(food)
-        if len(results) >= max_results:
-            break
-    return results
+        name = " ".join(food["name"].lower().split())
+        if not all(word in name for word in query_words):
+            continue
+
+        # Plain ingredient entries should be more discoverable than recipes
+        # when the query is simply the ingredient name.
+        if name == q:
+            score = 0
+        elif name.startswith(q + ",") or name.startswith(q + " ("):
+            score = 1
+        elif name.startswith(q + " "):
+            score = 2
+        else:
+            score = 3
+        ranked.append((score, name, food))
+
+    ranked.sort(key=lambda item: (item[0], item[1]))
+    return [food for _, _, food in ranked[:max_results]]

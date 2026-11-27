@@ -17,7 +17,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { FlashList, FlashListRef } from '@shopify/flash-list';
-import AmbientGlow from '../shared/AmbientGlow';
 import Svg, { Circle, Path, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -756,10 +755,9 @@ export default function CoachScreen() {
   return (
     <KeyboardAvoidingView
       style={[S.container, { width: '100%', maxWidth: responsive.pageMaxWidth, alignSelf: 'center' }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={90}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={0}
     >
-      <AmbientGlow variant="coach" />
       {/* Header */}
       <View style={[S.header, { paddingTop: insets.top + 12 }]}>
         <View style={S.headerTopRow}>
@@ -832,24 +830,41 @@ export default function CoachScreen() {
 
       {/* Empty state */}
       {chatHistory.length === 0 ? (
-        <ScrollView style={S.emptyScroll} contentContainerStyle={S.emptyContent}>
+        <ScrollView style={S.emptyScroll} contentContainerStyle={S.emptyContent} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}>
           <View style={S.emptyHero}>
-            <View style={S.emptyIcon}>
-              <Logo size="md" />
+            <View style={S.coachOrb}>
+              <View style={S.coachOrbInner}>
+                <Logo size="md" />
+              </View>
+              <View style={S.coachOrbStatus} />
             </View>
-            <Text style={S.emptyTitle}>What's the move today?</Text>
+            <Text style={S.emptyEyebrow}>YOUR TRAINING PARTNER</Text>
+            <Text style={S.emptyTitle}>What are we working on?</Text>
             <Text style={S.emptySubtitle}>
-              Log a set, ask for a plan, or just tell me how you're feeling.
+              Ask about your plan, a difficult set, recovery or what to eat. Your training history gives the conversation context.
             </Text>
+          </View>
+          <View style={S.suggestionsHeading}>
+            <Text style={S.suggestionsHeadingLabel}>START WITH A QUESTION</Text>
+            <Text style={S.suggestionsHeadingMeta}>QUICK PROMPTS</Text>
           </View>
           <View style={S.suggestions}>
             {SUGGESTIONS.map((s, i) => (
-              <TouchableOpacity key={i} style={S.suggestion} onPress={() => sendMessage(s.text)}>
-                <View style={S.suggestionIcon}>
-                  <Ionicons name={s.icon as any} size={15} color={COLORS.recoveryHigh} />
+              <TouchableOpacity
+                key={i}
+                activeOpacity={0.82}
+                style={S.suggestion}
+                onPress={() => sendMessage(s.text)}
+                accessibilityRole="button"
+                accessibilityLabel={`Ask Coach: ${s.text}`}
+              >
+                <View style={S.suggestionTop}>
+                  <View style={[S.suggestionIcon, { backgroundColor: `${s.color}18` }]}>
+                    <Ionicons name={s.icon as any} size={16} color={s.color} />
+                  </View>
+                  <Ionicons name="arrow-forward-outline" size={15} color={COLORS.textDim} />
                 </View>
                 <Text style={S.suggestionText}>{s.text}</Text>
-                <Ionicons name="arrow-forward-outline" size={14} color={COLORS.textDim} />
               </TouchableOpacity>
             ))}
           </View>
@@ -861,6 +876,7 @@ export default function CoachScreen() {
           keyExtractor={(_: unknown, i: number) => String(i)}
           renderItem={renderMessage}
           contentContainerStyle={S.messageList}
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         />
       )}
@@ -885,7 +901,7 @@ export default function CoachScreen() {
       )}
 
       {/* Input row */}
-      <View style={S.inputRow}>
+      <View style={[S.inputRow, { paddingBottom: Math.max(insets.bottom, 10) }]}>
         <TextInput
           style={S.input}
           value={input}
@@ -896,6 +912,9 @@ export default function CoachScreen() {
           maxLength={2000}
           onSubmitEditing={() => sendMessage()}
           blurOnSubmit={false}
+          keyboardAppearance="dark"
+          selectionColor={COLORS.primaryGreen}
+          underlineColorAndroid="transparent"
         />
         <TouchableOpacity
           style={[S.sendBtn, (!input.trim() || isStreaming) && S.sendBtnOff]}
@@ -1020,6 +1039,7 @@ const S = StyleSheet.create({
 
   header: {
     paddingHorizontal: 20, paddingBottom: 12,
+    backgroundColor: COLORS.background,
     borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 12,
   },
   headerTopRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -1060,25 +1080,43 @@ const S = StyleSheet.create({
   },
   offlineBannerText: { color: COLORS.recoveryMed, fontSize: 11, flex: 1, lineHeight: 16 },
 
-  emptyScroll:   { flex: 1 },
-  emptyContent:  { padding: 24, paddingTop: 32 },
-  emptyHero:     { alignItems: 'center', marginBottom: 32 },
-  emptyIcon:     { width: 56, height: 56, borderRadius: 18,
-                   backgroundColor: COLORS.recoveryHigh + '18',
-                   alignItems: 'center', justifyContent: 'center',
-                   borderWidth: 1, borderColor: COLORS.recoveryHigh + '40',
-                   marginBottom: 16 },
-  emptyTitle:    { color: COLORS.text, fontSize: 22, fontWeight: '800', marginBottom: 8 },
-  emptySubtitle: { color: COLORS.textMuted, fontSize: 14, textAlign: 'center', lineHeight: 20 },
-
-  suggestions:    { gap: 8 },
-  suggestion:     { backgroundColor: COLORS.cardElevated, borderRadius: 16, padding: 14,
-                    borderWidth: 1, borderColor: COLORS.border,
-                    flexDirection: 'row', alignItems: 'center', gap: 12 },
-  suggestionIcon: { width: 32, height: 32, borderRadius: 10,
-                    backgroundColor: COLORS.recoveryHigh + '18',
-                    alignItems: 'center', justifyContent: 'center' },
-  suggestionText: { color: COLORS.textSecondary, fontSize: 13, flex: 1 },
+  emptyScroll: { flex: 1 },
+  emptyContent: { paddingHorizontal: 20, paddingTop: 28, paddingBottom: 24 },
+  emptyHero: { alignItems: 'flex-start', marginBottom: 26 },
+  coachOrb: {
+    width: 66, height: 66, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.borderLight,
+    marginBottom: 22, position: 'relative',
+  },
+  coachOrbInner: {
+    width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: alpha(COLORS.primaryGreen, 0.10),
+  },
+  coachOrbStatus: {
+    position: 'absolute', right: -3, bottom: -3, width: 13, height: 13, borderRadius: 7,
+    backgroundColor: COLORS.recoveryHigh, borderWidth: 3, borderColor: COLORS.background,
+  },
+  emptyEyebrow: { color: COLORS.primaryGreen, fontSize: 9, fontWeight: '800', letterSpacing: 1.8, marginBottom: 9 },
+  emptyTitle: { color: COLORS.text, fontSize: 27, lineHeight: 32, fontWeight: '800', letterSpacing: -0.8, marginBottom: 9, maxWidth: 310 },
+  emptySubtitle: { color: COLORS.textMuted, fontSize: 13, lineHeight: 20, maxWidth: 340 },
+  suggestionsHeading: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 11,
+  },
+  suggestionsHeadingLabel: { color: COLORS.textSecondary, fontSize: 9, fontWeight: '800', letterSpacing: 1.35 },
+  suggestionsHeadingMeta: { color: COLORS.textDim, fontSize: 8, fontWeight: '700', letterSpacing: 1 },
+  suggestions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
+  suggestion: {
+    width: '48.5%', minHeight: 106, backgroundColor: COLORS.card,
+    borderRadius: 17, padding: 13, borderWidth: 1, borderColor: COLORS.border,
+    justifyContent: 'space-between',
+  },
+  suggestionTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  suggestionIcon: {
+    width: 34, height: 34, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  suggestionText: { color: COLORS.text, fontSize: 12, lineHeight: 17, fontWeight: '600', marginTop: 10 },
 
   messageList: { padding: 16, paddingBottom: 12 },
   bubble:      { marginBottom: 12, borderRadius: 18, padding: 15, maxWidth: '92%' },
@@ -1102,13 +1140,12 @@ const S = StyleSheet.create({
   thinkingText:   { color: COLORS.textMuted, fontSize: 13 },
 
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10,
-              padding: 12, paddingBottom: 16, borderTopWidth: 1, borderTopColor: COLORS.border },
-  input:    { flex: 1, backgroundColor: COLORS.cardElevated, borderRadius: 16,
+              paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10,
+              backgroundColor: COLORS.background, borderTopWidth: 1, borderTopColor: COLORS.border },
+  input:    { flex: 1, backgroundColor: COLORS.inputBg, borderRadius: 16,
               paddingHorizontal: 16, paddingVertical: 11, color: COLORS.text,
-              fontSize: 15, maxHeight: 100, borderWidth: 1, borderColor: COLORS.borderLight },
-  sendBtn:  { width: 42, height: 42, borderRadius: 21,
-              backgroundColor: COLORS.primaryGreen, alignItems: 'center', justifyContent: 'center',
-              shadowColor: COLORS.primaryGreen, shadowOpacity: 0.14,
-              shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+              fontSize: 15, maxHeight: 110, borderWidth: 1, borderColor: COLORS.border },
+  sendBtn:  { width: 44, height: 44, borderRadius: 15,
+              backgroundColor: COLORS.primaryGreen, alignItems: 'center', justifyContent: 'center' },
   sendBtnOff: { backgroundColor: COLORS.cardElevated, shadowOpacity: 0, elevation: 0 },
 });

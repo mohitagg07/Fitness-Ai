@@ -18,12 +18,12 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { FlashList } from '@shopify/flash-list';
 import {
-  View, Text, TextInput, TouchableOpacity,
+  View, Text, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, ActivityIndicator, Alert, Modal, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { nutritionApi, describeApiError } from '../../utils/api';
+import { nutritionApi, progressApi, describeApiError } from '../../utils/api';
 import { COLORS } from '../../theme/colors';
 
 interface FoodResult {
@@ -58,6 +58,13 @@ export default function NutritionSearchModal({
   const [selected, setSelected] = useState<FoodResult | null>(null);
   const [grams, setGrams] = useState('100');
   const [logging, setLogging] = useState(false);
+  const [manualMode, setManualMode] = useState(false);
+  const [manualName, setManualName] = useState('');
+  const [manualAmount, setManualAmount] = useState('100 g');
+  const [manualCalories, setManualCalories] = useState('');
+  const [manualProtein, setManualProtein] = useState('');
+  const [manualCarbs, setManualCarbs] = useState('');
+  const [manualFat, setManualFat] = useState('');
 
   // Plain setTimeout debounce — no extra dependency needed for one input.
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -99,11 +106,20 @@ export default function NutritionSearchModal({
   };
 
   const closeAndReset = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    requestIdRef.current += 1;
     setQuery('');
     setResults([]);
     setSearchError(null);
     setSelected(null);
     setGrams('100');
+    setManualMode(false);
+    setManualName('');
+    setManualAmount('100 g');
+    setManualCalories('');
+    setManualProtein('');
+    setManualCarbs('');
+    setManualFat('');
     onClose();
   };
 
@@ -123,6 +139,55 @@ export default function NutritionSearchModal({
     } catch (err: any) {
       const { message } = describeApiError(err);
       Alert.alert('Could not log this meal', message);
+    } finally {
+      setLogging(false);
+    }
+  };
+
+  const openManualEntry = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    requestIdRef.current += 1;
+    setSearching(false);
+    setSelected(null);
+    setManualName(query.trim());
+    setManualMode(true);
+  };
+
+  const saveManualEntry = async () => {
+    const name = manualName.trim();
+    const values = {
+      calories: Number(manualCalories),
+      protein_g: Number(manualProtein),
+      carbs_g: Number(manualCarbs),
+      fat_g: Number(manualFat),
+    };
+
+    if (!name) {
+      Alert.alert('Food name required', 'Enter the food or meal you want to log.');
+      return;
+    }
+    const rawValues = [manualCalories, manualProtein, manualCarbs, manualFat];
+    if (rawValues.some((value) => value.trim() === '') ||
+        Object.values(values).some((value) => !Number.isFinite(value) || value < 0)) {
+      Alert.alert('Check the nutrition values', 'Enter calories, protein, carbohydrates and fat as non-negative numbers.');
+      return;
+    }
+
+    setLogging(true);
+    try {
+      await progressApi.logNutrition({
+        meal_name: name,
+        calories: Math.round(values.calories),
+        protein_g: values.protein_g,
+        carbs_g: values.carbs_g,
+        fat_g: values.fat_g,
+        notes: `Manual entry · Amount eaten: ${manualAmount.trim() || 'not specified'}`,
+      });
+      onLogged();
+      closeAndReset();
+      Alert.alert('Food logged', `${name} was added to today's nutrition.`);
+    } catch (err: any) {
+      Alert.alert('Could not log food', describeApiError(err).message);
     } finally {
       setLogging(false);
     }
@@ -189,32 +254,157 @@ export default function NutritionSearchModal({
           <View style={{ width: 36 }} />
         </View>
 
-        {!selected ? (
+        {manualMode ? (
+          <ScrollView
+            style={styles.manualScroll}
+            contentContainerStyle={[styles.manualWrap, { paddingBottom: Math.max(insets.bottom, 16) + 20 }]}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <TouchableOpacity style={styles.backRow} onPress={() => setManualMode(false)}>
+              <Ionicons name="chevron-back" size={18} color={COLORS.textSecondary} />
+              <Text style={styles.backText}>Back to food search</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.manualTitle}>Create a food entry</Text>
+            <Text style={styles.manualSubtitle}>
+              Enter the total nutrition for the amount you ate. Use a packet label, recipe calculation or a trusted food-composition reference when available.
+            </Text>
+
+            <Text style={styles.manualLabel}>FOOD OR MEAL NAME</Text>
+            <TextInput
+              style={styles.manualInput}
+              value={manualName}
+              onChangeText={setManualName}
+              placeholder="e.g. Homemade paneer sandwich"
+              placeholderTextColor={COLORS.textMuted}
+              autoCapitalize="words"
+              keyboardAppearance="dark"
+              selectionColor={COLORS.primaryGreen}
+              underlineColorAndroid="transparent"
+            />
+
+            <Text style={styles.manualLabel}>AMOUNT EATEN (OPTIONAL)</Text>
+            <TextInput
+              style={styles.manualInput}
+              value={manualAmount}
+              onChangeText={setManualAmount}
+              placeholder="e.g. 150 g, 1 bowl, 2 pieces"
+              placeholderTextColor={COLORS.textMuted}
+              keyboardAppearance="dark"
+              selectionColor={COLORS.primaryGreen}
+              underlineColorAndroid="transparent"
+            />
+
+            <View style={styles.manualMacroGrid}>
+              <View style={styles.manualMacroField}>
+                <Text style={styles.manualLabel}>CALORIES (KCAL)</Text>
+                <TextInput
+                  style={styles.manualInput}
+                  value={manualCalories}
+                  onChangeText={setManualCalories}
+                  placeholder="e.g. 320"
+                  placeholderTextColor={COLORS.textMuted}
+                  keyboardType="decimal-pad"
+                  keyboardAppearance="dark"
+                  selectionColor={COLORS.calories}
+                  underlineColorAndroid="transparent"
+                />
+              </View>
+              <View style={styles.manualMacroField}>
+                <Text style={styles.manualLabel}>PROTEIN (G)</Text>
+                <TextInput
+                  style={styles.manualInput}
+                  value={manualProtein}
+                  onChangeText={setManualProtein}
+                  placeholder="e.g. 18"
+                  placeholderTextColor={COLORS.textMuted}
+                  keyboardType="decimal-pad"
+                  keyboardAppearance="dark"
+                  selectionColor={COLORS.protein}
+                  underlineColorAndroid="transparent"
+                />
+              </View>
+              <View style={styles.manualMacroField}>
+                <Text style={styles.manualLabel}>CARBS (G)</Text>
+                <TextInput
+                  style={styles.manualInput}
+                  value={manualCarbs}
+                  onChangeText={setManualCarbs}
+                  placeholder="e.g. 24"
+                  placeholderTextColor={COLORS.textMuted}
+                  keyboardType="decimal-pad"
+                  keyboardAppearance="dark"
+                  selectionColor={COLORS.carbs}
+                  underlineColorAndroid="transparent"
+                />
+              </View>
+              <View style={styles.manualMacroField}>
+                <Text style={styles.manualLabel}>FAT (G)</Text>
+                <TextInput
+                  style={styles.manualInput}
+                  value={manualFat}
+                  onChangeText={setManualFat}
+                  placeholder="e.g. 12"
+                  placeholderTextColor={COLORS.textMuted}
+                  keyboardType="decimal-pad"
+                  keyboardAppearance="dark"
+                  selectionColor={COLORS.fat}
+                  underlineColorAndroid="transparent"
+                />
+              </View>
+            </View>
+
+            <Text style={styles.manualFootnote}>
+              These values are saved as entered. They are not verified against a food database.
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.confirmBtn, logging && styles.confirmBtnDisabled]}
+              onPress={saveManualEntry}
+              disabled={logging}
+            >
+              {logging ? (
+                <ActivityIndicator color={COLORS.background} />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={18} color={COLORS.background} />
+                  <Text style={[styles.confirmBtnText, { color: COLORS.background }]}>SAVE FOOD LOG</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </ScrollView>
+        ) : !selected ? (
           <>
-            {/* Search input */}
             <View style={styles.searchBar}>
               <Ionicons name="search" size={18} color={COLORS.textMuted} />
               <TextInput
                 style={styles.searchInput}
                 value={query}
                 onChangeText={onChangeQuery}
-                placeholder="Search a food, e.g. 'chicken breast'"
+                placeholder="Search ingredients, dishes or brands"
                 placeholderTextColor={COLORS.textMuted}
                 autoFocus
                 autoCorrect={false}
                 returnKeyType="search"
+                keyboardAppearance="dark"
+                selectionColor={COLORS.primaryGreen}
+                underlineColorAndroid="transparent"
               />
               {searching && <ActivityIndicator size="small" color={COLORS.primaryGreen} />}
             </View>
 
-            {/* Results / states */}
+            <TouchableOpacity style={styles.manualLaunch} onPress={openManualEntry}>
+              <Ionicons name="create-outline" size={16} color={COLORS.primaryGreen} />
+              <Text style={styles.manualLaunchText}>Can't find it? Add food manually</Text>
+              <Ionicons name="arrow-forward" size={14} color={COLORS.primaryGreen} />
+            </TouchableOpacity>
+
             {searchError ? (
               <View style={styles.centerMsg}>
                 <Ionicons name="alert-circle-outline" size={28} color={COLORS.recoveryLow} />
                 <Text style={styles.errorText}>{searchError}</Text>
-                <Text style={styles.errorHint}>
-                  You can still log this meal manually from the Progress tab.
-                </Text>
+                <Text style={styles.errorHint}>You can still create a custom food entry here.</Text>
               </View>
             ) : query.trim().length > 0 && query.trim().length < MIN_QUERY_LEN ? (
               <View style={styles.centerMsg}>
@@ -223,7 +413,10 @@ export default function NutritionSearchModal({
             ) : !searching && query.trim().length >= MIN_QUERY_LEN && results.length === 0 ? (
               <View style={styles.centerMsg}>
                 <Ionicons name="search-outline" size={28} color={COLORS.textMuted} />
-                <Text style={styles.hintText}>No results for "{query.trim()}".</Text>
+                <Text style={styles.hintText}>No database results for "{query.trim()}".</Text>
+                <TouchableOpacity style={styles.noResultButton} onPress={openManualEntry}>
+                  <Text style={styles.noResultButtonText}>Create this food manually</Text>
+                </TouchableOpacity>
               </View>
             ) : (
               <FlashList
@@ -321,6 +514,19 @@ const styles = StyleSheet.create({
   },
   closeBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { color: COLORS.text, fontSize: 16, fontWeight: '700' },
+  manualScroll: { flex: 1 },
+  manualWrap: { paddingHorizontal: 20, paddingTop: 18, gap: 10 },
+  manualTitle: { color: COLORS.text, fontSize: 25, lineHeight: 30, fontWeight: '800', marginTop: 4 },
+  manualSubtitle: { color: COLORS.textMuted, fontSize: 13, lineHeight: 19, marginBottom: 8 },
+  manualLabel: { color: COLORS.textMuted, fontSize: 9, fontWeight: '800', letterSpacing: 1.1, marginTop: 5 },
+  manualInput: { color: COLORS.text, backgroundColor: COLORS.inputBg, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 13, paddingVertical: 13, fontSize: 14, minHeight: 48 },
+  manualMacroGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 3 },
+  manualMacroField: { width: '48%', flexGrow: 1, gap: 5 },
+  manualFootnote: { color: COLORS.textDim, fontSize: 11, lineHeight: 16, marginTop: 2, marginBottom: 8 },
+  manualLaunch: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 7, marginHorizontal: 20, marginTop: 12, paddingVertical: 7 },
+  manualLaunchText: { color: COLORS.primaryGreen, fontSize: 12, fontWeight: '700' },
+  noResultButton: { marginTop: 8, borderRadius: 12, backgroundColor: COLORS.cardElevated, paddingVertical: 11, paddingHorizontal: 16, borderWidth: 1, borderColor: COLORS.border },
+  noResultButtonText: { color: COLORS.primaryGreen, fontSize: 12, fontWeight: '700' },
   searchBar: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: COLORS.inputBg, borderRadius: 14,

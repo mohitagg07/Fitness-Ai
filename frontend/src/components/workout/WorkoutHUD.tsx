@@ -11,10 +11,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  TextInput, Alert, Animated,
+  TextInput, Alert, Animated, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Circle } from 'react-native-svg';
 import { workoutApi, coachApi } from '../../utils/api';
 import { confirmAsync } from '../../utils/confirm';
 import { useStore } from '../../store';
@@ -24,7 +25,6 @@ import { FONTS, EYEBROW, BODY } from '../../theme/typography';
 import { SPACING, RADIUS } from '../../theme/spacing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
-import AmbientGlow from '../shared/AmbientGlow';
 import WorkoutSummaryCard from './WorkoutSummaryCard';
 import WorkoutHistoryModal from './WorkoutHistoryModal';
 import MilestoneCelebration from './MilestoneCelebration';
@@ -143,25 +143,61 @@ function RestTimerBar({
     return () => clearInterval(id);
   }, [startedAt, total, onComplete]);
 
-  const pct = total > 0 ? seconds / total : 0;
+  const pct = total > 0 ? Math.max(0, Math.min(1, seconds / total)) : 0;
   const urgent = seconds <= 10;
   const barColor = urgent ? COLORS.recoveryLow : COLORS.primaryGreen;
+  const ringSize = 58;
+  const ringStroke = 4;
+  const ringRadius = (ringSize - ringStroke) / 2;
+  const circumference = 2 * Math.PI * ringRadius;
 
   return (
     <View style={T.timerBar}>
-      <View style={T.timerContent}>
-        <View style={T.timerLeft}>
-          <Ionicons name="timer-outline" size={16} color={barColor} />
-          <Text style={[T.timerLabel, { color: barColor }]}>REST</Text>
-          <Text style={[T.timerSeconds, { color: barColor }]}>{seconds}s</Text>
+      <View style={T.timerVisual}>
+        <Svg width={ringSize} height={ringSize} viewBox={`0 0 ${ringSize} ${ringSize}`}>
+          <Circle
+            cx={ringSize / 2}
+            cy={ringSize / 2}
+            r={ringRadius}
+            fill="none"
+            stroke={COLORS.borderLight}
+            strokeWidth={ringStroke}
+          />
+          <Circle
+            cx={ringSize / 2}
+            cy={ringSize / 2}
+            r={ringRadius}
+            fill="none"
+            stroke={barColor}
+            strokeWidth={ringStroke}
+            strokeDasharray={`${circumference} ${circumference}`}
+            strokeDashoffset={circumference * (1 - pct)}
+            strokeLinecap="round"
+            rotation="-90"
+            origin={`${ringSize / 2}, ${ringSize / 2}`}
+          />
+        </Svg>
+        <View style={T.timerRingText}>
+          <Text style={[T.timerSeconds, { color: barColor }]}>{seconds}</Text>
+          <Text style={T.timerUnit}>SEC</Text>
         </View>
-        <View style={T.timerTrack}>
-          <View style={[T.timerFill, { width: `${pct * 100}%` as any, backgroundColor: barColor }]} />
-        </View>
-        <TouchableOpacity onPress={onSkip} style={T.skipBtn} accessibilityRole="button" accessibilityLabel="Skip rest timer">
-          <Text style={T.skipText}>SKIP</Text>
-        </TouchableOpacity>
       </View>
+
+      <View style={T.timerCopy}>
+        <Text style={[T.timerLabel, { color: barColor }]}>REST INTERVAL</Text>
+        <Text style={T.timerTitle}>{urgent ? 'Get ready for the next set' : 'Recover. Then go again.'}</Text>
+        <Text style={T.timerHint}>Timer stays accurate when you switch apps</Text>
+      </View>
+
+      <TouchableOpacity
+        onPress={onSkip}
+        style={T.skipBtn}
+        accessibilityRole="button"
+        accessibilityLabel="Skip rest timer"
+      >
+        <Ionicons name="play" size={12} color={COLORS.textSecondary} />
+        <Text style={T.skipText}>SKIP</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -186,31 +222,37 @@ function SessionHeader({
   }, [startedAt]);
 
   const elapsedSeconds = Math.max(0, Math.floor((now - startedAt) / 1000));
-  const elapsed = `${Math.floor(elapsedSeconds / 60)}:${(elapsedSeconds % 60).toString().padStart(2, '0')}`;
+  const hours = Math.floor(elapsedSeconds / 3600);
+  const minutes = Math.floor((elapsedSeconds % 3600) / 60);
+  const seconds = elapsedSeconds % 60;
+  const elapsed = hours > 0
+    ? `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+    : `${minutes}:${String(seconds).padStart(2, '0')}`;
 
   return (
     <View style={H.row}>
-      <View style={H.pill}>
-        <View style={H.activeDot} />
-        <Text style={H.pillText}>ACTIVE</Text>
+      <View style={H.timeBlock}>
+        <View style={H.pill}>
+          <View style={H.activeDot} />
+          <Text style={H.pillText}>LIVE SESSION</Text>
+        </View>
+        <Text style={H.timeValue}>{elapsed}</Text>
+        <Text style={H.timeLabel}>ELAPSED TIME</Text>
       </View>
-      <View style={H.stat}>
-        <Text style={H.statVal}>{elapsed}</Text>
-        <Text style={H.statLabel}>TIME</Text>
-      </View>
-      <View style={H.divider} />
-      <View style={H.stat}>
-        <Text style={H.statVal}>{setCount}</Text>
-        <Text style={H.statLabel}>SETS</Text>
-      </View>
-      <View style={H.divider} />
-      <View style={H.stat}>
-        <Text style={[H.statVal, { color: COLORS.primaryGreen }]}>
-          {totalVolume >= 1000
-            ? `${(totalVolume / 1000).toFixed(1)}t`
-            : `${totalVolume}kg`}
-        </Text>
-        <Text style={H.statLabel}>VOLUME</Text>
+      <View style={H.metrics}>
+        <View style={H.stat}>
+          <Text style={H.statVal}>{setCount}</Text>
+          <Text style={H.statLabel}>SETS</Text>
+        </View>
+        <View style={H.metricDivider} />
+        <View style={H.stat}>
+          <Text style={[H.statVal, { color: COLORS.primaryGreen }]}>
+            {totalVolume >= 1000
+              ? `${(totalVolume / 1000).toFixed(1)}t`
+              : `${totalVolume}kg`}
+          </Text>
+          <Text style={H.statLabel}>VOLUME</Text>
+        </View>
       </View>
     </View>
   );
@@ -619,7 +661,11 @@ function WorkoutHUD() {
   // ── Pre-session ─────────────────────────────────────────────────────────────
   if (!sessionStarted) {
     return (
-      <View style={[S.container, { paddingTop: insets.top, width: '100%', maxWidth: responsive.pageMaxWidth, alignSelf: 'center' }]}>
+      <KeyboardAvoidingView
+        style={[S.container, { paddingTop: insets.top, width: '100%', maxWidth: responsive.pageMaxWidth, alignSelf: 'center' }]}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={0}
+      >
         <WorkoutSummaryCard
           visible={summaryVisible}
           data={summaryData}
@@ -661,15 +707,18 @@ function WorkoutHUD() {
             <Text style={S.historyBtnText}>View workout history</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     );
   }
 
   // ── Active session ───────────────────────────────────────────────────────────
 
   return (
-    <View style={[S.container, { paddingTop: insets.top }]}>
-      <AmbientGlow variant="workout" />
+    <KeyboardAvoidingView
+      style={[S.container, { paddingTop: insets.top, width: '100%', maxWidth: responsive.pageMaxWidth, alignSelf: 'center' }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={0}
+    >
       <MoodPickerModal
         visible={moodPickerVisible}
         onSelect={handleMoodSelect}
@@ -769,6 +818,9 @@ function WorkoutHUD() {
               value={exerciseName}
               onChangeText={setExerciseName}
               returnKeyType="next"
+              keyboardAppearance="dark"
+              selectionColor={COLORS.primaryGreen}
+              underlineColorAndroid="transparent"
             />
           </View>
         )}
@@ -783,6 +835,9 @@ function WorkoutHUD() {
               value={weight}
               onChangeText={setWeight}
               keyboardType="decimal-pad"
+              keyboardAppearance="dark"
+              selectionColor={COLORS.primaryGreen}
+              underlineColorAndroid="transparent"
             />
             <Text style={S.inputUnit}>kg</Text>
           </View>
@@ -794,6 +849,9 @@ function WorkoutHUD() {
               value={reps}
               onChangeText={setReps}
               keyboardType="number-pad"
+              keyboardAppearance="dark"
+              selectionColor={COLORS.primaryGreen}
+              underlineColorAndroid="transparent"
             />
             <Text style={S.inputUnit}>reps</Text>
           </View>
@@ -842,7 +900,7 @@ function WorkoutHUD() {
       </View>
 
       {/* Sets logged */}
-      <ScrollView style={S.logsScroll} showsVerticalScrollIndicator={false}>
+      <ScrollView style={S.logsScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}>
         <Text style={S.logsLabel}>SETS LOGGED</Text>
         {groupedLogs.length === 0 ? (
           <Text style={S.noLogs}>No sets yet — log your first set above</Text>
@@ -878,7 +936,7 @@ function WorkoutHUD() {
         <Ionicons name="checkmark-circle-outline" size={18} color={COLORS.primaryGreen} />
         <Text style={S.finishBtnText}>{isFinishing ? 'SAVING…' : 'FINISH WORKOUT'}</Text>
       </TouchableOpacity>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -887,41 +945,67 @@ function WorkoutHUD() {
 // exercise card below it; the countdown number is the only strong element.
 const T = StyleSheet.create({
   timerBar: {
-    backgroundColor: alpha(COLORS.primaryGreen, 0.05),
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    backgroundColor: COLORS.card,
     borderBottomWidth: 1,
-    borderBottomColor: alpha(COLORS.primaryGreen, 0.1),
+    borderBottomColor: COLORS.border,
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.sm,
+    paddingVertical: SPACING.md,
   },
-  timerContent: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
-  timerLeft:    { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, width: 90 },
-  timerLabel:   { ...EYEBROW, fontSize: 10 },
-  timerSeconds: { fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 22, lineHeight: 26 },
-  timerTrack:   { flex: 1, height: 3, backgroundColor: COLORS.cardElevated, borderRadius: 2, overflow: 'hidden' },
-  timerFill:    { height: 3, borderRadius: 2 },
-  skipBtn:      { paddingHorizontal: SPACING.sm, paddingVertical: SPACING.xs,
-                  backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.badge },
-  skipText:     { ...EYEBROW, color: COLORS.textMuted, fontSize: 11 },
+  timerVisual: { width: 58, height: 58, alignItems: 'center', justifyContent: 'center' },
+  timerRingText: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
+  timerSeconds: { color: COLORS.text, fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 18, lineHeight: 20 },
+  timerUnit: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 6, letterSpacing: 1.1, marginTop: 1 },
+  timerCopy: { flex: 1, minWidth: 0, gap: 3 },
+  timerLabel: { ...EYEBROW, fontSize: 8, letterSpacing: 1.2 },
+  timerTitle: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 12, lineHeight: 16 },
+  timerHint: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 9, lineHeight: 13 },
+  skipBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.sm,
+    backgroundColor: COLORS.cardElevated,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: RADIUS.button,
+  },
+  skipText: { ...EYEBROW, color: COLORS.textSecondary, fontSize: 9 },
 });
 
 // ─── Session header styles ────────────────────────────────────────────────────
 const H = StyleSheet.create({
   row: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.xl,
-    paddingVertical: SPACING.md, backgroundColor: COLORS.card,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: SPACING.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    backgroundColor: COLORS.card,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    gap: SPACING.md,
   },
+  timeBlock: { flex: 1, gap: 2 },
   pill: {
-    flexDirection: 'row', alignItems: 'center', gap: SPACING.xs,
+    flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: SPACING.xs,
     backgroundColor: alpha(COLORS.primaryGreen, 0.08), borderRadius: 20, paddingHorizontal: SPACING.sm,
     paddingVertical: SPACING.xs, borderWidth: 1, borderColor: alpha(COLORS.primaryGreen, 0.25),
+    marginBottom: 3,
   },
   activeDot:  { width: 5, height: 5, borderRadius: 3, backgroundColor: COLORS.primaryGreen },
-  pillText:   { ...EYEBROW, color: COLORS.primaryGreen, fontSize: 9 },
-  stat:       { alignItems: 'center' },
-  statVal:    { color: COLORS.text, fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 16 },
-  statLabel:  { ...EYEBROW, color: COLORS.textDim, fontSize: 8, marginTop: 1 },
-  divider:    { width: 1, height: 24, backgroundColor: COLORS.border },
+  pillText:   { ...EYEBROW, color: COLORS.primaryGreen, fontSize: 8 },
+  timeValue: { color: COLORS.text, fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 25, lineHeight: 29, letterSpacing: -0.7 },
+  timeLabel: { ...EYEBROW, color: COLORS.textMuted, fontSize: 7, letterSpacing: 1.05 },
+  metrics: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
+  stat: { alignItems: 'flex-end', minWidth: 45 },
+  statVal: { color: COLORS.text, fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 17, lineHeight: 22 },
+  statLabel: { ...EYEBROW, color: COLORS.textDim, fontSize: 7, marginTop: 1 },
+  metricDivider: { width: 1, height: 27, backgroundColor: COLORS.border },
 });
 
 // ─── Ghost styles ─────────────────────────────────────────────────────────────
