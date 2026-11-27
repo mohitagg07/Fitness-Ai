@@ -891,7 +891,9 @@ async def complete_session(
         current_key = current_name.casefold()
         if action == "skip":
             status = "skipped"
-            logged_sets = 0
+            # Preserve any work completed before the athlete chose to skip the
+            # remaining sets; the event records the decision, not data loss.
+            logged_sets = actual_by_exercise.get(original_key, 0)
         elif action == "replace":
             logged_sets = actual_by_exercise.get(current_key, 0)
             status = "replaced" if logged_sets else "replacement_not_logged"
