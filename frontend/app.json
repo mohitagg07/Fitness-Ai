@@ -9,6 +9,7 @@
     "backgroundColor": "#F5F3EA",
     "icon": "./assets/icon.png",
     "splash": {
+      "image": "./assets/splash.png",
       "resizeMode": "cover",
       "backgroundColor": "#F5F3EA"
     },
