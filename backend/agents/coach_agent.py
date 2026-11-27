@@ -445,6 +445,11 @@ CRITICAL RULES — READ FIRST:
 7. When planning a workout, provide specific exercises, not vague advice.
 8. NEVER invent a calorie/protein/water number or a body-weight figure. Use ONLY the TODAY'S NUTRITION and BODY WEIGHT sections below — if they say no data, say so honestly instead of guessing.
 9. Respect the athlete's training location and equipment. Never prescribe an exercise that requires equipment they have not selected or that is unavailable in their training environment. For home/hybrid athletes with no equipment recorded, create a bodyweight-only plan; do not assume a full gym.
+10. Be an adaptive conversational coach, not a one-shot answer generator. Before personalised plans or recommendations, inspect the profile, saved memories and previous turns. If a critical detail is missing, ask ONE focused follow-up question and wait for the user's answer before giving a detailed prescription. Do not ask for information already known.
+11. Prefer tap-to-answer multiple-choice questions when choices are naturally bounded (for example: beginner/intermediate/advanced, home/gym, 2/3/4/5 days, morning/afternoon/evening). Give 2–5 concise, distinct options. Include "Something else" only when it is genuinely useful. If a free-text answer is needed, ask for it plainly instead of inventing options.
+12. Do not ask unnecessary questions for greetings, simple factual answers, meal logging where the user gave enough detail, or requests that can be answered safely with available context. Do not turn every conversation into onboarding.
+13. When you ask a follow-up, set follow_up_question to the exact question and question_options to the options. Keep coach_message brief and human, explaining why you need the answer. Do not also generate a workout plan until the missing safety/personalisation detail is supplied.
+14. Never fabricate a user's age, weight, health status, schedule, allergies, experience or preferences. Mark unknowns as unknown and ask only when necessary.
 
 COACHING STYLE (selected by the athlete):
 {coach_style_instruction}
@@ -510,6 +515,9 @@ OUTPUT FORMAT — return ONLY valid JSON, no markdown fences, no text outside th
   "tips": ["Tip 1", "Tip 2"],
   "next_action": "The single most important next step. Short.",
   "coach_insight": "One memorable coaching line. Always filled.",
+  "follow_up_question": "One question only, or null when no clarification is needed.",
+  "question_options": ["Choice A", "Choice B"] or [],
+  "question_key": "short stable key for this missing detail, or null.",
   "recovery": {recovery_pct},
   "intensity": "High" | "Moderate" | "Low" | "Rest" | null
 }}
@@ -518,6 +526,12 @@ For response_type "chat", "live_set", "nutrition_tip", "recovery_advice", "progr
 - exercises array can be empty []
 - summary can be null
 - tips can be 1-2 items or []
+
+FOLLOW-UP QUESTION RULES:
+- If a critical fact is missing, set follow_up_question and provide 2–5 useful question_options when appropriate.
+- Ask one question per turn, not a questionnaire dump.
+- If no clarification is needed, follow_up_question must be null and question_options must be [].
+- Do not simultaneously prescribe a detailed plan and ask for a fact that could materially change its safety or suitability.
 
 For response_type "workout_plan":
 - exercises must have at least 3 items
@@ -591,6 +605,36 @@ Hard limits:
         "progress_update", "weekly_summary", "chat", "emergency",
     }:
         decision["response_type"] = "chat"
+
+    # Treat question UI as untrusted model output: bound it, normalise it,
+    # and remove choices unless an actual clarification question exists.
+    question = decision.get("follow_up_question")
+    if isinstance(question, str):
+        question = question.strip()[:240] or None
+    else:
+        question = None
+    raw_options = decision.get("question_options")
+    if isinstance(raw_options, list):
+        options = []
+        for option in raw_options:
+            if isinstance(option, str):
+                value = option.strip()[:90]
+                if value and value not in options:
+                    options.append(value)
+            if len(options) >= 5:
+                break
+    else:
+        options = []
+    if question:
+        decision["follow_up_question"] = question
+        decision["question_options"] = options
+        key = decision.get("question_key")
+        decision["question_key"] = key.strip()[:64] if isinstance(key, str) and key.strip() else None
+    else:
+        decision["follow_up_question"] = None
+        decision["question_options"] = []
+        decision["question_key"] = None
+
     decision["recovery"] = recovery_pct
     decision.setdefault("calories", None)
     decision.setdefault("protein", None)
