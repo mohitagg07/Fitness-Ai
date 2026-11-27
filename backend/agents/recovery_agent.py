@@ -160,10 +160,15 @@ def _last_session_volume(user_id: str) -> float:
     return float(rows[0].get("total_volume_kg") or 0)
 
 
-def _nutrition_ratios_today(user_id: str, protein_target_g: float, calorie_target: float) -> tuple[float, float]:
-    """Returns (protein_pct, calorie_pct) for today's logged nutrition."""
+def _nutrition_ratios_today(
+    user_id: str,
+    protein_target_g: float,
+    calorie_target: float,
+    target_date: date | None = None,
+) -> tuple[float, float]:
+    """Returns (protein_pct, calorie_pct) for the athlete's local day."""
     sb = get_supabase()
-    today = str(date.today())
+    today = str(target_date or date.today())
     res = (
         sb.table("nutrition_logs")
         .select("protein_g, calories")
@@ -182,9 +187,9 @@ def _nutrition_ratios_today(user_id: str, protein_target_g: float, calorie_targe
     )
 
 
-def _sessions_last_7_days(user_id: str) -> int:
+def _sessions_last_7_days(user_id: str, target_date: date | None = None) -> int:
     sb = get_supabase()
-    cutoff = str(date.today() - timedelta(days=7))
+    cutoff = str((target_date or date.today()) - timedelta(days=7))
     res = (
         sb.table("workout_sessions")
         .select("id", count="exact")
@@ -204,6 +209,7 @@ def run_recovery_agent(
     planned_workout_type: str | None = None,
     protein_target_g: float = 160.0,
     calorie_target: float = 2400.0,
+    target_date: date | None = None,
 ) -> RecoveryDecision:
     """
     Returns a RecoveryDecision with:
@@ -222,11 +228,11 @@ def run_recovery_agent(
     cns_fatigue    = agent_state.get("cns_fatigue_score", 0)
     high_rpe_days  = agent_state.get("consecutive_high_rpe_days", 0)
     last_rpe       = agent_state.get("last_logged_rpe", 5.0)
-    freq_7d        = _sessions_last_7_days(user_id)
+    freq_7d        = _sessions_last_7_days(user_id, target_date)
 
     recent_volume  = _last_session_volume(user_id)
     protein_pct, calorie_pct = _nutrition_ratios_today(
-        user_id, protein_target_g, calorie_target
+        user_id, protein_target_g, calorie_target, target_date
     )
 
     # ── Sub-scores ────────────────────────────────────────────────────────────
