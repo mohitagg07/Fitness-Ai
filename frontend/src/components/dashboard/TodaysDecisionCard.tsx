@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
   decisionText: { color: COLORS.text, fontSize: 24, fontWeight: '800', flex: 1, marginRight: 12 },
   confidenceBadge: { alignItems: 'center' },
   confidencePct: { fontSize: 22, fontWeight: '800' },
-  confidenceLabel: { color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 0.8, marginTop: 1 },
+  confidenceLabel: { color: COLORS.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 0.8, marginTop: 1 },
 
   signalsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
   signalPill: {
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
   },
   whyReasoning: { color: COLORS.textSecondary, fontSize: 13, lineHeight: 20 },
   whyRow: { gap: 3 },
-  whyRowLabel: { color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 1 },
+  whyRowLabel: { color: COLORS.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 1 },
   whyRowText: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 18, marginBottom: 4 },
   whyNotOption: { color: COLORS.text, fontWeight: '700' },
 });
