@@ -423,8 +423,15 @@ function WorkoutHUD() {
             client_request_id: log.client_request_id || undefined,
           }))
           .filter((log: SetLog) => log.exercise_name.length > 0);
+        // A damaged/unreadable local queue must not prevent the server
+        // session itself from being restored. Keep a visible fail-closed
+        // pending marker; sync and completion will continue to reject until
+        // the queue can be read safely.
+        const queuedPending = await getPendingWorkoutSets(session.id).catch(() => null);
+        if (queuedPending === null) setPendingSetCount(1);
+        else setPendingSetCount(queuedPending.length);
         const serverRequestIds = new Set(serverLogs.map((log) => log.client_request_id).filter(Boolean));
-        const queuedLogs: SetLog[] = (await getPendingWorkoutSets(session.id))
+        const queuedLogs: SetLog[] = (queuedPending || [])
           .filter((item) => !serverRequestIds.has(item.client_request_id))
           .map((item) => ({
             exercise_name: item.exercise_name,
