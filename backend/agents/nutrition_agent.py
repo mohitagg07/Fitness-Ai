@@ -33,11 +33,11 @@ FAT_SOURCES = [
 ]
 
 
-def _today_intake(user_id: str) -> dict:
+def _today_intake(user_id: str, target_date: date | None = None) -> dict:
     # FIX: import inside function so each call creates a fresh httpx session
     from db.supabase_client import get_supabase
     sb = get_supabase()
-    today = str(date.today())
+    today = str(target_date or date.today())
     try:
         res = (
             sb.table("nutrition_logs")
@@ -78,9 +78,10 @@ def run_nutrition_agent(
     food_preference: str | None,
     is_training_day: bool = True,
     local_hour: int | None = None,
+    target_date: date | None = None,
 ) -> NutritionDecision:
     targets = calculate_macros(weight_kg, height_cm, age, gender, goal, is_training_day)
-    consumed = _today_intake(user_id)
+    consumed = _today_intake(user_id, target_date)
 
     calories_remaining = max(0, targets["calories"] - int(consumed["calories"]))
     protein_remaining  = max(0.0, targets["protein_g"] - consumed["protein_g"])
@@ -167,7 +168,7 @@ def generate_grocery_list(weekly_protein_target_g: float, food_preference: str |
         items.append({"food": name, "quantity_g": max(50, grams_needed)})
 
     return {
-        "week_of": str(date.today()),
+        "week_of": str(target_date or date.today()),
         "based_on_weekly_protein_target_g": round(weekly_protein_target_g),
         "items": items,
         "note": "Quantities are derived from your weekly protein target split across your usual protein sources — not from a logged meal plan, since none exists yet. Adjust for what you'll actually cook.",
