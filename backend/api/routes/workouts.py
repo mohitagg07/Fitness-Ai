@@ -275,6 +275,23 @@ async def record_session_exercise_event(
     if matching is None:
         raise HTTPException(404, "That exercise is not in this session's approved prescription")
 
+    existing_result = (
+        sb.table("workout_session_exercise_events")
+        .select("*")
+        .eq("session_id", session_id)
+        .eq("user_id", user_id)
+        .eq("exercise_name", original_name)
+        .execute()
+    )
+    if existing_result.data:
+        existing = existing_result.data[0]
+        if (
+            existing.get("action") == payload.action
+            and existing.get("replacement_exercise") == payload.replacement_exercise
+        ):
+            return existing
+        raise HTTPException(409, "This exercise has already been changed in the current workout")
+
     replacement_name = None
     if payload.action == "replace":
         from api.routes.training_plans import (
@@ -315,6 +332,33 @@ async def record_session_exercise_event(
     if not saved.data:
         raise HTTPException(500, "Could not save the exercise change")
     return saved.data[0]
+
+
+@router.get("/sessions/{session_id}/exercise-events")
+async def list_session_exercise_events(
+    session_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    sb = get_supabase()
+    user_id = current_user["user_id"]
+    owned = (
+        sb.table("workout_sessions")
+        .select("id")
+        .eq("id", session_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+    if not owned.data:
+        raise HTTPException(404, "Workout session not found")
+    result = (
+        sb.table("workout_session_exercise_events")
+        .select("action, exercise_name, replacement_exercise, reason, created_at")
+        .eq("session_id", session_id)
+        .eq("user_id", user_id)
+        .order("created_at")
+        .execute()
+    )
+    return {"events": result.data or []}
 
 
 @router.get("/history")
@@ -819,32 +863,64 @@ async def complete_session(
         name_key = str(log.get("exercise_name") or "").strip().casefold()
         if name_key:
             actual_by_exercise[name_key] = actual_by_exercise.get(name_key, 0) + 1
-    planned_exercise_names = [
-        str(exercise.get("name") or "").strip()
-        for exercise in planned_exercises
-        if isinstance(exercise, dict) and exercise.get("name")
-    ]
-    completed_planned_exercises = sum(
-        1 for name in planned_exercise_names
-        if actual_by_exercise.get(name.casefold(), 0) > 0
+
+    event_result = (
+        sb.table("workout_session_exercise_events")
+        .select("action, exercise_name, replacement_exercise, reason")
+        .eq("session_id", session_id)
+        .eq("user_id", user_id)
+        .execute()
     )
+    event_by_exercise = {
+        str(event.get("exercise_name") or "").strip().casefold(): event
+        for event in (event_result.data or [])
+    }
+    exercise_review = []
+    for exercise in planned_exercises:
+        if not isinstance(exercise, dict):
+            continue
+        original_name = str(exercise.get("name") or "").strip()
+        original_key = original_name.casefold()
+        event = event_by_exercise.get(original_key)
+        action = event.get("action") if event else None
+        current_name = (
+            str(event.get("replacement_exercise") or original_name)
+            if action == "replace" else original_name
+        )
+        current_key = current_name.casefold()
+        if action == "skip":
+            status = "skipped"
+            logged_sets = 0
+        elif action == "replace":
+            logged_sets = actual_by_exercise.get(current_key, 0)
+            status = "replaced" if logged_sets else "replacement_not_logged"
+        else:
+            logged_sets = actual_by_exercise.get(original_key, 0)
+            status = "completed" if logged_sets else "not_started"
+        exercise_review.append({
+            "name": original_name,
+            "current_name": current_name,
+            "planned_sets": int(exercise.get("sets") or 0),
+            "logged_working_sets": logged_sets,
+            "completed": status in ("completed", "replaced"),
+            "status": status,
+            "reason": event.get("reason") if event else None,
+        })
+
+    completed_planned_exercises = sum(1 for item in exercise_review if item["completed"])
+    skipped_exercises = sum(1 for item in exercise_review if item["status"] == "skipped")
+    replaced_exercises = sum(1 for item in exercise_review if item["status"] == "replaced")
     planned_vs_actual = {
         "has_plan": bool(planned_exercises),
         "planned_exercises": len(planned_exercises),
         "exercises_with_logged_sets": completed_planned_exercises,
-        "skipped_exercises": max(0, len(planned_exercises) - completed_planned_exercises),
+        "skipped_exercises": skipped_exercises,
+        "replaced_exercises": replaced_exercises,
+        "not_started_exercises": sum(1 for item in exercise_review if item["status"] == "not_started"),
         "planned_working_sets": planned_sets,
         "completed_working_sets": len(working_logs),
         "set_completion_ratio": round(min(1, len(working_logs) / planned_sets), 2) if planned_sets else None,
-        "exercises": [
-            {
-                "name": exercise.get("name"),
-                "planned_sets": int(exercise.get("sets") or 0),
-                "logged_working_sets": actual_by_exercise.get(str(exercise.get("name") or "").strip().casefold(), 0),
-                "completed": actual_by_exercise.get(str(exercise.get("name") or "").strip().casefold(), 0) > 0,
-            }
-            for exercise in planned_exercises if isinstance(exercise, dict)
-        ],
+        "exercises": exercise_review,
     }
 
     summary_flat = {
