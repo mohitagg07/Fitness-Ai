@@ -3,6 +3,12 @@ name: VYRN Mobile CI
 permissions:
   contents: write
 
+# A push and its PR synchronize event represent the same work. Keep one
+# validation run per branch/PR and cancel older revisions when a new commit lands.
+concurrency:
+  group: vyrn-mobile-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 on:
   push:
     branches:
@@ -204,7 +210,9 @@ jobs:
                 raise SystemExit("3D model did not visibly respond to the horizontal drag")
             PY
 
-            adb logcat -d > "$RUNNER_TEMP/vyrn-android-logcat.txt"
+            app_pid="$(adb shell pidof com.vyrn.app | tr -d '\r')"
+            test -n "$app_pid"
+            adb logcat -d --pid="$app_pid" > "$RUNNER_TEMP/vyrn-android-logcat.txt"
             if grep -E "FATAL EXCEPTION|Unable to load script|Could not load script|R3F muscle scene failed" "$RUNNER_TEMP/vyrn-android-logcat.txt"; then
               exit 1
             fi
