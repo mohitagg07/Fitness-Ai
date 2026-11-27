@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
-  ActivityIndicator,
+  Text,
   LayoutAnimation,
   Platform,
   RefreshControl,
@@ -66,12 +66,12 @@ interface DashboardSummary {
   };
 }
 
-function ReadinessDial({ score, color }: { score: number; color: string }) {
+function ReadinessDial({ score, color }: { score: number | null; color: string }) {
   const size = 112;
   const stroke = 7;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
-  const progress = Math.max(0, Math.min(100, score));
+  const progress = score === null ? 0 : Math.max(0, Math.min(100, score));
 
   return (
     <View style={styles.dial}>
@@ -100,17 +100,12 @@ function ReadinessDial({ score, color }: { score: number; color: string }) {
       </Svg>
       <View style={styles.dialCenter}>
         <View style={styles.dialScoreRow}>
-          <TextLike style={styles.dialScore}>{Math.round(score)}</TextLike>
+          <Text style={styles.dialScore}>{score === null ? '—' : Math.round(score)}</Text>
         </View>
-        <TextLike style={styles.dialOutOf}>OUT OF 100</TextLike>
+        <Text style={styles.dialOutOf}>OUT OF 100</Text>
       </View>
     </View>
   );
-}
-
-function TextLike({ children, style }: { children: React.ReactNode; style?: any }) {
-  const { Text } = require('react-native') as typeof import('react-native');
-  return <Text style={style}>{children}</Text>;
 }
 
 function SectionHeading({ eyebrow, title, right }: { eyebrow: string; title: string; right?: string }) {
@@ -152,14 +147,13 @@ export default function DashboardScreen() {
   const refreshDashboard = useRefreshDashboard();
 
   const firstName = user?.full_name?.split(' ')[0] || profile?.full_name?.split(' ')[0] || 'Athlete';
-  const score = Math.max(0, Math.min(100,
-    typeof summary?.recovery?.score_pct === 'number'
-      ? summary.recovery.score_pct
-      : typeof summary?.recovery?.score === 'number'
-        ? summary.recovery.score * 10
-        : 0
-  ));
-  const scoreColor = recoveryColor(score);
+  const rawScore = typeof summary?.recovery?.score_pct === 'number'
+    ? summary.recovery.score_pct
+    : typeof summary?.recovery?.score === 'number'
+      ? summary.recovery.score * 10
+      : null;
+  const score = rawScore === null ? null : Math.max(0, Math.min(100, rawScore));
+  const scoreColor = score === null ? COLORS.textMuted : recoveryColor(score);
   const greetingHour = new Date().getHours();
   const greeting = greetingHour < 12 ? 'GOOD MORNING' : greetingHour < 17 ? 'GOOD AFTERNOON' : 'GOOD EVENING';
   const todayLabel = new Intl.DateTimeFormat('en-IN', {
@@ -178,11 +172,6 @@ export default function DashboardScreen() {
     || summary?.mission_text
     || null;
   const errorMessage = error ? describeApiError(error).message : null;
-
-  useEffect(() => {
-    if (Platform.OS !== 'android') return;
-    // No global navigation state update on a one-second clock or scroll.
-  }, []);
 
   const onRefresh = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
@@ -259,14 +248,14 @@ export default function DashboardScreen() {
             <View style={[styles.livePill, { borderColor: alpha(scoreColor, 0.45) }]}>
               <View style={[styles.liveDot, { backgroundColor: scoreColor }]} />
               <TextLike style={[styles.liveText, { color: scoreColor }]}>
-                {score >= 67 ? 'READY' : score >= 34 ? 'MODERATE' : 'RECOVER'}
+                {score === null ? 'WAITING' : score >= 67 ? 'READY' : score >= 34 ? 'MODERATE' : 'RECOVER'}
               </TextLike>
             </View>
           </View>
           <View style={styles.readinessBody}>
             <View style={styles.readinessCopy}>
               <TextLike style={styles.readinessHeadline}>
-                {score >= 67 ? 'Built for today.' : score >= 34 ? 'Find your pace.' : 'Recovery first.'}
+                {score === null ? 'Data gathering.' : score >= 67 ? 'Built for today.' : score >= 34 ? 'Find your pace.' : 'Recovery first.'}
               </TextLike>
               <TextLike style={styles.readinessDescription}>
                 {summary?.recovery?.action || summary?.recovery?.message || 'Your readiness score will appear here when enough data is available.'}
