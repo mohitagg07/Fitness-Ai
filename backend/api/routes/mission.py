@@ -157,12 +157,114 @@ async def get_today_mission(
     goal_str = profile.get("goal") or "maintain"
     goal = Goal(goal_str) if goal_str in Goal._value2member_map_ else Goal.maintain
 
-    weight_kg = profile.get("weight_kg") or 75
-    height_cm = profile.get("height_cm") or 175
-    age       = profile.get("age") or 28
-    gender    = profile.get("gender") or "male"
+    weight_kg = profile.get("weight_kg")
+    height_cm = profile.get("height_cm")
+    age = profile.get("age")
+    gender = profile.get("gender")
     food_pref = profile.get("food_preference") or "non-veg"
     coach_style = profile.get("coach_style") or "friendly"
+
+    missing_profile_fields = [
+        field for field, value in {
+            "weight_kg": weight_kg,
+            "height_cm": height_cm,
+            "age": age,
+            "gender": gender,
+        }.items()
+        if value in (None, "", 0)
+    ]
+    if missing_profile_fields:
+        workout_decision, recovery_decision, motivation = await asyncio.gather(
+            asyncio.to_thread(
+                run_workout_agent,
+                user_id,
+                preferred_time=profile.get("workout_time_preference"),
+                target_date=local_day,
+            ),
+            asyncio.to_thread(
+                run_recovery_agent,
+                user_id,
+                sleep_hours=profile.get("sleep_hours"),
+                planned_workout_type=None,
+                target_date=local_day,
+            ),
+            asyncio.to_thread(get_daily_motivation, user_id, coach_style),
+        )
+        recovery_pct = getattr(recovery_decision, "score_pct", None)
+        if recovery_decision.action in ("rest", "replace_with_light", "deload"):
+            next_action = recovery_decision.message
+        else:
+            next_action = "Complete your missing profile measurements to personalise nutrition targets and training guidance."
+        workout_type = workout_decision.recommended_type
+        mission_label = (
+            "Rest Day" if workout_type == "rest"
+            else workout_type.replace("_", " ").title() + " Day"
+            if workout_type else "Training Setup"
+        )
+        return {
+            "mission": mission_label,
+            "ai_decision": recovery_decision.message if recovery_decision.action in ("rest", "replace_with_light", "deload") else workout_decision.message,
+            "next_action": next_action,
+            "coach_insight": motivation,
+            "intensity": "Rest" if recovery_decision.action in ("rest", "deload") else "Moderate",
+            "workout_type": workout_type,
+            "alerts": ["Add your confirmed body measurements in Profile before VYRN calculates personal nutrition targets."],
+            "greeting": f"Ready to train, {full_name}?",
+            "generated_at": local_now(timezone_name).isoformat(),
+            "user_id": user_id,
+            "mission_text": next_action,
+            "next_task": next_action,
+            "calories_remaining": None,
+            "protein_remaining_g": None,
+            "water_remaining_ml": None,
+            "calories_target": None,
+            "protein_target_g": None,
+            "water_target_ml": None,
+            "calories_pct": None,
+            "protein_pct": None,
+            "water_pct": None,
+            "workout_today": {
+                "type": workout_type,
+                "rescheduled": workout_decision.rescheduled,
+                "message": workout_decision.message,
+            },
+            "recovery": {
+                "score": recovery_decision.recovery_score,
+                "score_pct": recovery_pct,
+                "action": recovery_decision.action,
+                "message": recovery_decision.message,
+            },
+            "progress": {"stalled": False, "calorie_adjustment": None, "message": None},
+            "cns_fatigue": agent_state.get("cns_fatigue_score", 0),
+            "workout_streak": agent_state.get("workout_streak", 0),
+            "protein_streak": agent_state.get("protein_streak", 0),
+            "motivation_message": motivation,
+            "profile_data_needed": missing_profile_fields,
+            "nutrition_status": {
+                "calories_remaining": None,
+                "protein_remaining_g": None,
+                "water_remaining_ml": None,
+                "calories_pct": None,
+                "protein_pct": None,
+                "water_pct": None,
+            },
+            "pattern_insights": [],
+            "proactive_brief": None,
+            "consistency": {
+                "status": "unavailable",
+                "score": None,
+                "headline": "Complete your profile to personalise your baseline",
+                "mood": None,
+                "pillars": [],
+            },
+            "recovery_pct": recovery_pct,
+            "protein_target": None,
+            "workout_rescheduled": workout_decision.rescheduled,
+            "workout_message": workout_decision.message,
+            "recovery_score": recovery_decision.recovery_score,
+            "recovery_action": recovery_decision.action,
+            "progress_stalled": False,
+        }
 
     training_day = is_training_day_for_user(user_id, target_date=local_day)
 
