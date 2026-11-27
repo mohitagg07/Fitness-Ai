@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Animated } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { COLORS, recoveryColor, recoveryLabel, alpha } from '../../theme/colors';
 import { HEADLINE, SCORE_DISPLAY } from '../../theme/typography';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 /**
  * WHOOP-style circular Recovery ring. Score 0-100, color interpolates
@@ -25,14 +26,23 @@ export default function RecoveryRing({
   const color = recoveryColor(score);
 
   const animated = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
-    Animated.timing(animated, {
-      toValue: score,
+    animated.stopAnimation();
+    const target = Math.max(0, Math.min(100, score));
+    if (reduceMotion) {
+      animated.setValue(target);
+      return undefined;
+    }
+    const animation = Animated.timing(animated, {
+      toValue: target,
       duration: 1100,
       useNativeDriver: false,
-    }).start();
-  }, [score]);
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [animated, score, reduceMotion]);
 
   const strokeDashoffset = animated.interpolate({
     inputRange: [0, 100],
