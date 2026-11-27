@@ -42,9 +42,8 @@ export default function MetricChip({ icon, label, value, color = COLORS.textSeco
       >
         {label}
       </Text>
-      {/* Values can also run long ("Not logged today") — shrink to fit
-          rather than clipping into an ellipsis, so the number/word is
-          always fully readable at a glance. */}
+      {/* Long values can wrap to a second line instead of shrinking to an
+          unreadable font size or clipping into an ellipsis. */}
       <Text
         variant="body"
         weight="bold"
