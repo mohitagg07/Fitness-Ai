@@ -50,9 +50,13 @@ def _planned_type_for(schedule: dict, on_date: date) -> str | None:
     return (schedule or {}).get(key)
 
 
-def run_workout_agent(user_id: str, preferred_time: str | None = None) -> WorkoutDecision:
+def run_workout_agent(
+    user_id: str,
+    preferred_time: str | None = None,
+    target_date: date | None = None,
+) -> WorkoutDecision:
     plan = _active_plan(user_id)
-    today = date.today()
+    today = target_date or date.today()
     yesterday = today - timedelta(days=1)
 
     if not plan:

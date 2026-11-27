@@ -185,10 +185,36 @@ export const coachApi = {
 export const workoutApi = {
   createSession: (data: any) => api.post('/workouts/sessions', data),
   getSessions: (limit = 10) => api.get(`/workouts/sessions?limit=${limit}`),
-  completeSession: (id: string, cns_fatigue?: number, mood?: string) =>
-    api.patch(`/workouts/sessions/${id}/complete`, null, {
-      params: { cns_fatigue_after: cns_fatigue, mood },
-    }),
+  getSessionExerciseEvents: (id: string) => api.get(`/workouts/sessions/${id}/exercise-events`),
+  getExerciseDetails: (exercise: string) => api.get('/workouts/exercise-details', { params: { exercise } }),
+  getExercisePerformance: (
+    exercise: string,
+    targetReps = '8-12',
+    targetLoadKg?: number,
+  ) => api.get('/workouts/exercise-performance', {
+    params: {
+      exercise,
+      target_reps: targetReps,
+      ...(targetLoadKg !== undefined ? { target_load_kg: targetLoadKg } : {}),
+    },
+  }),
+  recordExerciseEvent: (id: string, data: {
+    action: 'skip' | 'replace';
+    exercise_name: string;
+    replacement_exercise?: string;
+    client_request_id: string;
+    reason?: string;
+  }) => api.post(`/workouts/sessions/${id}/exercise-events`, data),
+  completeSession: (id: string, feedback?: {
+    mood?: string;
+    session_effort?: number;
+    energy_level?: number;
+    pain_status?: 'none' | 'mild' | 'sharp' | 'worsening';
+    pain_notes?: string;
+    session_notes?: string;
+  }) => api.patch(`/workouts/sessions/${id}/complete`, feedback || {}),
+  transitionSession: (id: string, action: 'pause' | 'resume' | 'abandon') =>
+    api.patch(`/workouts/sessions/${id}/state`, { action }),
   logSet: (sessionId: string, data: any) =>
     api.post(`/workouts/sessions/${sessionId}/logs`, data),
   getSessionLogs: (sessionId: string) =>
@@ -273,7 +299,15 @@ export const dashboardApi = {
 // Use this instead of dashboardApi.getSummary when you need the full
 // Coach Brain output (pattern_insights, proactive_brief, reasoning_steps).
 export const missionApi = {
-  getToday: () => api.get('/mission/today'),
+  getToday: () => {
+    let timezone = 'UTC';
+    try {
+      timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    } catch {
+      // UTC is the explicit fallback when the runtime cannot expose an IANA timezone.
+    }
+    return api.get('/mission/today', { params: { timezone_name: timezone } });
+  },
 };
 
 export const simulationApi = {
@@ -353,10 +387,54 @@ export const workoutHistoryApi = {
 };
 
 // Program Evolution — version history + on-demand adaptive rewrite.
+export const recoveryApi = {
+  getTodayCheckIn: () => {
+    let timezone = 'UTC';
+    try {
+      timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    } catch {
+      // UTC is an explicit fallback when IANA timezone discovery is unavailable.
+    }
+    return api.get('/recovery/check-in/today', { params: { timezone_name: timezone } });
+  },
+  saveTodayCheckIn: (data: {
+    sleep_hours?: number;
+    soreness_level?: number;
+    energy_level?: number;
+    notes?: string;
+  }) => {
+    let timezone = 'UTC';
+    try {
+      timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    } catch {
+      // UTC is an explicit fallback when IANA timezone discovery is unavailable.
+    }
+    return api.put('/recovery/check-in/today', data, { params: { timezone_name: timezone } });
+  },
+};
+
 export const programApi = {
   getVersions: (limit = 10) => api.get('/program/versions', { params: { limit } }),
   getLatest: () => api.get('/program/latest'),
   triggerRewrite: () => api.post('/program/rewrite'),
+  proposeRewrite: () => api.post('/program/propose-rewrite'),
+};
+
+// Versioned workout plans — a plan remains a draft until the athlete approves
+// its exact snapshot. Sessions are created from the approved version ID.
+export const trainingPlanApi = {
+  getActive: () => api.get('/training-plans/active'),
+  getVersions: (planId: string, limit = 20) =>
+    api.get(`/training-plans/${planId}/versions`, { params: { limit } }),
+  createDraft: (data: any) => api.post('/training-plans/drafts', data),
+  updateDraft: (planId: string, versionId: string, data: any) =>
+    api.patch(`/training-plans/${planId}/versions/${versionId}`, data),
+  approveVersion: (planId: string, versionId: string) =>
+    api.post(`/training-plans/${planId}/versions/${versionId}/approve`),
+  rejectVersion: (planId: string, versionId: string) =>
+    api.post(`/training-plans/${planId}/versions/${versionId}/reject`),
+  rollbackVersion: (planId: string, versionId: string) =>
+    api.post(`/training-plans/${planId}/versions/${versionId}/rollback`),
 };
 
 // Admin — manual trigger for the nightly background job suite (pattern

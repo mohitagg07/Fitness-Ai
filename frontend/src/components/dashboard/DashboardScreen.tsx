@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Text,
   View,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,13 +19,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../../store';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { useMissionSummary, useRefreshDashboard } from '../../hooks/useDashboardQueries';
-import { describeApiError } from '../../utils/api';
+import { describeApiError, recoveryApi } from '../../utils/api';
 import { COLORS, alpha, recoveryColor } from '../../theme/colors';
 import { FONTS } from '../../theme/typography';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import ProfileAvatar from '../shared/ProfileAvatar';
 import AmbientGlow from '../shared/AmbientGlow';
 import PressableScale from '../ui/PressableScale';
+import RecoveryCheckInModal, { RecoveryCheckInValues } from './RecoveryCheckInModal';
 
 interface DashboardSummary {
   mission_text?: string;
@@ -35,11 +37,20 @@ interface DashboardSummary {
     message?: string;
   };
   recovery?: {
-    score?: number;
-    score_pct?: number;
+    score?: number | null;
+    score_pct?: number | null;
+    confidence_pct?: number;
     action?: string;
     message?: string;
   };
+  recovery_checkin?: {
+    local_date?: string;
+    sleep_hours?: number | null;
+    soreness_level?: number | null;
+    energy_level?: number | null;
+    notes?: string | null;
+    updated_at?: string;
+  } | null;
   motivation_message?: string;
   proactive_brief?: {
     coach_message?: string;
@@ -151,6 +162,8 @@ export default function DashboardScreen() {
     isRefetching: boolean;
   };
   const refreshDashboard = useRefreshDashboard();
+  const [recoveryCheckInVisible, setRecoveryCheckInVisible] = useState(false);
+  const [savingRecoveryCheckIn, setSavingRecoveryCheckIn] = useState(false);
 
   const firstName = user?.full_name?.split(' ')[0] || profile?.full_name?.split(' ')[0] || 'Athlete';
   const rawScore = typeof summary?.recovery?.score_pct === 'number'
@@ -175,6 +188,24 @@ export default function DashboardScreen() {
     || summary?.mission_text
     || null;
   const errorMessage = error ? describeApiError(error).message : null;
+
+  const saveRecoveryCheckIn = async (values: RecoveryCheckInValues) => {
+    if (savingRecoveryCheckIn) return;
+    setSavingRecoveryCheckIn(true);
+    try {
+      await recoveryApi.saveTodayCheckIn(values);
+      setRecoveryCheckInVisible(false);
+      await refreshDashboard();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+    } catch (error: any) {
+      Alert.alert(
+        'Could not save check-in',
+        error?.response?.data?.detail || 'Your recovery check-in was not saved. Please try again.'
+      );
+    } finally {
+      setSavingRecoveryCheckIn(false);
+    }
+  };
 
   const onRefresh = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
@@ -205,8 +236,10 @@ export default function DashboardScreen() {
         ? 'Keep the intensity measured'
         : 'Recovery comes first';
 
-  const readinessMessage = summary?.recovery?.action
-    || summary?.recovery?.message
+  const readinessMessage = summary?.recovery?.message
+    || (summary?.recovery?.action === 'check_in'
+      ? 'Log a recovery check-in to build a reliable readiness picture.'
+      : summary?.recovery?.action)
     || 'Log a few workouts and recovery check-ins to build your personal readiness picture.';
 
   return (
@@ -279,6 +312,16 @@ export default function DashboardScreen() {
             <ReadinessDial score={score} color={scoreColor} />
           </View>
         </View>
+
+        <QuickAction
+          icon="moon-outline"
+          title={summary?.recovery_checkin ? "Update recovery check-in" : "Log recovery check-in"}
+          subtitle={summary?.recovery_checkin
+            ? `Sleep ${summary.recovery_checkin.sleep_hours ?? '—'}h · Soreness ${summary.recovery_checkin.soreness_level ?? '—'}/5 · Update today's inputs`
+            : 'Add last night’s sleep, soreness and energy'}
+          accent={COLORS.recoveryMed}
+          onPress={() => setRecoveryCheckInVisible(true)}
+        />
 
         <View style={styles.sectionHeading}>
           <View>
@@ -355,6 +398,13 @@ export default function DashboardScreen() {
           />
         </View>
       </ScrollView>
+      <RecoveryCheckInModal
+        visible={recoveryCheckInVisible}
+        existing={summary?.recovery_checkin || null}
+        saving={savingRecoveryCheckIn}
+        onSave={saveRecoveryCheckIn}
+        onClose={() => setRecoveryCheckInVisible(false)}
+      />
     </View>
   );
 }

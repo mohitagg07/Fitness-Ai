@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from api.routes.auth import router as auth_router
 from api.routes.profile import router as profile_router
 from api.routes.workouts import router as workout_router
+from api.routes.training_plans import router as training_plans_router
 from api.routes.progress import router as progress_router
 from api.routes.coach import router as coach_router
 from api.routes.nutrition import router as nutrition_router
@@ -17,6 +18,7 @@ from api.routes.memory import router as memory_router
 from api.routes.review import router as review_router
 from api.routes.decisions import router as decisions_router
 from api.routes.program import router as program_router
+from api.routes.recovery import router as recovery_router
 from api.routes.mission import router as mission_router
 from api.routes.bodyweight import router as bodyweight_router
 from api.routes.notifications import router as notifications_router
@@ -67,6 +69,7 @@ app.add_middleware(
 app.include_router(auth_router,      prefix="/api/auth",      tags=["Authentication"])
 app.include_router(profile_router,   prefix="/api/profile",   tags=["Profile"])
 app.include_router(workout_router,   prefix="/api/workouts",  tags=["Workouts"])
+app.include_router(training_plans_router, prefix="/api/training-plans", tags=["Training Plans"])
 app.include_router(progress_router,  prefix="/api/progress",  tags=["Progress"])
 app.include_router(coach_router,     prefix="/api/coach",     tags=["AI Coach"])
 app.include_router(nutrition_router, prefix="/api/nutrition", tags=["Nutrition"])
@@ -75,6 +78,7 @@ app.include_router(memory_router,    prefix="/api/memory",    tags=["Memory"])
 app.include_router(review_router,    prefix="/api/review",    tags=["Review"])
 app.include_router(decisions_router, prefix="/api/decisions", tags=["Decision History"])
 app.include_router(program_router,   prefix="/api/program",   tags=["Program Evolution"])
+app.include_router(recovery_router,  prefix="/api/recovery",  tags=["Recovery"])
 app.include_router(mission_router,   prefix="/api/mission",   tags=["Mission"])
 app.include_router(bodyweight_router,    prefix="/api/bodyweight",    tags=["Body Weight"])
 app.include_router(notifications_router, prefix="/api/notifications", tags=["Notifications"])

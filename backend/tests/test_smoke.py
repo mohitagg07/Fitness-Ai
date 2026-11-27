@@ -31,6 +31,15 @@ def test_health_and_core_routes_are_registered() -> None:
         ("GET", "/api/profile/me"),
         ("POST", "/api/profile/onboard"),
         ("POST", "/api/workouts/sessions"),
+        ("PATCH", "/api/workouts/sessions/{session_id}/state"),
+        ("GET", "/api/workouts/sessions/{session_id}/exercise-events"),
+        ("POST", "/api/workouts/sessions/{session_id}/exercise-events"),
+        ("GET", "/api/training-plans/active"),
+        ("POST", "/api/training-plans/drafts"),
+        ("GET", "/api/training-plans/{plan_id}/versions"),
+        ("POST", "/api/program/propose-rewrite"),
+        ("GET", "/api/recovery/check-in/today"),
+        ("PUT", "/api/recovery/check-in/today"),
         ("POST", "/api/workouts/sessions/{session_id}/logs"),
         ("POST", "/api/coach/chat"),
         ("POST", "/api/nutrition/estimate"),
@@ -784,3 +793,67 @@ def test_program_version_writer_fails_closed_when_rpc_write_fails(monkeypatch) -
         "Reduce volume.",
         None,
     ) is None
+
+
+def test_set_log_rpc_forwards_the_stable_client_request_id() -> None:
+    from api.routes.workouts import SetLogRequest, build_log_set_rpc_params
+
+    payload = SetLogRequest(
+        exercise_name="Bench Press",
+        weight_kg=60,
+        reps=8,
+        client_request_id="session-123:bench_press:1",
+    )
+    params = build_log_set_rpc_params("session-123", "user-123", payload)
+    assert params["p_set"]["client_request_id"] == "session-123:bench_press:1"
+
+
+@pytest.mark.asyncio
+async def test_session_create_uses_idempotent_rpc_when_client_key_is_supplied(monkeypatch) -> None:
+    from datetime import date
+    from types import SimpleNamespace
+    from api.routes import workouts
+
+    captured = {}
+
+    class Rpc:
+        def execute(self):
+            return SimpleNamespace(data=[{
+                "id": "session-123",
+                "user_id": "user-123",
+                "status": "active",
+                "plan_version_id": "version-123",
+                "client_request_id": "device-session-key-123",
+            }])
+
+    class Supabase:
+        def rpc(self, name, params):
+            captured["name"] = name
+            captured["params"] = params
+            return Rpc()
+
+    monkeypatch.setattr(workouts, "get_supabase", lambda: Supabase())
+    payload = workouts.SessionCreate(
+        plan_version_id="version-123",
+        client_request_id="device-session-key-123",
+        session_date=date(2026, 11, 28),
+        day_label="Push Day",
+    )
+
+    result = await workouts.create_session(
+        payload,
+        current_user={"user_id": "user-123"},
+    )
+
+    assert result["id"] == "session-123"
+    assert captured["name"] == "create_workout_session_idempotent"
+    assert captured["params"]["p_user_id"] == "user-123"
+    assert captured["params"]["p_plan_version_id"] == "version-123"
+    assert captured["params"]["p_client_request_id"] == "device-session-key-123"
+
+
+
+def test_workout_exercise_event_routes_are_registered() -> None:
+    routes = _registered_routes()
+    assert ("GET", "/api/workouts/sessions/{session_id}/exercise-events") in routes
+    assert ("POST", "/api/workouts/sessions/{session_id}/exercise-events") in routes

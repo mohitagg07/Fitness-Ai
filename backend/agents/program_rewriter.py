@@ -191,7 +191,7 @@ def _build_changes_for_under_eating(insights: list) -> tuple[list[dict], str]:
     return changes, "under_eating"
 
 
-def run_program_rewriter(user_id: str, profile: dict) -> dict:
+def run_program_rewriter(user_id: str, profile: dict, persist: bool = True) -> dict:
     """
     Main entry point. Detects patterns, decides if a rewrite is warranted,
     builds the change set, saves a version row, and returns the full result.
@@ -215,11 +215,22 @@ def run_program_rewriter(user_id: str, profile: dict) -> dict:
         from schemas.models import Goal as GoalEnum
         goal = profile.get("goal") or "maintain"
         goal_enum = GoalEnum(goal) if goal in GoalEnum._value2member_map_ else GoalEnum.maintain
+        required_metrics = ("weight_kg", "height_cm", "age", "gender")
+        missing_metrics = [key for key in required_metrics if profile.get(key) in (None, "", 0)]
+        if missing_metrics:
+            return {
+                "rewrite_triggered": False,
+                "trigger": None,
+                "changes": [],
+                "explanation": "A program change cannot be evaluated until the missing profile measurements are confirmed.",
+                "missing_profile_fields": missing_metrics,
+                "version_id": None,
+            }
         targets = calculate_macros(
-            weight_kg=profile.get("weight_kg") or 75,
-            height_cm=profile.get("height_cm") or 175,
-            age=profile.get("age") or 28,
-            gender=profile.get("gender") or "male",
+            weight_kg=profile["weight_kg"],
+            height_cm=profile["height_cm"],
+            age=profile["age"],
+            gender=profile["gender"],
             goal=goal_enum,
             is_training_day=is_training_day_for_user(user_id),
         )
@@ -277,6 +288,20 @@ def run_program_rewriter(user_id: str, profile: dict) -> dict:
             "An exercise variation is swapped in to expose the muscles to a new "
             "stimulus — the same pattern elite coaches use to restart stalled progress."
         )
+
+    # Proposal mode returns the deterministic change set without writing a
+    # program_versions row. The API layer converts this into a detailed plan
+    # draft that the athlete must inspect and explicitly approve.
+    if not persist:
+        return {
+            "rewrite_triggered": True,
+            "already_applied": False,
+            "trigger": trigger,
+            "version_number": None,
+            "changes": changes,
+            "explanation": reason_text,
+            "version_id": None,
+        }
 
     # 4. Get the active plan id (optional — plan may not exist yet).
     # Version allocation and deduplication are deliberately delegated to
