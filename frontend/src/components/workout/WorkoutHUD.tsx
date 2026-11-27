@@ -862,7 +862,7 @@ function WorkoutHUD() {
         setPendingSetCount((count) => count + 1);
         Alert.alert(
           'Set saved on this device',
-          'This set is in VYRN’s local sync queue. It will be reconciled with the server automatically when the connection is available. Keep this workout open until it syncs.'
+          'This set is safely queued on this device. Tap SYNC when your connection is back, or return to the app to retry. Keep this workout open until it syncs.'
         );
         return;
       }
