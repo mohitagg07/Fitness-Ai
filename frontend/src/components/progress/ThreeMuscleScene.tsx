@@ -1,5 +1,5 @@
-import React, { Component, MutableRefObject, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, PanResponder, StyleSheet, View } from 'react-native';
+import React, { Component, MutableRefObject, useEffect, useMemo, useRef, useState } from 'react';
+import { AccessibilityInfo, ActivityIndicator, PanResponder, Platform, StyleSheet, View } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber/native';
 import * as THREE from 'three';
 
@@ -103,17 +103,19 @@ function RecoveryAvatar({
   selectedMuscle,
   musclePalette,
   controls,
+  reduceMotion,
 }: {
   selectedMuscle: MuscleKey;
   musclePalette: MusclePalette;
   controls: MutableRefObject<SceneControls>;
+  reduceMotion: boolean;
 }) {
   const root = useRef<THREE.Group>(null);
 
   useFrame((_, delta) => {
     if (!root.current) return;
     const step = Math.min(delta, 0.05);
-    if (!controls.current.dragging) controls.current.rotationY += step * 0.115;
+    if (!reduceMotion && !controls.current.dragging) controls.current.rotationY += step * 0.115;
     root.current.rotation.y = controls.current.rotationY;
     root.current.rotation.x = controls.current.rotationX;
   });
@@ -219,10 +221,12 @@ function RecoveryScene({
   selectedMuscle,
   musclePalette,
   controls,
+  reduceMotion,
 }: {
   selectedMuscle: MuscleKey;
   musclePalette: MusclePalette;
   controls: MutableRefObject<SceneControls>;
+  reduceMotion: boolean;
 }) {
   return (
     <>
@@ -232,7 +236,7 @@ function RecoveryScene({
       <directionalLight position={[3.8, 5.5, 5]} intensity={2.0} color="#F2FFF2" />
       <directionalLight position={[-4, 1.5, -4]} intensity={1.45} color="#8DCB9A" />
       <pointLight position={[0, -1.2, 3.2]} intensity={0.62} distance={8} color="#B9DE72" />
-      <RecoveryAvatar selectedMuscle={selectedMuscle} musclePalette={musclePalette} controls={controls} />
+      <RecoveryAvatar selectedMuscle={selectedMuscle} musclePalette={musclePalette} controls={controls} reduceMotion={reduceMotion} />
     </>
   );
 }
@@ -276,6 +280,7 @@ export default function ThreeMuscleScene({
   onFailure: () => void;
 }) {
   const [loading, setLoading] = useState(true);
+  const [reduceMotion, setReduceMotion] = useState(false);
   const controls = useRef<SceneControls>({
     rotationX: 0,
     rotationY: 0,
@@ -284,10 +289,27 @@ export default function ThreeMuscleScene({
     dragging: false,
   });
 
+  useEffect(() => {
+    let active = true;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => { if (active) setReduceMotion(enabled); })
+      .catch(() => undefined);
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, []);
+
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => false,
-    onMoveShouldSetPanResponder: (_, gesture) =>
-      Math.abs(gesture.dx) > 4 || Math.abs(gesture.dy) > 4,
+    // Only capture intentional horizontal drags. Vertical gestures remain
+    // available to the parent ScrollView on Android and smaller screens.
+    onMoveShouldSetPanResponder: (_, gesture) => {
+      const horizontal = Math.abs(gesture.dx);
+      const vertical = Math.abs(gesture.dy);
+      return horizontal > 6 && horizontal > vertical * 1.15;
+    },
     onPanResponderGrant: () => {
       controls.current.dragging = true;
       controls.current.startX = controls.current.rotationX;
@@ -309,13 +331,16 @@ export default function ThreeMuscleScene({
       <SceneBoundary onFailure={onFailure}>
         <Canvas
           style={styles.canvas}
+          // Android devices vary widely in GPU throughput. A bounded DPR keeps
+          // the 3D view sharp while avoiding an unnecessarily large render target.
+          dpr={Platform.OS === 'android' ? [1, 1.5] : [1, 2]}
           camera={{ position: [0, 0.04, 7.55], fov: 33, near: 0.1, far: 40 }}
           onCreated={({ gl }) => {
             gl.setClearColor(CANVAS_BACKGROUND, 1);
             setLoading(false);
           }}
         >
-          <RecoveryScene selectedMuscle={selectedMuscle} musclePalette={musclePalette} controls={controls} />
+          <RecoveryScene selectedMuscle={selectedMuscle} musclePalette={musclePalette} controls={controls} reduceMotion={reduceMotion} />
         </Canvas>
       </SceneBoundary>
       <View style={styles.dragLayer} {...panResponder.panHandlers}>
