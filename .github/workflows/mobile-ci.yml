@@ -13,8 +13,6 @@ on:
   push:
     branches:
       - main
-      - "fix/**"
-      - "feat/**"
     paths:
       - "frontend/**"
       - "backend/**"
@@ -39,6 +37,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # For PR builds validate and write lockfile changes on the actual
+          # head branch, not GitHub's synthetic merge ref.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -55,17 +57,18 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      # Commit regenerated lockfiles on the working branch so npm ci is reproducible.
-      # Pull-request CI checks the same updates in its ephemeral workspace.
+      # Keep the safe audit remediations in the actual PR/main branch so
+      # CI and release builds use the exact same locked dependency graph.
       - name: Save generated package lockfile
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feat/'))
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
         run: |
           git -C .. config user.name "github-actions[bot]"
           git -C .. config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git -C .. add frontend/package-lock.json
           if ! git -C .. diff --cached --quiet; then
+            target_branch="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
             git -C .. commit -m "chore: sync frontend dependency lockfile"
-            git -C .. push origin HEAD:refs/heads/${GITHUB_REF_NAME}
+            git -C .. push origin "HEAD:refs/heads/${target_branch}"
           fi
 
       - name: Report all production dependency advisories
@@ -111,6 +114,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # For PR builds validate and write lockfile changes on the actual
+          # head branch, not GitHub's synthetic merge ref.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -239,6 +246,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # For PR builds validate and write lockfile changes on the actual
+          # head branch, not GitHub's synthetic merge ref.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
