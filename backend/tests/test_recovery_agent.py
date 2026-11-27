@@ -72,5 +72,18 @@ def test_decision_center_uses_only_dated_recovery_checkin_inputs() -> None:
         "energy_level": 4,
     })
     assert [signal.value for signal in reported] == ["7.5h", "2/5", "4/5"]
-    assert [signal.weight for signal in reported] == [1.0, 1.0, 0.75]
+    # The Recovery aggregate already includes these values; detail rows are
+    # display-only and must not add the same measurements to confidence twice.
+    assert [signal.weight for signal in reported] == [0.0, 0.0, 0.0]
     assert all(signal.favorable for signal in reported)
+
+
+def test_decision_center_coverage_uses_recovery_agents_weighted_completeness():
+    from types import SimpleNamespace
+    from agents.decision_engine import _recovery_data_coverage
+
+    assert _recovery_data_coverage(SimpleNamespace(data_completeness_pct=60)) == 60
+    assert _recovery_data_coverage(SimpleNamespace(data_completeness_pct=85.4)) == 85
+    assert _recovery_data_coverage(SimpleNamespace(data_completeness_pct=None)) == 0
+    assert _recovery_data_coverage(SimpleNamespace(data_completeness_pct=140)) == 100
+    assert _recovery_data_coverage(SimpleNamespace(data_completeness_pct=-5)) == 0

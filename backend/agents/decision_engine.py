@@ -96,10 +96,12 @@ def _injury_status(user_id: str) -> Optional[dict]:
 
 
 def _daily_recovery_evidence(check_in: dict | None) -> list[EvidenceSignal]:
-    """Build Decision Center sleep/soreness/energy signals from today's check-in only.
+    """Display today's self-reported inputs without weighting them twice.
 
-    Profile sleep preferences are onboarding context, not last night's sleep.
-    Missing values carry zero evidence weight and are never scored as favorable.
+    The aggregate Recovery signal already scores these same check-in fields
+    alongside training, nutrition and fatigue evidence. These rows are
+    explanatory detail only; adding independent weights here would double-count
+    sleep, soreness and energy in confidence.
     """
     values = check_in or {}
     sleep = values.get("sleep_hours")
@@ -111,21 +113,33 @@ def _daily_recovery_evidence(check_in: dict | None) -> list[EvidenceSignal]:
             label="Reported sleep",
             value=f"{sleep}h" if sleep is not None else "Not reported",
             favorable=sleep is not None and float(sleep) >= 7,
-            weight=1.0 if sleep is not None else 0.0,
+            weight=0.0,
         ),
         EvidenceSignal(
             label="Reported soreness",
             value=f"{soreness}/5" if soreness is not None else "Not reported",
             favorable=soreness is not None and int(soreness) <= 2,
-            weight=1.0 if soreness is not None else 0.0,
+            weight=0.0,
         ),
         EvidenceSignal(
             label="Reported energy",
             value=f"{energy}/5" if energy is not None else "Not reported",
             favorable=energy is not None and int(energy) >= 3,
-            weight=0.75 if energy is not None else 0.0,
+            weight=0.0,
         ),
     ]
+
+
+def _recovery_data_coverage(recovery_decision) -> int:
+    """Return weighted recovery evidence coverage (0-100), not UI signal count."""
+    raw = getattr(recovery_decision, "data_completeness_pct", None)
+    if raw is None:
+        raw = getattr(recovery_decision, "__dict__", {}).get("data_completeness_pct", 0)
+    try:
+        value = int(round(float(raw or 0)))
+    except (TypeError, ValueError, OverflowError):
+        value = 0
+    return max(0, min(100, value))
 
 
 def build_decision_center(
@@ -246,13 +260,14 @@ def build_decision_center(
             weight=0.0,
         ))
 
-    # Require enough logged inputs before asserting a training recommendation.
-    max_evidence_weight = 1.5 + 1.0 + 1.0 + 0.75 + 1.0 + 1.0 + 1.25
-    available_weight = sum(signal.weight for signal in signals)
-    coverage_pct = round(available_weight / max_evidence_weight * 100)
+    # Coverage comes directly from the recovery agent's weighted input model.
+    # Do not infer it by summing Decision Center display signals: the Recovery
+    # score already includes sleep, soreness and energy, which are shown above
+    # for explanation only.
+    coverage_pct = _recovery_data_coverage(recovery_decision)
     signals.append(EvidenceSignal(
-        label="Data coverage",
-        value=f"{coverage_pct}% of key inputs recorded",
+        label="Recovery data coverage",
+        value=f"{coverage_pct}% of weighted recovery inputs available",
         favorable=coverage_pct >= 60,
         weight=0.0,
     ))
