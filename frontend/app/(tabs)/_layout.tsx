@@ -10,6 +10,7 @@ import { queryClient, hydrated } from '../../src/lib/queryClient';
 import { qk } from '../../src/lib/queryKeys';
 import { clearAuthData } from '../../src/utils/auth';
 import { usePrefetchDashboard } from '../../src/hooks/useDashboardQueries';
+import { useReducedMotion } from '../../src/hooks/useReducedMotion';
 import { COLORS, alpha } from '../../src/theme/colors';
 import { FONTS } from '../../src/theme/typography';
 import {
@@ -44,8 +45,14 @@ function TabBarIcon({
   focused: boolean;
 }) {
   const scale = useRef(new Animated.Value(focused ? 1.04 : 1)).current;
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
+    scale.stopAnimation();
+    if (reduceMotion) {
+      scale.setValue(focused ? 1.04 : 1);
+      return undefined;
+    }
     const animation = Animated.spring(scale, {
       toValue: focused ? 1.05 : 1,
       useNativeDriver: true,
@@ -54,7 +61,7 @@ function TabBarIcon({
     });
     animation.start();
     return () => animation.stop();
-  }, [focused, scale]);
+  }, [focused, scale, reduceMotion]);
 
   const isTrainActive = tab.name === 'workout' && focused;
 
