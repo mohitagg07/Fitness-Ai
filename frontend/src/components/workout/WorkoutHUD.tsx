@@ -59,6 +59,7 @@ interface SetLog {
 interface DraftPlanReference {
   planId: string;
   versionId: string;
+  sessionRequestId: string;
   name: string;
   workoutType: string;
   estimatedMinutes: number | null;
@@ -599,6 +600,7 @@ function WorkoutHUD() {
       setDraftPlan({
         planId,
         versionId,
+        sessionRequestId: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`,
         name: title,
         workoutType,
         estimatedMinutes,
@@ -637,6 +639,7 @@ function WorkoutHUD() {
       const created = await workoutApi.createSession({
         plan_id: approvedDraft.planId,
         plan_version_id: approvedDraft.versionId,
+        client_request_id: approvedDraft.sessionRequestId,
         session_date: localSessionDate,
       });
       const serverSession = created.data;
@@ -722,7 +725,7 @@ function WorkoutHUD() {
     const write = logSetMutation.mutateAsync({
       sessionId: activeSession.id,
       ...logData,
-      client_request_id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      client_request_id: `${activeSession.id}:${String(logData.exercise_name).toLowerCase()}:${logData.set_number}`,
     });
     pendingSetWrites.current.add(write);
     void write.catch(() => {
