@@ -194,7 +194,7 @@ export default function AuthScreen() {
               value={loginEmail}
               onChangeText={setLoginEmail}
               placeholder="you@email.com"
-              placeholderTextColor="#555"
+              placeholderTextColor={COLORS.textMuted}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -214,7 +214,7 @@ export default function AuthScreen() {
               disabled={loading}
             >
               {loading
-                ? <ActivityIndicator color="#000" />
+                ? <ActivityIndicator color={COLORS.background} />
                 : <Text style={styles.btnText}>LOG IN</Text>}
             </TouchableOpacity>
           </View>
