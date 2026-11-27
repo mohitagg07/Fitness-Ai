@@ -496,9 +496,9 @@ function WorkoutHUD() {
       muscle_groups: draft.muscleGroups,
       estimated_duration_minutes: draft.estimatedMinutes,
       exercises: items.map((exercise) => {
-        const loadMatch = exercise.load.match(/-?\\d+(?:\\.\\d+)?/);
+        const loadMatch = exercise.load.match(/-?\d+(?:\.\d+)?/);
         const loadKg = loadMatch ? Number(loadMatch[0]) : null;
-        const restMatch = exercise.rest.match(/\\d+/);
+        const restMatch = exercise.rest.match(/\d+/);
         return {
           name: exercise.name.trim(),
           sets: Math.max(1, Math.min(20, Number(exercise.sets) || 3)),
@@ -544,10 +544,10 @@ function WorkoutHUD() {
       }
 
       const estimatedText = String(sd.summary?.estimated_time || sd.estimated_time || '');
-      const estimatedMatch = estimatedText.match(/\\d+/);
+      const estimatedMatch = estimatedText.match(/\d+/);
       const estimatedMinutes = estimatedMatch ? Number(estimatedMatch[0]) : null;
       const title = String(sd.summary?.label || `${workoutType.replace(/_/g, ' ')} workout`)
-        .replace(/^\\s+|\\s+$/g, '');
+        .replace(/^\s+|\s+$/g, '');
       const muscleGroups = Array.isArray(sd.muscle_groups)
         ? sd.muscle_groups.map((item: unknown) => String(item))
         : [];
@@ -565,8 +565,8 @@ function WorkoutHUD() {
           muscle_groups: muscleGroups,
           estimated_duration_minutes: estimatedMinutes,
           exercises: nextExercises.map((exercise) => {
-            const loadMatch = exercise.load.match(/-?\\d+(?:\\.\\d+)?/);
-            const restMatch = exercise.rest.match(/\\d+/);
+            const loadMatch = exercise.load.match(/-?\d+(?:\.\d+)?/);
+            const restMatch = exercise.rest.match(/\d+/);
             return {
               name: exercise.name,
               sets: exercise.sets,
