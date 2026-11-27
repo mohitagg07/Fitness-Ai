@@ -3,6 +3,10 @@ name: VYRN Mobile CI
 permissions:
   contents: write
 
+concurrency:
+  group: vyrn-mobile-ci-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 on:
   push:
     branches:
