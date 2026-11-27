@@ -93,8 +93,10 @@ export const actions = {
   removeLogFromSession(log: any) {
     if (!_state.activeSession || !log) return;
     const logs = _state.activeSession.logs || [];
-    const idx = logs.findIndex(
-      (l: any) => l.exercise_name === log.exercise_name && l.set_number === log.set_number
+    const idx = logs.findIndex((l: any) =>
+      log.client_request_id && l.client_request_id
+        ? l.client_request_id === log.client_request_id
+        : l.exercise_name === log.exercise_name && l.set_number === log.set_number
     );
     if (idx === -1) return;
     const next = [...logs];
@@ -104,10 +106,11 @@ export const actions = {
   replaceLogInSession(optimistic: any, persisted: any) {
     if (!_state.activeSession || !optimistic || !persisted) return;
     const logs = [...(_state.activeSession.logs || [])];
-    const index = logs.findIndex(
-      (log: any) =>
-        log.exercise_name === optimistic.exercise_name &&
-        log.set_number === optimistic.set_number
+    const index = logs.findIndex((log: any) =>
+      optimistic.client_request_id && log.client_request_id
+        ? log.client_request_id === optimistic.client_request_id
+        : log.exercise_name === optimistic.exercise_name &&
+          log.set_number === optimistic.set_number
     );
     if (index === -1) return;
     logs[index] = persisted;
