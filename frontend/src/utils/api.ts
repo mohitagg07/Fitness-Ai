@@ -190,6 +190,7 @@ export const workoutApi = {
     action: 'skip' | 'replace';
     exercise_name: string;
     replacement_exercise?: string;
+    client_request_id: string;
     reason?: string;
   }) => api.post(`/workouts/sessions/${id}/exercise-events`, data),
   completeSession: (id: string, feedback?: {
