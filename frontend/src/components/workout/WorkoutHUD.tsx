@@ -851,13 +851,21 @@ function WorkoutHUD() {
     });
     pendingSetWrites.current.add(write);
     void write.then(async (result) => {
-      const queued = await getPendingWorkoutSets(activeSession.id);
-      setPendingSetCount(queued.length);
       if (result.pending) {
+        setPendingSetCount((count) => count + 1);
         Alert.alert(
           'Set saved on this device',
-          'The server could not be reached. VYRN has kept this set safely on this device and will retry when the app reconnects. Keep this workout open until it syncs.'
+          'This set is in VYRN’s local sync queue. It will be reconciled with the server automatically when the connection is available. Keep this workout open until it syncs.'
         );
+        return;
+      }
+      // A queue-read failure after a successful network write must never be
+      // mistaken for a failed set or decrement the visible exercise count.
+      try {
+        const queued = await getPendingWorkoutSets(activeSession.id);
+        setPendingSetCount(queued.length);
+      } catch {
+        setPendingSetCount((count) => Math.max(count, 1));
       }
     }).catch(() => {
       // A local outbox write failure is not an offline save. The mutation
@@ -1326,7 +1334,9 @@ function WorkoutHUD() {
           style={S.pendingSyncBanner}
           onPress={() => {
             if (!activeSession?.id) return;
-            void syncPendingWorkoutSets(activeSession.id).then((result) => setPendingSetCount(result.remaining));
+            void syncPendingWorkoutSets(activeSession.id)
+              .then((result) => setPendingSetCount(result.remaining))
+              .catch(() => setPendingSetCount((count) => Math.max(count, 1)));
           }}
           accessibilityRole="button"
           accessibilityLabel="Retry syncing saved workout sets"
