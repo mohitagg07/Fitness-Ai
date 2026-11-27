@@ -1,195 +1,87 @@
-import { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { useEffect } from 'react';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { storage } from '../src/utils/storage';
-import { profileApi, describeApiError } from '../src/utils/api';
-import { clearAuthData } from '../src/utils/auth';
-import { queryClient, hydrated } from '../src/lib/queryClient';
-import { qk } from '../src/lib/queryKeys';
-import AnimatedSplash from '../src/components/splash/AnimatedSplash';
-import { COLORS } from '../src/theme/colors';
 import { actions } from '../src/store';
+import { COLORS } from '../src/theme/colors';
 
-// ── Boot state machine ───────────────────────────────────────────────────
-// Every branch below ends in exactly one of two outcomes:
-//   1. `destination` gets set to a route, which navigates once the splash
-//      animation has also finished (see maybeNavigate), or
-//   2. `phase` becomes 'error', which renders a Retry button instead of an
-//      indeterminate spinner.
-// There is no branch that falls through without doing one of these two
-// things, so the app can never be left sitting on the loading indicator
-// forever — a bug in the previous version, which caught a failed
-// /profile/me call (including a genuinely expired/invalid token) and
-// silently sent the user into /(tabs) anyway, deferring the problem to
-// (tabs)/_layout.tsx's own separate re-check.
-type Phase =
-  | 'hydrating'   // waiting for PersistQueryClientProvider to restore its cache
-  | 'validating'  // token found, confirming it against /profile/me
-  | 'error';      // network/server error — can't confirm identity right now
-
+/**
+ * Fast route gate.
+ *
+ * The old entry screen held the native app behind a 2.6s animated splash and
+ * then waited for query hydration plus a live /profile/me request. The tab
+ * navigator repeated that profile request before it rendered. On a sleeping
+ * backend this made a returning user stare at an animation/spinner while the
+ * app did no useful work.
+ *
+ * This screen now does only the work required to choose a safe route:
+ * restore the secure token and the lightweight identity, then hand off to the
+ * authenticated shell. The shell renders immediately and validates the
+ * profile in the background. Expired sessions are still rejected by the
+ * shared API interceptor; incomplete onboarding is redirected when the
+ * background profile check resolves.
+ */
 export default function Index() {
-  const [splashDone, setSplashDone] = useState(false);
-  const [phase, setPhase] = useState<Phase>('hydrating');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const destinationRef = useRef<string | null>(null);
-  const navigatedRef = useRef(false);
-  const [retryTick, setRetryTick] = useState(0);
-
   useEffect(() => {
-    let cancelled = false;
+    let active = true;
+    let routed = false;
 
-    async function runBootstrap() {
-      setPhase('hydrating');
-      setErrorMessage(null);
-      destinationRef.current = null;
+    const navigate = (path: '/login' | '/(tabs)') => {
+      if (!active || routed) return;
+      routed = true;
+      router.replace(path as any);
+    };
 
-      // Step 1 — wait for the persisted query cache to finish restoring.
-      // Reading/fetchQuery-ing before this resolves races the restore (see
-      // the comment on `hydrated` in src/lib/queryClient.ts). This runs in
-      // parallel with the splash animation, not after it, so a warm start
-      // is still fast.
-      await hydrated;
-      if (cancelled) return;
-
-      // Step 2 — is there a token at all?
-      let token: string | null;
+    const bootstrap = async () => {
+      let token: string | null = null;
       try {
         token = await storage.getItem('vyrn_token');
       } catch {
-        // Can't read secure storage — safest default is "logged out"
-        // rather than guessing.
-        token = null;
+        // A token that cannot be read must not be treated as authenticated.
       }
-      if (cancelled) return;
 
+      if (!active) return;
       if (!token) {
-        destinationRef.current = '/login';
-        maybeNavigate();
+        navigate('/login');
         return;
       }
 
-      // Step 3 — validate the token against the real backend. This is the
-      // only source of truth for "is this session still good" — a token
-      // existing in storage doesn't mean the server still honors it.
-      setPhase('validating');
+      let savedUser: any = null;
       try {
-        const payload = await queryClient.fetchQuery({
-          queryKey: qk.profile.me(),
-          queryFn: async () => (await profileApi.getMe()).data,
-          staleTime: 60_000,
-        });
-        if (cancelled) return;
-
-        // /profile/me returns { profile, injuries, personal_records }; the
-        // onboarding flag lives on payload.profile, not at the top level.
-        const profile = payload?.profile ?? payload ?? {};
-        const injuries = Array.isArray(payload?.injuries) ? payload.injuries : [];
-        const personalRecords = Array.isArray(payload?.personal_records)
-          ? payload.personal_records
-          : [];
-
-        // The app's lightweight store is memory-only. Restore the identity
-        // and profile as well as the secure token so Dashboard/Coach/Profile
-        // have the correct user immediately after a cold launch.
-        let savedUser: any = null;
-        try {
-          const rawUser = await storage.getItem('vyrn_user');
-          savedUser = rawUser ? JSON.parse(rawUser) : null;
-        } catch {
-          savedUser = null;
-        }
-        if (cancelled) return;
-        actions.hydrateAuth(
-          savedUser && typeof savedUser === 'object'
-            ? savedUser
-            : { id: profile?.id ?? null, full_name: profile?.full_name ?? null },
-          token
-        );
-        actions.setProfile(profile, injuries, personalRecords);
-
-        // Step 4 — route using the actual nested profile response.
-        destinationRef.current =
-          profile?.onboarding_complete === true ? '/(tabs)' : '/onboarding';
-        maybeNavigate();
-      } catch (err: any) {
-        if (cancelled) return;
-        const status = err?.response?.status;
-        if (status === 401 || status === 403) {
-          // Token is real but no longer valid (expired, revoked, signing
-          // key rotated, account deleted, ...). Wipe it so the person
-          // isn't stuck in a loop of being silently bounced back here.
-          await clearAuthData();
-          if (cancelled) return;
-          destinationRef.current = '/login';
-          maybeNavigate();
-          return;
-        }
-        // Network/timeout/server error — we genuinely don't know whether
-        // this session is valid. Don't guess (old behavior defaulted to
-        // /(tabs), which could show an authenticated shell for a token
-        // that was actually dead). Surface a retry instead.
-        setErrorMessage(describeApiError(err).message);
-        setPhase('error');
+        const rawUser = await storage.getItem('vyrn_user');
+        savedUser = rawUser ? JSON.parse(rawUser) : null;
+      } catch {
+        savedUser = null;
       }
-    }
 
-    runBootstrap();
-    return () => {
-      cancelled = true;
+      if (!active) return;
+      actions.hydrateAuth(
+        savedUser && typeof savedUser === 'object' ? savedUser : { id: null },
+        token
+      );
+      navigate('/(tabs)');
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [retryTick]);
 
-  function maybeNavigate() {
-    if (navigatedRef.current) return;
-    if (!splashDone || !destinationRef.current) return;
-    navigatedRef.current = true;
-    router.replace(destinationRef.current as any);
-  }
+    void bootstrap();
+    return () => {
+      active = false;
+    };
+  }, []);
 
-  useEffect(() => {
-    maybeNavigate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [splashDone]);
-
-  function handleRetry() {
-    navigatedRef.current = false;
-    setRetryTick((n) => n + 1);
-  }
-
+  // This state should only be visible for the brief secure-storage read.
+  // The native splash remains responsible for the true cold-start handoff.
   return (
     <View style={styles.container}>
-      {!splashDone ? (
-        <AnimatedSplash onFinished={() => setSplashDone(true)} />
-      ) : phase === 'error' ? (
-        <View style={styles.errorWrap}>
-          <Text style={styles.errorTitle}>Couldn't connect</Text>
-          <Text style={styles.errorMessage}>{errorMessage}</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={handleRetry}>
-            <Text style={styles.retryText}>RETRY</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        // Splash's own exit timer is independent of how long token/profile
-        // validation takes (a cold free-tier backend can take 20-50s to
-        // wake up) — this keeps something visibly alive on screen for that
-        // entire wait instead of a blank frame.
-        <ActivityIndicator color={COLORS.primaryGreen} size="large" />
-      )}
+      <ActivityIndicator color={COLORS.primaryGreen} size="small" />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' },
-  errorWrap: { alignItems: 'center', paddingHorizontal: 32 },
-  errorTitle: { color: COLORS.text, fontSize: 18, fontWeight: '800', marginBottom: 10 },
-  errorMessage: { color: COLORS.textSecondary, fontSize: 14, textAlign: 'center', marginBottom: 24, lineHeight: 20 },
-  retryBtn: {
-    backgroundColor: COLORS.recoveryHigh,
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 36,
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  retryText: { color: COLORS.background, fontSize: 14, fontWeight: '800', letterSpacing: 1 },
 });
