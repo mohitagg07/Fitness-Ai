@@ -139,6 +139,12 @@ update public.workout_sessions
  where started_at is null
     or (completed = true and status <> 'completed');
 
+alter table public.workout_sessions
+    add column if not exists client_request_id text;
+create unique index if not exists idx_workout_sessions_idempotency
+    on public.workout_sessions(user_id, client_request_id)
+    where client_request_id is not null;
+
 alter table public.exercise_logs
     add column if not exists client_request_id text;
 
@@ -452,6 +458,92 @@ $$;
 revoke all on function public.transition_workout_session(uuid, uuid, text)
     from public, anon, authenticated;
 grant execute on function public.transition_workout_session(uuid, uuid, text)
+    to service_role;
+
+create or replace function public.create_workout_session_idempotent(
+    p_user_id uuid,
+    p_client_request_id text,
+    p_session_date date default null,
+    p_plan_version_id uuid default null,
+    p_day_label text default null,
+    p_workout_type text default null,
+    p_muscle_groups text[] default '{}'::text[]
+)
+returns setof public.workout_sessions
+language plpgsql
+security definer
+set search_path = public
+as $
+declare
+    v_existing public.workout_sessions;
+    v_version public.workout_plan_versions;
+    v_workout jsonb := '{}'::jsonb;
+    v_saved public.workout_sessions;
+    v_plan_id uuid := null;
+    v_day_label text;
+    v_workout_type text;
+    v_muscle_groups text[];
+begin
+    if p_user_id is null or nullif(btrim(coalesce(p_client_request_id, '')), '') is null then
+        raise exception 'SESSION_IDEMPOTENCY_KEY_REQUIRED' using errcode = '22023';
+    end if;
+
+    perform pg_advisory_xact_lock(
+        hashtextextended('workout-session:' || p_user_id::text || ':' || p_client_request_id, 0)
+    );
+
+    select * into v_existing
+      from public.workout_sessions
+     where user_id = p_user_id
+       and client_request_id = p_client_request_id
+     limit 1;
+    if found then
+        return next v_existing;
+        return;
+    end if;
+
+    if p_plan_version_id is not null then
+        select * into v_version
+          from public.workout_plan_versions
+         where id = p_plan_version_id
+           and user_id = p_user_id
+           and status = 'approved'
+         for share;
+        if not found then
+            raise exception 'PLAN_VERSION_NOT_APPROVED' using errcode = '22023';
+        end if;
+        v_plan_id := v_version.plan_id;
+        v_workout := coalesce(v_version.snapshot->'workout', '{}'::jsonb);
+    end if;
+
+    v_day_label := coalesce(nullif(v_workout->>'label', ''), nullif(btrim(p_day_label), ''), 'Training Session');
+    v_workout_type := coalesce(nullif(v_workout->>'workout_type', ''), nullif(btrim(p_workout_type), ''));
+    v_muscle_groups := case
+        when jsonb_typeof(v_workout->'muscle_groups') = 'array' then
+            array(select jsonb_array_elements_text(v_workout->'muscle_groups'))
+        else coalesce(p_muscle_groups, '{}'::text[])
+    end;
+
+    insert into public.workout_sessions (
+        user_id, plan_id, plan_version_id, planned_workout_snapshot,
+        session_date, day_label, workout_type, muscle_groups, status,
+        started_at, client_request_id
+    ) values (
+        p_user_id, v_plan_id, p_plan_version_id,
+        nullif(v_workout, '{}'::jsonb),
+        coalesce(p_session_date, current_date),
+        v_day_label, v_workout_type, v_muscle_groups, 'active',
+        now(), p_client_request_id
+    )
+    returning * into v_saved;
+
+    return next v_saved;
+end;
+$;
+
+revoke all on function public.create_workout_session_idempotent(uuid, text, date, uuid, text, text, text[])
+    from public, anon, authenticated;
+grant execute on function public.create_workout_session_idempotent(uuid, text, date, uuid, text, text, text[])
     to service_role;
 
 create or replace function public.log_workout_set_idempotent(
