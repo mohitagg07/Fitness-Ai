@@ -70,7 +70,7 @@ function MuscleBelly({
 
   return (
     <mesh position={position} rotation={rotation} scale={[1, 1, depth]} castShadow receiveShadow>
-      <latheGeometry args={[profile, 28]} />
+      <latheGeometry args={[profile, 20]} />
       <meshStandardMaterial
         color={color}
         roughness={0.48}
@@ -92,8 +92,8 @@ function BodyVolume({
   color?: string;
 }) {
   return (
-    <mesh position={position} scale={scale} castShadow receiveShadow>
-      <sphereGeometry args={[1, 32, 24]} />
+    <mesh position={position} scale={scale}>
+      <sphereGeometry args={[1, 20, 16]} />
       <meshStandardMaterial color={color} roughness={0.72} metalness={0.025} />
     </mesh>
   );
@@ -104,15 +104,22 @@ function RecoveryAvatar({
   musclePalette,
   controls,
   reduceMotion,
+  onFirstFrame,
 }: {
   selectedMuscle: MuscleKey;
   musclePalette: MusclePalette;
   controls: MutableRefObject<SceneControls>;
   reduceMotion: boolean;
+  onFirstFrame?: () => void;
 }) {
   const root = useRef<THREE.Group>(null);
+  const firstFrameReported = useRef(false);
 
   useFrame((_, delta) => {
+    if (!firstFrameReported.current) {
+      firstFrameReported.current = true;
+      onFirstFrame?.();
+    }
     if (!root.current) return;
     const step = Math.min(delta, 0.05);
     if (!reduceMotion && !controls.current.dragging) controls.current.rotationY += step * 0.115;
@@ -141,8 +148,8 @@ function RecoveryAvatar({
         {/* Neutral structural silhouette: head, neck, torso, pelvis and limb foundations. */}
         <BodyVolume position={[0, 1.64, 0]} scale={[0.22, 0.28, 0.19]} color={BODY_BASE} />
         <BodyVolume position={[0, 1.30, 0]} scale={[0.13, 0.22, 0.13]} color={BODY_DARK} />
-        <mesh position={[0, 0.28, 0]} castShadow receiveShadow>
-          <latheGeometry args={[TORSO_PROFILE, 48]} />
+        <mesh position={[0, 0.28, 0]}>
+          <latheGeometry args={[TORSO_PROFILE, 32]} />
           <meshStandardMaterial color={BODY_BASE} roughness={0.68} metalness={0.035} />
         </mesh>
         <BodyVolume position={[0, -0.52, 0]} scale={[0.38, 0.26, 0.23]} color={BODY_DARK} />
@@ -222,11 +229,13 @@ function RecoveryScene({
   musclePalette,
   controls,
   reduceMotion,
+  onFirstFrame,
 }: {
   selectedMuscle: MuscleKey;
   musclePalette: MusclePalette;
   controls: MutableRefObject<SceneControls>;
   reduceMotion: boolean;
+  onFirstFrame?: () => void;
 }) {
   return (
     <>
@@ -236,7 +245,7 @@ function RecoveryScene({
       <directionalLight position={[3.8, 5.5, 5]} intensity={2.0} color="#F2FFF2" />
       <directionalLight position={[-4, 1.5, -4]} intensity={1.45} color="#8DCB9A" />
       <pointLight position={[0, -1.2, 3.2]} intensity={0.62} distance={8} color="#B9DE72" />
-      <RecoveryAvatar selectedMuscle={selectedMuscle} musclePalette={musclePalette} controls={controls} reduceMotion={reduceMotion} />
+      <RecoveryAvatar selectedMuscle={selectedMuscle} musclePalette={musclePalette} controls={controls} reduceMotion={reduceMotion} onFirstFrame={onFirstFrame} />
     </>
   );
 }
@@ -274,13 +283,19 @@ export default function ThreeMuscleScene({
   selectedMuscle,
   musclePalette,
   onFailure,
+  onReady,
+  onInteraction,
 }: {
   selectedMuscle: MuscleKey;
   musclePalette: MusclePalette;
   onFailure: () => void;
+  onReady?: () => void;
+  onInteraction?: () => void;
 }) {
   const [loading, setLoading] = useState(true);
   const [reduceMotion, setReduceMotion] = useState(false);
+  const onInteractionRef = useRef(onInteraction);
+  onInteractionRef.current = onInteraction;
   const controls = useRef<SceneControls>({
     rotationX: 0,
     rotationY: 0,
@@ -321,6 +336,7 @@ export default function ThreeMuscleScene({
         -0.36,
         Math.min(0.36, controls.current.startX - gesture.dy * 0.0035),
       );
+      onInteractionRef.current?.();
     },
     onPanResponderRelease: () => { controls.current.dragging = false; },
     onPanResponderTerminate: () => { controls.current.dragging = false; },
@@ -331,6 +347,7 @@ export default function ThreeMuscleScene({
       <SceneBoundary onFailure={onFailure}>
         <Canvas
           style={styles.canvas}
+          frameloop={reduceMotion ? 'demand' : 'always'}
           // Keep GPU work predictable on Android. Native R3F manages pixel
           // ratio through React Native's PixelRatio and does not expose web dpr.
           gl={{ antialias: Platform.OS !== 'android' }}
@@ -340,7 +357,7 @@ export default function ThreeMuscleScene({
             setLoading(false);
           }}
         >
-          <RecoveryScene selectedMuscle={selectedMuscle} musclePalette={musclePalette} controls={controls} reduceMotion={reduceMotion} />
+          <RecoveryScene selectedMuscle={selectedMuscle} musclePalette={musclePalette} controls={controls} reduceMotion={reduceMotion} onFirstFrame={onReady} />
         </Canvas>
       </SceneBoundary>
       <View style={styles.dragLayer} {...panResponder.panHandlers}>
