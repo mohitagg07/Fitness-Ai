@@ -1,11 +1,10 @@
 // VYRN — Text primitive
 //
-// The canonical VYRN text variants: display, hero, h1, h2, cardTitle, body,
-// small, caption and eyebrow (see theme/typography.ts TEXT_STYLES for the full
-// rationale). Every screen renders text through this component instead
-// of a raw <Text style={{ fontSize: 17, fontWeight: '600' }}/> — that's
-// how "giant serif heading here, bold sans heading there, random 13px
-// caption somewhere else" stops happening.
+// Provides the canonical VYRN text variants: display, hero, h1, h2,
+// cardTitle, body, small, caption and eyebrow (see theme/typography.ts).
+// Use this primitive for new UI and when migrating existing screens so
+// type hierarchy stays consistent. Some legacy feature screens still use
+// locally tuned React Native Text styles and should be migrated gradually.
 
 import React from 'react';
 import { Text as RNText, StyleProp, TextStyle, TextProps as RNTextProps } from 'react-native';
