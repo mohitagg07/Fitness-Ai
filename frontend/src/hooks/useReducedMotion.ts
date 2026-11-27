@@ -1,26 +1,48 @@
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { AccessibilityInfo } from 'react-native';
 
 /**
- * Central OS Reduce Motion preference.
- * Motion is disabled until the native preference has been read so the first
- * frame never animates against a user's accessibility setting.
+ * App-wide Reduce Motion preference.
+ *
+ * One native AccessibilityInfo subscription is shared by every animated
+ * component. This avoids installing a native event listener for each card,
+ * button, ring, and list row as screens mount and unmount.
  */
+let reducedMotion = true;
+let initialized = false;
+const listeners = new Set<() => void>();
+
+function publish(next: boolean) {
+  if (reducedMotion === next) return;
+  reducedMotion = next;
+  listeners.forEach((listener) => listener());
+}
+
+function initialize() {
+  if (initialized) return;
+  initialized = true;
+
+  AccessibilityInfo.isReduceMotionEnabled()
+    .then(publish)
+    .catch(() => publish(false));
+
+  try {
+    AccessibilityInfo.addEventListener('reduceMotionChanged', publish);
+  } catch {
+    // Older/web accessibility implementations may not expose this event.
+  }
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  initialize();
+  return () => { listeners.delete(listener); };
+}
+
+function getSnapshot() {
+  return reducedMotion;
+}
+
 export function useReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(true);
-
-  useEffect(() => {
-    let active = true;
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then((enabled) => { if (active) setReduced(enabled); })
-      .catch(() => { if (active) setReduced(false); });
-
-    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduced);
-    return () => {
-      active = false;
-      subscription.remove();
-    };
-  }, []);
-
-  return reduced;
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
