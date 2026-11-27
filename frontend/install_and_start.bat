@@ -1,52 +1,64 @@
 @echo off
+setlocal EnableExtensions
+pushd "%~dp0"
+
 echo.
 echo ====================================================
-echo   FitAI Frontend - Clean Install ^& Start
+echo   VYRN Mobile - Install ^& Start
 echo ====================================================
 echo.
 
-REM Step 1: Delete broken installs
-echo [1/4] Cleaning old node_modules and lock files...
-if exist node_modules (
-    rmdir /s /q node_modules
-    echo       Deleted node_modules
+where node >nul 2>nul
+if errorlevel 1 (
+  echo ERROR: Node.js is not installed or is not on PATH.
+  echo Install the version pinned in the repository .nvmrc file.
+  popd
+  exit /b 1
 )
-if exist package-lock.json (
-    del /f package-lock.json
-    echo       Deleted package-lock.json
-)
-if exist .expo (
-    rmdir /s /q .expo
-    echo       Deleted .expo cache
-)
-echo       Done.
-echo.
 
-REM Step 2: Install with legacy peer deps (safest for RN projects)
-echo [2/4] Installing packages...
-call npm install --legacy-peer-deps
-if %errorlevel% neq 0 (
-    echo.
-    echo ERROR: npm install failed. Check your internet connection.
-    pause
-    exit /b 1
+where npm >nul 2>nul
+if errorlevel 1 (
+  echo ERROR: npm is not available on PATH.
+  popd
+  exit /b 1
 )
-echo       Done.
-echo.
 
-REM Step 3: Verify expo is installed locally
-echo [3/4] Verifying expo installation...
+if not exist package-lock.json (
+  echo ERROR: frontend/package-lock.json is missing.
+  echo Restore it from Git before installing. Do not regenerate it casually.
+  popd
+  exit /b 1
+)
+
+if not exist .env (
+  if exist .env.example (
+    copy /Y .env.example .env >nul
+    echo Created .env from .env.example. Verify EXPO_PUBLIC_API_URL before testing.
+  )
+)
+
 if not exist node_modules\.bin\expo.cmd (
-    echo ERROR: expo not found in node_modules. Something went wrong.
-    pause
+  echo Installing exact locked dependencies with npm ci...
+  call npm ci
+  if errorlevel 1 (
+    echo ERROR: npm ci failed. Check the npm output above.
+    popd
     exit /b 1
+  )
+) else (
+  echo Existing locked dependency install found.
 )
-echo       expo found in node_modules/.bin
-echo.
 
-REM Step 4: Start using LOCAL expo (not npx)
-echo [4/4] Starting Expo dev server...
+if not exist node_modules\.bin\expo.cmd (
+  echo ERROR: Expo CLI was not installed. Run npm ci and inspect the error.
+  popd
+  exit /b 1
+)
+
 echo.
-echo       Use the LOCAL expo binary - NOT npx expo start
+echo Starting Expo. Use --clear only when you need to reset Metro's cache.
 echo.
-call node_modules\.bin\expo start --clear
+call npm run start -- %*
+set "EXIT_CODE=%ERRORLEVEL%"
+popd
+exit /b %EXIT_CODE%
