@@ -185,6 +185,13 @@ export const coachApi = {
 export const workoutApi = {
   createSession: (data: any) => api.post('/workouts/sessions', data),
   getSessions: (limit = 10) => api.get(`/workouts/sessions?limit=${limit}`),
+  getSessionExerciseEvents: (id: string) => api.get(`/workouts/sessions/${id}/exercise-events`),
+  recordExerciseEvent: (id: string, data: {
+    action: 'skip' | 'replace';
+    exercise_name: string;
+    replacement_exercise?: string;
+    reason?: string;
+  }) => api.post(`/workouts/sessions/${id}/exercise-events`, data),
   completeSession: (id: string, feedback?: {
     mood?: string;
     session_effort?: number;
