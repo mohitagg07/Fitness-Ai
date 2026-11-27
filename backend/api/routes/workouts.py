@@ -33,6 +33,7 @@ router = APIRouter(tags=["Workouts"])
 class SessionCreate(BaseModel):
     plan_id: Optional[str] = None
     plan_version_id: Optional[str] = None
+    client_request_id: Optional[str] = Field(None, min_length=8, max_length=240)
     session_date: Optional[date] = None
     day_label: Optional[str] = Field(None, max_length=50)
     workout_type: Optional[str] = None
@@ -64,7 +65,7 @@ class SetLogRequest(BaseModel):
     tempo: Optional[str] = Field(None, max_length=20)
     to_failure: bool = False
     set_notes: Optional[str] = Field(None, max_length=300)
-    client_request_id: Optional[str] = Field(None, min_length=8, max_length=120)
+    client_request_id: Optional[str] = Field(None, min_length=8, max_length=240)
 
     @field_validator("exercise_name")
     @classmethod
@@ -115,6 +116,29 @@ async def create_session(
 ):
     sb = get_supabase()
     user_id = current_user["user_id"]
+    if payload.client_request_id:
+        try:
+            result = sb.rpc(
+                "create_workout_session_idempotent",
+                {
+                    "p_user_id": user_id,
+                    "p_client_request_id": payload.client_request_id,
+                    "p_session_date": str(payload.session_date) if payload.session_date else None,
+                    "p_plan_version_id": payload.plan_version_id,
+                    "p_day_label": payload.day_label,
+                    "p_workout_type": payload.workout_type,
+                    "p_muscle_groups": payload.muscle_groups,
+                },
+            ).execute()
+        except Exception as exc:
+            message = str(exc).upper()
+            if "PLAN_VERSION_NOT_APPROVED" in message:
+                raise HTTPException(409, "This workout plan version is not approved or is no longer active") from exc
+            raise HTTPException(500, "Could not create the workout session safely") from exc
+        if not result.data:
+            raise HTTPException(500, "Could not create the workout session")
+        return result.data[0]
+
 
     # CRITICAL FIX: model_dump() returns None for optional fields that were
     # not provided. Sending "session_date": None as JSON explicitly sets the
