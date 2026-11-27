@@ -28,6 +28,7 @@ import WeeklyReviewScreen from './WeeklyReviewScreen';
 import AnalyticsScreen, { type AnalyticsChartTab, type AnalyticsRangeOption } from './AnalyticsScreen';
 import MuscleRecoveryMap from './MuscleRecoveryMap';
 import { SkeletonCard } from '../shared/LoadingOverlay';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 type Tab = 'body' | 'nutrition' | 'recovery' | 'review' | 'analytics';
 
@@ -91,11 +92,17 @@ function MacroRing({ pct, color, label, value }: { pct: number; color: string; l
   const circumference = 2 * Math.PI * radius;
   const safePct = Number.isFinite(pct) ? Math.max(0, Math.min(100, pct)) : 0;
   const animatedPct = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReducedMotion();
   useEffect(() => {
+    animatedPct.stopAnimation();
+    if (reduceMotion) {
+      animatedPct.setValue(safePct);
+      return undefined;
+    }
     const animation = Animated.timing(animatedPct, { toValue: safePct, duration: 720, useNativeDriver: false });
     animation.start();
     return () => animation.stop();
-  }, [animatedPct, safePct]);
+  }, [animatedPct, safePct, reduceMotion]);
   const offset = animatedPct.interpolate({ inputRange: [0, 100], outputRange: [circumference, 0] });
   return (
     <View style={{ alignItems: 'center', gap: 4 }}>
