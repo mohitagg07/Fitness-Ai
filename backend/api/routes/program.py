@@ -16,7 +16,7 @@ from core.security import get_current_user
 from db.supabase_client import get_supabase, get_full_user_context
 from agents.program_rewriter import run_program_rewriter
 from api.routes.training_plans import _load_athlete_constraints, validate_workout_constraints, WorkoutPrescription
-from services.exercise_catalog import normalize_exercise_name, resolve_exercise
+from services.exercise_catalog import resolve_exercise
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Program Evolution"])
@@ -47,7 +47,7 @@ def _apply_adaptive_changes(snapshot: dict, changes: list[dict], trigger: str) -
             current_definition = resolve_exercise(current_name)
             matches_target = (
                 not target_name
-                or normalize_exercise_name(current_name) == normalize_exercise_name(target_name)
+                or current_name.casefold() == target_name
                 or (
                     target_definition is not None
                     and current_definition is not None
