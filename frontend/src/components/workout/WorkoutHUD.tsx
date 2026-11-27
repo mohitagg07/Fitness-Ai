@@ -1477,7 +1477,7 @@ const S = StyleSheet.create({
   pauseBtnText: { color: COLORS.text, fontFamily: FONTS.bold, fontSize: 9, letterSpacing: 0.5 },
   abandonBtn: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderRadius: RADIUS.button, borderWidth: 1, borderColor: alpha(COLORS.recoveryLow, 0.35), backgroundColor: COLORS.card },
   abandonBtnText: { color: COLORS.recoveryLow, fontFamily: FONTS.bold, fontSize: 9, letterSpacing: 0.4 },
-  pausedBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: SPACING.lg, marginTop: SPACING.sm, padding: SPACING.sm, borderRadius: RADIUS.input, backgroundColor: alpha(COLORS.recoveryMed, 0.1), borderWidth: 1, borderColor: alpha(COLORS.recoveryMed, 0.25) },
+  pausedBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: SPACING.lg, marginTop: SPACING.sm, padding: SPACING.sm, borderRadius: RADIUS.button, backgroundColor: alpha(COLORS.recoveryMed, 0.1), borderWidth: 1, borderColor: alpha(COLORS.recoveryMed, 0.25) },
   pausedBannerText: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 10, flex: 1 },
   finishBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
                    gap: SPACING.sm, margin: SPACING.md, backgroundColor: alpha(COLORS.primaryGreen, 0.08), borderRadius: RADIUS.button,
