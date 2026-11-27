@@ -17,7 +17,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
-import { workoutApi, coachApi } from '../../utils/api';
+import { workoutApi, coachApi, trainingPlanApi } from '../../utils/api';
 import { useMissionSummary } from '../../hooks/useDashboardQueries';
 import { confirmAsync } from '../../utils/confirm';
 import { useStore } from '../../store';
@@ -28,6 +28,7 @@ import { SPACING, RADIUS } from '../../theme/spacing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import WorkoutSummaryCard from './WorkoutSummaryCard';
+import WorkoutPlanPreview, { WorkoutExerciseDraft } from './WorkoutPlanPreview';
 import WorkoutHistoryModal from './WorkoutHistoryModal';
 import MilestoneCelebration from './MilestoneCelebration';
 import MoodPickerModal, { MoodValue } from './MoodPickerModal';
@@ -53,6 +54,16 @@ interface SetLog {
   weight_kg: number;
   reps: number;
   rpe: number;
+}
+
+interface DraftPlanReference {
+  planId: string;
+  versionId: string;
+  name: string;
+  workoutType: string;
+  estimatedMinutes: number | null;
+  muscleGroups: string[];
+  approved: boolean;
 }
 
 const RPE_LEVELS = [6, 7, 7.5, 8, 8.5, 9, 9.5, 10];
@@ -339,7 +350,16 @@ function WorkoutHUD() {
   const [pendingMood, setPendingMood]   = useState<MoodValue | undefined>(undefined);
   const [isRestoringSession, setIsRestoringSession] = useState(true);
   const [isBuildingPlan, setIsBuildingPlan] = useState(false);
+  const [isApprovingPlan, setIsApprovingPlan] = useState(false);
+  const [planPreviewVisible, setPlanPreviewVisible] = useState(false);
+  const [draftPlan, setDraftPlan] = useState<DraftPlanReference | null>(null);
+  const [isSessionPaused, setIsSessionPaused] = useState(false);
+  const pendingSetWrites = useRef<Set<Promise<any>>>(new Set());
+  const profile = useStore((state) => state.profile);
 
+  // Restore an unfinished workout from the server after app restart. The
+  // immutable prescription snapshot is authoritative; logged sets only update
+  // completion counts and never define which exercises existed in the plan.
   // Restore an unfinished workout from the server after app restart. Set rows
   // are already persisted individually; this reconnects them to the live HUD.
   useEffect(() => {
@@ -353,10 +373,14 @@ function WorkoutHUD() {
       try {
         const response = await workoutApi.getSessions(20);
         const pending = (Array.isArray(response.data) ? response.data : [])
-          .filter((session: any) => session && session.completed !== true)
+          .filter((session: any) => session && (
+            session.status === 'active'
+            || session.status === 'paused'
+            || (!session.status && session.completed !== true)
+          ))
           .sort((a: any, b: any) =>
-            new Date(b.created_at || b.session_date || 0).getTime() -
-            new Date(a.created_at || a.session_date || 0).getTime()
+            new Date(b.started_at || b.created_at || b.session_date || 0).getTime() -
+            new Date(a.started_at || a.created_at || a.session_date || 0).getTime()
           );
         const session = pending[0];
         if (!alive || !session) return;
@@ -372,29 +396,53 @@ function WorkoutHUD() {
           .filter((log: SetLog) => log.exercise_name.length > 0)
           .sort((a: SetLog, b: SetLog) => a.set_number - b.set_number);
 
+        const plannedExercises = session.planned_workout_snapshot?.exercises;
         const names = [...new Set(logs.map((log) => log.exercise_name))];
-        const restoredExercises: ExerciseCard[] = names.map((name) => {
-          const exerciseLogs = logs.filter((log) => log.exercise_name === name);
-          const last = exerciseLogs[exerciseLogs.length - 1];
-          return {
-            name,
-            sets: Math.max(3, exerciseLogs.length + 1),
-            reps: String(last?.reps || 8),
-            load: last ? `${last.weight_kg}kg` : '',
-            cue: 'Continue your saved session',
-            rest: '90 sec',
-            completed_sets: exerciseLogs.length,
-          };
-        });
+        const restoredExercises: ExerciseCard[] = Array.isArray(plannedExercises) && plannedExercises.length > 0
+          ? plannedExercises.map((planned: any) => {
+              const name = String(planned.name || planned.exercise_name || 'Exercise');
+              const exerciseLogs = logs.filter((log) => log.exercise_name.toLowerCase() === name.toLowerCase());
+              const last = exerciseLogs[exerciseLogs.length - 1];
+              const loadText = planned.load_kg != null
+                ? `${planned.load_kg}kg`
+                : String(planned.load_guidance || '');
+              return {
+                name,
+                sets: Number(planned.sets) || 3,
+                reps: String(planned.reps || '8-12'),
+                load: loadText,
+                cue: String(planned.cue || 'Follow the approved exercise prescription'),
+                rest: `${Number(planned.rest_seconds) || 90} sec`,
+                completed_sets: exerciseLogs.length,
+              };
+            })
+          : names.map((name) => {
+              const exerciseLogs = logs.filter((log) => log.exercise_name === name);
+              const last = exerciseLogs[exerciseLogs.length - 1];
+              return {
+                name,
+                sets: Math.max(3, exerciseLogs.length + 1),
+                reps: String(last?.reps || 8),
+                load: last ? `${last.weight_kg}kg` : '',
+                cue: 'Continue your saved session',
+                rest: '90 sec',
+                completed_sets: exerciseLogs.length,
+              };
+            });
 
-        const createdAt = session.created_at ? new Date(session.created_at).getTime() : Date.now();
+        const startedAt = session.started_at || session.created_at;
+        const startedAtMs = startedAt ? new Date(startedAt).getTime() : Date.now();
         setActiveSession({
           ...session,
           logs,
-          startedAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
+          startedAt: Number.isFinite(startedAtMs) ? startedAtMs : Date.now(),
         });
         setExercises(restoredExercises);
-        if (restoredExercises.length > 0) setActiveIdx(restoredExercises.length - 1);
+        setIsSessionPaused(session.status === 'paused');
+        const nextExerciseIndex = restoredExercises.findIndex((exercise) => exercise.completed_sets < exercise.sets);
+        if (restoredExercises.length > 0) {
+          setActiveIdx(nextExerciseIndex >= 0 ? nextExerciseIndex : restoredExercises.length - 1);
+        }
       } catch (error: any) {
         if (__DEV__) console.warn('[Workout] Could not restore active session', error?.message || error);
       } finally {
@@ -435,46 +483,173 @@ function WorkoutHUD() {
   const currentSetNum = (setCountByExercise[resolvedName] || 0) + 1;
 
   // ── Actions ─────────────────────────────────────────────────────────────────
-  const startSession = async (): Promise<boolean> => {
-    if (activeSession) return true;
-    if (isRestoringSession) return false;
-    try {
-      const res = await workoutApi.createSession({ day_label: 'Training Session' });
-      setActiveSession({ ...res.data, logs: [], startedAt: Date.now() });
-      return true;
-    } catch {
-      Alert.alert('Error', 'Could not start session. Check your connection and try again.');
-      return false;
-    }
-  };
+  const buildDraftPayload = (items: WorkoutExerciseDraft[], draft: DraftPlanReference) => ({
+    name: draft.name,
+    goal: profile?.goal || null,
+    phase: profile?.current_phase || null,
+    weeks: 4,
+    schedule: {},
+    change_reason: 'Coach-generated training session awaiting athlete approval',
+    workout: {
+      label: draft.name,
+      workout_type: draft.workoutType,
+      muscle_groups: draft.muscleGroups,
+      estimated_duration_minutes: draft.estimatedMinutes,
+      exercises: items.map((exercise) => {
+        const loadMatch = exercise.load.match(/-?\\d+(?:\\.\\d+)?/);
+        const loadKg = loadMatch ? Number(loadMatch[0]) : null;
+        const restMatch = exercise.rest.match(/\\d+/);
+        return {
+          name: exercise.name.trim(),
+          sets: Math.max(1, Math.min(20, Number(exercise.sets) || 3)),
+          reps: exercise.reps.trim() || '8-12',
+          load_kg: Number.isFinite(loadKg) ? loadKg : null,
+          load_guidance: exercise.load.trim() || null,
+          rest_seconds: restMatch ? Math.max(0, Math.min(900, Number(restMatch[0]))) : 90,
+          cue: exercise.cue || null,
+          equipment_required: [],
+          muscle_groups: [],
+        };
+      }),
+    },
+  });
 
   const askCoachForWorkout = async () => {
-    if (isBuildingPlan || isRestoringSession) return;
+    if (isBuildingPlan || isRestoringSession || isApprovingPlan) return;
     setIsBuildingPlan(true);
     try {
       const res = await coachApi.chat("What's my workout today?");
       const sd = res.data?.structured_decision;
-      if (sd?.exercises?.length > 0) {
-        const nextExercises: ExerciseCard[] = sd.exercises.map((e: any) => ({
-          name: String(e.name || 'Exercise'),
-          sets: parseInt(e.sets, 10) || 3,
-          reps: String(e.reps || '8'),
-          load: String(e.weight || ''),
-          cue: String(e.focus || ''),
-          rest: String(e.rest || ''),
-          completed_sets: 0,
-        }));
-        setExercises(nextExercises);
-        setActiveIdx(0);
-        if (!activeSession && !(await startSession())) setExercises([]);
-      } else {
+      if (!sd?.exercises?.length) {
         Alert.alert('Coach', res.data?.reply || 'Open Coach to refine your plan and try again.');
+        return;
       }
-    } catch {
-      Alert.alert('Error', 'Could not build your workout. Try again or open Coach.');
+
+      const allowedTypes = ['push', 'pull', 'legs', 'upper', 'lower', 'full_body', 'cardio', 'mobility', 'recovery'];
+      const proposedType = String(sd.workout_type || recommendedWorkout || 'full_body').toLowerCase();
+      const workoutType = allowedTypes.includes(proposedType) ? proposedType : 'full_body';
+      const nextExercises: ExerciseCard[] = sd.exercises.map((exercise: any) => ({
+        name: String(exercise.name || '').trim(),
+        sets: Math.max(1, Math.min(20, Number.parseInt(String(exercise.sets), 10) || 3)),
+        reps: String(exercise.reps || '8-12'),
+        load: String(exercise.weight || exercise.load_guidance || ''),
+        cue: String(exercise.focus || exercise.cue || ''),
+        rest: String(exercise.rest || '90 sec'),
+        completed_sets: 0,
+      })).filter((exercise: ExerciseCard) => exercise.name.length > 0);
+
+      if (!nextExercises.length) {
+        Alert.alert('Coach', 'The proposed workout did not include valid exercises. Ask Coach to regenerate it.');
+        return;
+      }
+
+      const estimatedText = String(sd.summary?.estimated_time || sd.estimated_time || '');
+      const estimatedMatch = estimatedText.match(/\\d+/);
+      const estimatedMinutes = estimatedMatch ? Number(estimatedMatch[0]) : null;
+      const title = String(sd.summary?.label || `${workoutType.replace(/_/g, ' ')} workout`)
+        .replace(/^\\s+|\\s+$/g, '');
+      const muscleGroups = Array.isArray(sd.muscle_groups)
+        ? sd.muscle_groups.map((item: unknown) => String(item))
+        : [];
+
+      const draftPayload = {
+        name: title,
+        goal: profile?.goal || null,
+        phase: profile?.current_phase || null,
+        weeks: 4,
+        schedule: {},
+        change_reason: 'Coach-generated training session awaiting athlete approval',
+        workout: {
+          label: title,
+          workout_type: workoutType,
+          muscle_groups: muscleGroups,
+          estimated_duration_minutes: estimatedMinutes,
+          exercises: nextExercises.map((exercise) => {
+            const loadMatch = exercise.load.match(/-?\\d+(?:\\.\\d+)?/);
+            const restMatch = exercise.rest.match(/\\d+/);
+            return {
+              name: exercise.name,
+              sets: exercise.sets,
+              reps: exercise.reps,
+              load_kg: loadMatch ? Number(loadMatch[0]) : null,
+              load_guidance: exercise.load || null,
+              rest_seconds: restMatch ? Math.max(0, Math.min(900, Number(restMatch[0]))) : 90,
+              cue: exercise.cue || null,
+              equipment_required: [],
+              muscle_groups: [],
+            };
+          }),
+        },
+      };
+
+      const created = await trainingPlanApi.createDraft(draftPayload);
+      const planId = String(created.data?.plan?.id || '');
+      const versionId = String(created.data?.version?.id || '');
+      if (!planId || !versionId) throw new Error('The server did not return a saved draft version.');
+
+      setDraftPlan({
+        planId,
+        versionId,
+        name: title,
+        workoutType,
+        estimatedMinutes,
+        muscleGroups,
+        approved: false,
+      });
+      setExercises(nextExercises);
+      setActiveIdx(0);
+      setPlanPreviewVisible(true);
+    } catch (error: any) {
+      Alert.alert('Could not prepare workout', error?.response?.data?.detail || 'Could not save the workout draft. Check your connection and try again.');
     } finally {
       setIsBuildingPlan(false);
     }
+  };
+
+  const approveDraftAndStart = async () => {
+    if (!draftPlan || isApprovingPlan || exercises.length === 0) return;
+    setIsApprovingPlan(true);
+    try {
+      let approvedDraft = draftPlan;
+      if (!approvedDraft.approved) {
+        const payload = buildDraftPayload(exercises, approvedDraft);
+        await trainingPlanApi.updateDraft(approvedDraft.planId, approvedDraft.versionId, payload);
+        await trainingPlanApi.approveVersion(approvedDraft.planId, approvedDraft.versionId);
+        approvedDraft = { ...approvedDraft, approved: true };
+        setDraftPlan(approvedDraft);
+      }
+
+      const created = await workoutApi.createSession({
+        plan_id: approvedDraft.planId,
+        plan_version_id: approvedDraft.versionId,
+      });
+      const serverSession = created.data;
+      const startedAtValue = serverSession?.started_at || serverSession?.created_at;
+      const startedAtMs = startedAtValue ? new Date(startedAtValue).getTime() : Date.now();
+      setActiveSession({
+        ...serverSession,
+        logs: [],
+        startedAt: Number.isFinite(startedAtMs) ? startedAtMs : Date.now(),
+      });
+      setActiveIdx(0);
+      setIsSessionPaused(false);
+      setRestStartedAt(null);
+      setPlanPreviewVisible(false);
+      setDraftPlan(null);
+    } catch (error: any) {
+      Alert.alert('Could not start workout', error?.response?.data?.detail || 'The approved plan is saved. Retry to create your session, or close this preview and keep the plan for later.');
+    } finally {
+      setIsApprovingPlan(false);
+    }
+  };
+
+  const cancelPlanPreview = async () => {
+    if (draftPlan && !draftPlan.approved) {
+      trainingPlanApi.rejectVersion(draftPlan.planId, draftPlan.versionId).catch(() => undefined);
+    }
+    setPlanPreviewVisible(false);
+    setDraftPlan(null);
+    setExercises([]);
   };
 
   const logSetMutation = useLogSet();
@@ -707,6 +882,17 @@ function WorkoutHUD() {
         keyboardVerticalOffset={0}
       >
         <AmbientGlow variant="workout" />
+        <WorkoutPlanPreview
+          visible={planPreviewVisible}
+          title={draftPlan?.name || 'Workout plan'}
+          workoutType={draftPlan?.workoutType || recommendedWorkout || 'full_body'}
+          estimatedMinutes={draftPlan?.estimatedMinutes}
+          exercises={exercises}
+          onChange={(next) => setExercises(next)}
+          onApprove={approveDraftAndStart}
+          onCancel={cancelPlanPreview}
+          saving={isApprovingPlan}
+        />
         <WorkoutSummaryCard
           visible={summaryVisible}
           data={summaryData}
@@ -753,18 +939,18 @@ function WorkoutHUD() {
           </View>
           <View style={S.trainActions}>
             <Text style={S.actionSectionLabel}>CHOOSE HOW TO START</Text>
-            <PressableScale style={S.startBtn} onPress={startSession} disabled={isRestoringSession || isBuildingPlan} accessibilityRole="button" accessibilityLabel="Start a workout without a prepared plan">
+            <PressableScale style={S.startBtn} onPress={askCoachForWorkout} disabled={isRestoringSession || isBuildingPlan || isApprovingPlan} accessibilityRole="button" accessibilityLabel="Review today's workout before starting">
               <View style={S.actionCopy}>
-                <Text style={S.startBtnText}>{isRestoringSession ? 'Checking saved session…' : 'Start a workout'}</Text>
-                <Text style={S.actionHelper}>Begin now and add exercises as you go</Text>
+                <Text style={S.startBtnText}>{isRestoringSession ? 'Checking saved session…' : isBuildingPlan ? 'Preparing your plan…' : 'Review today’s workout'}</Text>
+                <Text style={S.actionHelper}>See, edit and approve the exercise plan before training</Text>
               </View>
-              <Ionicons name="arrow-forward" size={18} color={COLORS.background} />
+              {isBuildingPlan ? <ActivityIndicator size="small" color={COLORS.background} /> : <Ionicons name="arrow-forward" size={18} color={COLORS.background} />}
             </PressableScale>
-            <PressableScale style={S.coachBtn} onPress={askCoachForWorkout} disabled={isRestoringSession || isBuildingPlan} accessibilityRole="button" accessibilityLabel="Build today's training plan with Coach">
-              {isBuildingPlan ? <ActivityIndicator size="small" color={COLORS.coachPurple} /> : <Ionicons name="sparkles-outline" size={19} color={COLORS.coachPurple} />}
+            <PressableScale style={S.coachBtn} onPress={() => router.push('/(tabs)/coach')} disabled={isRestoringSession || isBuildingPlan} accessibilityRole="button" accessibilityLabel="Open Coach to personalize the workout">
+              <Ionicons name="chatbubble-ellipses-outline" size={19} color={COLORS.coachPurple} />
               <View style={S.actionCopy}>
-                <Text style={S.coachBtnText}>{isBuildingPlan ? 'Building your plan…' : 'Build a plan with Coach'}</Text>
-                <Text style={S.coachHelper}>Get exercises, sets, reps and training cues</Text>
+                <Text style={S.coachBtnText}>Customize with Coach</Text>
+                <Text style={S.coachHelper}>Discuss your goals, constraints or exercise choices</Text>
               </View>
               <Ionicons name="arrow-forward" size={16} color={COLORS.textMuted} />
             </PressableScale>
