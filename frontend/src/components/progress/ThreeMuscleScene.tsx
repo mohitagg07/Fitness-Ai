@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   PanResponder,
-  PixelRatio,
   StyleSheet,
   View,
 } from 'react-native';
@@ -243,7 +242,7 @@ export default function ThreeMuscleScene({
         alpha: false,
         antialias: true,
       });
-      renderer.setPixelRatio(Math.min(PixelRatio.get(), 1.35));
+      // GLView already reports device-pixel dimensions; don't apply DPR twice.
       renderer.setSize(gl.drawingBufferWidth, gl.drawingBufferHeight, false);
       renderer.setClearColor(toThreeColor(CANVAS_BACKGROUND), 1);
 
