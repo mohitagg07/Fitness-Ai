@@ -185,10 +185,16 @@ export const coachApi = {
 export const workoutApi = {
   createSession: (data: any) => api.post('/workouts/sessions', data),
   getSessions: (limit = 10) => api.get(`/workouts/sessions?limit=${limit}`),
-  completeSession: (id: string, cns_fatigue?: number, mood?: string) =>
-    api.patch(`/workouts/sessions/${id}/complete`, null, {
-      params: { cns_fatigue_after: cns_fatigue, mood },
-    }),
+  completeSession: (id: string, feedback?: {
+    mood?: string;
+    session_effort?: number;
+    energy_level?: number;
+    pain_status?: 'none' | 'mild' | 'sharp' | 'worsening';
+    pain_notes?: string;
+    session_notes?: string;
+  }) => api.patch(`/workouts/sessions/${id}/complete`, feedback || {}),
+  transitionSession: (id: string, action: 'pause' | 'resume' | 'abandon') =>
+    api.patch(`/workouts/sessions/${id}/state`, { action }),
   logSet: (sessionId: string, data: any) =>
     api.post(`/workouts/sessions/${sessionId}/logs`, data),
   getSessionLogs: (sessionId: string) =>
@@ -357,6 +363,21 @@ export const programApi = {
   getVersions: (limit = 10) => api.get('/program/versions', { params: { limit } }),
   getLatest: () => api.get('/program/latest'),
   triggerRewrite: () => api.post('/program/rewrite'),
+};
+
+// Versioned workout plans — a plan remains a draft until the athlete approves
+// its exact snapshot. Sessions are created from the approved version ID.
+export const trainingPlanApi = {
+  getActive: () => api.get('/training-plans/active'),
+  createDraft: (data: any) => api.post('/training-plans/drafts', data),
+  updateDraft: (planId: string, versionId: string, data: any) =>
+    api.patch(`/training-plans/${planId}/versions/${versionId}`, data),
+  approveVersion: (planId: string, versionId: string) =>
+    api.post(`/training-plans/${planId}/versions/${versionId}/approve`),
+  rejectVersion: (planId: string, versionId: string) =>
+    api.post(`/training-plans/${planId}/versions/${versionId}/reject`),
+  rollbackVersion: (planId: string, versionId: string) =>
+    api.post(`/training-plans/${planId}/versions/${versionId}/rollback`),
 };
 
 // Admin — manual trigger for the nightly background job suite (pattern
