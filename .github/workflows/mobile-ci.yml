@@ -41,14 +41,16 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Refresh lockfile after declared dependency overrides
-        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Refresh lockfile and apply non-breaking security fixes
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm audit fix --package-lock-only --ignore-scripts --no-fund || true
 
       - name: Install locked dependencies
         run: npm ci
 
-      # Commit regenerated lockfiles on the working branch so npm ci is reproducible.
-      # Pull-request CI checks the same updates in its ephemeral workspace.
+      # Commit a safely refreshed lockfile on the working branch so local and
+      # CI installs use the exact same transitive dependency tree.
       - name: Save generated package lockfile
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feat/'))
         run: |
@@ -56,17 +58,16 @@ jobs:
           git -C .. config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git -C .. add frontend/package-lock.json
           if ! git -C .. diff --cached --quiet; then
-            git -C .. commit -m "chore: sync frontend dependency lockfile"
+            git -C .. commit -m "chore: apply safe frontend dependency lock updates"
             git -C .. push origin HEAD:refs/heads/${GITHUB_REF_NAME}
           fi
 
-      - name: Report all production dependency advisories
+      - name: Report remaining production dependency advisories
         run: npm audit --omit=dev || true
 
-      # Expo SDK 54 still pulls a few upstream build-time advisories whose
-      # safe resolution requires a major Expo upgrade or a not-yet-published
-      # image-size fix. Do not force an SDK migration in this reliability PR.
-      # Critical findings remain a hard failure.
+      # Do not force a major Expo SDK migration as an automatic vulnerability
+      # fix. Critical advisories remain a hard failure; unresolved transitive
+      # advisories are visible in the report above for deliberate triage.
       - name: Block critical production dependency vulnerabilities
         run: npm audit --omit=dev --audit-level=critical
 
@@ -82,19 +83,17 @@ jobs:
       - name: Bundle Android
         env:
           EXPO_PUBLIC_API_URL: https://neurofit-ai-backend.onrender.com/api
+          EXPO_PUBLIC_VYRN_QA_BUILD: "false"
         run: npx expo export --platform android --output-dir $RUNNER_TEMP/vyrn-android
 
       - name: Bundle iOS
         env:
           EXPO_PUBLIC_API_URL: https://neurofit-ai-backend.onrender.com/api
+          EXPO_PUBLIC_VYRN_QA_BUILD: "false"
         run: npx expo export --platform ios --output-dir $RUNNER_TEMP/vyrn-ios
 
-
-
-  # A Metro export cannot catch native Gradle / Android manifest / autolinking
-  # failures. Compile a real debug APK so Android's native modules are checked.
   build-android-native:
-    name: Compile Android debug APK
+    name: Build standalone APK and verify native 3D on emulator
     runs-on: ubuntu-latest
     env:
       EXPO_PUBLIC_API_URL: https://neurofit-ai-backend.onrender.com/api
@@ -116,15 +115,17 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
-      # v4 fixes the removed Google SDK "tools" package requested by v3.
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v5
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4.0.4
         with:
-          packages: 'platform-tools'
+          packages: "platform-tools"
 
-      - name: Install Android 16 build platform
+      - name: Install Android build platform
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
       - name: Install locked dependencies
@@ -133,20 +134,100 @@ jobs:
       - name: Generate native Android project
         run: npx expo prebuild --platform android --clean --no-install
 
-      - name: Compile native Android debug APK
+      # This is a RELEASE variant, not a Metro-dependent debug variant.
+      # The temporary QA flag unlocks only a no-account test route that mounts
+      # the real ThreeMuscleScene. It is disabled in the distributable APK.
+      - name: Build standalone 3D QA APK
+        env:
+          EXPO_PUBLIC_VYRN_QA_BUILD: "true"
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew :app:assembleDebug --no-daemon --stacktrace
+          ./gradlew :app:assembleRelease --no-daemon --stacktrace
+          mkdir -p "$RUNNER_TEMP/vyrn"
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/vyrn/vyrn-3d-qa.apk"
 
-      - name: Upload Android debug APK
+      - name: Install and verify native 3D scene on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7_pro
+          working-directory: frontend
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            adb install -r "$RUNNER_TEMP/vyrn/vyrn-3d-qa.apk"
+            adb shell pm clear com.vyrn.app
+            adb shell am start -W -a android.intent.action.VIEW -d "vyrn:///qa/three-d" com.vyrn.app
+
+            # Wait for the real R3F useFrame callback, not merely GL context creation.
+            for attempt in $(seq 1 25); do
+              adb shell uiautomator dump /sdcard/vyrn-window.xml >/dev/null 2>&1 || true
+              adb pull /sdcard/vyrn-window.xml "$RUNNER_TEMP/vyrn-window.xml" >/dev/null 2>&1 || true
+              if grep -q "3D_CANVAS_READY" "$RUNNER_TEMP/vyrn-window.xml" 2>/dev/null; then
+                break
+              fi
+              if grep -q "3D_CANVAS_FAILED" "$RUNNER_TEMP/vyrn-window.xml" 2>/dev/null; then
+                echo "Native 3D Canvas rendered into the fallback state."
+                cat "$RUNNER_TEMP/vyrn-window.xml"
+                exit 1
+              fi
+              sleep 1
+            done
+            grep -q "3D_CANVAS_READY" "$RUNNER_TEMP/vyrn-window.xml"
+
+            # Exercise the PanResponder overlay and confirm it receives a horizontal drag.
+            SIZE="$(adb shell wm size | awk -F': ' 'END {print $2}' | tr -d '\r')"
+            WIDTH="${SIZE%x*}"
+            HEIGHT="${SIZE#*x}"
+            adb shell input swipe "$((WIDTH / 8))" "$((HEIGHT / 3))" "$((WIDTH * 7 / 8))" "$((HEIGHT / 3))" 500
+
+            for attempt in $(seq 1 10); do
+              adb shell uiautomator dump /sdcard/vyrn-window.xml >/dev/null 2>&1 || true
+              adb pull /sdcard/vyrn-window.xml "$RUNNER_TEMP/vyrn-window.xml" >/dev/null 2>&1 || true
+              if grep -q "3D_DRAG_CONFIRMED" "$RUNNER_TEMP/vyrn-window.xml" 2>/dev/null; then
+                break
+              fi
+              sleep 1
+            done
+            grep -q "3D_DRAG_CONFIRMED" "$RUNNER_TEMP/vyrn-window.xml"
+
+            adb shell pidof com.vyrn.app
+            adb logcat -d -v brief > "$RUNNER_TEMP/vyrn-logcat.txt"
+            if grep -E "FATAL EXCEPTION|ReactNativeJS.*(TypeError|ReferenceError|Invariant Violation)" "$RUNNER_TEMP/vyrn-logcat.txt"; then
+              echo "Android runtime exception detected during native 3D smoke test."
+              exit 1
+            fi
+            echo "Standalone app launch, first rendered R3F frame, and horizontal 3D drag all passed."
+
+      - name: Build distributable standalone preview APK
+        env:
+          EXPO_PUBLIC_VYRN_QA_BUILD: "false"
+        run: |
+          cd android
+          ./gradlew clean :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Upload standalone Android preview APK
         uses: actions/upload-artifact@v4
         with:
-          name: vyrn-android-debug-apk
-          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+          name: vyrn-android-preview-apk
+          path: frontend/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 7
 
+      - name: Upload Android 3D emulator smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vyrn-android-3d-smoke-evidence
+          path: |
+            ${{ runner.temp }}/vyrn-window.xml
+            ${{ runner.temp }}/vyrn-logcat.txt
+          if-no-files-found: ignore
+          retention-days: 7
 
   validate-backend:
     runs-on: ubuntu-latest
