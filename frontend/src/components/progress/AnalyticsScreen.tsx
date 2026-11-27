@@ -575,7 +575,7 @@ const styles = StyleSheet.create({
   rangeOptionTextActive: { color: COLORS.background },
 
   chartCard: { backgroundColor: COLORS.card, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, padding: 16 },
-  cardEyebrow: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 9, letterSpacing: 1.35, marginBottom: 6 },
+  cardEyebrow: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 10, letterSpacing: 1.35, marginBottom: 6 },
   cardTitle: { color: COLORS.text, fontFamily: FONTS.bold, fontSize: 17, fontWeight: '700', letterSpacing: -0.25 },
   cardDescription: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 11, lineHeight: 17, marginTop: 5, marginBottom: 15 },
 
@@ -590,7 +590,7 @@ const styles = StyleSheet.create({
   retryButtonText: { color: COLORS.background, fontFamily: FONTS.bold, fontSize: 12 },
 
   heatmapDayRow: { flexDirection: 'row', gap: 4, marginBottom: 6 },
-  heatmapDayLabel: { flex: 1, textAlign: 'center', color: COLORS.textMuted, fontFamily: FONTS.semibold, fontSize: 8 },
+  heatmapDayLabel: { flex: 1, textAlign: 'center', color: COLORS.textMuted, fontFamily: FONTS.semibold, fontSize: 10 },
   heatmapWeekRow: { flexDirection: 'row', gap: 4, marginBottom: 4 },
   heatmapCell: { flex: 1, height: 19, borderRadius: 4, borderWidth: 1 },
   heatmapMissing: { backgroundColor: 'transparent', borderColor: 'transparent' },
@@ -600,16 +600,16 @@ const styles = StyleSheet.create({
   heatmapDetailMetrics: { flexDirection: 'row', marginTop: 12, gap: 4 },
   detailMetric: { flex: 1 },
   detailMetricValue: { color: COLORS.primaryGreen, fontFamily: FONTS.numericBold, fontSize: 17 },
-  detailMetricLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 7, letterSpacing: 0.55, marginTop: 2 },
+  detailMetricLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 10, letterSpacing: 0.55, marginTop: 2 },
   tapHint: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 10, textAlign: 'center', marginTop: 12 },
   heatmapLegend: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 5, marginTop: 17 },
-  legendLabel: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 9, marginHorizontal: 2 },
+  legendLabel: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 10, marginHorizontal: 2 },
   legendCell: { width: 11, height: 11, borderRadius: 3, borderWidth: 1, borderColor: COLORS.border },
   chartFootnote: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 10, lineHeight: 15, textAlign: 'center', marginTop: 12 },
 
   balanceSummary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, paddingVertical: 12, marginBottom: 10 },
   summaryValue: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 19, textAlign: 'center' },
-  summaryLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 7, letterSpacing: 0.7, marginTop: 2, textAlign: 'center' },
+  summaryLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 10, letterSpacing: 0.7, marginTop: 2, textAlign: 'center' },
   summaryDivider: { width: 1, height: 30, backgroundColor: COLORS.border },
   radarWrap: { alignItems: 'center', marginVertical: 4 },
   muscleList: { gap: 11, marginTop: 3 },
@@ -621,7 +621,7 @@ const styles = StyleSheet.create({
   muscleFill: { height: '100%', borderRadius: 4 },
   insightBox: { backgroundColor: alpha(COLORS.recoveryMed, 0.07), borderRadius: 10, borderWidth: 1, borderColor: alpha(COLORS.recoveryMed, 0.22), padding: 11, marginTop: 15 },
   insightHeading: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
-  insightTitle: { color: COLORS.recoveryMed, fontFamily: FONTS.bold, fontSize: 9, letterSpacing: 1 },
+  insightTitle: { color: COLORS.recoveryMed, fontFamily: FONTS.bold, fontSize: 10, letterSpacing: 1 },
   insightText: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 10, lineHeight: 16 },
 
   timeline: { paddingLeft: 20, position: 'relative' },
@@ -639,11 +639,11 @@ const styles = StyleSheet.create({
   timelineWeightPR: { color: COLORS.primaryGreen },
   timelineUnit: { color: COLORS.textMuted, fontFamily: FONTS.numeric, fontSize: 10 },
   timelineReps: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 10, marginTop: 1 },
-  prPill: { color: COLORS.background, backgroundColor: COLORS.primaryGreen, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 3, overflow: 'hidden', fontFamily: FONTS.bold, fontSize: 7, letterSpacing: 0.6, marginTop: 5 },
+  prPill: { color: COLORS.background, backgroundColor: COLORS.primaryGreen, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 3, overflow: 'hidden', fontFamily: FONTS.bold, fontSize: 10, letterSpacing: 0.6, marginTop: 5 },
 
   refreshingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderTopWidth: 1, borderTopColor: COLORS.border, marginTop: 14, paddingTop: 12 },
   refreshingText: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 10 },
   staleNotice: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: alpha(COLORS.recoveryMed, 0.08), borderRadius: 8, padding: 9, marginTop: 12 },
-  staleNoticeText: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 9, flex: 1 },
+  staleNoticeText: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 10, flex: 1 },
   retryInline: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 10 },
 });
