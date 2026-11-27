@@ -21,10 +21,11 @@ import { SPACING, RADIUS } from '../../theme/spacing';
 import { qk, STALE } from '../../lib/queryKeys';
 import Text from '../ui/Text';
 import SectionLabel from '../ui/SectionLabel';
+import ThreeMuscleScene from './ThreeMuscleScene';
 
 type MuscleName = 'Chest' | 'Back' | 'Shoulders' | 'Arms' | 'Core' | 'Legs';
 type RecoveryStatus = 'green' | 'yellow' | 'red' | 'no_data';
-type AnatomyView = 'front' | 'back';
+type AnatomyView = 'front' | 'back' | '3d';
 
 interface MuscleGroupRecovery {
   name: MuscleName;
@@ -108,7 +109,7 @@ function AnatomyFigure({
   colorFor,
   onSelect,
 }: {
-  view: AnatomyView;
+  view: 'front' | 'back';
   selected: MuscleName;
   colorFor: (name: MuscleName) => string;
   onSelect: (name: MuscleName) => void;
@@ -222,10 +223,20 @@ export default function MuscleRecoveryMap() {
     return STATUS_COLOR[group?.status ?? 'no_data'];
   };
 
+  const musclePalette = useMemo(() => {
+    const palette = {} as Record<MuscleName, string>;
+    MUSCLE_ORDER.forEach((name) => {
+      palette[name] = STATUS_COLOR[groupByName.get(name)?.status ?? 'no_data'];
+    });
+    return palette;
+  }, [groupByName]);
+
   const selectMuscle = (name: MuscleName) => {
     setSelectedMuscle(name);
-    if (name === 'Back') setView('back');
-    if (name === 'Chest') setView('front');
+    if (view !== '3d') {
+      if (name === 'Back') setView('back');
+      if (name === 'Chest') setView('front');
+    }
   };
 
   if (recoveryQuery.isLoading) {
@@ -271,20 +282,21 @@ export default function MuscleRecoveryMap() {
       </View>
 
       <View style={styles.viewToggle}>
-        {(['front', 'back'] as AnatomyView[]).map((item) => (
+        {(['front', 'back', '3d'] as AnatomyView[]).map((item) => (
           <Pressable
             key={item}
             accessibilityRole="button"
             accessibilityState={{ selected: view === item }}
+            accessibilityLabel={item === '3d' ? 'Interactive three dimensional muscle model' : `${item} anatomy view`}
             onPress={() => setView(item)}
-            style={[styles.viewButton, view === item && styles.viewButtonActive]}
+            style={[styles.viewButton, item === '3d' && styles.viewButton3d, view === item && styles.viewButtonActive]}
           >
             <Text
               variant="caption"
               weight="bold"
-              color={view === item ? COLORS.background : COLORS.textSecondary}
+              color={view === item ? COLORS.background : item === '3d' ? COLORS.primaryGreen : COLORS.textSecondary}
             >
-              {item.toUpperCase()}
+              {item === '3d' ? '3D MODEL' : item.toUpperCase()}
             </Text>
           </Pressable>
         ))}
@@ -292,14 +304,22 @@ export default function MuscleRecoveryMap() {
 
       <View style={styles.explorerLayout}>
         <View style={styles.figureWrap}>
-          <AnatomyFigure
-            view={view}
-            selected={selectedMuscle}
-            colorFor={colorFor}
-            onSelect={selectMuscle}
-          />
+          {view === '3d' ? (
+            <ThreeMuscleScene
+              selectedMuscle={selectedMuscle}
+              musclePalette={musclePalette}
+              onFailure={() => setView('front')}
+            />
+          ) : (
+            <AnatomyFigure
+              view={view}
+              selected={selectedMuscle}
+              colorFor={colorFor}
+              onSelect={selectMuscle}
+            />
+          )}
           <Text variant="caption" color={COLORS.textMuted}>
-            {view === 'front' ? 'ANTERIOR VIEW' : 'POSTERIOR VIEW'}
+            {view === '3d' ? 'DRAG TO ROTATE · SELECT A MUSCLE BELOW' : view === 'front' ? 'ANTERIOR VIEW' : 'POSTERIOR VIEW'}
           </Text>
         </View>
 
@@ -449,8 +469,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: RADIUS.button,
   },
+  viewButton3d: {
+    borderWidth: 1,
+    borderColor: alpha(COLORS.primaryGreen, 0.34),
+    paddingHorizontal: 12,
+  },
   viewButtonActive: {
     backgroundColor: COLORS.primaryGreen,
+    borderColor: COLORS.primaryGreen,
   },
   explorerLayout: {
     flexDirection: 'row',
