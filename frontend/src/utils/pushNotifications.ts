@@ -14,6 +14,7 @@ import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { storage } from './storage';
 import { notificationsApi } from './api';
+import { COLORS } from '../theme/colors';
 
 // Lazy imports — expo-notifications/expo-device pull in native modules that
 // don't exist in a plain web build, so importing them at module scope would
@@ -51,7 +52,7 @@ export async function registerForPushNotificationsAsync(): Promise<void> {
         name: 'VYRN Coach',
         importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0, 200, 150, 200],
-        lightColor: '#16EC06',
+        lightColor: COLORS.primaryGreen,
       });
     }
 
