@@ -87,6 +87,7 @@ export default function TabsLayout() {
   const prefetchDashboard = usePrefetchDashboard();
   const storedToken = useStore((state) => state.token);
   const storedUser = useStore((state) => state.user);
+  const authSnapshot = useRef({ token: storedToken, user: storedUser }).current;
 
   useEffect(() => {
     let cancelled = false;
@@ -130,7 +131,7 @@ export default function TabsLayout() {
     };
 
     const bootstrap = async () => {
-      let token: string | null = storedToken;
+      let token: string | null = authSnapshot.token;
       if (!token) {
         try {
           token = await storage.getItem('vyrn_token');
@@ -146,7 +147,7 @@ export default function TabsLayout() {
         return;
       }
 
-      let savedUser: any = storedUser;
+      let savedUser: any = authSnapshot.user;
       if (!savedUser || typeof savedUser !== 'object') {
         try {
           const rawUser = await storage.getItem('vyrn_user');
@@ -199,7 +200,7 @@ export default function TabsLayout() {
       cancelled = true;
       notificationTask?.cancel();
     };
-  }, [prefetchDashboard, storedToken, storedUser]);
+  }, [prefetchDashboard]);
 
   useEffect(() => {
     const cleanup = attachNotificationResponseHandler();
