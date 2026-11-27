@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Text,
+  Animated,
+  Easing,
   LayoutAnimation,
   Platform,
   RefreshControl,
@@ -72,7 +74,21 @@ function ReadinessDial({ score, color }: { score: number | null; color: string }
   const stroke = 7;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
-  const progress = score === null ? 0 : Math.max(0, Math.min(100, score));
+  const progress = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    progress.stopAnimation();
+    Animated.timing(progress, {
+      toValue: score === null ? 0 : Math.max(0, Math.min(100, score)),
+      duration: 760,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [progress, score]);
+
+  const dashOffset = progress.interpolate({
+    inputRange: [0, 100],
+    outputRange: [circumference, 0],
+  });
 
   return (
     <View style={styles.dial}>
@@ -85,14 +101,14 @@ function ReadinessDial({ score, color }: { score: number | null; color: string }
           strokeWidth={stroke}
           fill="none"
         />
-        <Circle
+        <AnimatedCircle
           cx={size / 2}
           cy={size / 2}
           r={radius}
           stroke={color}
           strokeWidth={stroke}
           strokeDasharray={`${circumference} ${circumference}`}
-          strokeDashoffset={circumference * (1 - progress / 100)}
+          strokeDashoffset={dashOffset as any}
           strokeLinecap="round"
           fill="none"
           rotation="-90"
@@ -462,6 +478,8 @@ export default function DashboardScreen() {
     </View>
   );
 }
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.background },
