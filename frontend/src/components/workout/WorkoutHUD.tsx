@@ -60,6 +60,7 @@ interface DraftPlanReference {
   planId: string;
   versionId: string;
   sessionRequestId: string;
+  sessionDate: string;
   name: string;
   workoutType: string;
   estimatedMinutes: number | null;
@@ -84,6 +85,14 @@ export interface MilestoneInfo {
   streak: number;
   title: string;
   message: string;
+}
+
+function localDateKey(value: Date = new Date()): string {
+  return [
+    value.getFullYear(),
+    String(value.getMonth() + 1).padStart(2, '0'),
+    String(value.getDate()).padStart(2, '0'),
+  ].join('-');
 }
 
 function computeMilestone(summary: any): MilestoneInfo | null {
@@ -499,6 +508,7 @@ function WorkoutHUD() {
     phase: profile?.current_phase || null,
     weeks: 4,
     schedule: {},
+    session_date: draft.sessionDate,
     change_reason: 'Coach-generated training session awaiting athlete approval',
     workout: {
       label: draft.name,
@@ -562,12 +572,14 @@ function WorkoutHUD() {
         ? sd.muscle_groups.map((item: unknown) => String(item))
         : [];
 
+      const sessionDate = localDateKey();
       const draftPayload = {
         name: title,
         goal: profile?.goal || null,
         phase: profile?.current_phase || null,
         weeks: 4,
         schedule: {},
+        session_date: sessionDate,
         change_reason: 'Coach-generated training session awaiting athlete approval',
         workout: {
           label: title,
@@ -601,6 +613,7 @@ function WorkoutHUD() {
         planId,
         versionId,
         sessionRequestId: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`,
+        sessionDate,
         name: title,
         workoutType,
         estimatedMinutes,
@@ -651,12 +664,7 @@ function WorkoutHUD() {
         setDraftPlan(approvedDraft);
       }
 
-      const now = new Date();
-      const localSessionDate = [
-        now.getFullYear(),
-        String(now.getMonth() + 1).padStart(2, '0'),
-        String(now.getDate()).padStart(2, '0'),
-      ].join('-');
+      const localSessionDate = approvedDraft.sessionDate || localDateKey();
       // client_request_id is stable for this preview. A network retry returns
       // the already-created session instead of opening a duplicate workout.
       const created = await workoutApi.createSession({
@@ -963,6 +971,8 @@ function WorkoutHUD() {
           onApprove={approveDraftAndStart}
           onCancel={cancelPlanPreview}
           saving={isApprovingPlan}
+          reason={draftPlan ? 'This proposal is not active until you approve it.' : undefined}
+          muscleGroups={draftPlan?.muscleGroups}
         />
         <WorkoutSummaryCard
           visible={summaryVisible}
