@@ -32,6 +32,8 @@ def test_health_and_core_routes_are_registered() -> None:
         ("POST", "/api/profile/onboard"),
         ("POST", "/api/workouts/sessions"),
         ("PATCH", "/api/workouts/sessions/{session_id}/state"),
+        ("GET", "/api/workouts/sessions/{session_id}/exercise-events"),
+        ("POST", "/api/workouts/sessions/{session_id}/exercise-events"),
         ("GET", "/api/training-plans/active"),
         ("POST", "/api/training-plans/drafts"),
         ("GET", "/api/training-plans/{plan_id}/versions"),
