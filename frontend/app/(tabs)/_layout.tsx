@@ -172,8 +172,8 @@ export default function TabsLayout() {
           borderBottomWidth: 0,
           borderRadius: 0,
           paddingBottom: bottomInset,
-          paddingTop: 7,
-          height: 58 + bottomInset,
+          paddingTop: 8,
+          height: 66 + bottomInset,
           elevation: 0,
           shadowOpacity: 0,
         },
@@ -182,8 +182,8 @@ export default function TabsLayout() {
         tabBarLabelStyle: {
           fontSize: 10,
           fontWeight: '600',
-          letterSpacing: 0.1,
-          marginTop: 2,
+          letterSpacing: 0.15,
+          marginTop: 3,
         },
         tabBarHideOnKeyboard: true,
       }}
@@ -195,11 +195,11 @@ export default function TabsLayout() {
           options={{
             title: tab.title,
             tabBarIcon: ({ color, focused }) => (
-              <View style={focused ? styles.activeIcon : styles.icon}>
+              <View style={tab.name === 'workout' && focused ? styles.trainActiveIcon : focused ? styles.activeIcon : styles.icon}>
                 <Ionicons
                   name={focused ? tab.activeIcon : tab.icon}
-                  size={21}
-                  color={color}
+                  size={tab.name === 'workout' ? 22 : 20}
+                  color={tab.name === 'workout' && focused ? COLORS.background : color}
                 />
                 {focused && <View style={styles.activeIndicator} />}
               </View>
@@ -222,22 +222,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   icon: {
-    minWidth: 44,
+    width: 42,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 3,
   },
   activeIcon: {
-    minWidth: 44,
+    width: 42,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 3,
+    borderRadius: 12,
+    backgroundColor: alpha(COLORS.primaryGreen, 0.10),
+  },
+  trainActiveIcon: {
+    width: 38,
+    height: 32,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primaryGreen,
   },
   activeIndicator: {
     position: 'absolute',
-    top: -7,
-    width: 16,
-    height: 2,
+    bottom: -3,
+    width: 4,
+    height: 4,
     borderRadius: 2,
     backgroundColor: COLORS.tabActive,
   },

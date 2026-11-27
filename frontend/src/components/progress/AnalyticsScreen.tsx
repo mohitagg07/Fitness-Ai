@@ -22,8 +22,9 @@ import AmbientGrid from '../shared/AmbientGrid';
 import { COLORS, alpha } from '../../theme/colors';
 import { qk, STALE } from '../../lib/queryKeys';
 import { FONTS } from '../../theme/typography';
+import StrengthProgressionChart from './StrengthProgressionChart';
 
-export type AnalyticsChartTab = 'heatmap' | 'radar' | 'prs';
+export type AnalyticsChartTab = 'heatmap' | 'radar' | 'prs' | 'strength';
 
 interface HeatmapDay {
   date: string;
@@ -69,6 +70,7 @@ const CHART_TABS: { id: AnalyticsChartTab; label: string; caption: string; icon:
   { id: 'heatmap', label: 'Activity', caption: 'Working-set activity', icon: 'grid-outline' },
   { id: 'radar', label: 'Muscle balance', caption: 'Primary-muscle exposure', icon: 'body-outline' },
   { id: 'prs', label: 'PR timeline', caption: 'Saved personal records', icon: 'trophy-outline' },
+  { id: 'strength', label: 'Strength', caption: 'Weekly best working weight', icon: 'trending-up' },
 ];
 
 function EmptyState({ icon, title, text }: {
@@ -470,7 +472,9 @@ export default function AnalyticsScreen({
         </View>
       )}
 
-      {currentQuery.isPending && currentQuery.fetchStatus === 'fetching' && !currentData ? (
+      {activeChart === 'strength' ? (
+        <StrengthProgressionChart />
+      ) : currentQuery.isPending && currentQuery.fetchStatus === 'fetching' && !currentData ? (
         <ChartLoadingState />
       ) : !currentData ? (
         <View style={styles.stateCard}>

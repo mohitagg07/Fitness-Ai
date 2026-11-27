@@ -27,6 +27,7 @@ import { useMissionSummary } from '../../hooks/useDashboardQueries';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { useStore } from '../../store';
 import { COLORS, alpha, recoveryColor } from '../../theme/colors';
+import { FONTS } from '../../theme/typography';
 import { RADIUS } from '../../theme/spacing';
 import Logo from '../shared/Logo';
 
@@ -764,12 +765,12 @@ export default function CoachScreen() {
           <Logo size="sm" />
           <View style={S.headerTitleCol}>
             <View style={S.headerTitleRow}>
-              <Text style={S.headerTitle}>AI Coach</Text>
+              <Text style={S.headerTitle}>Coach</Text>
               <View style={S.proBadge}>
-                <Text style={S.proBadgeText}>AI</Text>
+                <Text style={S.proBadgeText}>VYRN AI</Text>
               </View>
             </View>
-            <Text style={S.headerSub}>Your performance partner</Text>
+            <Text style={S.headerSub}>Your training, in context</Text>
           </View>
           <View style={S.headerIcons}>
             <TouchableOpacity hitSlop={10} onPress={() => setMemoryVisible(true)} accessibilityRole="button" accessibilityLabel="Open coach memory">
@@ -839,9 +840,9 @@ export default function CoachScreen() {
               <View style={S.coachOrbStatus} />
             </View>
             <Text style={S.emptyEyebrow}>YOUR TRAINING PARTNER</Text>
-            <Text style={S.emptyTitle}>What are we working on?</Text>
+            <Text style={S.emptyTitle}>Your next best move starts here.</Text>
             <Text style={S.emptySubtitle}>
-              Ask about your plan, a difficult set, recovery or what to eat. Your training history gives the conversation context.
+              Ask about your plan, a difficult set, recovery or nutrition. Your saved training history gives the conversation context.
             </Text>
           </View>
           <View style={S.suggestionsHeading}>
@@ -1045,13 +1046,13 @@ const S = StyleSheet.create({
   headerTopRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerTitleCol: { flex: 1 },
   headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  headerTitle: { color: COLORS.text, fontSize: 16, fontWeight: '700' },
+  headerTitle: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 19, fontWeight: '600', letterSpacing: -0.35 },
   proBadge: {
     backgroundColor: COLORS.recoveryHigh + '20', borderRadius: 6,
     paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: COLORS.recoveryHigh + '50',
   },
-  proBadgeText: { color: COLORS.recoveryHigh, fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
-  headerSub: { color: COLORS.textMuted, fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
+  proBadgeText: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 8, fontWeight: '800', letterSpacing: 0.9 },
+  headerSub: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 11, letterSpacing: 0.1, marginTop: 1 },
   headerIcons: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   notifDot: {
     position: 'absolute', top: -1, right: -1, width: 7, height: 7, borderRadius: 4,
@@ -1097,8 +1098,8 @@ const S = StyleSheet.create({
     backgroundColor: COLORS.recoveryHigh, borderWidth: 3, borderColor: COLORS.background,
   },
   emptyEyebrow: { color: COLORS.primaryGreen, fontSize: 9, fontWeight: '800', letterSpacing: 1.8, marginBottom: 9 },
-  emptyTitle: { color: COLORS.text, fontSize: 27, lineHeight: 32, fontWeight: '800', letterSpacing: -0.8, marginBottom: 9, maxWidth: 310 },
-  emptySubtitle: { color: COLORS.textMuted, fontSize: 13, lineHeight: 20, maxWidth: 340 },
+  emptyTitle: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 28, lineHeight: 33, fontWeight: '700', letterSpacing: -0.8, marginBottom: 9, maxWidth: 310 },
+  emptySubtitle: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 12, lineHeight: 19, maxWidth: 340 },
   suggestionsHeading: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     marginBottom: 11,
@@ -1116,7 +1117,7 @@ const S = StyleSheet.create({
     width: 34, height: 34, borderRadius: 11,
     alignItems: 'center', justifyContent: 'center',
   },
-  suggestionText: { color: COLORS.text, fontSize: 12, lineHeight: 17, fontWeight: '600', marginTop: 10 },
+  suggestionText: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 12, lineHeight: 18, fontWeight: '600', marginTop: 10 },
 
   messageList: { padding: 16, paddingBottom: 12 },
   bubble:      { marginBottom: 12, borderRadius: 18, padding: 15, maxWidth: '92%' },
@@ -1126,7 +1127,7 @@ const S = StyleSheet.create({
                  borderWidth: 1, borderColor: COLORS.border, maxWidth: '97%' },
   roleLabelRow:{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 },
   roleLabel:   { color: COLORS.recoveryHigh, fontSize: 9, fontWeight: '800', letterSpacing: 1.5 },
-  messageText: { color: COLORS.text, fontSize: 15, lineHeight: 23 },
+  messageText: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 14, lineHeight: 22 },
   userText:    { color: COLORS.text },
 
   thinkingRow:    { flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -1144,7 +1145,7 @@ const S = StyleSheet.create({
               backgroundColor: COLORS.background, borderTopWidth: 1, borderTopColor: COLORS.border },
   input:    { flex: 1, backgroundColor: COLORS.inputBg, borderRadius: 16,
               paddingHorizontal: 16, paddingVertical: 11, color: COLORS.text,
-              fontSize: 15, maxHeight: 110, borderWidth: 1, borderColor: COLORS.border },
+              fontFamily: FONTS.regular, fontSize: 14, maxHeight: 110, borderWidth: 1, borderColor: COLORS.border },
   sendBtn:  { width: 44, height: 44, borderRadius: 15,
               backgroundColor: COLORS.primaryGreen, alignItems: 'center', justifyContent: 'center' },
   sendBtnOff: { backgroundColor: COLORS.cardElevated, shadowOpacity: 0, elevation: 0 },

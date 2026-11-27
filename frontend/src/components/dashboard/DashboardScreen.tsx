@@ -31,6 +31,7 @@ import AchievementCard from './AchievementCard';
 import ProgramHealthCard from './ProgramHealthCard';
 import TimelineCard from './TimelineCard';
 import PatternInsightsCard from './PatternInsightsCard';
+import Logo from '../shared/Logo';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -223,7 +224,7 @@ export default function DashboardScreen() {
       >
         <View style={styles.topline}>
           <View style={styles.brandLockup}>
-            <View style={styles.brandMark}><TextLike style={styles.brandMarkText}>V</TextLike></View>
+            <Logo size="sm" />
             <View>
               <TextLike style={styles.brandName}>VYRN</TextLike>
               <TextLike style={styles.brandSub}>PERFORMANCE SYSTEM</TextLike>
@@ -324,6 +325,40 @@ export default function DashboardScreen() {
               accent={COLORS.gold}
             />
           </View>
+          {weeklyStats?.has_data && (
+            <View style={styles.weeklyPulse}>
+              <View style={styles.weeklyPulseTop}>
+                <TextLike style={styles.weeklyPulseEyebrow}>WEEKLY LOAD</TextLike>
+                <TextLike style={styles.weeklyPulseMeta}>LOGGED SO FAR</TextLike>
+              </View>
+              <View style={styles.weeklyPulseMetrics}>
+                <View style={styles.weeklyPulseMetric}>
+                  <TextLike style={styles.weeklyPulseValue}>
+                    {typeof weeklyStats.total_volume_kg === 'number'
+                      ? weeklyStats.total_volume_kg >= 1000
+                        ? (weeklyStats.total_volume_kg / 1000).toFixed(1) + ' t'
+                        : Math.round(weeklyStats.total_volume_kg).toLocaleString() + ' kg'
+                      : '—'}
+                  </TextLike>
+                  <TextLike style={styles.weeklyPulseLabel}>TOTAL VOLUME</TextLike>
+                </View>
+                <View style={styles.weeklyPulseDivider} />
+                <View style={styles.weeklyPulseMetric}>
+                  <TextLike style={styles.weeklyPulseValue}>
+                    {typeof weeklyStats.total_minutes === 'number' ? weeklyStats.total_minutes + ' min' : '—'}
+                  </TextLike>
+                  <TextLike style={styles.weeklyPulseLabel}>TIME TRAINING</TextLike>
+                </View>
+                <View style={styles.weeklyPulseDivider} />
+                <View style={styles.weeklyPulseMetric}>
+                  <TextLike style={styles.weeklyPulseValue}>
+                    {weeklyStats.avg_rpe == null ? '—' : weeklyStats.avg_rpe}
+                  </TextLike>
+                  <TextLike style={styles.weeklyPulseLabel}>AVG RPE</TextLike>
+                </View>
+              </View>
+            </View>
+          )}
         </View>
 
         {coachMessage && (
@@ -434,11 +469,6 @@ const styles = StyleSheet.create({
   content: { width: '100%', alignSelf: 'center', gap: 0 },
   topline: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 34 },
   brandLockup: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  brandMark: {
-    width: 36, height: 36, borderRadius: 11, backgroundColor: COLORS.primaryGreen,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  brandMarkText: { color: COLORS.background, fontFamily: FONTS.numericBold, fontSize: 23, lineHeight: 27 },
   brandName: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 15, letterSpacing: 3.4 },
   brandSub: { color: COLORS.textMuted, fontFamily: FONTS.semibold, fontSize: 8, letterSpacing: 1.35, marginTop: 2 },
   profileButton: {
@@ -495,6 +525,15 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: { color: COLORS.background, fontFamily: FONTS.bold, fontSize: 13, letterSpacing: 0.1 },
   metricsPanel: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 19, borderWidth: 1, borderColor: COLORS.border, paddingVertical: 17, paddingHorizontal: 16 },
+  weeklyPulse: { marginTop: 9, padding: 15, borderRadius: 18, backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.border },
+  weeklyPulseTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 13 },
+  weeklyPulseEyebrow: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1.3 },
+  weeklyPulseMeta: { color: COLORS.textDim, fontFamily: FONTS.semibold, fontSize: 7, letterSpacing: 0.9 },
+  weeklyPulseMetrics: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  weeklyPulseMetric: { flex: 1, minWidth: 0, gap: 5 },
+  weeklyPulseValue: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 16, lineHeight: 20 },
+  weeklyPulseLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 7, letterSpacing: 0.5 },
+  weeklyPulseDivider: { width: 1, height: 29, backgroundColor: COLORS.border },
   metric: { flex: 1, gap: 5 },
   metricMarker: { width: 18, height: 2, borderRadius: 2, marginBottom: 3 },
   metricLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1.1 },
