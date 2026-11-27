@@ -41,10 +41,10 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Refresh lockfile and apply non-breaking security fixes
+      - name: Regenerate lockfile from the pinned Expo SDK dependency graph
         run: |
+          rm -f package-lock.json
           npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-          npm audit fix --package-lock-only --ignore-scripts --no-fund || true
 
       - name: Install locked dependencies
         run: npm ci
@@ -69,7 +69,10 @@ jobs:
       # fix. Critical advisories remain a hard failure; unresolved transitive
       # advisories are visible in the report above for deliberate triage.
       - name: Block critical production dependency vulnerabilities
-        run: npm audit --omit=dev --audit-level=critical
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Verify native Expo package tree is deduplicated
+        run: npm ls expo expo-asset expo-constants expo-modules-core --depth=0
 
       - name: TypeScript check
         run: npm run typecheck
