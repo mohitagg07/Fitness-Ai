@@ -22,6 +22,7 @@ import { FONTS } from '../../theme/typography';
 import Button from '../ui/Button';
 import CountUpNumber from '../shared/CountUpNumber';
 import ConfettiBurst from './ConfettiBurst';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import type { MilestoneInfo } from './WorkoutHUD';
 
 interface Props {
@@ -34,14 +35,22 @@ function MilestoneCelebration({ visible, data, onClose }: Props) {
   const scaleIn = useRef(new Animated.Value(0.85)).current;
   const glowPulse = useRef(new Animated.Value(0)).current;
   const [confettiActive, setConfettiActive] = React.useState(false);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     if (!visible || !data) return;
+    scaleIn.stopAnimation();
+    glowPulse.stopAnimation();
+    if (reduceMotion) {
+      scaleIn.setValue(1);
+      glowPulse.setValue(0);
+      setConfettiActive(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      return undefined;
+    }
+
     scaleIn.setValue(0.85);
     Animated.spring(scaleIn, { toValue: 1, useNativeDriver: true, friction: 6, tension: 65 }).start();
-
-    // Slow ambient glow pulse behind the streak number — keeps the card
-    // feeling alive without being distracting.
     glowPulse.setValue(0);
     const loop = Animated.loop(
       Animated.sequence([
@@ -54,7 +63,7 @@ function MilestoneCelebration({ visible, data, onClose }: Props) {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     const t = setTimeout(() => setConfettiActive(true), 150);
     return () => { loop.stop(); clearTimeout(t); };
-  }, [visible, data]);
+  }, [visible, data, reduceMotion, scaleIn, glowPulse]);
 
   if (!data) return null;
 
@@ -63,7 +72,7 @@ function MilestoneCelebration({ visible, data, onClose }: Props) {
   const accent = data.kind === 'workout' ? COLORS.primaryGreen : COLORS.recoveryMed;
 
   return (
-    <Modal visible={visible} transparent animationType="fade">
+    <Modal visible={visible} transparent animationType={reduceMotion ? "none" : "fade"}>
       <View style={styles.backdrop}>
         <ConfettiBurst active={confettiActive} />
         <Animated.View style={[styles.card, { transform: [{ scale: scaleIn }] }]}>
