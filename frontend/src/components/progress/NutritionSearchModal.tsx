@@ -423,7 +423,7 @@ export default function NutritionSearchModal({
                 autoFocus
                 autoCorrect={false}
                 returnKeyType="search"
-                keyboardAppearance="dark"
+                keyboardAppearance="light"
                 selectionColor={COLORS.primaryGreen}
                 underlineColorAndroid="transparent"
               />
