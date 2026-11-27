@@ -367,9 +367,27 @@ export default function DashboardScreen() {
             <Ionicons name="barbell-outline" size={18} color={COLORS.text} />
             <TextLike style={styles.quickActionLabel}>Train</TextLike>
           </TouchableOpacity>
+          <TouchableOpacity style={styles.quickAction} onPress={() => router.push({ pathname: '/(tabs)/progress', params: { tab: 'nutrition' } } as any)}>
+            <Ionicons name="nutrition-outline" size={18} color={COLORS.text} />
+            <TextLike style={styles.quickActionLabel}>Nutrition</TextLike>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.quickAction} onPress={() => router.push('/(tabs)/progress')}>
             <Ionicons name="analytics-outline" size={18} color={COLORS.text} />
             <TextLike style={styles.quickActionLabel}>Progress</TextLike>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.moreTools}>
+          <TouchableOpacity style={styles.moreTool} onPress={() => router.push('/(tabs)/decisions')}>
+            <Ionicons name="git-branch-outline" size={14} color={COLORS.textMuted} />
+            <TextLike style={styles.moreToolText}>Decisions</TextLike>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.moreTool} onPress={() => router.push('/(tabs)/simulate')}>
+            <Ionicons name="flask-outline" size={14} color={COLORS.textMuted} />
+            <TextLike style={styles.moreToolText}>What If?</TextLike>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.moreTool} onPress={() => router.push('/(tabs)/formanalysis')}>
+            <Ionicons name="body-outline" size={14} color={COLORS.textMuted} />
+            <TextLike style={styles.moreToolText}>Form Check</TextLike>
           </TouchableOpacity>
         </View>
 
