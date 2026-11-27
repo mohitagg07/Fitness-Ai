@@ -43,9 +43,12 @@ export default function CountUpNumber({
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
-    animated.value = reduceMotion
-      ? value
-      : withTiming(value, { duration, easing: Easing.out(Easing.cubic) });
+    if (reduceMotion) {
+      animated.value = value;
+      return;
+    }
+    animated.value = 0;
+    animated.value = withTiming(value, { duration, easing: Easing.out(Easing.cubic) });
   }, [value, duration, reduceMotion]);
 
   const animatedProps = useAnimatedProps(() => {
