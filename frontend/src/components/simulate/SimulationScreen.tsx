@@ -320,13 +320,13 @@ const styles = StyleSheet.create({
   },
   resultHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
   resultEyebrow: {
-    fontFamily: FONTS.bold, fontSize: 9, fontWeight: '700', letterSpacing: 1.3,
+    fontFamily: FONTS.bold, fontSize: 10, fontWeight: '700', letterSpacing: 1.3,
     color: COLORS.strainGlow, textTransform: 'uppercase', marginBottom: 4,
   },
   resultHeadline: { fontFamily: FONTS.semibold, fontSize: 15, fontWeight: '600', color: COLORS.text },
   confBlock: { alignItems: 'flex-end' },
   confEyebrow: {
-    fontFamily: FONTS.bold, fontSize: 9, fontWeight: '700', letterSpacing: 1.1,
+    fontFamily: FONTS.bold, fontSize: 10, fontWeight: '700', letterSpacing: 1.1,
     color: COLORS.textMuted, textTransform: 'uppercase', marginBottom: 2,
   },
   confValue: { fontFamily: FONTS.numericBold, fontSize: 22, fontWeight: '800', color: COLORS.strainGlow },
@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
     borderRadius: 8, borderWidth: 1, borderColor: COLORS.borderLight, padding: 10,
   },
   metricLabel: {
-    fontFamily: FONTS.bold, fontSize: 9, fontWeight: '700', letterSpacing: 0.8,
+    fontFamily: FONTS.bold, fontSize: 10, fontWeight: '700', letterSpacing: 0.8,
     color: COLORS.textMuted, textTransform: 'uppercase', marginBottom: 6,
   },
   metricValue: { fontFamily: FONTS.numericBold, fontSize: 14, fontWeight: '700' },
@@ -351,7 +351,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#16EC0630', padding: 10,
   },
   boxLabel: {
-    fontFamily: FONTS.bold, fontSize: 9, fontWeight: '700',
+    fontFamily: FONTS.bold, fontSize: 10, fontWeight: '700',
     letterSpacing: 1.3, textTransform: 'uppercase', marginBottom: 5,
   },
   boxText: { fontFamily: FONTS.regular, fontSize: 12, color: COLORS.textSecondary, lineHeight: 18 },
