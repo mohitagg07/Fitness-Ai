@@ -40,12 +40,15 @@ import AmbientGlow from '../shared/AmbientGlow';
 
 interface ExerciseCard {
   name: string;
+  original_name?: string;
   sets: number;
   reps: string;
   load: string;
   cue: string;
   rest: string;
   completed_sets: number;
+  skipped?: boolean;
+  replaced?: boolean;
 }
 
 interface SetLog {
@@ -373,6 +376,9 @@ function WorkoutHUD() {
   const [planPreviewVisible, setPlanPreviewVisible] = useState(false);
   const [draftPlan, setDraftPlan] = useState<DraftPlanReference | null>(null);
   const [isSessionPaused, setIsSessionPaused] = useState(false);
+  const [isExerciseChangeSaving, setIsExerciseChangeSaving] = useState(false);
+  const [showReplacementInput, setShowReplacementInput] = useState(false);
+  const [replacementExerciseName, setReplacementExerciseName] = useState('');
   const pendingSetWrites = useRef<Set<Promise<any>>>(new Set());
   const profile = useStore((state) => state.profile);
 
@@ -416,23 +422,41 @@ function WorkoutHUD() {
           .sort((a: SetLog, b: SetLog) => a.set_number - b.set_number);
 
         const plannedExercises = session.planned_workout_snapshot?.exercises;
+        const eventResponse = await workoutApi.getSessionExerciseEvents(session.id).catch(() => ({ data: { events: [] } }));
+        const exerciseEvents = Array.isArray(eventResponse.data?.events) ? eventResponse.data.events : [];
+        const latestEventByExercise = new Map<string, any>();
+        exerciseEvents.forEach((event: any) => {
+          const original = String(event.exercise_name || '').trim().toLowerCase();
+          if (original) latestEventByExercise.set(original, event);
+        });
         const names = [...new Set(logs.map((log) => log.exercise_name))];
         const restoredExercises: ExerciseCard[] = Array.isArray(plannedExercises) && plannedExercises.length > 0
           ? plannedExercises.map((planned: any) => {
-              const name = String(planned.name || planned.exercise_name || 'Exercise');
+              const originalName = String(planned.name || planned.exercise_name || 'Exercise');
+              const event = latestEventByExercise.get(originalName.toLowerCase());
+              const skipped = event?.action === 'skip';
+              const name = event?.action === 'replace'
+                ? String(event.replacement_exercise || originalName)
+                : originalName;
               const exerciseLogs = logs.filter((log) => log.exercise_name.toLowerCase() === name.toLowerCase());
-              const last = exerciseLogs[exerciseLogs.length - 1];
               const loadText = planned.load_kg != null
-                ? `${planned.load_kg}kg`
+                ? String(planned.load_kg) + 'kg'
                 : String(planned.load_guidance || '');
               return {
                 name,
+                original_name: originalName,
                 sets: Number(planned.sets) || 3,
                 reps: String(planned.reps || '8-12'),
                 load: loadText,
-                cue: String(planned.cue || 'Follow the approved exercise prescription'),
-                rest: `${Number(planned.rest_seconds) || 90} sec`,
+                cue: skipped
+                  ? 'You skipped the remaining sets for this exercise.'
+                  : event?.action === 'replace'
+                    ? 'Replacement for ' + originalName
+                    : String(planned.cue || 'Follow the approved exercise prescription'),
+                rest: String(Number(planned.rest_seconds) || 90) + ' sec',
                 completed_sets: exerciseLogs.length,
+                skipped,
+                replaced: event?.action === 'replace',
               };
             })
           : names.map((name) => {
@@ -440,6 +464,7 @@ function WorkoutHUD() {
               const last = exerciseLogs[exerciseLogs.length - 1];
               return {
                 name,
+                original_name: name,
                 sets: Math.max(3, exerciseLogs.length + 1),
                 reps: String(last?.reps || 8),
                 load: last ? `${last.weight_kg}kg` : '',
@@ -458,9 +483,18 @@ function WorkoutHUD() {
         });
         setExercises(restoredExercises);
         setIsSessionPaused(session.status === 'paused');
-        const nextExerciseIndex = restoredExercises.findIndex((exercise) => exercise.completed_sets < exercise.sets);
+        const nextExerciseIndex = restoredExercises.findIndex(
+          (exercise) => !exercise.skipped && exercise.completed_sets < exercise.sets
+        );
+        const firstAvailableIndex = restoredExercises.findIndex((exercise) => !exercise.skipped);
         if (restoredExercises.length > 0) {
-          setActiveIdx(nextExerciseIndex >= 0 ? nextExerciseIndex : restoredExercises.length - 1);
+          setActiveIdx(
+            nextExerciseIndex >= 0
+              ? nextExerciseIndex
+              : firstAvailableIndex >= 0
+                ? firstAvailableIndex
+                : restoredExercises.length - 1
+          );
         }
       } catch (error: any) {
         if (__DEV__) console.warn('[Workout] Could not restore active session', error?.message || error);
@@ -800,6 +834,102 @@ function WorkoutHUD() {
     }
   };
 
+  const skipCurrentExercise = async () => {
+    if (!activeSession || !ex || ex.skipped || ex.replaced || isExerciseChangeSaving || isSessionPaused) return;
+    if (!activeSession.planned_workout_snapshot?.exercises?.length) {
+      Alert.alert('Cannot skip this movement', 'This session has no approved exercise prescription to update.');
+      return;
+    }
+    const confirmed = await confirmAsync(
+      'Skip this exercise?',
+      'Any sets already logged will stay in your history. The remaining sets will be marked as skipped.',
+      'Skip exercise',
+      'Keep it'
+    );
+    if (!confirmed) return;
+
+    const originalName = ex.original_name || ex.name;
+    setIsExerciseChangeSaving(true);
+    try {
+      await workoutApi.recordExerciseEvent(activeSession.id, {
+        action: 'skip',
+        exercise_name: originalName,
+        client_request_id: activeSession.id + ':skip:' + originalName.toLowerCase(),
+        reason: 'Athlete chose to skip the remaining sets',
+      });
+      setExercises((previous) => previous.map((item, index) =>
+        index === activeIdx ? { ...item, skipped: true } : item
+      ));
+      setShowReplacementInput(false);
+      setReplacementExerciseName('');
+      const nextIndex = exercises.findIndex((item, index) =>
+        index > activeIdx && !item.skipped && !item.replaced && item.completed_sets < item.sets
+      );
+      const fallbackIndex = exercises.findIndex((item, index) =>
+        index !== activeIdx && !item.skipped && !item.replaced && item.completed_sets < item.sets
+      );
+      if (nextIndex >= 0) setActiveIdx(nextIndex);
+      else if (fallbackIndex >= 0) setActiveIdx(fallbackIndex);
+      setRestStartedAt(null);
+    } catch (error: any) {
+      Alert.alert(
+        'Exercise not skipped',
+        error?.response?.data?.detail || 'The workout is unchanged. Check your connection and try again.'
+      );
+    } finally {
+      setIsExerciseChangeSaving(false);
+    }
+  };
+
+  const saveExerciseReplacement = async () => {
+    if (!activeSession || !ex || ex.skipped || ex.replaced || isExerciseChangeSaving || isSessionPaused) return;
+    const replacement = replacementExerciseName.trim();
+    if (!replacement) {
+      Alert.alert('Replacement required', 'Enter the name of the exercise you want to use instead.');
+      return;
+    }
+    if (!activeSession.planned_workout_snapshot?.exercises?.length) {
+      Alert.alert('Cannot replace this movement', 'This session has no approved exercise prescription to update.');
+      return;
+    }
+
+    const originalName = ex.original_name || ex.name;
+    setIsExerciseChangeSaving(true);
+    try {
+      await workoutApi.recordExerciseEvent(activeSession.id, {
+        action: 'replace',
+        exercise_name: originalName,
+        replacement_exercise: replacement,
+        client_request_id: activeSession.id + ':replace:' + originalName.toLowerCase() + ':' + replacement.toLowerCase(),
+        reason: 'Athlete-selected exercise replacement',
+      });
+      setExercises((previous) => previous.map((item, index) =>
+        index === activeIdx
+          ? {
+              ...item,
+              name: replacement,
+              original_name: originalName,
+              cue: 'Replacement for ' + originalName + ' — follow the approved set and rep target',
+              replaced: true,
+              skipped: false,
+            }
+          : item
+      ));
+      setReplacementExerciseName('');
+      setShowReplacementInput(false);
+      setRestStartedAt(null);
+      setWeight('');
+      setReps('');
+    } catch (error: any) {
+      Alert.alert(
+        'Replacement not saved',
+        error?.response?.data?.detail || 'The approved exercise remains unchanged. Try a supported movement and retry.'
+      );
+    } finally {
+      setIsExerciseChangeSaving(false);
+    }
+  };
+
   const toggleSessionPause = async () => {
     if (!activeSession || isFinishing) return;
     try {
@@ -1106,7 +1236,7 @@ function WorkoutHUD() {
           contentContainerStyle={S.exTabs}
         >
           {exercises.map((e, i) => {
-            const done = e.completed_sets >= e.sets;
+            const done = e.skipped || e.completed_sets >= e.sets;
             return (
               <PressableScale
                 key={i}
@@ -1117,7 +1247,7 @@ function WorkoutHUD() {
                   {e.name.split(' ').slice(0, 2).join(' ')}
                 </Text>
                 <Text style={[S.exTabSets, done ? S.exTabSetsDone : i === activeIdx && S.exTabSetsActive]}>
-                  {e.completed_sets}/{e.sets}
+                  {e.skipped ? 'SKIP' : String(e.completed_sets) + '/' + String(e.sets)}
                 </Text>
               </PressableScale>
             );
@@ -1131,9 +1261,17 @@ function WorkoutHUD() {
           <>
             <View style={S.exCardHeader}>
               <View>
-                <Text style={S.setCount}>SET {ex.completed_sets + 1} / {ex.sets}</Text>
+                <Text style={S.setCount}>
+                  {ex.skipped ? 'SKIPPED' : 'SET ' + (ex.completed_sets + 1) + ' / ' + ex.sets}
+                </Text>
                 <Text style={S.exerciseName}>{ex.name}</Text>
-                <Text style={S.exerciseTarget}>{ex.reps} reps · {ex.load}</Text>
+                <Text style={S.exerciseTarget}>
+                  {ex.skipped
+                    ? 'Remaining sets skipped'
+                    : ex.replaced
+                      ? 'Replacement · ' + ex.reps + ' reps · ' + ex.load
+                      : ex.reps + ' reps · ' + ex.load}
+                </Text>
               </View>
               {/* Next exercise button */}
               {activeIdx < exercises.length - 1 && (
@@ -1147,6 +1285,86 @@ function WorkoutHUD() {
               <View style={S.cueRow}>
                 <Ionicons name="bulb-outline" size={12} color={COLORS.textMuted} />
                 <Text style={S.cue}>{ex.cue}</Text>
+              </View>
+            ) : null}
+            {activeSession?.planned_workout_snapshot?.exercises?.length && !ex.skipped && !ex.replaced ? (
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                <PressableScale
+                  onPress={skipCurrentExercise}
+                  disabled={isExerciseChangeSaving || isSessionPaused || isFinishing}
+                  style={{
+                    flex: 1,
+                    minHeight: 38,
+                    borderRadius: 10,
+                    borderWidth: 1,
+                    borderColor: COLORS.border,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: isExerciseChangeSaving ? 0.5 : 1,
+                  }}
+                >
+                  <Text style={{ color: COLORS.textSecondary, fontSize: 10, fontWeight: '700' }}>
+                    {isExerciseChangeSaving ? 'SAVING…' : 'SKIP EXERCISE'}
+                  </Text>
+                </PressableScale>
+                <PressableScale
+                  onPress={() => {
+                    setReplacementExerciseName('');
+                    setShowReplacementInput(true);
+                  }}
+                  disabled={isExerciseChangeSaving || isSessionPaused || isFinishing}
+                  style={{
+                    flex: 1,
+                    minHeight: 38,
+                    borderRadius: 10,
+                    borderWidth: 1,
+                    borderColor: alpha(COLORS.primaryGreen, 0.45),
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Text style={{ color: COLORS.primaryGreen, fontSize: 10, fontWeight: '700' }}>
+                    REPLACE EXERCISE
+                  </Text>
+                </PressableScale>
+              </View>
+            ) : null}
+            {showReplacementInput && !ex.skipped && !ex.replaced ? (
+              <View style={{ gap: 8, marginTop: 10 }}>
+                <Text style={{ color: COLORS.textSecondary, fontSize: 10 }}>
+                  Enter a supported replacement. Equipment and injury rules are checked before it is saved.
+                </Text>
+                <TextInput
+                  style={S.exerciseNameInput}
+                  placeholder="Replacement exercise name"
+                  placeholderTextColor={COLORS.textMuted}
+                  value={replacementExerciseName}
+                  onChangeText={setReplacementExerciseName}
+                  editable={!isExerciseChangeSaving}
+                  returnKeyType="done"
+                  onSubmitEditing={saveExerciseReplacement}
+                />
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <PressableScale
+                    onPress={() => {
+                      setShowReplacementInput(false);
+                      setReplacementExerciseName('');
+                    }}
+                    disabled={isExerciseChangeSaving}
+                    style={{ flex: 1, minHeight: 38, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <Text style={{ color: COLORS.textSecondary, fontSize: 10, fontWeight: '700' }}>CANCEL</Text>
+                  </PressableScale>
+                  <PressableScale
+                    onPress={saveExerciseReplacement}
+                    disabled={isExerciseChangeSaving || !replacementExerciseName.trim()}
+                    style={{ flex: 1, minHeight: 38, borderRadius: 10, backgroundColor: alpha(COLORS.primaryGreen, 0.14), alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <Text style={{ color: COLORS.primaryGreen, fontSize: 10, fontWeight: '700' }}>
+                      {isExerciseChangeSaving ? 'SAVING…' : 'SAVE REPLACEMENT'}
+                    </Text>
+                  </PressableScale>
+                </View>
               </View>
             ) : null}
           </>
@@ -1171,6 +1389,15 @@ function WorkoutHUD() {
           </View>
         )}
 
+        {ex?.skipped ? (
+          <View style={{ paddingVertical: 18, alignItems: 'center', gap: 6 }}>
+            <Ionicons name="checkmark-circle-outline" size={22} color={COLORS.textMuted} />
+            <Text style={{ color: COLORS.textSecondary, fontSize: 11, fontWeight: '700' }}>
+              This exercise was skipped. Logged sets have been retained.
+            </Text>
+          </View>
+        ) : (
+        <>
         {/* Weight + Reps inputs */}
         <View style={S.logRow}>
           <View style={S.inputWrap}>
@@ -1243,6 +1470,8 @@ function WorkoutHUD() {
           <Ionicons name="add-circle-outline" size={16} color={COLORS.background} />
           <Text style={S.logBtnText}>{isSessionPaused ? 'RESUME TO LOG SETS' : isLogging ? 'LOGGING…' : 'LOG SET + START REST'}</Text>
         </PressableScale>
+        </>
+        )}
       </View></Reveal>
 
       {/* Sets logged */}
