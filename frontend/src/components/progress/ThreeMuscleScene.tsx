@@ -106,15 +106,18 @@ function RecoveryAvatar({
   controls,
   reduceMotion,
   onFirstFrame,
+  onInteraction,
 }: {
   selectedMuscle: MuscleKey;
   musclePalette: MusclePalette;
   controls: MutableRefObject<SceneControls>;
   reduceMotion: boolean;
   onFirstFrame?: () => void;
+  onInteraction?: () => void;
 }) {
   const root = useRef<THREE.Group>(null);
   const firstFrameReported = useRef(false);
+  const lastDragRotation = useRef(controls.current.rotationY);
 
   useFrame((_, delta) => {
     if (!firstFrameReported.current) {
@@ -126,6 +129,18 @@ function RecoveryAvatar({
     if (!reduceMotion && !controls.current.dragging) controls.current.rotationY += step * 0.115;
     root.current.rotation.y = controls.current.rotationY;
     root.current.rotation.x = controls.current.rotationX;
+
+    // Report interaction only after the Three.js group has consumed the new
+    // control value in a rendered frame. The Android smoke test therefore
+    // verifies actual model rotation, not just PanResponder event delivery.
+    if (controls.current.dragging) {
+      if (Math.abs(root.current.rotation.y - lastDragRotation.current) > 0.01) {
+        lastDragRotation.current = root.current.rotation.y;
+        onInteraction?.();
+      }
+    } else {
+      lastDragRotation.current = root.current.rotation.y;
+    }
   });
 
   const m = (muscle: MuscleKey, position: [number, number, number], length: number, radius: number,
@@ -259,7 +274,14 @@ function RecoveryScene({
       <directionalLight position={[3.8, 5.5, 5]} intensity={2.0} color="#F2FFF2" />
       <directionalLight position={[-4, 1.5, -4]} intensity={1.45} color="#8DCB9A" />
       <pointLight position={[0, -1.2, 3.2]} intensity={0.62} distance={8} color="#B9DE72" />
-      <RecoveryAvatar selectedMuscle={selectedMuscle} musclePalette={musclePalette} controls={controls} reduceMotion={reduceMotion} onFirstFrame={onFirstFrame} />
+      <RecoveryAvatar
+        selectedMuscle={selectedMuscle}
+        musclePalette={musclePalette}
+        controls={controls}
+        reduceMotion={reduceMotion}
+        onFirstFrame={onFirstFrame}
+        onInteraction={onInteraction}
+      />
     </>
   );
 }
@@ -340,7 +362,7 @@ export default function ThreeMuscleScene({
         Math.min(0.36, controls.current.startX - gesture.dy * 0.0035),
       );
       invalidateRef.current?.();
-      onInteractionRef.current?.();
+
     },
     onPanResponderRelease: () => { controls.current.dragging = false; },
     onPanResponderTerminate: () => { controls.current.dragging = false; },
@@ -362,7 +384,14 @@ export default function ThreeMuscleScene({
           }}
         >
           <SceneInvalidationBridge invalidateRef={invalidateRef} />
-          <RecoveryScene selectedMuscle={selectedMuscle} musclePalette={musclePalette} controls={controls} reduceMotion={reduceMotion} onFirstFrame={onReady} />
+          <RecoveryScene
+            selectedMuscle={selectedMuscle}
+            musclePalette={musclePalette}
+            controls={controls}
+            reduceMotion={reduceMotion}
+            onFirstFrame={onReady}
+            onInteraction={() => onInteractionRef.current?.()}
+          />
         </Canvas>
       </SceneBoundary>
       <View style={styles.dragLayer} {...panResponder.panHandlers}>
