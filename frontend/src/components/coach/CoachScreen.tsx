@@ -43,12 +43,11 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 // 🟣 coach/health) instead of every icon defaulting to green — green
 // should mean "recovery is good," not "this is a button."
 const SUGGESTIONS = [
-  { icon: 'barbell-outline',    text: "What's my workout today?",              color: COLORS.gold },
-  { icon: 'flash-outline',      text: "I just did Bench Press 80kg × 5 @ RPE 8", color: COLORS.strain },
-  { icon: 'pulse-outline',      text: "How's my recovery looking?",            color: COLORS.recoveryHigh },
-  { icon: 'time-outline',       text: "I only have 30 minutes today",          color: COLORS.gold },
-  { icon: 'medical-outline',    text: "My shoulder is sore",                   color: COLORS.coachPurple },
-  { icon: 'nutrition-outline',  text: "What should I eat to hit protein?",     color: COLORS.recoveryHigh },
+  { icon: 'barbell-outline', title: "Build today's workout", description: 'Get a session matched to your goal and training history.', prompt: "What's my workout today?", color: COLORS.gold },
+  { icon: 'time-outline', title: 'Fit training into my day', description: 'Adjust the session to the time and equipment I have.', prompt: 'I only have 30 minutes today. Build a focused workout for me.', color: COLORS.strain },
+  { icon: 'pulse-outline', title: 'Understand my recovery', description: 'See how hard I should train today and what to prioritise.', prompt: "How is my recovery looking, and how should I train today?", color: COLORS.recoveryHigh },
+  { icon: 'fitness-outline', title: 'Improve my next set', description: 'Get practical feedback on load, reps and effort.', prompt: 'Help me assess my last working set and choose a sensible next set.', color: COLORS.coachPurple },
+  { icon: 'nutrition-outline', title: 'Plan my nutrition', description: 'Make calories and protein easier to hit today.', prompt: 'Help me plan today’s food to meet my calorie and protein targets.', color: COLORS.protein },
 ];
 
 // ─── Exercise thumbnail visual ─────────────────────────────────────────────
@@ -828,31 +827,12 @@ export default function CoachScreen() {
             three rings stay honest about what data backs them. */}
         {brief && (
           <View style={S.briefCard}>
-            <View style={S.briefContextRow}>
-              <Ionicons name="pulse-outline" size={16} color={COLORS.recoveryHigh} />
-              <View style={S.briefTextCol}>
-                <Text style={S.briefContextTitle}>Training context</Text>
-                <Text style={S.briefMessage} numberOfLines={2}>{brief.message}</Text>
-              </View>
-            </View>
-            <View style={S.briefDivider} />
-            <View style={S.briefMetrics}>
-              <View style={S.briefMetric}>
-                <Text style={S.briefMetricLabel}>RECOVERY</Text>
-                <Text style={[S.briefMetricValue, { color: recoveryColor(brief.recoveryScore) }]}>
-                  {Math.round(brief.recoveryScore)}<Text style={S.briefMetricUnit}> / 100</Text>
-                </Text>
-              </View>
-              <View style={S.briefMetricDivider} />
-              <View style={S.briefMetric}>
-                <Text style={S.briefMetricLabel}>CNS LOAD</Text>
-                <Text style={[S.briefMetricValue, {
-                  color: brief.cnsFatigue <= 30 ? COLORS.recoveryHigh : brief.cnsFatigue <= 60 ? COLORS.recoveryMed : COLORS.recoveryLow,
-                }]}>
-                  {Math.round(brief.cnsFatigue)}<Text style={S.briefMetricUnit}> / 100</Text>
-                </Text>
-              </View>
-            </View>
+            <Ionicons name="pulse-outline" size={14} color={COLORS.recoveryHigh} />
+            <Text style={S.briefContextTitle}>TODAY'S CONTEXT</Text>
+            <View style={S.briefDividerVertical} />
+            <Text style={S.briefMetricInline}>Recovery <Text style={{ color: recoveryColor(brief.recoveryScore) }}>{Math.round(brief.recoveryScore)}</Text></Text>
+            <View style={S.briefDividerVertical} />
+            <Text style={S.briefMetricInline}>CNS load <Text style={{ color: brief.cnsFatigue <= 30 ? COLORS.recoveryHigh : brief.cnsFatigue <= 60 ? COLORS.recoveryMed : COLORS.recoveryLow }}>{Math.round(brief.cnsFatigue)}</Text></Text>
           </View>
         )}
       </View>
@@ -879,33 +859,32 @@ export default function CoachScreen() {
               <View style={S.coachOrbStatus} />
             </View>
             <Text style={S.emptyEyebrow}>YOUR TRAINING PARTNER</Text>
-            <Text style={S.emptyTitle}>Your next best move starts here.</Text>
+            <Text style={S.emptyTitle}>A coach that knows your training.</Text>
             <Text style={S.emptySubtitle}>
-              Ask about your plan, a difficult set, recovery or nutrition. Your saved training history gives the conversation context.
+              Get help with your workout, time, recovery, technique and food. Choose a task below or ask your own question.
             </Text>
           </View>
           <View style={S.suggestionsHeading}>
-            <Text style={S.suggestionsHeadingLabel}>START WITH A QUESTION</Text>
-            <Text style={S.suggestionsHeadingMeta}>QUICK PROMPTS</Text>
+            <Text style={S.suggestionsHeadingLabel}>WHAT DO YOU NEED TODAY?</Text>
           </View>
           <View style={S.suggestions}>
             {SUGGESTIONS.map((s, i) => (
-              <Reveal key={'suggestion-' + i} delay={i * 42}>
-              <PressableScale
-                key={i}
-                style={S.suggestion}
-                onPress={() => sendMessage(s.text)}
-                accessibilityRole="button"
-                accessibilityLabel={`Ask Coach: ${s.text}`}
-              >
-                <View style={S.suggestionTop}>
+              <Reveal key={'suggestion-' + i} delay={i * 34}>
+                <PressableScale
+                  style={S.suggestion}
+                  onPress={() => sendMessage(s.prompt)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Ask Coach: ${s.title}`}
+                >
                   <View style={[S.suggestionIcon, { backgroundColor: `${s.color}18` }]}>
-                    <Ionicons name={s.icon as any} size={16} color={s.color} />
+                    <Ionicons name={s.icon as any} size={18} color={s.color} />
                   </View>
-                  <Ionicons name="arrow-forward-outline" size={15} color={COLORS.textDim} />
-                </View>
-                <Text style={S.suggestionText}>{s.text}</Text>
-              </PressableScale>
+                  <View style={S.suggestionCopy}>
+                    <Text style={S.suggestionTitle}>{s.title}</Text>
+                    <Text style={S.suggestionText}>{s.description}</Text>
+                  </View>
+                  <Ionicons name="arrow-forward" size={16} color={COLORS.textMuted} />
+                </PressableScale>
               </Reveal>
             ))}
           </View>
@@ -1098,22 +1077,11 @@ const S = StyleSheet.create({
     position: 'absolute', top: -1, right: -1, width: 7, height: 7, borderRadius: 4,
     backgroundColor: COLORS.recoveryHigh, borderWidth: 1.5, borderColor: COLORS.background,
   },
-  // Compact context avoids repeating the dashboard's readiness ring in chat.
-  briefCard: {
-    backgroundColor: COLORS.card, borderRadius: RADIUS.card, borderWidth: 1, borderColor: COLORS.border,
-    padding: 14, gap: 12,
-  },
-  briefContextRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
-  briefContextTitle: { fontFamily: FONTS.bold,  color: COLORS.text, fontSize: 12, fontWeight: '700', letterSpacing: 0.25 },
-  briefTextCol: { flex: 1, minWidth: 0, gap: 4 },
-  briefMessage: { fontFamily: FONTS.regular,  color: COLORS.textMuted, fontSize: 12, lineHeight: 17 },
-  briefDivider: { height: 1, backgroundColor: COLORS.border },
-  briefMetrics: { flexDirection: 'row', alignItems: 'center', gap: 18 },
-  briefMetric: { flex: 1, gap: 3 },
-  briefMetricLabel: { fontFamily: FONTS.bold,  color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 1.1 },
-  briefMetricValue: { fontFamily: FONTS.numericSemibold,  fontSize: 20, lineHeight: 24, fontWeight: '700' },
-  briefMetricUnit: { fontFamily: FONTS.medium,  color: COLORS.textMuted, fontSize: 11, fontWeight: '500' },
-  briefMetricDivider: { width: 1, height: 34, backgroundColor: COLORS.border },
+  // Live training context stays secondary to the actual coaching actions.
+  briefCard: { minHeight: 38, paddingHorizontal: 12, paddingVertical: 8, marginTop: 2, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.card, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border },
+  briefContextTitle: { fontFamily: FONTS.bold, color: COLORS.textMuted, fontSize: 8, letterSpacing: 0.8 },
+  briefDividerVertical: { width: 1, height: 15, backgroundColor: COLORS.border },
+  briefMetricInline: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 10 },
   offlineBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: alpha(COLORS.recoveryMed, 0.10), paddingVertical: 9, paddingHorizontal: 16,
@@ -1140,24 +1108,14 @@ const S = StyleSheet.create({
   emptyEyebrow: { fontFamily: FONTS.bold,  color: COLORS.primaryGreen, fontSize: 9, fontWeight: '800', letterSpacing: 1.8, marginBottom: 9 },
   emptyTitle: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 28, lineHeight: 33, fontWeight: '700', letterSpacing: -0.8, marginBottom: 9, maxWidth: 310 },
   emptySubtitle: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 12, lineHeight: 19, maxWidth: 340 },
-  suggestionsHeading: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: 11,
-  },
-  suggestionsHeadingLabel: { fontFamily: FONTS.bold,  color: COLORS.textSecondary, fontSize: 9, fontWeight: '800', letterSpacing: 1.35 },
-  suggestionsHeadingMeta: { fontFamily: FONTS.bold,  color: COLORS.textDim, fontSize: 8, fontWeight: '700', letterSpacing: 1 },
-  suggestions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
-  suggestion: {
-    width: '48.5%', minHeight: 106, backgroundColor: COLORS.card,
-    borderRadius: 17, padding: 13, borderWidth: 1, borderColor: COLORS.border,
-    justifyContent: 'space-between',
-  },
-  suggestionTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  suggestionIcon: {
-    width: 34, height: 34, borderRadius: 11,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  suggestionText: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 12, lineHeight: 18, fontWeight: '600', marginTop: 10 },
+  suggestionsHeading: { marginBottom: 11 },
+  suggestionsHeadingLabel: { fontFamily: FONTS.bold, color: COLORS.textSecondary, fontSize: 9, fontWeight: '800', letterSpacing: 1.2 },
+  suggestions: { gap: 9 },
+  suggestion: { width: '100%', minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 13, backgroundColor: COLORS.card, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: COLORS.border },
+  suggestionIcon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  suggestionCopy: { flex: 1, minWidth: 0, gap: 4 },
+  suggestionTitle: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 13, lineHeight: 17 },
+  suggestionText: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 11, lineHeight: 16 },
 
   messageList: { padding: 16, paddingBottom: 12 },
   bubble:      { marginBottom: 12, borderRadius: 18, padding: 15, maxWidth: '92%' },

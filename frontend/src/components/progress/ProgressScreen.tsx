@@ -364,6 +364,13 @@ export default function ProgressScreen() {
   };
 
   const targetCal = todayData?.targets?.calories || 2000;
+  const sectionContext: Record<Tab, { title: string; description: string }> = {
+    body: { title: 'Body & strength', description: 'Track weight changes, training consistency and personal records in one place.' },
+    nutrition: { title: 'Food & daily targets', description: 'Log meals and compare calories, protein and macros with today’s targets.' },
+    recovery: { title: 'Recovery & readiness', description: 'Record how recovered you feel and follow muscle recovery trends between sessions.' },
+    review: { title: 'Your weekly review', description: 'Look back at the week, understand what worked and see what to focus on next.' },
+    analytics: { title: 'Training analytics', description: 'Explore longer-term training patterns, strength balance and performance trends.' },
+  };
 
   if (loading) {
     return (
@@ -425,6 +432,14 @@ export default function ProgressScreen() {
           </PressableScale>
         </View>
       )}
+
+      <View style={styles.sectionIntro}>
+        <View style={styles.sectionIntroMark} />
+        <View style={styles.sectionIntroCopy}>
+          <Text style={styles.sectionIntroTitle}>{sectionContext[activeTab].title}</Text>
+          <Text style={styles.sectionIntroText}>{sectionContext[activeTab].description}</Text>
+        </View>
+      </View>
 
       {activeTab === 'review' ? (
         <Reveal key={activeTab} distance={7}><WeeklyReviewScreen /></Reveal>
@@ -547,6 +562,11 @@ const styles = StyleSheet.create({
   tabActive: { backgroundColor: alpha(COLORS.primaryGreen, 0.12), borderColor: alpha(COLORS.primaryGreen, 0.24) },
   tabText: { fontFamily: FONTS.semibold,  color: COLORS.textMuted, fontSize: 11, fontWeight: '600', letterSpacing: 0.1 },
   tabTextActive: { color: COLORS.primaryGreen },
+  sectionIntro: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginHorizontal: 18, marginTop: 12, marginBottom: 2, padding: 13, borderRadius: 15, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border },
+  sectionIntroMark: { width: 3, alignSelf: 'stretch', borderRadius: 2, backgroundColor: COLORS.primaryGreen },
+  sectionIntroCopy: { flex: 1, minWidth: 0, gap: 3 },
+  sectionIntroTitle: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 13 },
+  sectionIntroText: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 11, lineHeight: 16 },
   errorBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 10, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardElevated },
   errorBannerText: { fontFamily: FONTS.regular,  color: COLORS.textSecondary, flex: 1, fontSize: 10, lineHeight: 15 },
   errorRetry: { fontFamily: FONTS.bold,  color: COLORS.primaryGreen, fontSize: 11, fontWeight: '700' },

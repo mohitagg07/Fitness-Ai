@@ -18,6 +18,7 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import { workoutApi, coachApi } from '../../utils/api';
+import { useMissionSummary } from '../../hooks/useDashboardQueries';
 import { confirmAsync } from '../../utils/confirm';
 import { useStore } from '../../store';
 import { useCompleteSession, useLogSet } from '../../hooks/useWorkoutMutations';
@@ -301,6 +302,9 @@ function PrevSetGhost({ log }: { log: SetLog | null }) {
 // ─── Main HUD ────────────────────────────────────────────────────────────────
 function WorkoutHUD() {
   const responsive = useResponsiveLayout();
+  const { data: missionSummary } = useMissionSummary();
+  const recommendedWorkout = missionSummary?.workout_today?.type?.trim() || null;
+  const recommendedNote = missionSummary?.workout_today?.message || missionSummary?.next_task || null;
   // Selector form — see src/store/index.ts. This screen already re-renders
   // every second for the live clock/rest timer; without a selector it was
   // ALSO re-rendering on every chat message and CNS-fatigue update fired
@@ -334,6 +338,7 @@ function WorkoutHUD() {
   const [moodPickerVisible, setMoodPickerVisible] = useState(false);
   const [pendingMood, setPendingMood]   = useState<MoodValue | undefined>(undefined);
   const [isRestoringSession, setIsRestoringSession] = useState(true);
+  const [isBuildingPlan, setIsBuildingPlan] = useState(false);
 
   // Restore an unfinished workout from the server after app restart. Set rows
   // are already persisted individually; this reconnects them to the live HUD.
@@ -430,37 +435,45 @@ function WorkoutHUD() {
   const currentSetNum = (setCountByExercise[resolvedName] || 0) + 1;
 
   // ── Actions ─────────────────────────────────────────────────────────────────
-  const startSession = async () => {
-    if (activeSession || isRestoringSession) return;
+  const startSession = async (): Promise<boolean> => {
+    if (activeSession) return true;
+    if (isRestoringSession) return false;
     try {
       const res = await workoutApi.createSession({ day_label: 'Training Session' });
       setActiveSession({ ...res.data, logs: [], startedAt: Date.now() });
+      return true;
     } catch {
-      Alert.alert('Error', 'Could not start session.');
+      Alert.alert('Error', 'Could not start session. Check your connection and try again.');
+      return false;
     }
   };
 
   const askCoachForWorkout = async () => {
+    if (isBuildingPlan || isRestoringSession) return;
+    setIsBuildingPlan(true);
     try {
       const res = await coachApi.chat("What's my workout today?");
       const sd = res.data?.structured_decision;
       if (sd?.exercises?.length > 0) {
-        setExercises(sd.exercises.map((e: any) => ({
-          name: e.name,
-          sets: parseInt(e.sets) || 3,
-          reps: e.reps || '8',
-          load: e.weight || '',
-          cue:  e.focus  || '',
-          rest: e.rest   || '',
+        const nextExercises: ExerciseCard[] = sd.exercises.map((e: any) => ({
+          name: String(e.name || 'Exercise'),
+          sets: parseInt(e.sets, 10) || 3,
+          reps: String(e.reps || '8'),
+          load: String(e.weight || ''),
+          cue: String(e.focus || ''),
+          rest: String(e.rest || ''),
           completed_sets: 0,
-        })));
+        }));
+        setExercises(nextExercises);
         setActiveIdx(0);
-        if (!activeSession) await startSession();
+        if (!activeSession && !(await startSession())) setExercises([]);
       } else {
-        Alert.alert('Coach', res.data?.reply || 'Check the Coach tab for your plan.');
+        Alert.alert('Coach', res.data?.reply || 'Open Coach to refine your plan and try again.');
       }
     } catch {
-      Alert.alert('Error', 'Could not fetch workout plan.');
+      Alert.alert('Error', 'Could not build your workout. Try again or open Coach.');
+    } finally {
+      setIsBuildingPlan(false);
     }
   };
 
@@ -720,28 +733,48 @@ function WorkoutHUD() {
           </View>
           <ProfileAvatar size={42} onPress={() => router.push('/(tabs)/profile')} />
         </View>
-        <View style={S.preSession}>
-          <View style={S.preBadge}>
-            <Ionicons name="barbell-outline" size={28} color={COLORS.primaryGreen} />
+        <ScrollView style={S.preSessionScroll} contentContainerStyle={S.preSession} showsVerticalScrollIndicator={false}>
+          <View style={S.trainIntro}>
+            <Text style={S.trainEyebrow}>YOUR TRAINING SPACE</Text>
+            <Text style={S.gymTitle}>Make today count.</Text>
+            <Text style={S.gymDesc}>
+              Start a session, log every working set and let VYRN keep your rest and training history organised.
+            </Text>
           </View>
-          <Text style={S.gymTitle}>Ready to train?</Text>
-          <Text style={S.gymSubtitle}>Your next session starts here.</Text>
-          <Text style={S.gymDesc}>
-            Track each set, manage your rest and keep your progress in one place.
-            Start with a blank session or let your coach build today's plan.
-          </Text>
-          <PressableScale style={S.startBtn} onPress={startSession} disabled={isRestoringSession}>
-            <Text style={S.startBtnText}>{isRestoringSession ? 'Checking saved session…' : 'Start empty session'}</Text>
-          </PressableScale>
-          <PressableScale style={S.coachBtn} onPress={askCoachForWorkout} disabled={isRestoringSession}>
-            <Ionicons name="flash" size={16} color={COLORS.primaryGreen} />
-            <Text style={S.coachBtnText}>Build today's plan with Coach</Text>
-          </PressableScale>
-          <PressableScale style={S.historyBtn} onPress={() => setHistoryVisible(true)}>
+          <View style={S.recommendationCard}>
+            <View style={S.recommendationTop}>
+              <Ionicons name="calendar-outline" size={15} color={COLORS.primaryGreen} />
+              <Text style={S.recommendationLabel}>TODAY'S TRAINING</Text>
+            </View>
+            <Text style={S.recommendationTitle}>{recommendedWorkout || 'No session scheduled'}</Text>
+            <Text style={S.recommendationNote}>
+              {recommendedNote || 'Start from scratch or ask Coach to build a plan around your goal.'}
+            </Text>
+          </View>
+          <View style={S.trainActions}>
+            <Text style={S.actionSectionLabel}>CHOOSE HOW TO START</Text>
+            <PressableScale style={S.startBtn} onPress={startSession} disabled={isRestoringSession || isBuildingPlan} accessibilityRole="button" accessibilityLabel="Start a workout without a prepared plan">
+              <View style={S.actionCopy}>
+                <Text style={S.startBtnText}>{isRestoringSession ? 'Checking saved session…' : 'Start a workout'}</Text>
+                <Text style={S.actionHelper}>Begin now and add exercises as you go</Text>
+              </View>
+              <Ionicons name="arrow-forward" size={18} color={COLORS.background} />
+            </PressableScale>
+            <PressableScale style={S.coachBtn} onPress={askCoachForWorkout} disabled={isRestoringSession || isBuildingPlan} accessibilityRole="button" accessibilityLabel="Build today's training plan with Coach">
+              {isBuildingPlan ? <ActivityIndicator size="small" color={COLORS.coachPurple} /> : <Ionicons name="sparkles-outline" size={19} color={COLORS.coachPurple} />}
+              <View style={S.actionCopy}>
+                <Text style={S.coachBtnText}>{isBuildingPlan ? 'Building your plan…' : 'Build a plan with Coach'}</Text>
+                <Text style={S.coachHelper}>Get exercises, sets, reps and training cues</Text>
+              </View>
+              <Ionicons name="arrow-forward" size={16} color={COLORS.textMuted} />
+            </PressableScale>
+          </View>
+          <PressableScale style={S.historyBtn} onPress={() => setHistoryVisible(true)} accessibilityRole="button">
             <Ionicons name="time-outline" size={16} color={COLORS.textSecondary} />
-            <Text style={S.historyBtnText}>View workout history</Text>
+            <Text style={S.historyBtnText}>View past workouts</Text>
+            <Ionicons name="chevron-forward" size={14} color={COLORS.textMuted} />
           </PressableScale>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     );
   }
@@ -1067,30 +1100,29 @@ const S = StyleSheet.create({
   screenBar: { minHeight: 68, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: COLORS.background },
   screenEyebrow: { ...EYEBROW, color: COLORS.primaryGreen, fontSize: 8, letterSpacing: 1.3 },
   screenBarTitle: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 19, lineHeight: 24 },
-  // Pre-session
-  preSession:  {
-    flex: 1, justifyContent: 'center', alignItems: 'stretch',
-    paddingHorizontal: SPACING.xl, paddingTop: SPACING.xl, paddingBottom: 42,
-  },
-  // Accent now comes from the icon color alone (green), not a mismatched
-  // blue-tinted tile behind a green icon.
-  preBadge:    { width: 66, height: 66, borderRadius: 22, backgroundColor: COLORS.cardElevated,
-                 alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.xl },
-  gymTitle:    { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 35, letterSpacing: -0.8, textAlign: 'left' },
-  gymSubtitle: { ...BODY, color: COLORS.primaryGreen, fontSize: 15, fontFamily: FONTS.semibold, marginTop: SPACING.xs, marginBottom: SPACING.lg },
-  gymDesc: { ...BODY, color: COLORS.textSecondary, fontSize: 14, textAlign: 'left', lineHeight: 22, marginBottom: SPACING.xxl, maxWidth: 340 },
-  startBtn:    { backgroundColor: COLORS.primaryGreen, borderRadius: RADIUS.button,
-                 paddingVertical: 17, paddingHorizontal: SPACING.xl, width: '100%',
-                 alignItems: 'center', marginBottom: SPACING.md },
-  startBtnText:{ color: COLORS.background, fontFamily: FONTS.bold, fontSize: 15, letterSpacing: 0.1 },
-  coachBtn:    { backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.button, paddingVertical: 16,
-                 paddingHorizontal: SPACING.xl, width: '100%', alignItems: 'center',
-                 borderWidth: 1, borderColor: COLORS.borderLight,
-                 flexDirection: 'row', justifyContent: 'center', gap: SPACING.sm, marginTop: SPACING.sm },
-  coachBtnText:{ color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 14 },
-  historyBtn:  { marginTop: SPACING.md, paddingVertical: SPACING.md, paddingHorizontal: SPACING.xl,
-                 alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: SPACING.sm },
-  historyBtnText: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 13 },
+  // Pre-session: a clear plan preview and two distinct start paths.
+  preSessionScroll: { flex: 1 },
+  preSession: { flexGrow: 1, alignItems: 'stretch', paddingHorizontal: SPACING.xl, paddingTop: SPACING.xl, paddingBottom: 28 },
+  trainIntro: { marginBottom: SPACING.xl },
+  trainEyebrow: { ...EYEBROW, color: COLORS.primaryGreen, fontSize: 9, marginBottom: SPACING.sm },
+  gymTitle: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 34, lineHeight: 40, letterSpacing: -0.9, textAlign: 'left' },
+  gymDesc: { ...BODY, color: COLORS.textSecondary, fontSize: 13, textAlign: 'left', lineHeight: 20, marginTop: SPACING.sm, maxWidth: 360 },
+  recommendationCard: { backgroundColor: COLORS.card, borderRadius: RADIUS.card, borderWidth: 1, borderColor: COLORS.border, padding: SPACING.lg, marginBottom: SPACING.xl },
+  recommendationTop: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.md },
+  recommendationLabel: { ...EYEBROW, color: COLORS.textMuted, fontSize: 8 },
+  recommendationTitle: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 21, lineHeight: 27 },
+  recommendationNote: { ...BODY, color: COLORS.textSecondary, fontSize: 12, lineHeight: 18, marginTop: SPACING.xs },
+  trainActions: { gap: SPACING.sm },
+  actionSectionLabel: { ...EYEBROW, color: COLORS.textMuted, fontSize: 9, marginBottom: SPACING.xs },
+  actionCopy: { flex: 1, alignItems: 'flex-start', minWidth: 0, gap: 3 },
+  actionHelper: { color: alpha(COLORS.background, 0.72), fontFamily: FONTS.regular, fontSize: 10, lineHeight: 15 },
+  coachHelper: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 10, lineHeight: 15 },
+  startBtn: { backgroundColor: COLORS.primaryGreen, borderRadius: RADIUS.button, paddingVertical: SPACING.lg, paddingHorizontal: SPACING.lg, width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.md, marginBottom: SPACING.xs },
+  startBtnText: { color: COLORS.background, fontFamily: FONTS.bold, fontSize: 15, letterSpacing: 0.1 },
+  coachBtn: { backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.button, paddingVertical: SPACING.lg, paddingHorizontal: SPACING.lg, width: '100%', alignItems: 'center', borderWidth: 1, borderColor: COLORS.borderLight, flexDirection: 'row', justifyContent: 'flex-start', gap: SPACING.md },
+  coachBtnText: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 13 },
+  historyBtn: { marginTop: SPACING.lg, paddingVertical: SPACING.md, paddingHorizontal: SPACING.sm, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: SPACING.sm },
+  historyBtnText: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 12 },
 
   // Exercise tabs
   exTabsScroll: { maxHeight: 68 },

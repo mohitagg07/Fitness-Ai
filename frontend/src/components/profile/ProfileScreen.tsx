@@ -251,6 +251,13 @@ export default function ProfileScreen() {
         contentContainerStyle={{ width: '100%', maxWidth: responsive.pageMaxWidth, alignSelf: 'center', paddingBottom: responsive.gutter * 2 }}
       >
         <Reveal delay={20}><View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+          <View style={styles.profileIntro}>
+            <Text style={styles.profileEyebrow}>YOUR ACCOUNT</Text>
+            <Text style={styles.profileIntroTitle}>Your profile.</Text>
+            <Text style={styles.profileIntroText}>
+              Keep your goals, training setup, injuries and food preferences current so VYRN can tailor your experience.
+            </Text>
+          </View>
 
           <PressableScale style={styles.avatarWrap} onPress={pickAvatar} disabled={uploadingAvatar}>
             {profile.avatar_url ? (
@@ -705,6 +712,10 @@ const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' },
   header: { alignItems: 'center', paddingBottom: 20, paddingHorizontal: 20 },
   logoBar: { alignSelf: 'stretch', marginBottom: 20 },
+  profileIntro: { alignSelf: 'stretch', alignItems: 'flex-start', marginBottom: 22 },
+  profileEyebrow: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 9, letterSpacing: 1.4, marginBottom: 5 },
+  profileIntroTitle: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 27, lineHeight: 33, letterSpacing: -0.6 },
+  profileIntroText: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 12, lineHeight: 18, marginTop: 4, maxWidth: 360 },
 
   avatarWrap: { width: 92, height: 92, marginBottom: 14 },
   avatarImg: { width: 92, height: 92, borderRadius: 24, backgroundColor: COLORS.cardElevated },
