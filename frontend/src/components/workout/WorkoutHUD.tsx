@@ -858,7 +858,7 @@ function WorkoutHUD() {
               value={exerciseName}
               onChangeText={setExerciseName}
               returnKeyType="next"
-              keyboardAppearance="dark"
+              keyboardAppearance="light"
               selectionColor={COLORS.primaryGreen}
               underlineColorAndroid="transparent"
             />
