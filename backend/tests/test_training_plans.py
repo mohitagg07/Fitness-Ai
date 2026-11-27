@@ -248,3 +248,33 @@ def test_adaptive_plan_volume_reduction_targets_the_requested_exercise() -> None
     )
     assert updated["workout"]["exercises"][0]["sets"] == 3
     assert updated["workout"]["exercises"][1]["sets"] == 3
+
+
+def test_session_exercise_event_payload_requires_replacement_for_replace() -> None:
+    from pydantic import ValidationError
+    from api.routes.workouts import SessionExerciseEventRequest
+
+    payload = SessionExerciseEventRequest(
+        action="replace",
+        exercise_name="Bench Press",
+        replacement_exercise="Push Up",
+    )
+    assert payload.action == "replace"
+
+    with pytest.raises(ValidationError):
+        SessionExerciseEventRequest(action="replace", exercise_name="Bench Press")
+
+    with pytest.raises(ValidationError):
+        SessionExerciseEventRequest(
+            action="skip",
+            exercise_name="Bench Press",
+            replacement_exercise="Push Up",
+        )
+
+
+def test_session_exercise_event_rejects_unknown_action() -> None:
+    from pydantic import ValidationError
+    from api.routes.workouts import SessionExerciseEventRequest
+
+    with pytest.raises(ValidationError):
+        SessionExerciseEventRequest(action="delete", exercise_name="Bench Press")
