@@ -40,17 +40,32 @@ function ConfettiBurst({ active }: { active: boolean }) {
     particles.forEach(() => anims.push(new Animated.Value(0)));
   }
   useEffect(() => {
-    if (!active || reduceMotion) return;
-    const animations = particles.map((p, i) =>
-      Animated.timing(anims[i], {
+    // Always stop a previous burst before starting or suppressing another.
+    // This matters when Android accessibility settings change while a modal
+    // is open or when the user closes a celebration mid-flight.
+    if (!active || reduceMotion) {
+      anims.forEach((animation) => {
+        animation.stopAnimation();
+        animation.setValue(0);
+      });
+      return undefined;
+    }
+
+    const animations = particles.map((particle, index) =>
+      Animated.timing(anims[index], {
         toValue: 1,
-        duration: 1600 + Math.random() * 500,
-        delay: p.delay,
+        duration: 1600 + particle.delay * 0.35,
+        delay: particle.delay,
         useNativeDriver: true,
       }),
     );
-    Animated.stagger(15, animations).start();
-  }, [active, reduceMotion]);
+    const burst = Animated.stagger(15, animations);
+    burst.start();
+    return () => {
+      burst.stop();
+      anims.forEach((animation) => animation.stopAnimation());
+    };
+  }, [active, reduceMotion, anims, particles]);
   if (!active || reduceMotion) return null;
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
