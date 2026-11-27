@@ -16,6 +16,7 @@ from core.security import get_current_user
 from db.supabase_client import get_supabase, get_full_user_context
 from agents.program_rewriter import run_program_rewriter
 from api.routes.training_plans import _load_athlete_constraints, validate_workout_constraints, WorkoutPrescription
+from services.exercise_catalog import normalize_exercise_name, resolve_exercise
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Program Evolution"])
@@ -41,7 +42,18 @@ def _apply_adaptive_changes(snapshot: dict, changes: list[dict], trigger: str) -
         for exercise in exercises:
             if not isinstance(exercise, dict):
                 continue
-            matches_target = not target_name or str(exercise.get("name") or "").strip().casefold() == target_name
+            current_name = str(exercise.get("name") or "").strip()
+            target_definition = resolve_exercise(target_name) if target_name else None
+            current_definition = resolve_exercise(current_name)
+            matches_target = (
+                not target_name
+                or normalize_exercise_name(current_name) == normalize_exercise_name(target_name)
+                or (
+                    target_definition is not None
+                    and current_definition is not None
+                    and target_definition.exercise_id == current_definition.exercise_id
+                )
+            )
             if change_type == "deload":
                 original_sets = max(1, int(exercise.get("sets") or 1))
                 exercise["sets"] = max(1, math.floor(original_sets * 0.7))
@@ -175,6 +187,9 @@ async def propose_program_rewrite(
         proposed_snapshot["workout"] = validate_workout_constraints(
             workout_model, equipment, injuries
         )
+        proposed_snapshot["adaptive_trigger"] = result.get("trigger")
+        proposed_snapshot["adaptive_changes"] = result.get("changes") or []
+        proposed_snapshot["change_reason"] = result.get("explanation")
 
         saved = sb.rpc(
             "save_workout_plan_draft",
