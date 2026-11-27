@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from api.routes.auth import router as auth_router
 from api.routes.profile import router as profile_router
 from api.routes.workouts import router as workout_router
+from api.routes.training_plans import router as training_plans_router
 from api.routes.progress import router as progress_router
 from api.routes.coach import router as coach_router
 from api.routes.nutrition import router as nutrition_router
@@ -67,6 +68,7 @@ app.add_middleware(
 app.include_router(auth_router,      prefix="/api/auth",      tags=["Authentication"])
 app.include_router(profile_router,   prefix="/api/profile",   tags=["Profile"])
 app.include_router(workout_router,   prefix="/api/workouts",  tags=["Workouts"])
+app.include_router(training_plans_router, prefix="/api/training-plans", tags=["Training Plans"])
 app.include_router(progress_router,  prefix="/api/progress",  tags=["Progress"])
 app.include_router(coach_router,     prefix="/api/coach",     tags=["AI Coach"])
 app.include_router(nutrition_router, prefix="/api/nutrition", tags=["Nutrition"])
