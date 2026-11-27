@@ -37,8 +37,15 @@ def _apply_adaptive_changes(snapshot: dict, changes: list[dict], trigger: str) -
         raise HTTPException(409, "The approved plan has no exercises to adapt.")
 
     for change in changes:
-        change_type = str(change.get("type") or "")
-        target_name = str(change.get("exercise") or "").strip().casefold()
+        change_type = str(
+            change.get("type") or change.get("action") or change.get("category") or ""
+        ).strip().lower()
+        target_name = str(
+            change.get("exercise")
+            or change.get("target_exercise")
+            or change.get("from")
+            or ""
+        ).strip().casefold()
         for exercise in exercises:
             if not isinstance(exercise, dict):
                 continue
@@ -69,15 +76,21 @@ def _apply_adaptive_changes(snapshot: dict, changes: list[dict], trigger: str) -
                 if isinstance(load, (int, float)) and load > 0:
                     exercise["load_kg"] = round(float(load) * 1.025, 2)
                 exercise["reps"] = "5-8"
-            elif change_type == "intensity_reduction":
+            elif change_type in ("intensity_reduction", "intensity_hold"):
+                exercise["rpe_target"] = min(float(exercise.get("rpe_target") or 7), 7)
+            elif change_type in ("nutrition_flag", "under_fueling"):
+                current_sets = max(1, int(exercise.get("sets") or 1))
+                exercise["sets"] = max(1, math.floor(current_sets * 0.85))
                 exercise["rpe_target"] = min(float(exercise.get("rpe_target") or 7), 7)
             elif change_type == "session_cap":
                 workout["estimated_duration_minutes"] = min(
                     45,
                     int(workout.get("estimated_duration_minutes") or 45),
                 )
-            elif change_type == "exercise_swap" and matches_target:
-                swap_to = str(change.get("swap_to") or "").strip()
+            elif change_type in ("exercise_swap", "swap_exercise") and matches_target:
+                swap_to = str(
+                    change.get("swap_to") or change.get("replacement") or change.get("to") or ""
+                ).strip()
                 if swap_to:
                     exercise["name"] = swap_to
                     exercise.pop("exercise_id", None)
