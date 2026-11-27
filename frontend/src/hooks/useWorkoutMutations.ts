@@ -24,13 +24,47 @@ import {
   removePendingWorkoutSet,
 } from '../utils/workoutOutbox';
 
-type PendingSyncResult = { synced: number; remaining: number };
+type PendingSyncResult = {
+  synced: number;
+  remaining: number;
+  blocked: boolean;
+  status?: number;
+  errorMessage?: string;
+};
+
+function getHttpStatus(error: any): number | undefined {
+  const status = Number(error?.response?.status);
+  return Number.isInteger(status) && status >= 400 ? status : undefined;
+}
+
+function isPermanentClientError(status?: number): boolean {
+  return status !== undefined
+    && status >= 400
+    && status < 500
+    && ![408, 425, 429].includes(status);
+}
+
+function getApiErrorMessage(error: any): string | undefined {
+  const detail = error?.response?.data?.detail;
+  if (typeof detail === 'string' && detail.trim()) return detail;
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => typeof item?.msg === 'string' ? item.msg : null)
+      .filter(Boolean);
+    if (messages.length) return messages.join('; ');
+  }
+  const message = error?.response?.data?.message || error?.message;
+  return typeof message === 'string' && message.trim() ? message : undefined;
+}
 
 const pendingSyncs = new Map<string, Promise<PendingSyncResult>>();
 
 async function performPendingWorkoutSync(sessionId: string): Promise<PendingSyncResult> {
   const pending = await getPendingWorkoutSets(sessionId);
   let synced = 0;
+  let blocked = false;
+  let status: number | undefined;
+  let errorMessage: string | undefined;
 
   // Replay in order. The backend makes each client_request_id idempotent,
   // including the case where the original server response was lost.
@@ -48,9 +82,13 @@ async function performPendingWorkoutSync(sessionId: string): Promise<PendingSync
       await removePendingWorkoutSet(item.client_request_id);
       actions.replaceLogInSession(item, response.data, sessionId);
       synced += 1;
-    } catch {
-      // Keep this item and later items. The active session must not be closed
-      // while an unsynced set remains in the local outbox.
+    } catch (error) {
+      // Retain the item on every failure. A deterministic 4xx response is
+      // not an offline condition, however: surface it instead of presenting
+      // it as a routine network retry (e.g. a completed or invalid session).
+      status = getHttpStatus(error);
+      blocked = isPermanentClientError(status);
+      errorMessage = getApiErrorMessage(error);
       break;
     }
   }
@@ -58,6 +96,9 @@ async function performPendingWorkoutSync(sessionId: string): Promise<PendingSync
   return {
     synced,
     remaining: (await getPendingWorkoutSets(sessionId)).length,
+    blocked,
+    ...(status !== undefined ? { status } : {}),
+    ...(errorMessage ? { errorMessage } : {}),
   };
 }
 
@@ -92,10 +133,19 @@ export function useLogSet() {
       try {
         const response = await workoutApi.logSet(sessionId, data);
         persisted = response.data;
-      } catch {
-        // onMutate has already committed the full request to AsyncStorage.
-        // Keep it visible and retry later instead of rolling the set back.
-        return { optimistic: log, persisted: null, pending: true };
+      } catch (error) {
+        // The full request is already durable in AsyncStorage. Keep it visible
+        // on transient failures, but flag deterministic 4xx rejections so the
+        // UI does not describe a server-side rejection as an offline write.
+        const status = getHttpStatus(error);
+        return {
+          optimistic: log,
+          persisted: null,
+          pending: true,
+          blocked: isPermanentClientError(status),
+          ...(status !== undefined ? { status } : {}),
+          ...(getApiErrorMessage(error) ? { errorMessage: getApiErrorMessage(error) } : {}),
+        };
       }
 
       try {
