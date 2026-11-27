@@ -186,6 +186,17 @@ export const workoutApi = {
   createSession: (data: any) => api.post('/workouts/sessions', data),
   getSessions: (limit = 10) => api.get(`/workouts/sessions?limit=${limit}`),
   getSessionExerciseEvents: (id: string) => api.get(`/workouts/sessions/${id}/exercise-events`),
+  getExercisePerformance: (
+    exercise: string,
+    targetReps = '8-12',
+    targetLoadKg?: number,
+  ) => api.get('/workouts/exercise-performance', {
+    params: {
+      exercise,
+      target_reps: targetReps,
+      ...(targetLoadKg !== undefined ? { target_load_kg: targetLoadKg } : {}),
+    },
+  }),
   recordExerciseEvent: (id: string, data: {
     action: 'skip' | 'replace';
     exercise_name: string;
