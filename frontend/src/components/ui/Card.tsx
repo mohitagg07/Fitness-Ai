@@ -8,6 +8,7 @@ import { COLORS, alpha } from '../../theme/colors';
 import { RADIUS, SPACING } from '../../theme/spacing';
 import { ELEVATION } from '../../theme/layout';
 import PressableScale from './PressableScale';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 export type CardVariant = 'flat' | 'elevated' | 'outlined' | 'accent' | 'gradient';
 export type CardPadding = 'none' | 'sm' | 'md' | 'lg';
@@ -52,10 +53,11 @@ export default function Card({
   const pad = PADDING_MAP[padding];
   const isHero = elevation === 'hero';
   const progress = useRef(new Animated.Value(animate ? 0 : 1)).current;
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     progress.stopAnimation();
-    if (!animate) {
+    if (!animate || reduceMotion) {
       progress.setValue(1);
       return undefined;
     }
@@ -70,7 +72,7 @@ export default function Card({
     });
     animation.start();
     return () => animation.stop();
-  }, [animate, animationDelay, progress]);
+  }, [animate, animationDelay, progress, reduceMotion]);
 
   const mountStyle = {
     opacity: progress,
