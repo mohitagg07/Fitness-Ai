@@ -432,7 +432,7 @@ export default function NutritionSearchModal({
 
             <TouchableOpacity style={styles.manualLaunch} onPress={openManualEntry}>
               <Ionicons name="create-outline" size={16} color={COLORS.primaryGreen} />
-              <Text style={styles.manualLaunchText}>Can't find it? Add food manually</Text>
+              <Text style={styles.manualLaunchText}>Can't find it? Estimate with VYRN</Text>
               <Ionicons name="arrow-forward" size={14} color={COLORS.primaryGreen} />
             </TouchableOpacity>
 
@@ -440,7 +440,7 @@ export default function NutritionSearchModal({
               <View style={styles.centerMsg}>
                 <Ionicons name="alert-circle-outline" size={28} color={COLORS.recoveryLow} />
                 <Text style={styles.errorText}>{searchError}</Text>
-                <Text style={styles.errorHint}>You can still create a custom food entry here.</Text>
+                <Text style={styles.errorHint}>You can still estimate this meal with VYRN.</Text>
               </View>
             ) : query.trim().length > 0 && query.trim().length < MIN_QUERY_LEN ? (
               <View style={styles.centerMsg}>
@@ -451,7 +451,7 @@ export default function NutritionSearchModal({
                 <Ionicons name="search-outline" size={28} color={COLORS.textMuted} />
                 <Text style={styles.hintText}>No database results for "{query.trim()}".</Text>
                 <TouchableOpacity style={styles.noResultButton} onPress={openManualEntry}>
-                  <Text style={styles.noResultButtonText}>Create this food manually</Text>
+                  <Text style={styles.noResultButtonText}>Estimate this food with VYRN</Text>
                 </TouchableOpacity>
               </View>
             ) : (
