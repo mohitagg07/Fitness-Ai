@@ -67,14 +67,19 @@ interface SummaryData {
     planned_exercises: number;
     exercises_with_logged_sets: number;
     skipped_exercises: number;
+    replaced_exercises?: number;
+    not_started_exercises?: number;
     planned_working_sets: number;
     completed_working_sets: number;
     set_completion_ratio: number | null;
     exercises: Array<{
       name: string;
+      current_name?: string;
       planned_sets: number;
       logged_working_sets: number;
       completed: boolean;
+      status?: 'completed' | 'skipped' | 'replaced' | 'replacement_not_logged' | 'not_started';
+      reason?: string | null;
     }>;
   };
   session_effort?: number | null;
@@ -299,14 +304,44 @@ function WorkoutSummaryCard({ visible, data, onClose }: Props) {
                     </Text>
                     <Text variant="caption" color={COLORS.textMuted}>Exercises skipped</Text>
                   </View>
+                  {!!data.planned_vs_actual.replaced_exercises && (
+                    <View style={styles.reviewStat}>
+                      <Text variant="body" weight="bold" numeric color={COLORS.text}>
+                        {data.planned_vs_actual.replaced_exercises}
+                      </Text>
+                      <Text variant="caption" color={COLORS.textMuted}>Exercises replaced</Text>
+                    </View>
+                  )}
                 </View>
-                {data.planned_vs_actual.exercises.filter((exercise) => !exercise.completed).map((exercise, index) => (
-                  <View key={`${exercise.name}-${index}`} style={styles.skippedRow}>
-                    <Ionicons name="remove-circle-outline" size={13} color={COLORS.textMuted} />
-                    <Text variant="caption" color={COLORS.textSecondary} style={{ flex: 1 }}>{exercise.name}</Text>
-                    <Text variant="caption" color={COLORS.textMuted}>Not logged</Text>
-                  </View>
-                ))}
+                {data.planned_vs_actual.exercises.filter((exercise) => exercise.status && exercise.status !== 'completed').map((exercise, index) => {
+                  const wasSkipped = exercise.status === 'skipped';
+                  const wasReplaced = exercise.status === 'replaced' || exercise.status === 'replacement_not_logged';
+                  const statusLabel = wasSkipped
+                    ? 'Skipped'
+                    : exercise.status === 'replaced'
+                      ? 'Replaced'
+                      : exercise.status === 'replacement_not_logged'
+                        ? 'Replacement not logged'
+                        : 'Not started';
+                  return (
+                    <View key={`${exercise.name}-${index}`} style={styles.skippedRow}>
+                      <Ionicons
+                        name={wasSkipped ? 'close-circle-outline' : wasReplaced ? 'swap-horizontal-outline' : 'remove-circle-outline'}
+                        size={13}
+                        color={wasSkipped ? COLORS.textMuted : wasReplaced ? COLORS.recoveryMed : COLORS.textDim}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text variant="caption" color={COLORS.textSecondary}>
+                          {exercise.name}{wasReplaced && exercise.current_name && exercise.current_name !== exercise.name ? ` → ${exercise.current_name}` : ''}
+                        </Text>
+                        {!!exercise.reason && (
+                          <Text variant="caption" color={COLORS.textMuted}>{exercise.reason}</Text>
+                        )}
+                      </View>
+                      <Text variant="caption" color={COLORS.textMuted}>{statusLabel}</Text>
+                    </View>
+                  );
+                })}
               </>
             </Reveal>
           )}
