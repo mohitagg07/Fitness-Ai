@@ -30,6 +30,7 @@ import { actions } from '../../store';
 import { queryClient } from '../../lib/queryClient';
 import { qk } from '../../lib/queryKeys';
 import { COLORS, alpha } from '../../theme/colors';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const RING_SIZE = 84;
@@ -161,6 +162,7 @@ function isSlideValid(slide: number, form: FormState, usernameStatus: UsernameSt
 }
 
 export default function OnboardingScreen() {
+  const reduceMotion = useReducedMotion();
   const scrollRef = useRef<ScrollView>(null);
   const [slide, setSlide] = useState(0);
   const [form, setForm] = useState<FormState>(initialForm);
@@ -244,13 +246,18 @@ export default function OnboardingScreen() {
 
   const goToSlide = useCallback((index: number) => {
     setSlide(index);
-    pagerOpacity.value = withSequence(
-      withTiming(0.35, { duration: 120, easing: Easing.out(Easing.cubic) }),
-      withTiming(1, { duration: 220, easing: Easing.out(Easing.cubic) })
-    );
-    scrollRef.current?.scrollTo({ x: index * SCREEN_W, animated: true });
-    ringProgress.value = withTiming((index + 1) / SLIDE_COUNT, { duration: 450 });
-  }, [pagerOpacity, ringProgress]);
+    if (reduceMotion) {
+      pagerOpacity.value = 1;
+      ringProgress.value = (index + 1) / SLIDE_COUNT;
+    } else {
+      pagerOpacity.value = withSequence(
+        withTiming(0.35, { duration: 120, easing: Easing.out(Easing.cubic) }),
+        withTiming(1, { duration: 220, easing: Easing.out(Easing.cubic) })
+      );
+      ringProgress.value = withTiming((index + 1) / SLIDE_COUNT, { duration: 450 });
+    }
+    scrollRef.current?.scrollTo({ x: index * SCREEN_W, animated: !reduceMotion });
+  }, [pagerOpacity, ringProgress, reduceMotion]);
 
   const handleNext = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -607,17 +614,17 @@ const SlideWelcome = React.memo(function SlideWelcome({
   useEffect(() => {
     const showSub = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => { keyboardProgress.value = withTiming(1, { duration: 220, easing: Easing.out(Easing.cubic) }); }
+      () => { keyboardProgress.value = reduceMotion ? 1 : withTiming(1, { duration: 220, easing: Easing.out(Easing.cubic) }); }
     );
     const hideSub = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => { keyboardProgress.value = withTiming(0, { duration: 220, easing: Easing.out(Easing.cubic) }); }
+      () => { keyboardProgress.value = reduceMotion ? 0 : withTiming(0, { duration: 220, easing: Easing.out(Easing.cubic) }); }
     );
     return () => {
       showSub.remove();
       hideSub.remove();
     };
-  }, []);
+  }, [keyboardProgress, reduceMotion]);
 
   const headerAnimStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: keyboardProgress.value * -12 }],
@@ -630,10 +637,17 @@ const SlideWelcome = React.memo(function SlideWelcome({
   // Shimmer pulse shown next to "Checking…" instead of a static spinner.
   const shimmer = useSharedValue(0.4);
   useEffect(() => {
+    if (reduceMotion) {
+      shimmer.value = 1;
+      return undefined;
+    }
     if (usernameStatus === 'checking') {
       shimmer.value = withRepeat(withSequence(withTiming(1, { duration: 500 }), withTiming(0.4, { duration: 500 })), -1, true);
+    } else {
+      shimmer.value = 0.4;
     }
-  }, [usernameStatus]);
+    return undefined;
+  }, [usernameStatus, shimmer, reduceMotion]);
   const shimmerStyle = useAnimatedStyle(() => ({ opacity: shimmer.value }));
 
   return (
