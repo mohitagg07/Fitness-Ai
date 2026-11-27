@@ -582,6 +582,7 @@ const SlideWelcome = React.memo(function SlideWelcome({
   onRetryUsernameCheck: () => void;
   onSubmitLast: () => void;
 }) {
+  const reduceMotion = useReducedMotion();
   const age = ageFromDob(form.dob);
   const initial = form.full_name.trim().charAt(0).toUpperCase() || '?';
   const statusCopy = USERNAME_STATUS_COPY[usernameStatus];
