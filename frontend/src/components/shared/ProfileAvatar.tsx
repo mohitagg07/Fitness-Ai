@@ -18,10 +18,8 @@ export default function ProfileAvatar({
   accessibilityLabel = 'Open profile',
   style,
 }: ProfileAvatarProps) {
-  const { avatarUrl, fullName } = useStore((state) => ({
-    avatarUrl: state.profile?.avatar_url || state.user?.avatar_url || null,
-    fullName: state.profile?.full_name || state.user?.full_name || 'Athlete',
-  }));
+  const avatarUrl = useStore((state) => state.profile?.avatar_url || state.user?.avatar_url || null);
+  const fullName = useStore((state) => state.profile?.full_name || state.user?.full_name || 'Athlete');
 
   const initials = String(fullName)
     .trim()
