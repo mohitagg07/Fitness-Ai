@@ -37,6 +37,17 @@ interface AdaptiveProposal {
   trigger: string;
   explanation: string;
   changes: ChangeItem[];
+  previous_snapshot?: {
+    workout?: {
+      label?: string;
+      exercises?: Array<{
+        name: string;
+        sets: number;
+        reps: string;
+        load_kg?: number | null;
+      }>;
+    };
+  };
   snapshot: {
     workout?: {
       label?: string;
@@ -129,6 +140,7 @@ function ProgramEvolutionCard() {
           explanation: res.data.explanation,
           changes: res.data.changes || [],
           snapshot: res.data.snapshot || {},
+          previous_snapshot: res.data.previous_snapshot || {},
         });
       } else {
         Alert.alert('No change recommended', res.data?.explanation || 'Your current plan should stay as it is.');
@@ -210,6 +222,16 @@ function ProgramEvolutionCard() {
             </View>
           </View>
           <Text style={styles.explanation}>{proposal.explanation}</Text>
+          <Text style={styles.reviewLabel}>WHAT CHANGES</Text>
+          {(proposal.changes || []).map((change: any, index) => (
+            <View key={`change-${index}`} style={styles.proposedChange}>
+              <Ionicons name="arrow-forward-circle-outline" size={13} color={COLORS.recoveryHigh} />
+              <Text style={styles.proposedChangeText}>
+                {change.description || change.reason || change.label || change.type?.replace(/_/g, ' ') || 'Training adjustment'}
+                {change.exercise ? ` · ${change.exercise}` : ''}
+              </Text>
+            </View>
+          ))}
           <Text style={styles.reviewLabel}>PROPOSED SESSION</Text>
           <Text style={styles.proposalWorkout}>
             {proposal.snapshot.workout?.label || proposal.snapshot.workout?.workout_type?.replace(/_/g, ' ') || 'Updated workout'}
@@ -217,17 +239,27 @@ function ProgramEvolutionCard() {
               ? ` · ${proposal.snapshot.workout.estimated_duration_minutes} min`
               : ''}
           </Text>
-          {(proposal.snapshot.workout?.exercises || []).map((exercise, index) => (
-            <View key={`${exercise.name}-${index}`} style={styles.proposedExercise}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.proposedExerciseName}>{exercise.name}</Text>
-                <Text style={styles.proposedExerciseMeta}>
-                  {exercise.sets} sets · {exercise.reps} reps · {exercise.rest_seconds || 90}s rest
-                  {exercise.load_kg != null ? ` · ${exercise.load_kg}kg` : ''}
-                </Text>
+          {(proposal.snapshot.workout?.exercises || []).map((exercise, index) => {
+            const before = proposal.previous_snapshot?.workout?.exercises?.[index];
+            const previousPrescription = before
+              ? `${before.name} · ${before.sets} × ${before.reps}${before.load_kg != null ? ` · ${before.load_kg}kg` : ''}`
+              : 'No previous exercise prescription';
+            return (
+              <View key={`${exercise.name}-${index}`} style={styles.proposedExercise}>
+                <Text style={styles.currentPrescription}>{previousPrescription}</Text>
+                <View style={styles.proposedExerciseRow}>
+                  <Ionicons name="arrow-down-outline" size={13} color={COLORS.recoveryHigh} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.proposedExerciseName}>{exercise.name}</Text>
+                    <Text style={styles.proposedExerciseMeta}>
+                      {exercise.sets} sets · {exercise.reps} reps · {exercise.rest_seconds || 90}s rest
+                      {exercise.load_kg != null ? ` · ${exercise.load_kg}kg` : ''}
+                    </Text>
+                  </View>
+                </View>
               </View>
-            </View>
-          ))}
+            );
+          })}
           {(proposal.snapshot.adaptive_guardrails || []).map((item, index) => (
             <View key={index} style={styles.guardrailRow}>
               <Ionicons name="shield-checkmark-outline" size={13} color={COLORS.recoveryMed} />
@@ -358,7 +390,11 @@ const styles = StyleSheet.create({
   pendingText: { color: COLORS.recoveryMed, fontSize: 7, fontWeight: '800', letterSpacing: 0.4 },
   reviewLabel: { color: '#7F9290', fontSize: 8, fontWeight: '800', letterSpacing: 1 },
   proposalWorkout: { color: '#F2F4F2', fontSize: 12, fontWeight: '700', textTransform: 'capitalize' },
-  proposedExercise: { borderTopWidth: 1, borderTopColor: '#2A3732', paddingTop: 7 },
+  proposedExercise: { borderTopWidth: 1, borderTopColor: '#2A3732', paddingTop: 7, gap: 5 },
+  currentPrescription: { color: '#84918B', fontSize: 9, lineHeight: 13 },
+  proposedExerciseRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  proposedChange: { flexDirection: 'row', alignItems: 'flex-start', gap: 7 },
+  proposedChangeText: { color: '#DCE7E0', fontSize: 10, lineHeight: 14, flex: 1 },
   proposedExerciseName: { color: '#E0E8E3', fontSize: 11, fontWeight: '700' },
   proposedExerciseMeta: { color: '#8C9C95', fontSize: 9, marginTop: 3 },
   guardrailRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 7, paddingVertical: 4 },
