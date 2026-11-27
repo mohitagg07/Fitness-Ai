@@ -331,9 +331,9 @@ export default function ThreeMuscleScene({
       <SceneBoundary onFailure={onFailure}>
         <Canvas
           style={styles.canvas}
-          // Android devices vary widely in GPU throughput. A bounded DPR keeps
-          // the 3D view sharp while avoiding an unnecessarily large render target.
-          dpr={Platform.OS === 'android' ? [1, 1.5] : [1, 2]}
+          // Keep GPU work predictable on Android. Native R3F manages pixel
+          // ratio through React Native's PixelRatio and does not expose web dpr.
+          gl={{ antialias: Platform.OS !== 'android' }}
           camera={{ position: [0, 0.04, 7.55], fov: 33, near: 0.1, far: 40 }}
           onCreated={({ gl }) => {
             gl.setClearColor(CANVAS_BACKGROUND, 1);
