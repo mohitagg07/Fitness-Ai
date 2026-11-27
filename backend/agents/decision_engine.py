@@ -95,6 +95,39 @@ def _injury_status(user_id: str) -> Optional[dict]:
     return rows[0] if rows else None
 
 
+def _daily_recovery_evidence(check_in: dict | None) -> list[EvidenceSignal]:
+    """Build Decision Center sleep/soreness/energy signals from today's check-in only.
+
+    Profile sleep preferences are onboarding context, not last night's sleep.
+    Missing values carry zero evidence weight and are never scored as favorable.
+    """
+    values = check_in or {}
+    sleep = values.get("sleep_hours")
+    soreness = values.get("soreness_level")
+    energy = values.get("energy_level")
+
+    return [
+        EvidenceSignal(
+            label="Reported sleep",
+            value=f"{sleep}h" if sleep is not None else "Not reported",
+            favorable=sleep is not None and float(sleep) >= 7,
+            weight=1.0 if sleep is not None else 0.0,
+        ),
+        EvidenceSignal(
+            label="Reported soreness",
+            value=f"{soreness}/5" if soreness is not None else "Not reported",
+            favorable=soreness is not None and int(soreness) <= 2,
+            weight=1.0 if soreness is not None else 0.0,
+        ),
+        EvidenceSignal(
+            label="Reported energy",
+            value=f"{energy}/5" if energy is not None else "Not reported",
+            favorable=energy is not None and int(energy) >= 3,
+            weight=0.75 if energy is not None else 0.0,
+        ),
+    ]
+
+
 def build_decision_center(
     user_id: str,
     profile: dict,
@@ -159,7 +192,10 @@ def build_decision_center(
 
     # ── Build the evidence list — every entry traceable to a real value ──
     recovery_pct = getattr(recovery_decision, "score_pct", None)
-    sleep_hours = profile.get("sleep_hours")
+    daily_check_in = getattr(recovery_decision, "check_in", None)
+    if daily_check_in is None:
+        daily_check_in = recovery_decision.__dict__.get("check_in")
+    recovery_evidence = _daily_recovery_evidence(daily_check_in)
     signals: list[EvidenceSignal] = [
         EvidenceSignal(
             label="Recovery",
@@ -167,12 +203,7 @@ def build_decision_center(
             favorable=recovery_pct is not None and recovery_pct >= 70,
             weight=1.5 if recovery_pct is not None else 0.0,
         ),
-        EvidenceSignal(
-            label="Reported sleep",
-            value=f"{sleep_hours}h" if sleep_hours is not None else "Not reported",
-            favorable=sleep_hours is not None and sleep_hours >= 7,
-            weight=1.0 if sleep_hours is not None else 0.0,
-        ),
+        *recovery_evidence,
         EvidenceSignal(
             label="Protein",
             value=f"{round(protein_today)}g" if has_protein_log else "Not logged",
@@ -216,7 +247,7 @@ def build_decision_center(
         ))
 
     # Require enough logged inputs before asserting a training recommendation.
-    max_evidence_weight = 1.5 + 1.0 + 1.0 + 1.0 + 1.25
+    max_evidence_weight = 1.5 + 1.0 + 1.0 + 0.75 + 1.0 + 1.0 + 1.25
     available_weight = sum(signal.weight for signal in signals)
     coverage_pct = round(available_weight / max_evidence_weight * 100)
     signals.append(EvidenceSignal(

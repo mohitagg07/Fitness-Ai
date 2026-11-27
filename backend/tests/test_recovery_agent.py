@@ -54,3 +54,23 @@ def test_readiness_does_not_claim_recovery_when_all_sources_are_missing(monkeypa
         "sleep", "soreness", "energy", "volume", "nutrition", "rpe", "cns"
     }
     assert "approved plan unchanged" in result.message
+
+
+def test_decision_center_uses_only_dated_recovery_checkin_inputs() -> None:
+    from agents.decision_engine import _daily_recovery_evidence
+
+    missing = _daily_recovery_evidence(None)
+    assert [signal.value for signal in missing] == [
+        "Not reported", "Not reported", "Not reported"
+    ]
+    assert all(signal.weight == 0 for signal in missing)
+    assert all(not signal.favorable for signal in missing)
+
+    reported = _daily_recovery_evidence({
+        "sleep_hours": 7.5,
+        "soreness_level": 2,
+        "energy_level": 4,
+    })
+    assert [signal.value for signal in reported] == ["7.5h", "2/5", "4/5"]
+    assert [signal.weight for signal in reported] == [1.0, 1.0, 0.75]
+    assert all(signal.favorable for signal in reported)
