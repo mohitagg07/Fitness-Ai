@@ -134,6 +134,20 @@ jobs:
       - name: Generate native Android project
         run: npx expo prebuild --platform android --clean --no-install
 
+      # This is an installable internal QA artifact, not a Play Store release.
+      # Sign the temporary release variants with the generated debug key so
+      # both the emulator and a developer phone can install the standalone APK.
+      - name: Configure CI-only APK signing
+        run: |
+          if [ ! -f android/app/debug.keystore ]; then
+            keytool -genkeypair -v -storetype JKS \
+              -keystore android/app/debug.keystore \
+              -storepass android -keypass android -alias androiddebugkey \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=VYRN CI Debug,O=VYRN,C=IN"
+          fi
+          sed -i 's/signingConfig signingConfigs.release/signingConfig signingConfigs.debug/' android/app/build.gradle
+
       # This is a RELEASE variant, not a Metro-dependent debug variant.
       # The temporary QA flag unlocks only a no-account test route that mounts
       # the real ThreeMuscleScene. It is disabled in the distributable APK.
@@ -150,7 +164,7 @@ jobs:
       - name: Install and verify native 3D scene on Android emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: 36
           target: google_apis
           arch: x86_64
           profile: pixel_7_pro
