@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  AccessibilityInfo,
   Animated,
   Easing,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
 import { MOTION } from '../../theme/motion';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 interface Props {
   children: React.ReactNode;
@@ -25,19 +25,7 @@ export default function Reveal({
   style,
 }: Props) {
   const progress = useRef(new Animated.Value(1)).current;
-  const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then((enabled) => { if (active) setReduceMotion(enabled); })
-      .catch(() => { if (active) setReduceMotion(false); });
-    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
-    return () => {
-      active = false;
-      subscription.remove();
-    };
-  }, []);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     if (reduceMotion === null) return undefined;
