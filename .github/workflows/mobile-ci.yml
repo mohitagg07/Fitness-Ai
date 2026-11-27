@@ -219,6 +219,10 @@ jobs:
             done
             grep -q "3D_DRAG_CONFIRMED" "$RUNNER_TEMP/vyrn-window.xml"
 
+            # Keep a visual artifact of the native Canvas after an actual drag.
+            adb shell screencap -p /sdcard/vyrn-3d.png
+            adb pull /sdcard/vyrn-3d.png "$RUNNER_TEMP/vyrn-3d.png" >/dev/null
+
             adb shell pidof com.vyrn.app
 
             # Verify ordinary cold launch time and the signed-out login screen.
@@ -276,6 +280,7 @@ jobs:
           path: |
             ${{ runner.temp }}/vyrn-window.xml
             ${{ runner.temp }}/vyrn-logcat.txt
+            ${{ runner.temp }}/vyrn-3d.png
           if-no-files-found: ignore
           retention-days: 7
 
