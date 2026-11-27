@@ -1,15 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import {
-  Text,
   Animated,
   Easing,
-  LayoutAnimation,
-  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
-
-  UIManager,
+  Text,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,65 +17,45 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useStore } from '../../store';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
-import { useMissionSummary, useWeeklyStats, useRefreshDashboard } from '../../hooks/useDashboardQueries';
+import { useMissionSummary, useRefreshDashboard } from '../../hooks/useDashboardQueries';
 import { describeApiError } from '../../utils/api';
 import { COLORS, alpha, recoveryColor } from '../../theme/colors';
 import { FONTS } from '../../theme/typography';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
-import ConsistencyScoreCard from './ConsistencyScoreCard';
-import MomentumCard from './MomentumCard';
-import WeeklyPerformanceCard from './WeeklyPerformanceCard';
-import PredictionCard from './PredictionCard';
-import AchievementCard from './AchievementCard';
-import ProgramHealthCard from './ProgramHealthCard';
-import TimelineCard from './TimelineCard';
-import PatternInsightsCard from './PatternInsightsCard';
 import ProfileAvatar from '../shared/ProfileAvatar';
 import AmbientGlow from '../shared/AmbientGlow';
 import PressableScale from '../ui/PressableScale';
-import Reveal from '../shared/Reveal';
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 interface DashboardSummary {
-  greeting?: string;
   mission_text?: string;
   next_task?: string;
-  workout_today?: { type?: string | null; rescheduled?: boolean; message?: string };
-  recovery?: { score?: number; score_pct?: number; action?: string; message?: string };
-  cns_fatigue?: number;
-  workout_streak?: number;
-  protein_streak?: number;
+  workout_today?: {
+    type?: string | null;
+    rescheduled?: boolean;
+    message?: string;
+  };
+  recovery?: {
+    score?: number;
+    score_pct?: number;
+    action?: string;
+    message?: string;
+  };
   motivation_message?: string;
-  pattern_insights?: Array<{
-    category: string;
-    severity: 'critical' | 'warning' | 'info';
-    title: string;
-    detail: string;
-    recommendation: string;
-    confidence: string;
-  }>;
   proactive_brief?: {
     coach_message?: string;
-    todays_focus?: string;
-    recommendation?: string;
-    suggested_top_set?: string | null;
-    confidence_pct?: number;
-    confidence?: string;
-    why_summary?: string;
-    proactive_notices?: string[];
   };
 }
 
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
 function ReadinessDial({ score, color }: { score: number | null; color: string }) {
-  const size = 112;
+  const size = 98;
   const stroke = 7;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const progress = useRef(new Animated.Value(0)).current;
   const reduceMotion = useReducedMotion();
+
   useEffect(() => {
     progress.stopAnimation();
     const target = score === null ? 0 : Math.max(0, Math.min(100, score));
@@ -89,7 +65,7 @@ function ReadinessDial({ score, color }: { score: number | null; color: string }
     }
     const animation = Animated.timing(progress, {
       toValue: target,
-      duration: 760,
+      duration: 580,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     });
@@ -128,48 +104,45 @@ function ReadinessDial({ score, color }: { score: number | null; color: string }
         />
       </Svg>
       <View style={styles.dialCenter}>
-        <View style={styles.dialScoreRow}>
-          <Text style={styles.dialScore}>{score === null ? '—' : Math.round(score)}</Text>
-        </View>
-        <Text style={styles.dialOutOf}>OUT OF 100</Text>
+        <Text style={styles.dialScore}>{score === null ? '—' : Math.round(score)}</Text>
+        <Text style={styles.dialOutOf}>/ 100</Text>
       </View>
     </View>
   );
 }
 
-function TextLike({ children, style }: { children: React.ReactNode; style?: any }) {
-  return <Text style={style}>{children}</Text>;
-}
-
-function SectionHeading({ eyebrow, title, right }: { eyebrow: string; title: string; right?: string }) {
+function QuickAction({
+  icon,
+  title,
+  subtitle,
+  accent,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  subtitle: string;
+  accent: string;
+  onPress: () => void;
+}) {
   return (
-    <View style={styles.sectionHeading}>
-      <View>
-        <TextLike style={styles.eyebrow}>{eyebrow}</TextLike>
-        <TextLike style={styles.sectionTitle}>{title}</TextLike>
+    <PressableScale style={styles.quickAction} onPress={onPress}>
+      <View style={[styles.quickIcon, { backgroundColor: alpha(accent, 0.12), borderColor: alpha(accent, 0.22) }]}>
+        <Ionicons name={icon} size={19} color={accent} />
       </View>
-      {!!right && <TextLike style={styles.sectionRight}>{right}</TextLike>}
-    </View>
-  );
-}
-
-function Metric({ label, value, detail, accent }: { label: string; value: string; detail: string; accent: string }) {
-  return (
-    <View style={styles.metric}>
-      <View style={[styles.metricMarker, { backgroundColor: accent }]} />
-      <TextLike style={styles.metricLabel}>{label}</TextLike>
-      <TextLike style={styles.metricValue}>{value}</TextLike>
-      <TextLike style={styles.metricDetail}>{detail}</TextLike>
-    </View>
+      <View style={styles.quickCopy}>
+        <Text style={styles.quickTitle}>{title}</Text>
+        <Text style={styles.quickSubtitle}>{subtitle}</Text>
+      </View>
+      <Ionicons name="arrow-up-right" size={17} color={COLORS.textMuted} />
+    </PressableScale>
   );
 }
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const responsive = useResponsiveLayout();
-  const reduceMotion = useReducedMotion();
-  const { user, profile } = useStore((state) => ({ user: state.user, profile: state.profile }));
-  const [showFullReport, setShowFullReport] = useState(false);
+  const user = useStore((state) => state.user);
+  const profile = useStore((state) => state.profile);
 
   const { data: summary, isPending, error, isRefetching } = useMissionSummary() as {
     data?: DashboardSummary;
@@ -177,7 +150,6 @@ export default function DashboardScreen() {
     error: unknown;
     isRefetching: boolean;
   };
-  const { data: weeklyStats } = useWeeklyStats();
   const refreshDashboard = useRefreshDashboard();
 
   const firstName = user?.full_name?.split(' ')[0] || profile?.full_name?.split(' ')[0] || 'Athlete';
@@ -188,43 +160,54 @@ export default function DashboardScreen() {
       : null;
   const score = rawScore === null ? null : Math.max(0, Math.min(100, rawScore));
   const scoreColor = score === null ? COLORS.textMuted : recoveryColor(score);
-  const greetingHour = new Date().getHours();
-  const greeting = greetingHour < 12 ? 'GOOD MORNING' : greetingHour < 17 ? 'GOOD AFTERNOON' : 'GOOD EVENING';
-  const todayLabel = new Intl.DateTimeFormat('en-IN', {
+
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const dateLabel = new Intl.DateTimeFormat('en-IN', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
-  }).format(new Date()).toUpperCase();
-  const weeklySessions = typeof weeklyStats?.sessions_completed === 'number'
-    ? weeklyStats.sessions_completed
-    : null;
-  const workoutStreak = summary?.workout_streak ?? 0;
-  const cnsFatigue = typeof summary?.cns_fatigue === 'number' ? summary.cns_fatigue : null;
-  const workoutType = summary?.workout_today?.type?.trim();
+  }).format(new Date());
+
+  const workoutType = summary?.workout_today?.type?.trim() || null;
   const coachMessage = summary?.proactive_brief?.coach_message
     || summary?.motivation_message
     || summary?.mission_text
     || null;
   const errorMessage = error ? describeApiError(error).message : null;
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
     await refreshDashboard();
-  };
+  }, [refreshDashboard]);
 
   if (errorMessage && !summary) {
     return (
       <View style={[styles.errorScreen, { paddingTop: insets.top + 24 }]}>
-        <View style={styles.errorIcon}><Ionicons name="cloud-offline-outline" size={24} color={COLORS.textSecondary} /></View>
-        <TextLike style={styles.errorTitle}>Your training data is taking a break.</TextLike>
-        <TextLike style={styles.errorBody}>{errorMessage}</TextLike>
+        <View style={styles.errorIcon}>
+          <Ionicons name="cloud-offline-outline" size={23} color={COLORS.textSecondary} />
+        </View>
+        <Text style={styles.errorTitle}>Your day is waiting.</Text>
+        <Text style={styles.errorBody}>{errorMessage}</Text>
         <PressableScale style={styles.retryButton} onPress={() => void refreshDashboard()}>
           <Ionicons name="refresh" size={16} color={COLORS.background} />
-          <TextLike style={styles.retryText}>Try again</TextLike>
+          <Text style={styles.retryText}>Try again</Text>
         </PressableScale>
       </View>
     );
   }
+
+  const readinessHeadline = score === null
+    ? 'Building your baseline'
+    : score >= 67
+      ? 'Ready to train'
+      : score >= 34
+        ? 'Keep the intensity measured'
+        : 'Recovery comes first';
+
+  const readinessMessage = summary?.recovery?.action
+    || summary?.recovery?.message
+    || 'Log a few workouts and recovery check-ins to build your personal readiness picture.';
 
   return (
     <View style={styles.root}>
@@ -235,7 +218,7 @@ export default function DashboardScreen() {
           styles.content,
           {
             paddingTop: insets.top + 12,
-            paddingBottom: Math.max(insets.bottom, 12) + 28,
+            paddingBottom: Math.max(insets.bottom, 12) + 30,
             paddingHorizontal: responsive.gutter,
             maxWidth: responsive.pageMaxWidth,
           },
@@ -251,344 +234,284 @@ export default function DashboardScreen() {
         }
       >
         <View style={styles.topline}>
-          <View style={styles.brandLockup}>
-            <View>
-              <TextLike style={styles.brandName}>VYRN</TextLike>
-              <TextLike style={styles.brandSub}>YOUR DAILY COACH</TextLike>
-            </View>
+          <View>
+            <Text style={styles.brandName}>VYRN</Text>
+            <Text style={styles.brandSub}>YOUR PERSONAL PERFORMANCE SPACE</Text>
           </View>
-          <ProfileAvatar size={44} onPress={() => router.push('/(tabs)/profile')} />
+          <ProfileAvatar size={42} onPress={() => router.push('/(tabs)/profile')} />
         </View>
 
-        <Reveal delay={20}><View style={styles.greetingBlock}>
-          <TextLike style={styles.dateLabel}>{todayLabel}</TextLike>
-          <TextLike style={styles.greeting}>{greeting},</TextLike>
-          <TextLike style={styles.name}>{firstName}.</TextLike>
-          <TextLike style={styles.greetingSub}>Your training, recovery and progress. In one place.</TextLike>
-        </View></Reveal>
+        <View style={styles.pageHeading}>
+          <Text style={styles.pageEyebrow}>HOME</Text>
+          <Text style={styles.pageTitle}>Today.</Text>
+          <Text style={styles.dateLabel}>{dateLabel.toUpperCase()}</Text>
+          <Text style={styles.greeting}>{greeting},</Text>
+          <Text style={styles.name}>{firstName}.</Text>
+          <Text style={styles.greetingSub}>A clear plan. One good session at a time.</Text>
+        </View>
 
-        <Reveal delay={65}><View style={styles.readinessPanel}>
-          <LinearGradient colors={[COLORS.cardElevated, COLORS.card, COLORS.backgroundTop]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFillObject} />
+        <View style={styles.readinessPanel}>
+          <LinearGradient
+            colors={[COLORS.cardElevated, COLORS.card, COLORS.backgroundTop]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFillObject}
+          />
           <View pointerEvents="none" style={styles.readinessAura} />
           <View style={styles.readinessTopline}>
-            <TextLike style={styles.eyebrow}>RECOVERY / READINESS</TextLike>
-            <View style={[styles.livePill, { borderColor: alpha(scoreColor, 0.45) }]}>
+            <View style={styles.readinessLabelRow}>
+              <Ionicons name="pulse-outline" size={15} color={COLORS.primaryGreen} />
+              <Text style={styles.eyebrow}>READINESS</Text>
+            </View>
+            <View style={[styles.livePill, { borderColor: alpha(scoreColor, 0.42) }]}>
               <View style={[styles.liveDot, { backgroundColor: scoreColor }]} />
-              <TextLike style={[styles.liveText, { color: scoreColor }]}>
-                {score === null ? 'WAITING' : score >= 67 ? 'READY' : score >= 34 ? 'MODERATE' : 'RECOVER'}
-              </TextLike>
+              <Text style={[styles.liveText, { color: scoreColor }]}>
+                {score === null ? (isPending ? 'SYNCING' : 'NEEDS DATA') : score >= 67 ? 'READY' : score >= 34 ? 'MODERATE' : 'RECOVER'}
+              </Text>
             </View>
           </View>
           <View style={styles.readinessBody}>
             <View style={styles.readinessCopy}>
-              <TextLike style={styles.readinessHeadline}>
-                {score === null ? 'Data gathering.' : score >= 67 ? 'Built for today.' : score >= 34 ? 'Find your pace.' : 'Recovery first.'}
-              </TextLike>
-              <TextLike style={styles.readinessDescription}>
-                {summary?.recovery?.action || summary?.recovery?.message || 'Your readiness score will appear here when enough data is available.'}
-              </TextLike>
-              <TextLike style={styles.readinessFootnote}>BASED ON YOUR TRACKED RECOVERY DATA</TextLike>
+              <Text style={styles.readinessHeadline}>{readinessHeadline}</Text>
+              <Text style={styles.readinessDescription} numberOfLines={4}>{readinessMessage}</Text>
+              <Text style={styles.readinessFootnote}>BASED ON YOUR TRACKED DATA</Text>
             </View>
             <ReadinessDial score={score} color={scoreColor} />
           </View>
-          <View style={styles.panelRule} />
-          <View style={styles.panelFooter}>
-            <View style={styles.panelFooterItem}>
-              <Ionicons name="pulse-outline" size={14} color={COLORS.textMuted} />
-              <TextLike style={styles.panelFooterText}>
-                {cnsFatigue === null ? 'CNS data unavailable' : `CNS fatigue ${Math.round(cnsFatigue)}`}
-              </TextLike>
-            </View>
-            <TextLike style={styles.panelFooterText}>PERSONAL BASELINE</TextLike>
+        </View>
+
+        <View style={styles.sectionHeading}>
+          <View>
+            <Text style={styles.sectionEyebrow}>YOUR PLAN</Text>
+            <Text style={styles.sectionTitle}>Today's session</Text>
           </View>
-        </View></Reveal>
+          {summary?.workout_today?.rescheduled ? (
+            <Text style={styles.rescheduledLabel}>RESCHEDULED</Text>
+          ) : null}
+        </View>
 
-        <Reveal delay={110}><View style={styles.section}>
-          <SectionHeading eyebrow="THE PLAN" title="Today's training" right={summary?.workout_today?.rescheduled ? 'RESCHEDULED' : undefined} />
-          <View style={styles.trainingPanel}>
-            <View style={styles.trainingIcon}>
-              <Ionicons name="barbell-outline" size={23} color={COLORS.primaryGreen} />
-            </View>
-            <View style={styles.trainingCopy}>
-              <TextLike style={styles.trainingLabel}>SCHEDULED SESSION</TextLike>
-              <TextLike style={styles.trainingName}>{workoutType || 'No session scheduled'}</TextLike>
-              <TextLike style={styles.trainingDetail}>
-                {summary?.workout_today?.message || summary?.next_task || 'Your plan will update when your training schedule is available.'}
-              </TextLike>
-            </View>
+        <View style={styles.trainingPanel}>
+          <View style={styles.trainingIcon}>
+            <Ionicons name="barbell-outline" size={24} color={COLORS.primaryGreen} />
           </View>
-          <PressableScale
-            style={styles.primaryButton}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
-              router.push('/(tabs)/workout');
-            }}
-          >
-            <LinearGradient colors={[COLORS.primaryGreen, '#B4ED4A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFillObject} />
-            <TextLike style={styles.primaryButtonText}>Open training session</TextLike>
-            <Ionicons name="arrow-forward" size={18} color={COLORS.background} />
-          </PressableScale>
-        </View></Reveal>
-
-        <Reveal delay={155}><View style={styles.section}>
-          <SectionHeading eyebrow="CONSISTENCY" title="The work adds up" />
-          <View style={styles.metricsPanel}>
-            <Metric
-              label="THIS WEEK"
-              value={weeklySessions === null ? '—' : String(weeklySessions)}
-              detail="sessions completed"
-              accent={COLORS.primaryGreen}
-            />
-            <View style={styles.metricDivider} />
-            <Metric
-              label="WORKOUT STREAK"
-              value={String(workoutStreak)}
-              detail={workoutStreak === 1 ? 'day in a row' : 'days in a row'}
-              accent={COLORS.gold}
-            />
+          <View style={styles.trainingCopy}>
+            <Text style={styles.trainingLabel}>SCHEDULED WORKOUT</Text>
+            <Text style={styles.trainingName}>{workoutType || 'No workout scheduled'}</Text>
+            <Text style={styles.trainingDetail} numberOfLines={2}>
+              {summary?.workout_today?.message
+                || summary?.next_task
+                || (workoutType ? 'Your session is ready when you are.' : 'Open training to build or start a session.')}
+            </Text>
           </View>
-          {weeklyStats?.has_data && (
-            <View style={styles.weeklyPulse}>
-              <View style={styles.weeklyPulseTop}>
-                <TextLike style={styles.weeklyPulseEyebrow}>WEEKLY LOAD</TextLike>
-                <TextLike style={styles.weeklyPulseMeta}>LOGGED SO FAR</TextLike>
-              </View>
-              <View style={styles.weeklyPulseMetrics}>
-                <View style={styles.weeklyPulseMetric}>
-                  <TextLike style={styles.weeklyPulseValue}>
-                    {typeof weeklyStats.total_volume_kg === 'number'
-                      ? weeklyStats.total_volume_kg >= 1000
-                        ? (weeklyStats.total_volume_kg / 1000).toFixed(1) + ' t'
-                        : Math.round(weeklyStats.total_volume_kg).toLocaleString() + ' kg'
-                      : '—'}
-                  </TextLike>
-                  <TextLike style={styles.weeklyPulseLabel}>TOTAL VOLUME</TextLike>
-                </View>
-                <View style={styles.weeklyPulseDivider} />
-                <View style={styles.weeklyPulseMetric}>
-                  <TextLike style={styles.weeklyPulseValue}>
-                    {typeof weeklyStats.total_minutes === 'number' ? weeklyStats.total_minutes + ' min' : '—'}
-                  </TextLike>
-                  <TextLike style={styles.weeklyPulseLabel}>TIME TRAINING</TextLike>
-                </View>
-                <View style={styles.weeklyPulseDivider} />
-                <View style={styles.weeklyPulseMetric}>
-                  <TextLike style={styles.weeklyPulseValue}>
-                    {weeklyStats.avg_rpe == null ? '—' : weeklyStats.avg_rpe}
-                  </TextLike>
-                  <TextLike style={styles.weeklyPulseLabel}>AVG RPE</TextLike>
-                </View>
-              </View>
-            </View>
-          )}
-        </View></Reveal>
-
-        {coachMessage && (
-          <Reveal delay={200}><View style={styles.section}>
-            <SectionHeading eyebrow="FROM YOUR COACH" title="A note for today" />
-            <View style={styles.coachPanel}>
-              <View style={styles.coachPanelTop}>
-                <View style={styles.coachIcon}><Ionicons name="sparkles" size={17} color={COLORS.primaryGreen} /></View>
-                <TextLike style={styles.coachLabel}>VYRN INTELLIGENCE</TextLike>
-                {!!summary?.proactive_brief?.confidence && (
-                  <TextLike style={styles.coachConfidence}>{summary.proactive_brief.confidence.toUpperCase()} CONFIDENCE</TextLike>
-                )}
-              </View>
-              <TextLike style={styles.coachMessage}>{coachMessage}</TextLike>
-              {!!summary?.proactive_brief?.todays_focus && (
-                <View style={styles.focusRow}>
-                  <TextLike style={styles.focusLabel}>TODAY'S FOCUS</TextLike>
-                  <TextLike style={styles.focusText}>{summary.proactive_brief.todays_focus}</TextLike>
-                </View>
-              )}
-              {!!summary?.proactive_brief?.suggested_top_set && (
-                <View style={styles.topSetRow}>
-                  <TextLike style={styles.focusLabel}>SUGGESTED TOP SET</TextLike>
-                  <TextLike style={styles.topSet}>{summary.proactive_brief.suggested_top_set}</TextLike>
-                </View>
-              )}
-              <PressableScale style={styles.textLink} onPress={() => router.push('/(tabs)/coach')}>
-                <TextLike style={styles.textLinkLabel}>Continue with Coach</TextLike>
-                <Ionicons name="arrow-forward" size={15} color={COLORS.primaryGreen} />
-              </PressableScale>
-            </View>
-          </View></Reveal>
-        )}
-
-        <Reveal delay={235}><View style={styles.quickActions}>
-          <PressableScale style={styles.quickAction} onPress={() => router.push('/(tabs)/coach')}>
-            <Ionicons name="chatbubble-ellipses-outline" size={18} color={COLORS.text} />
-            <TextLike style={styles.quickActionLabel}>Coach</TextLike>
-          </PressableScale>
-          <PressableScale style={styles.quickAction} onPress={() => router.push('/(tabs)/workout')}>
-            <Ionicons name="barbell-outline" size={18} color={COLORS.text} />
-            <TextLike style={styles.quickActionLabel}>Train</TextLike>
-          </PressableScale>
-          <PressableScale style={styles.quickAction} onPress={() => router.push({ pathname: '/(tabs)/progress', params: { tab: 'nutrition' } } as any)}>
-            <Ionicons name="nutrition-outline" size={18} color={COLORS.text} />
-            <TextLike style={styles.quickActionLabel}>Nutrition</TextLike>
-          </PressableScale>
-          <PressableScale style={styles.quickAction} onPress={() => router.push('/(tabs)/progress')}>
-            <Ionicons name="analytics-outline" size={18} color={COLORS.text} />
-            <TextLike style={styles.quickActionLabel}>Progress</TextLike>
-          </PressableScale>
-        </View></Reveal>
-        <Reveal delay={260}><View style={styles.moreTools}>
-          <PressableScale style={styles.moreTool} onPress={() => router.push('/(tabs)/decisions')}>
-            <Ionicons name="git-branch-outline" size={14} color={COLORS.textMuted} />
-            <TextLike style={styles.moreToolText}>Decisions</TextLike>
-          </PressableScale>
-          <PressableScale style={styles.moreTool} onPress={() => router.push('/(tabs)/simulate')}>
-            <Ionicons name="flask-outline" size={14} color={COLORS.textMuted} />
-            <TextLike style={styles.moreToolText}>What If?</TextLike>
-          </PressableScale>
-          <PressableScale style={styles.moreTool} onPress={() => router.push('/(tabs)/formanalysis')}>
-            <Ionicons name="body-outline" size={14} color={COLORS.textMuted} />
-            <TextLike style={styles.moreToolText}>Form Check</TextLike>
-          </PressableScale>
-        </View></Reveal>
+        </View>
 
         <PressableScale
-          accessibilityRole="button"
-          accessibilityState={{ expanded: showFullReport }}
-          style={styles.reportToggle}
+          style={styles.primaryButton}
           onPress={() => {
-            if (!reduceMotion) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-            setShowFullReport((current) => !current);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+            router.push('/(tabs)/workout');
           }}
         >
-          <View style={{ flex: 1 }}>
-            <TextLike style={styles.reportTitle}>{showFullReport ? 'Hide performance report' : 'Explore performance report'}</TextLike>
-            <TextLike style={styles.reportHint}>Trends, achievements, predictions and training history</TextLike>
-          </View>
-          <Ionicons name={showFullReport ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.primaryGreen} />
+          <LinearGradient
+            colors={[COLORS.primaryGreen, '#B4ED4A']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFillObject}
+          />
+          <Text style={styles.primaryButtonText}>{workoutType ? 'Open workout' : 'Plan a workout'}</Text>
+          <Ionicons name="arrow-forward" size={18} color={COLORS.background} />
         </PressableScale>
 
-        {showFullReport && (
-          <View style={styles.fullReport}>
-            <ConsistencyScoreCard />
-            <MomentumCard
-              workoutStreak={workoutStreak}
-              proteinStreak={summary?.protein_streak ?? 0}
-              weeklySessions={weeklySessions}
-            />
-            <WeeklyPerformanceCard />
-            <PredictionCard />
-            <AchievementCard workoutStreak={workoutStreak} />
-            <ProgramHealthCard />
-            <TimelineCard />
-            {summary?.pattern_insights?.length ? <PatternInsightsCard insights={summary.pattern_insights} /> : null}
+        {coachMessage ? (
+          <View style={styles.coachPanel}>
+            <View style={styles.coachPanelTop}>
+              <View style={styles.coachIcon}>
+                <Ionicons name="sparkles" size={17} color={COLORS.coachPurple} />
+              </View>
+              <Text style={styles.coachLabel}>A NOTE FROM VYRN</Text>
+              <PressableScale onPress={() => router.push('/(tabs)/coach')} style={styles.coachAction}>
+                <Text style={styles.coachActionText}>ASK COACH</Text>
+                <Ionicons name="arrow-forward" size={13} color={COLORS.coachPurple} />
+              </PressableScale>
+            </View>
+            <Text style={styles.coachMessage} numberOfLines={4}>{coachMessage}</Text>
           </View>
-        )}
+        ) : null}
+
+        <View style={styles.quickActions}>
+          <QuickAction
+            icon="nutrition-outline"
+            title="Log food"
+            subtitle="Track today's nutrition"
+            accent={COLORS.carbs}
+            onPress={() => router.push({ pathname: '/(tabs)/progress', params: { tab: 'nutrition' } } as any)}
+          />
+          <QuickAction
+            icon="stats-chart-outline"
+            title="See progress"
+            subtitle="Body, recovery and trends"
+            accent={COLORS.strain}
+            onPress={() => router.push('/(tabs)/progress')}
+          />
+        </View>
       </ScrollView>
     </View>
   );
 }
 
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
-
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.background },
   scroll: { flex: 1 },
   content: { width: '100%', alignSelf: 'center', gap: 0 },
-  topline: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30 },
-  brandLockup: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  brandName: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 15, letterSpacing: 4.6 },
-  brandSub: { color: COLORS.textMuted, fontFamily: FONTS.semibold, fontSize: 8, letterSpacing: 1.35, marginTop: 2 },
-
-  greetingBlock: { marginBottom: 30 },
-  dateLabel: { color: COLORS.primaryGreen, fontFamily: FONTS.semibold, fontSize: 10, letterSpacing: 1.45, marginBottom: 12 },
-  greeting: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 18, lineHeight: 23 },
-  name: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 48, lineHeight: 54, letterSpacing: -2.2 },
-  greetingSub: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 13, lineHeight: 19, marginTop: 7 },
+  topline: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 28,
+  },
+  brandName: {
+    color: COLORS.text,
+    fontFamily: FONTS.numericBold,
+    fontSize: 16,
+    letterSpacing: 4.8,
+  },
+  brandSub: {
+    color: COLORS.textMuted,
+    fontFamily: FONTS.semibold,
+    fontSize: 8,
+    letterSpacing: 1.05,
+    marginTop: 3,
+  },
+  pageHeading: { marginBottom: 24 },
+  pageEyebrow: {
+    color: COLORS.primaryGreen,
+    fontFamily: FONTS.bold,
+    fontSize: 10,
+    letterSpacing: 1.8,
+    marginBottom: 3,
+  },
+  pageTitle: {
+    color: COLORS.text,
+    fontFamily: FONTS.numericBold,
+    fontSize: 28,
+    lineHeight: 34,
+    letterSpacing: -0.9,
+    marginBottom: 17,
+  },
+  dateLabel: {
+    color: COLORS.textMuted,
+    fontFamily: FONTS.semibold,
+    fontSize: 9,
+    letterSpacing: 1.1,
+    marginBottom: 8,
+  },
+  greeting: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 17, lineHeight: 23 },
+  name: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 44, lineHeight: 50, letterSpacing: -1.9 },
+  greetingSub: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 12, lineHeight: 18, marginTop: 5 },
   readinessPanel: {
-    borderRadius: 30, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.borderLight,
-    padding: 21, marginBottom: 34, overflow: 'hidden',
+    borderRadius: 28,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    padding: 19,
+    marginBottom: 27,
+    overflow: 'hidden',
   },
-  readinessAura: { position: 'absolute', width: 190, height: 190, borderRadius: 95, top: -112, right: -74, backgroundColor: alpha(COLORS.primaryGreen, 0.075), borderWidth: 1, borderColor: alpha(COLORS.primaryGreen, 0.12) }, 
+  readinessAura: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    top: -112,
+    right: -74,
+    backgroundColor: alpha(COLORS.primaryGreen, 0.075),
+    borderWidth: 1,
+    borderColor: alpha(COLORS.primaryGreen, 0.12),
+  },
   readinessTopline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  eyebrow: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 9, letterSpacing: 1.65 },
-  livePill: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 30,
-    paddingHorizontal: 9, paddingVertical: 5,
-  },
+  readinessLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  eyebrow: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 9, letterSpacing: 1.45 },
+  livePill: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5 },
   liveDot: { width: 6, height: 6, borderRadius: 3 },
-  liveText: { fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1.1 },
-  readinessBody: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingTop: 25, paddingBottom: 21 },
-  readinessCopy: { flex: 1, paddingRight: 4 },
-  readinessHeadline: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 24, lineHeight: 29, letterSpacing: -0.7, marginBottom: 8 },
-  readinessDescription: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 12, lineHeight: 18 },
-  readinessFootnote: { color: COLORS.textDim, fontFamily: FONTS.semibold, fontSize: 7, letterSpacing: 0.9, marginTop: 13 },
-  dial: { width: 112, height: 112, alignItems: 'center', justifyContent: 'center' },
+  liveText: { fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 0.9 },
+  readinessBody: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingTop: 19 },
+  readinessCopy: { flex: 1, paddingRight: 2 },
+  readinessHeadline: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 20, lineHeight: 25, letterSpacing: -0.35, marginBottom: 6 },
+  readinessDescription: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 11, lineHeight: 16 },
+  readinessFootnote: { color: COLORS.textDim, fontFamily: FONTS.semibold, fontSize: 7, letterSpacing: 0.75, marginTop: 11 },
+  dial: { width: 98, height: 98, alignItems: 'center', justifyContent: 'center' },
   dialCenter: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
-  dialScoreRow: { flexDirection: 'row', alignItems: 'baseline' },
-  dialScore: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 32, lineHeight: 38, letterSpacing: -1 },
-  dialOutOf: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 7, letterSpacing: 1.2, marginTop: 1 },
-  panelRule: { height: 1, backgroundColor: COLORS.border, marginBottom: 12 },
-  panelFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  panelFooterItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  panelFooterText: { color: COLORS.textMuted, fontFamily: FONTS.medium, fontSize: 9, letterSpacing: 0.55 },
-  section: { marginBottom: 29 },
-  sectionHeading: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 13 },
-  sectionTitle: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 22, lineHeight: 28, letterSpacing: -0.55, marginTop: 4 },
-  sectionRight: { color: COLORS.recoveryMed, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 0.8, marginBottom: 4 },
+  dialScore: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 27, lineHeight: 31, letterSpacing: -0.8 },
+  dialOutOf: { color: COLORS.textMuted, fontFamily: FONTS.semibold, fontSize: 8, letterSpacing: 0.5, marginTop: -1 },
+  sectionHeading: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 12 },
+  sectionEyebrow: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1.35 },
+  sectionTitle: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 21, lineHeight: 27, letterSpacing: -0.4, marginTop: 3 },
+  rescheduledLabel: { color: COLORS.warning, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 0.8, marginBottom: 5 },
   trainingPanel: {
-    flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, borderRadius: 24,
-    backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.borderLight, marginBottom: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 13,
+    padding: 16,
+    borderRadius: 23,
+    backgroundColor: COLORS.cardElevated,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    marginBottom: 10,
   },
-  trainingIcon: { width: 52, height: 52, borderRadius: 18, backgroundColor: alpha(COLORS.primaryGreen, 0.11), borderWidth: 1, borderColor: alpha(COLORS.primaryGreen, 0.16), alignItems: 'center', justifyContent: 'center' },
-  trainingCopy: { flex: 1 },
-  trainingLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1.35, marginBottom: 4 },
-  trainingName: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 18, lineHeight: 22 },
-  trainingDetail: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 11, lineHeight: 16, marginTop: 4 },
+  trainingIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 17,
+    backgroundColor: alpha(COLORS.primaryGreen, 0.12),
+    borderWidth: 1,
+    borderColor: alpha(COLORS.primaryGreen, 0.2),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trainingCopy: { flex: 1, minWidth: 0 },
+  trainingLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1.15, marginBottom: 4 },
+  trainingName: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 17, lineHeight: 22 },
+  trainingDetail: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 10, lineHeight: 15, marginTop: 4 },
   primaryButton: {
-    minHeight: 56, borderRadius: 19, backgroundColor: COLORS.primaryGreen, overflow: 'hidden',
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20,
+    minHeight: 54,
+    borderRadius: 18,
+    backgroundColor: COLORS.primaryGreen,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    marginBottom: 25,
   },
-  primaryButtonText: { color: COLORS.background, fontFamily: FONTS.bold, fontSize: 13, letterSpacing: 0.1 },
-  metricsPanel: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.cardElevated, borderRadius: 24, borderWidth: 1, borderColor: COLORS.borderLight, paddingVertical: 19, paddingHorizontal: 18 },
-  weeklyPulse: { marginTop: 10, padding: 17, borderRadius: 22, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border },
-  weeklyPulseTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 13 },
-  weeklyPulseEyebrow: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1.3 },
-  weeklyPulseMeta: { color: COLORS.textDim, fontFamily: FONTS.semibold, fontSize: 7, letterSpacing: 0.9 },
-  weeklyPulseMetrics: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  weeklyPulseMetric: { flex: 1, minWidth: 0, gap: 5 },
-  weeklyPulseValue: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 16, lineHeight: 20 },
-  weeklyPulseLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 7, letterSpacing: 0.5 },
-  weeklyPulseDivider: { width: 1, height: 29, backgroundColor: COLORS.border },
-  metric: { flex: 1, gap: 5 },
-  metricMarker: { width: 18, height: 2, borderRadius: 2, marginBottom: 3 },
-  metricLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1.1 },
-  metricValue: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 30, lineHeight: 34 },
-  metricDetail: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 10 },
-  metricDivider: { width: 1, height: 65, backgroundColor: COLORS.border, marginHorizontal: 18 },
-  coachPanel: { borderRadius: 25, padding: 19, backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.borderLight },
-  coachPanelTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 13 },
-  coachIcon: { width: 30, height: 30, borderRadius: 10, backgroundColor: alpha(COLORS.primaryGreen, 0.12), alignItems: 'center', justifyContent: 'center' },
-  coachLabel: { color: COLORS.textSecondary, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1.1, flex: 1 },
-  coachConfidence: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 7, letterSpacing: 0.65 },
-  coachMessage: { color: COLORS.text, fontFamily: FONTS.medium, fontSize: 15, lineHeight: 23, letterSpacing: -0.1 },
-  focusRow: { marginTop: 16, paddingTop: 13, borderTopWidth: 1, borderTopColor: COLORS.border },
-  focusLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1.15, marginBottom: 5 },
-  focusText: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 12, lineHeight: 18 },
-  topSetRow: { marginTop: 13 },
-  topSet: { color: COLORS.primaryGreen, fontFamily: FONTS.numericBold, fontSize: 17 },
-  textLink: { flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'flex-start', marginTop: 17 },
-  textLinkLabel: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 11 },
-  quickActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 9, marginBottom: 13 },
-  quickAction: { width: '48%', minHeight: 58, borderRadius: 19, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardElevated, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-  moreTools: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, paddingHorizontal: 2 },
-  moreTool: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 7, paddingHorizontal: 3 },
-  moreToolText: { color: COLORS.textMuted, fontFamily: FONTS.medium, fontSize: 10 },
-  quickActionLabel: { color: COLORS.textSecondary, fontFamily: FONTS.semibold, fontSize: 10 },
-  reportToggle: { flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderBottomWidth: 1, borderColor: COLORS.border, paddingVertical: 19, marginBottom: 10 },
-  reportTitle: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 13 },
-  reportHint: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 10, marginTop: 4 },
-  fullReport: { paddingTop: 13 },
+  primaryButtonText: { color: COLORS.background, fontFamily: FONTS.bold, fontSize: 13, letterSpacing: 0.15 },
+  coachPanel: { borderRadius: 23, padding: 17, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, marginBottom: 18 },
+  coachPanelTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  coachIcon: { width: 30, height: 30, borderRadius: 11, backgroundColor: alpha(COLORS.coachPurple, 0.14), alignItems: 'center', justifyContent: 'center' },
+  coachLabel: { color: COLORS.textSecondary, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1.05, flex: 1 },
+  coachAction: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  coachActionText: { color: COLORS.coachPurple, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 0.65 },
+  coachMessage: { color: COLORS.text, fontFamily: FONTS.medium, fontSize: 13, lineHeight: 20 },
+  quickActions: { gap: 9 },
+  quickAction: {
+    minHeight: 65,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: 19,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.cardElevated,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  quickIcon: { width: 40, height: 40, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  quickCopy: { flex: 1 },
+  quickTitle: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 12 },
+  quickSubtitle: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 10, marginTop: 3 },
   errorScreen: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.background, paddingHorizontal: 28 },
-  errorIcon: { width: 58, height: 58, borderRadius: 18, backgroundColor: COLORS.card, alignItems: 'center', justifyContent: 'center', marginBottom: 19 },
-  errorTitle: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 22, textAlign: 'center', marginBottom: 9 },
+  errorIcon: { width: 58, height: 58, borderRadius: 19, backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
+  errorTitle: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 22, textAlign: 'center', marginBottom: 8 },
   errorBody: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 12, lineHeight: 19, textAlign: 'center', marginBottom: 22 },
-  retryButton: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 19, paddingVertical: 13, borderRadius: 14, backgroundColor: COLORS.primaryGreen },
+  retryButton: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 19, paddingVertical: 13, borderRadius: 15, backgroundColor: COLORS.primaryGreen },
   retryText: { color: COLORS.background, fontFamily: FONTS.bold, fontSize: 12 },
 });
