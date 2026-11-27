@@ -574,22 +574,24 @@ const CoachMessage = React.memo(function CoachMessage({
     <>
       {coachText ? <Text style={S.messageText}>{coachText}</Text> : null}
       {renderCard()}
-      {showQuestion && sd?.follow_up_question && Array.isArray(sd?.question_options) && sd.question_options.length > 0 && (
+      {showQuestion && sd?.follow_up_question && (
         <View style={S.questionCard}>
           <Text style={S.questionPrompt}>{sd.follow_up_question}</Text>
-          <View style={S.questionOptions}>
-            {sd.question_options.slice(0, 5).map((option: string, index: number) => (
-              <PressableScale
-                key={`${sd.question_key || 'question'}-${index}`}
-                accessibilityRole="button"
-                onPress={() => onSelectOption?.(option)}
-                style={S.questionOption}
-              >
-                <Text style={S.questionOptionText}>{option}</Text>
-                <Ionicons name="chevron-forward" size={15} color={COLORS.primaryGreen} />
-              </PressableScale>
-            ))}
-          </View>
+          {Array.isArray(sd?.question_options) && sd.question_options.length > 0 && (
+            <View style={S.questionOptions}>
+              {sd.question_options.slice(0, 5).map((option: string, index: number) => (
+                <PressableScale
+                  key={`${sd.question_key || 'question'}-${index}`}
+                  accessibilityRole="button"
+                  onPress={() => onSelectOption?.(option)}
+                  style={S.questionOption}
+                >
+                  <Text style={S.questionOptionText}>{option}</Text>
+                  <Ionicons name="chevron-forward" size={15} color={COLORS.primaryGreen} />
+                </PressableScale>
+              ))}
+            </View>
+          )}
         </View>
       )}
     </>
