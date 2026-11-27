@@ -109,6 +109,10 @@ function WorkoutPlanPreview({
             <Ionicons name="shield-checkmark-outline" size={21} color={COLORS.primaryGreen} />
           </View>
 
+          {!!reason && <Text style={styles.reason}>{reason}</Text>}
+          {!!muscleGroups?.length && (
+            <Text style={styles.muscles}>FOCUS · {muscleGroups.join(' · ').toUpperCase()}</Text>
+          )}
           <ScrollView
             style={styles.scroll}
             contentContainerStyle={styles.list}
