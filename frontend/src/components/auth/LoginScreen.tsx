@@ -4,18 +4,12 @@ import {
   Alert, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
   Animated,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { authApi, profileApi } from '../../utils/api';
 import { actions } from '../../store';
 import { COLORS } from '../../theme/colors';
-import Logo from '../shared/Logo';
-
-// Free-to-use Unsplash photo (Victor Freitas) — purely decorative hero backdrop,
-// dimmed by the gradient overlay so it never competes with the form.
-const HERO_IMAGE_URL =
-  'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=1200&q=80&auto=format&fit=crop';
 
 export default function AuthScreen() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -132,25 +126,25 @@ export default function AuthScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <Image
-        source={{ uri: HERO_IMAGE_URL }}
-        style={styles.heroImage}
-        contentFit="cover"
-        cachePolicy="disk"
-        transition={200}
-      />
       <LinearGradient
-        colors={[COLORS.background + 'F2', COLORS.background + 'E6', COLORS.background]}
-        style={styles.heroOverlay}
+        colors={['#FBFAF5', '#F1F5EC', '#E6EFE7']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
       />
+      <View pointerEvents="none" style={styles.orbitTop} />
+      <View pointerEvents="none" style={styles.orbitBottom} />
       <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
         <Animated.View style={{ opacity: fade, transform: [{ translateY: rise }] }}>
 
-          {/* Logo */}
-          <View style={styles.logoWrap}>
-            <Logo size="lg" vertical />
+          <View style={styles.brandHeader}>
+            <View style={styles.brandMark}>
+              <Ionicons name="pulse" size={25} color="#FFFFFF" />
+            </View>
+            <Text style={styles.brandName}>VYRN</Text>
           </View>
-          <Text style={styles.subtitle}>Your Adaptive Performance System</Text>
+          <Text style={styles.headline}>A coach that gets to know you.</Text>
+          <Text style={styles.subtitle}>Build a routine around your real life — one step at a time.</Text>
 
           {/* Toggle */}
           <View style={styles.toggle}>
@@ -181,7 +175,7 @@ export default function AuthScreen() {
               value={loginEmail}
               onChangeText={setLoginEmail}
               placeholder="you@email.com"
-              placeholderTextColor="#555"
+              placeholderTextColor={COLORS.textMuted}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -192,7 +186,7 @@ export default function AuthScreen() {
               value={loginPassword}
               onChangeText={setLoginPassword}
               placeholder="••••••••"
-              placeholderTextColor="#555"
+              placeholderTextColor={COLORS.textMuted}
               secureTextEntry
             />
             <TouchableOpacity
@@ -201,7 +195,7 @@ export default function AuthScreen() {
               disabled={loading}
             >
               {loading
-                ? <ActivityIndicator color="#000" />
+                ? <ActivityIndicator color="#FFFFFF" />
                 : <Text style={styles.btnText}>LOG IN</Text>}
             </TouchableOpacity>
           </View>
@@ -216,7 +210,7 @@ export default function AuthScreen() {
               value={regName}
               onChangeText={setRegName}
               placeholder="John Smith"
-              placeholderTextColor="#555"
+              placeholderTextColor={COLORS.textMuted}
               autoCorrect={false}
             />
             <Text style={styles.label}>EMAIL</Text>
@@ -225,7 +219,7 @@ export default function AuthScreen() {
               value={regEmail}
               onChangeText={setRegEmail}
               placeholder="you@email.com"
-              placeholderTextColor="#555"
+              placeholderTextColor={COLORS.textMuted}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -236,7 +230,7 @@ export default function AuthScreen() {
               value={regPassword}
               onChangeText={setRegPassword}
               placeholder="Min. 8 characters"
-              placeholderTextColor="#555"
+              placeholderTextColor={COLORS.textMuted}
               secureTextEntry
             />
             <TouchableOpacity
@@ -245,7 +239,7 @@ export default function AuthScreen() {
               disabled={loading}
             >
               {loading
-                ? <ActivityIndicator color="#000" />
+                ? <ActivityIndicator color="#FFFFFF" />
                 : <Text style={styles.btnText}>Create account</Text>}
             </TouchableOpacity>
           </View>
@@ -259,19 +253,14 @@ export default function AuthScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  heroImage: {
-    position: 'absolute', top: 0, left: 0, right: 0, height: '48%', opacity: 0.45,
-  },
-  heroOverlay: {
-    position: 'absolute', top: 0, left: 0, right: 0, height: '60%',
-  },
-  inner: { flexGrow: 1, justifyContent: 'center', padding: 28 },
-  logoWrap: {
-    alignSelf: 'center', marginBottom: 14,
-    shadowColor: COLORS.primaryGreen, shadowOpacity: 0.3, shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 }, elevation: 8,
-  },
-  subtitle: { color: COLORS.textSecondary, fontSize: 13, textAlign: 'center', marginBottom: 32, letterSpacing: 0.2 },
+  orbitTop: { position: 'absolute', top: -120, right: -105, width: 290, height: 290, borderRadius: 145, backgroundColor: '#E3EEE0', borderWidth: 1, borderColor: '#CEDFCF' },
+  orbitBottom: { position: 'absolute', bottom: -165, left: -105, width: 320, height: 320, borderRadius: 160, backgroundColor: '#F1EBD9', borderWidth: 1, borderColor: '#E6DFC9' },
+  inner: { flexGrow: 1, justifyContent: 'center', padding: 28, paddingTop: 56, paddingBottom: 40 },
+  brandHeader: { alignItems: 'center', justifyContent: 'center', marginBottom: 22 },
+  brandMark: { width: 62, height: 62, borderRadius: 21, backgroundColor: COLORS.primaryGreen, alignItems: 'center', justifyContent: 'center', marginBottom: 12, shadowColor: COLORS.primaryGreen, shadowOpacity: 0.18, shadowRadius: 16, shadowOffset: { width: 0, height: 7 }, elevation: 5 },
+  brandName: { color: COLORS.text, fontSize: 22, fontWeight: '900', letterSpacing: 5 },
+  headline: { color: COLORS.text, fontSize: 24, fontWeight: '800', letterSpacing: -0.7, textAlign: 'center', marginBottom: 7 },
+  subtitle: { color: COLORS.textSecondary, fontSize: 13, lineHeight: 20, textAlign: 'center', marginBottom: 28, letterSpacing: 0.1, paddingHorizontal: 10 },
   toggle: {
     flexDirection: 'row',
     backgroundColor: COLORS.cardElevated,
@@ -282,7 +271,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   toggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
-  toggleBtnActive: { backgroundColor: COLORS.recoveryHigh },
+  toggleBtnActive: { backgroundColor: COLORS.primaryGreen },
   toggleText: { color: COLORS.textMuted, fontSize: 13, fontWeight: '600', letterSpacing: 0.1 },
   toggleTextActive: { color: COLORS.background },
   form: { gap: 10 },
@@ -293,7 +282,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: COLORS.borderLight, marginBottom: 8,
   },
   btn: {
-    backgroundColor: COLORS.recoveryHigh, borderRadius: 14,
+    backgroundColor: COLORS.primaryGreen, borderRadius: 14,
     padding: 16, alignItems: 'center', marginTop: 6,
     shadowColor: COLORS.recoveryHigh, shadowOpacity: 0.35, shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 }, elevation: 5,

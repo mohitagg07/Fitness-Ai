@@ -11,7 +11,7 @@ import {
   Keyboard,
   Platform,
   ActivityIndicator,
-  ImageBackground,
+
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -23,6 +23,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { profileApi } from '../../utils/api';
@@ -339,12 +340,15 @@ export default function OnboardingScreen() {
     : null;
 
   return (
-    <ImageBackground
-      source={require('../../../assets/onboarding-hero.png')}
-      style={styles.bg}
-      resizeMode="cover"
-    >
-      <View style={styles.scrim} />
+    <View style={styles.bg}>
+      <LinearGradient
+        colors={['#FBFAF5', '#F2F5EC', '#E5EFE7']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <View pointerEvents="none" style={styles.ambientGlowTop} />
+      <View pointerEvents="none" style={styles.ambientGlowBottom} />
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -445,7 +449,7 @@ export default function OnboardingScreen() {
           </Text>
         </View>
       )}
-    </ImageBackground>
+    </View>
   );
 }
 
@@ -1016,10 +1020,8 @@ const SelectRow = React.memo(function SelectRow({
 
 const styles = StyleSheet.create({
   bg: { flex: 1, backgroundColor: COLORS.background },
-  scrim: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: alpha(COLORS.background, 0.88), // keeps form fields/text legible over the photo
-  },
+  ambientGlowTop: { position: 'absolute', top: -110, right: -80, width: 250, height: 250, borderRadius: 125, backgroundColor: '#DCEBD9', opacity: 0.72 },
+  ambientGlowBottom: { position: 'absolute', bottom: 70, left: -115, width: 230, height: 230, borderRadius: 115, backgroundColor: '#E9E2CE', opacity: 0.62 },
   container: { flex: 1, backgroundColor: 'transparent' },
   pager: { flex: 1 },
   slide: { flex: 1 },

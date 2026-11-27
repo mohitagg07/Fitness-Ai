@@ -231,6 +231,10 @@ export const nutritionApi = {
   searchFood: (q: string, maxResults = 8) =>
     api.get('/nutrition/search', { params: { q, max_results: maxResults } }),
 
+  // User-confirmed AI estimate for foods/portions missing from the database.
+  estimateFood: (data: { food_name: string; portion: string; preparation?: string }) =>
+    api.post('/nutrition/estimate', data),
+
   // Meal Generator — ready-to-eat combo sized to today's remaining macros.
   getMealPlan: (isTrainingDay?: boolean) =>
     api.get('/nutrition/meal-plan', isTrainingDay === undefined ? undefined : {

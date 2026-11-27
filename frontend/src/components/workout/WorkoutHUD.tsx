@@ -9,6 +9,7 @@
 //   • Rest timer now shows circular progress ring (SVG-free: pure View)
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { router } from 'expo-router';
 import {
   View, Text, StyleSheet, ScrollView,
   TextInput, Alert, Animated, KeyboardAvoidingView, Platform,
@@ -31,6 +32,7 @@ import MilestoneCelebration from './MilestoneCelebration';
 import MoodPickerModal, { MoodValue } from './MoodPickerModal';
 import PressableScale from '../ui/PressableScale';
 import Reveal from '../shared/Reveal';
+import ProfileAvatar from '../shared/ProfileAvatar';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 interface ExerciseCard {
@@ -709,6 +711,13 @@ function WorkoutHUD() {
           visible={historyVisible}
           onClose={() => setHistoryVisible(false)}
         />
+        <View style={S.screenBar}>
+          <View>
+            <Text style={S.screenEyebrow}>VYRN / TRAIN</Text>
+            <Text style={S.screenBarTitle}>Your session</Text>
+          </View>
+          <ProfileAvatar size={42} onPress={() => router.push('/(tabs)/profile')} />
+        </View>
         <View style={S.preSession}>
           <View style={S.preBadge}>
             <Ionicons name="barbell-outline" size={28} color={COLORS.primaryGreen} />
@@ -769,6 +778,13 @@ function WorkoutHUD() {
         /></Reveal>
       )}
 
+      <View style={S.screenBar}>
+        <View>
+          <Text style={S.screenEyebrow}>VYRN / TRAIN</Text>
+          <Text style={S.screenBarTitle}>Your session</Text>
+        </View>
+        <ProfileAvatar size={42} onPress={() => router.push('/(tabs)/profile')} />
+      </View>
       <SessionHeader
         startedAt={Number(activeSession?.startedAt) || Date.now()}
         totalVolume={Math.round(totalVolume)}
@@ -842,7 +858,7 @@ function WorkoutHUD() {
               value={exerciseName}
               onChangeText={setExerciseName}
               returnKeyType="next"
-              keyboardAppearance="dark"
+              keyboardAppearance="light"
               selectionColor={COLORS.primaryGreen}
               underlineColorAndroid="transparent"
             />
@@ -1044,6 +1060,10 @@ const S = StyleSheet.create({
   // screen in the app uses.
   container: { flex: 1, backgroundColor: COLORS.background },
 
+  // Shared screen identity/header for both preparation and active training.
+  screenBar: { minHeight: 64, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: COLORS.background },
+  screenEyebrow: { ...EYEBROW, color: COLORS.primaryGreen, fontSize: 8, letterSpacing: 1.3 },
+  screenBarTitle: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 19, lineHeight: 24 },
   // Pre-session
   preSession:  {
     flex: 1, justifyContent: 'center', alignItems: 'stretch',

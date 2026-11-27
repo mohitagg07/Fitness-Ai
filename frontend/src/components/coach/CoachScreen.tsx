@@ -30,7 +30,7 @@ import { useStore } from '../../store';
 import { COLORS, alpha, recoveryColor } from '../../theme/colors';
 import { FONTS } from '../../theme/typography';
 import { RADIUS } from '../../theme/spacing';
-import Logo from '../shared/Logo';
+import ProfileAvatar from '../shared/ProfileAvatar';
 
 import CoachMemoryModal from './CoachMemoryModal';
 import PressableScale from '../ui/PressableScale';
@@ -544,8 +544,16 @@ function ChatTipsCard({ tips }: { tips: string[] }) {
 // calls, so gating re-renders here means WorkoutCard/LiveSetCard/etc.
 // never re-render on a screen-level state change (e.g. typing in the
 // input box) unless the message item itself is new.
-const CoachMessage = React.memo(function CoachMessage({ item }: { item: any }) {
-  const sd        = item.structured_decision;
+const CoachMessage = React.memo(function CoachMessage({
+  item,
+  onSelectOption,
+  showQuestion,
+}: {
+  item: any;
+  onSelectOption?: (option: string) => void;
+  showQuestion?: boolean;
+}) {
+  const sd = item.structured_decision;
   const coachText = sd?.coach_message || item.content || '';
 
   const renderCard = () => {
@@ -566,6 +574,26 @@ const CoachMessage = React.memo(function CoachMessage({ item }: { item: any }) {
     <>
       {coachText ? <Text style={S.messageText}>{coachText}</Text> : null}
       {renderCard()}
+      {showQuestion && sd?.follow_up_question && (
+        <View style={S.questionCard}>
+          <Text style={S.questionPrompt}>{sd.follow_up_question}</Text>
+          {Array.isArray(sd?.question_options) && sd.question_options.length > 0 && (
+            <View style={S.questionOptions}>
+              {sd.question_options.slice(0, 5).map((option: string, index: number) => (
+                <PressableScale
+                  key={`${sd.question_key || 'question'}-${index}`}
+                  accessibilityRole="button"
+                  onPress={() => onSelectOption?.(option)}
+                  style={S.questionOption}
+                >
+                  <Text style={S.questionOptionText}>{option}</Text>
+                  <Ionicons name="chevron-forward" size={15} color={COLORS.primaryGreen} />
+                </PressableScale>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
     </>
   );
 });
@@ -725,7 +753,7 @@ export default function CoachScreen() {
   });
   // The stream hook owns connection, auth, cancellation and error settlement.
 
-  const sendMessage = (text?: string) => {
+  const sendMessage = useCallback((text?: string) => {
     const message = text || input.trim();
     if (!message || isStreaming) return;
 
@@ -735,7 +763,7 @@ export default function CoachScreen() {
     pendingUserMessageRef.current = message;
 
     void sendStream(message);
-  };
+  }, [input, isStreaming, addChatMessage, sendStream]);
 
   useEffect(() => {
     if (chatHistory.length > 0) {
@@ -743,13 +771,8 @@ export default function CoachScreen() {
     }
   }, [chatHistory.length]);
 
-  // useCallback with an empty dep array: this closes over nothing but
-  // `item`, which arrives as an argument. Previously it was redefined
-  // inline every render — including every keystroke in the message
-  // input below, which re-renders this whole screen — so FlashList was
-  // getting handed a "new" renderItem on every keystroke while chatting,
-  // not just when a message actually arrived.
-  const renderMessage = useCallback(({ item }: { item: any }) => (
+  // Keep the message renderer stable while still exposing current question choices.
+  const renderMessage = useCallback(({ item, index }: { item: any; index: number }) => (
     <View style={[S.bubble, item.role === 'user' ? S.userBubble : S.aiBubble]}>
       {item.role === 'assistant' && (
         <View style={S.roleLabelRow}>
@@ -758,11 +781,17 @@ export default function CoachScreen() {
         </View>
       )}
       {item.role === 'assistant'
-        ? <CoachMessage item={item} />
+        ? (
+          <CoachMessage
+            item={item}
+            onSelectOption={sendMessage}
+            showQuestion={index === chatHistory.length - 1}
+          />
+        )
         : <Text style={[S.messageText, S.userText]}>{item.content}</Text>
       }
     </View>
-  ), []);
+  ), [sendMessage, chatHistory.length]);
 
   return (
     <KeyboardAvoidingView
@@ -773,7 +802,7 @@ export default function CoachScreen() {
       {/* Header */}
       <View style={[S.header, { paddingTop: insets.top + 12 }]}>
         <View style={S.headerTopRow}>
-          <Logo size="sm" />
+          <ProfileAvatar size={40} onPress={() => router.push('/(tabs)/profile')} />
           <View style={S.headerTitleCol}>
             <View style={S.headerTitleRow}>
               <Text style={S.headerTitle}>Coach</Text>
@@ -786,9 +815,6 @@ export default function CoachScreen() {
           <View style={S.headerIcons}>
             <PressableScale hitSlop={10} onPress={() => setMemoryVisible(true)} accessibilityRole="button" accessibilityLabel="Open coach memory">
               <Ionicons name="bookmark-outline" size={21} color={COLORS.textSecondary} />
-            </PressableScale>
-            <PressableScale hitSlop={10} onPress={() => router.push('/(tabs)/profile')} accessibilityRole="button" accessibilityLabel="Open profile">
-              <Ionicons name="person-outline" size={21} color={COLORS.textSecondary} />
             </PressableScale>
           </View>
         </View>
@@ -846,7 +872,7 @@ export default function CoachScreen() {
           <View style={S.emptyHero}>
             <View style={S.coachOrb}>
               <View style={S.coachOrbInner}>
-                <Logo size="md" />
+                <ProfileAvatar size={58} />
               </View>
               <View style={S.coachOrbStatus} />
             </View>
@@ -925,7 +951,7 @@ export default function CoachScreen() {
           maxLength={2000}
           onSubmitEditing={() => sendMessage()}
           blurOnSubmit={false}
-          keyboardAppearance="dark"
+          keyboardAppearance="light"
           selectionColor={COLORS.primaryGreen}
           underlineColorAndroid="transparent"
         />
@@ -1141,6 +1167,11 @@ const S = StyleSheet.create({
   roleLabel: { fontFamily: FONTS.bold,  color: COLORS.recoveryHigh, fontSize: 9, fontWeight: '800', letterSpacing: 1.5 },
   messageText: { color: COLORS.text, fontFamily: FONTS.regular, fontSize: 14, lineHeight: 22 },
   userText:    { color: COLORS.text },
+  questionCard: { marginTop: 13, padding: 12, borderRadius: 15, backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.cardBorder, gap: 10 },
+  questionPrompt: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 13, lineHeight: 19 },
+  questionOptions: { gap: 7 },
+  questionOption: { minHeight: 43, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 11, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  questionOptionText: { color: COLORS.text, fontFamily: FONTS.medium, fontSize: 12, flex: 1, lineHeight: 17 },
 
   thinkingRow:    { flexDirection: 'row', alignItems: 'center', gap: 10,
                     paddingHorizontal: 20, paddingVertical: 10 },

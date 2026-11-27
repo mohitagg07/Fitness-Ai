@@ -348,6 +348,10 @@ class StructuredDecision(BaseModel):
     tips: Optional[List[str]] = None
     next_action: Optional[str] = None
     coach_insight: Optional[str] = None
+    # Optional dynamic clarification: one question and tap-to-answer choices.
+    follow_up_question: Optional[str] = None
+    question_options: Optional[List[str]] = None
+    question_key: Optional[str] = None
     recovery: Optional[int] = None         # 0-100
     intensity: Optional[Intensity] = None
 

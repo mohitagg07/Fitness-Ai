@@ -29,7 +29,7 @@ import { describeApiError } from '../../utils/api';
 import { useStore, actions } from '../../store';
 import { COLORS, alpha } from '../../theme/colors';
 import { FONTS } from '../../theme/typography';
-import Logo from '../shared/Logo';
+
 import { useMissionSummary, useWeeklyStats } from '../../hooks/useDashboardQueries';
 import {
   useProfileMe, useProfilePRs, useUpdateProfile, useUploadAvatar, useDeleteInjury, useAddInjury,
@@ -249,7 +249,6 @@ export default function ProfileScreen() {
         contentContainerStyle={{ width: '100%', maxWidth: responsive.pageMaxWidth, alignSelf: 'center', paddingBottom: responsive.gutter * 2 }}
       >
         <Reveal delay={20}><View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-          <View style={styles.logoBar}><Logo size="sm" /></View>
 
           <PressableScale style={styles.avatarWrap} onPress={pickAvatar} disabled={uploadingAvatar}>
             {profile.avatar_url ? (

@@ -25,6 +25,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nutritionApi, progressApi, describeApiError } from '../../utils/api';
 import { COLORS } from '../../theme/colors';
+import ProfileAvatar from '../shared/ProfileAvatar';
 
 interface FoodResult {
   food_id: string;
@@ -40,6 +41,16 @@ interface FoodResult {
 
 const DEBOUNCE_MS = 400;
 const MIN_QUERY_LEN = 2;
+
+interface FoodEstimate {
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+  confidence: 'low' | 'medium';
+  assumptions: string[];
+  portion_summary: string;
+}
 
 export default function NutritionSearchModal({
   visible,
@@ -60,11 +71,10 @@ export default function NutritionSearchModal({
   const [logging, setLogging] = useState(false);
   const [manualMode, setManualMode] = useState(false);
   const [manualName, setManualName] = useState('');
-  const [manualAmount, setManualAmount] = useState('100 g');
-  const [manualCalories, setManualCalories] = useState('');
-  const [manualProtein, setManualProtein] = useState('');
-  const [manualCarbs, setManualCarbs] = useState('');
-  const [manualFat, setManualFat] = useState('');
+  const [manualAmount, setManualAmount] = useState('1 serving');
+  const [manualPreparation, setManualPreparation] = useState('');
+  const [estimatedFood, setEstimatedFood] = useState<FoodEstimate | null>(null);
+  const [estimating, setEstimating] = useState(false);
 
   // Plain setTimeout debounce — no extra dependency needed for one input.
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -115,11 +125,10 @@ export default function NutritionSearchModal({
     setGrams('100');
     setManualMode(false);
     setManualName('');
-    setManualAmount('100 g');
-    setManualCalories('');
-    setManualProtein('');
-    setManualCarbs('');
-    setManualFat('');
+    setManualAmount('1 serving');
+    setManualPreparation('');
+    setEstimatedFood(null);
+    setEstimating(false);
     onClose();
   };
 
@@ -150,26 +159,44 @@ export default function NutritionSearchModal({
     setSearching(false);
     setSelected(null);
     setManualName(query.trim());
+    setManualAmount('1 serving');
+    setManualPreparation('');
+    setEstimatedFood(null);
     setManualMode(true);
+  };
+
+  const estimateManualEntry = async () => {
+    const name = manualName.trim();
+    const portion = manualAmount.trim();
+    if (name.length < 2) {
+      Alert.alert('Food name required', 'Tell VYRN what you ate.');
+      return;
+    }
+    if (!portion) {
+      Alert.alert('Amount needed', 'Choose a portion such as 2 pieces, 1 bowl or 1 plate.');
+      return;
+    }
+
+    setEstimating(true);
+    setEstimatedFood(null);
+    try {
+      const response = await nutritionApi.estimateFood({
+        food_name: name,
+        portion,
+        preparation: manualPreparation.trim() || undefined,
+      });
+      setEstimatedFood(response.data as FoodEstimate);
+    } catch (err: any) {
+      Alert.alert('Could not estimate this food', describeApiError(err).message);
+    } finally {
+      setEstimating(false);
+    }
   };
 
   const saveManualEntry = async () => {
     const name = manualName.trim();
-    const values = {
-      calories: Number(manualCalories),
-      protein_g: Number(manualProtein),
-      carbs_g: Number(manualCarbs),
-      fat_g: Number(manualFat),
-    };
-
-    if (!name) {
-      Alert.alert('Food name required', 'Enter the food or meal you want to log.');
-      return;
-    }
-    const rawValues = [manualCalories, manualProtein, manualCarbs, manualFat];
-    if (rawValues.some((value) => value.trim() === '') ||
-        Object.values(values).some((value) => !Number.isFinite(value) || value < 0)) {
-      Alert.alert('Check the nutrition values', 'Enter calories, protein, carbohydrates and fat as non-negative numbers.');
+    if (!estimatedFood) {
+      Alert.alert('Estimate first', 'Ask VYRN to estimate the nutrition, then review it before adding it.');
       return;
     }
 
@@ -177,15 +204,20 @@ export default function NutritionSearchModal({
     try {
       await progressApi.logNutrition({
         meal_name: name,
-        calories: Math.round(values.calories),
-        protein_g: values.protein_g,
-        carbs_g: values.carbs_g,
-        fat_g: values.fat_g,
-        notes: `Manual entry · Amount eaten: ${manualAmount.trim() || 'not specified'}`,
+        calories: Math.round(estimatedFood.calories),
+        protein_g: estimatedFood.protein_g,
+        carbs_g: estimatedFood.carbs_g,
+        fat_g: estimatedFood.fat_g,
+        notes: [
+          'AI-estimated nutrition; user-confirmed',
+          `Portion: ${manualAmount.trim()}`,
+          `Confidence: ${estimatedFood.confidence}`,
+          ...estimatedFood.assumptions,
+        ].join(' · ').slice(0, 300),
       });
       onLogged();
       closeAndReset();
-      Alert.alert('Food logged', `${name} was added to today's nutrition.`);
+      Alert.alert('Food logged', `${name} was added using an AI nutrition estimate.`);
     } catch (err: any) {
       Alert.alert('Could not log food', describeApiError(err).message);
     } finally {
@@ -251,7 +283,7 @@ export default function NutritionSearchModal({
             <Ionicons name="close" size={22} color={COLORS.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Log Food</Text>
-          <View style={{ width: 36 }} />
+          <ProfileAvatar size={34} />
         </View>
 
         {manualMode ? (
@@ -266,113 +298,117 @@ export default function NutritionSearchModal({
               <Text style={styles.backText}>Back to food search</Text>
             </TouchableOpacity>
 
-            <Text style={styles.manualTitle}>Create a food entry</Text>
+            <Text style={styles.manualTitle}>Tell me what you ate.</Text>
             <Text style={styles.manualSubtitle}>
-              Enter the total nutrition for the amount you ate. Use a packet label, recipe calculation or a trusted food-composition reference when available.
+              You don't need to know the calories or protein. VYRN will estimate the nutrition from the food and portion, show its assumptions, and ask you to confirm before saving.
             </Text>
 
             <Text style={styles.manualLabel}>FOOD OR MEAL NAME</Text>
             <TextInput
               style={styles.manualInput}
               value={manualName}
-              onChangeText={setManualName}
+              onChangeText={(value) => { setManualName(value); setEstimatedFood(null); }}
               placeholder="e.g. Homemade paneer sandwich"
               placeholderTextColor={COLORS.textMuted}
               autoCapitalize="words"
-              keyboardAppearance="dark"
+              keyboardAppearance="light"
               selectionColor={COLORS.primaryGreen}
               underlineColorAndroid="transparent"
             />
 
-            <Text style={styles.manualLabel}>AMOUNT EATEN (OPTIONAL)</Text>
+            <Text style={styles.manualLabel}>HOW MUCH DID YOU EAT?</Text>
             <TextInput
               style={styles.manualInput}
               value={manualAmount}
-              onChangeText={setManualAmount}
-              placeholder="e.g. 150 g, 1 bowl, 2 pieces"
+              onChangeText={(value) => { setManualAmount(value); setEstimatedFood(null); }}
+              placeholder="e.g. 2 medium pieces, 1 bowl, 1 plate"
               placeholderTextColor={COLORS.textMuted}
-              keyboardAppearance="dark"
+              keyboardAppearance="light"
+              selectionColor={COLORS.primaryGreen}
+              underlineColorAndroid="transparent"
+            />
+            <View style={styles.portionSuggestions}>
+              {['1 piece', '2 pieces', '1 bowl', '1 plate'].map((portion) => (
+                <TouchableOpacity
+                  key={portion}
+                  onPress={() => { setManualAmount(portion); setEstimatedFood(null); }}
+                  style={[styles.portionChip, manualAmount === portion && styles.portionChipActive]}
+                >
+                  <Text style={[styles.portionChipText, manualAmount === portion && styles.portionChipTextActive]}>{portion}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.manualLabel}>ANY COOKING DETAILS? (OPTIONAL)</Text>
+            <TextInput
+              style={[styles.manualInput, styles.preparationInput]}
+              value={manualPreparation}
+              onChangeText={(value) => { setManualPreparation(value); setEstimatedFood(null); }}
+              placeholder="e.g. homemade, deep fried, less oil, restaurant style"
+              placeholderTextColor={COLORS.textMuted}
+              multiline
+              keyboardAppearance="light"
               selectionColor={COLORS.primaryGreen}
               underlineColorAndroid="transparent"
             />
 
-            <View style={styles.manualMacroGrid}>
-              <View style={styles.manualMacroField}>
-                <Text style={styles.manualLabel}>CALORIES (KCAL)</Text>
-                <TextInput
-                  style={styles.manualInput}
-                  value={manualCalories}
-                  onChangeText={setManualCalories}
-                  placeholder="e.g. 320"
-                  placeholderTextColor={COLORS.textMuted}
-                  keyboardType="decimal-pad"
-                  keyboardAppearance="dark"
-                  selectionColor={COLORS.calories}
-                  underlineColorAndroid="transparent"
-                />
-              </View>
-              <View style={styles.manualMacroField}>
-                <Text style={styles.manualLabel}>PROTEIN (G)</Text>
-                <TextInput
-                  style={styles.manualInput}
-                  value={manualProtein}
-                  onChangeText={setManualProtein}
-                  placeholder="e.g. 18"
-                  placeholderTextColor={COLORS.textMuted}
-                  keyboardType="decimal-pad"
-                  keyboardAppearance="dark"
-                  selectionColor={COLORS.protein}
-                  underlineColorAndroid="transparent"
-                />
-              </View>
-              <View style={styles.manualMacroField}>
-                <Text style={styles.manualLabel}>CARBS (G)</Text>
-                <TextInput
-                  style={styles.manualInput}
-                  value={manualCarbs}
-                  onChangeText={setManualCarbs}
-                  placeholder="e.g. 24"
-                  placeholderTextColor={COLORS.textMuted}
-                  keyboardType="decimal-pad"
-                  keyboardAppearance="dark"
-                  selectionColor={COLORS.carbs}
-                  underlineColorAndroid="transparent"
-                />
-              </View>
-              <View style={styles.manualMacroField}>
-                <Text style={styles.manualLabel}>FAT (G)</Text>
-                <TextInput
-                  style={styles.manualInput}
-                  value={manualFat}
-                  onChangeText={setManualFat}
-                  placeholder="e.g. 12"
-                  placeholderTextColor={COLORS.textMuted}
-                  keyboardType="decimal-pad"
-                  keyboardAppearance="dark"
-                  selectionColor={COLORS.fat}
-                  underlineColorAndroid="transparent"
-                />
-              </View>
-            </View>
-
-            <Text style={styles.manualFootnote}>
-              These values are saved as entered. They are not verified against a food database.
-            </Text>
-
             <TouchableOpacity
-              style={[styles.confirmBtn, logging && styles.confirmBtnDisabled]}
-              onPress={saveManualEntry}
-              disabled={logging}
+              style={[styles.confirmBtn, estimating && styles.confirmBtnDisabled]}
+              onPress={estimateManualEntry}
+              disabled={estimating || logging}
             >
-              {logging ? (
-                <ActivityIndicator color={COLORS.background} />
+              {estimating ? (
+                <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <>
-                  <Ionicons name="checkmark-circle" size={18} color={COLORS.background} />
-                  <Text style={[styles.confirmBtnText, { color: COLORS.background }]}>SAVE FOOD LOG</Text>
+                  <Ionicons name="sparkles" size={18} color="#FFFFFF" />
+                  <Text style={styles.estimateBtnText}>ESTIMATE WITH VYRN</Text>
                 </>
               )}
             </TouchableOpacity>
+
+            {estimatedFood && (
+              <View style={styles.estimateCard}>
+                <View style={styles.estimateHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.estimateTitle}>Nutrition estimate</Text>
+                    <Text style={styles.estimatePortion}>{estimatedFood.portion_summary}</Text>
+                  </View>
+                  <View style={[styles.confidencePill, estimatedFood.confidence === 'medium' ? styles.confidenceMedium : styles.confidenceLow]}>
+                    <Text style={styles.confidenceText}>{estimatedFood.confidence.toUpperCase()} CONFIDENCE</Text>
+                  </View>
+                </View>
+                <View style={styles.estimatedMacros}>
+                  <MacroPill label="KCAL" value={String(estimatedFood.calories)} color={COLORS.calories} />
+                  <MacroPill label="PROTEIN" value={`${estimatedFood.protein_g}g`} color={COLORS.protein} />
+                  <MacroPill label="CARBS" value={`${estimatedFood.carbs_g}g`} color={COLORS.carbs} />
+                  <MacroPill label="FAT" value={`${estimatedFood.fat_g}g`} color={COLORS.fat} />
+                </View>
+                {!!estimatedFood.assumptions?.length && (
+                  <View style={styles.assumptionBlock}>
+                    <Text style={styles.assumptionHeading}>WHAT VYRN ASSUMED</Text>
+                    {estimatedFood.assumptions.map((assumption, index) => (
+                      <Text key={index} style={styles.assumptionText}>• {assumption}</Text>
+                    ))}
+                  </View>
+                )}
+                <Text style={styles.estimateDisclaimer}>This is an approximate AI estimate. Actual nutrition varies with ingredients, recipe and portion size.</Text>
+                <TouchableOpacity
+                  style={[styles.confirmBtn, logging && styles.confirmBtnDisabled]}
+                  onPress={saveManualEntry}
+                  disabled={logging || estimating}
+                >
+                  {logging ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
+                      <Text style={styles.estimateBtnText}>ADD ESTIMATE TO DIARY</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
           </ScrollView>
         ) : !selected ? (
           <>
@@ -387,7 +423,7 @@ export default function NutritionSearchModal({
                 autoFocus
                 autoCorrect={false}
                 returnKeyType="search"
-                keyboardAppearance="dark"
+                keyboardAppearance="light"
                 selectionColor={COLORS.primaryGreen}
                 underlineColorAndroid="transparent"
               />
@@ -396,7 +432,7 @@ export default function NutritionSearchModal({
 
             <TouchableOpacity style={styles.manualLaunch} onPress={openManualEntry}>
               <Ionicons name="create-outline" size={16} color={COLORS.primaryGreen} />
-              <Text style={styles.manualLaunchText}>Can't find it? Add food manually</Text>
+              <Text style={styles.manualLaunchText}>Can't find it? Estimate with VYRN</Text>
               <Ionicons name="arrow-forward" size={14} color={COLORS.primaryGreen} />
             </TouchableOpacity>
 
@@ -404,7 +440,7 @@ export default function NutritionSearchModal({
               <View style={styles.centerMsg}>
                 <Ionicons name="alert-circle-outline" size={28} color={COLORS.recoveryLow} />
                 <Text style={styles.errorText}>{searchError}</Text>
-                <Text style={styles.errorHint}>You can still create a custom food entry here.</Text>
+                <Text style={styles.errorHint}>You can still estimate this meal with VYRN.</Text>
               </View>
             ) : query.trim().length > 0 && query.trim().length < MIN_QUERY_LEN ? (
               <View style={styles.centerMsg}>
@@ -415,7 +451,7 @@ export default function NutritionSearchModal({
                 <Ionicons name="search-outline" size={28} color={COLORS.textMuted} />
                 <Text style={styles.hintText}>No database results for "{query.trim()}".</Text>
                 <TouchableOpacity style={styles.noResultButton} onPress={openManualEntry}>
-                  <Text style={styles.noResultButtonText}>Create this food manually</Text>
+                  <Text style={styles.noResultButtonText}>Estimate this food with VYRN</Text>
                 </TouchableOpacity>
               </View>
             ) : (
@@ -520,9 +556,26 @@ const styles = StyleSheet.create({
   manualSubtitle: { color: COLORS.textMuted, fontSize: 13, lineHeight: 19, marginBottom: 8 },
   manualLabel: { color: COLORS.textMuted, fontSize: 9, fontWeight: '800', letterSpacing: 1.1, marginTop: 5 },
   manualInput: { color: COLORS.text, backgroundColor: COLORS.inputBg, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 13, paddingVertical: 13, fontSize: 14, minHeight: 48 },
-  manualMacroGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 3 },
-  manualMacroField: { width: '48%', flexGrow: 1, gap: 5 },
-  manualFootnote: { color: COLORS.textDim, fontSize: 11, lineHeight: 16, marginTop: 2, marginBottom: 8 },
+  portionSuggestions: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 9 },
+  portionChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardElevated },
+  portionChipActive: { backgroundColor: COLORS.primaryGreen, borderColor: COLORS.primaryGreen },
+  portionChipText: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '600' },
+  portionChipTextActive: { color: '#FFFFFF' },
+  preparationInput: { minHeight: 72, textAlignVertical: 'top' },
+  estimateBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800', letterSpacing: 0.6 },
+  estimateCard: { marginTop: 16, padding: 14, borderRadius: 17, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, gap: 12 },
+  estimateHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
+  estimateTitle: { color: COLORS.text, fontSize: 16, fontWeight: '800' },
+  estimatePortion: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 17, marginTop: 4 },
+  confidencePill: { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 6, borderWidth: 1 },
+  confidenceMedium: { backgroundColor: '#E9F4E8', borderColor: '#B8D8B8' },
+  confidenceLow: { backgroundColor: '#FBF0E4', borderColor: '#E9D0AB' },
+  confidenceText: { color: COLORS.textSecondary, fontSize: 8, fontWeight: '800', letterSpacing: 0.5 },
+  estimatedMacros: { flexDirection: 'row', gap: 7 },
+  assumptionBlock: { paddingTop: 9, borderTopWidth: 1, borderTopColor: COLORS.border, gap: 5 },
+  assumptionHeading: { color: COLORS.textMuted, fontSize: 9, fontWeight: '800', letterSpacing: 1 },
+  assumptionText: { color: COLORS.textSecondary, fontSize: 11, lineHeight: 16 },
+  estimateDisclaimer: { color: COLORS.textMuted, fontSize: 10, lineHeight: 15 },
   manualLaunch: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 7, marginHorizontal: 20, marginTop: 12, paddingVertical: 7 },
   manualLaunchText: { color: COLORS.primaryGreen, fontSize: 12, fontWeight: '700' },
   noResultButton: { marginTop: 8, borderRadius: 12, backgroundColor: COLORS.cardElevated, paddingVertical: 11, paddingHorizontal: 16, borderWidth: 1, borderColor: COLORS.border },

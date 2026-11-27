@@ -5,13 +5,13 @@
     "version": "1.0.0",
     "scheme": "vyrn",
     "orientation": "portrait",
-    "userInterfaceStyle": "dark",
-    "backgroundColor": "#08110C",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F5F3EA",
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "cover",
-      "backgroundColor": "#08110C"
+      "backgroundColor": "#F5F3EA"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -23,7 +23,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#08110C"
+        "backgroundColor": "#F5F3EA"
       },
       "package": "com.vyrn.app",
       "softwareKeyboardLayoutMode": "resize",
@@ -49,7 +49,7 @@
         "expo-notifications",
         {
           "icon": "./assets/icon.png",
-          "color": "#B9DE72"
+          "color": "#176B4A"
         }
       ]
     ],

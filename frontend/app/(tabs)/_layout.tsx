@@ -13,6 +13,7 @@ import { usePrefetchDashboard } from '../../src/hooks/useDashboardQueries';
 import { useReducedMotion } from '../../src/hooks/useReducedMotion';
 import { COLORS, alpha } from '../../src/theme/colors';
 import { FONTS } from '../../src/theme/typography';
+import ProfileAvatar from '../../src/components/shared/ProfileAvatar';
 
 type TabDef = {
   name: string;
@@ -68,11 +69,15 @@ function TabBarIcon({
         { transform: [{ scale }] },
       ]}
     >
-      <Ionicons
-        name={focused ? tab.activeIcon : tab.icon}
-        size={tab.name === 'workout' ? 22 : 20}
-        color={isTrainActive ? COLORS.background : color}
-      />
+      {tab.name === 'profile' ? (
+        <ProfileAvatar size={25} />
+      ) : (
+        <Ionicons
+          name={focused ? tab.activeIcon : tab.icon}
+          size={tab.name === 'workout' ? 22 : 20}
+          color={isTrainActive ? COLORS.background : color}
+        />
+      )}
       {focused && <View style={styles.activeIndicator} />}
     </Animated.View>
   );

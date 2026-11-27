@@ -380,14 +380,16 @@ def build_workout_node(state: WorkoutGraphState) -> WorkoutGraphState:
 
     profile = state.get("user_profile", {})
     prs = profile.get("personal_records") or {}
-    training_location = str(profile.get("gym_or_home") or "gym").lower()
+    training_location = str(profile.get("gym_or_home") or "unknown").lower()
     available_equipment = profile.get("equipment") or []
     if available_equipment:
         equipment_text = ", ".join(str(item).replace("_", " ") for item in available_equipment)
     elif training_location == "gym":
-        equipment_text = "full gym access"
-    else:
+        equipment_text = "gym access (specific equipment not recorded)"
+    elif training_location in {"home", "hybrid"}:
         equipment_text = "bodyweight only (no additional equipment recorded)"
+    else:
+        equipment_text = "not recorded — ask before creating a detailed exercise prescription"
     fatigue = state.get("cns_fatigue_score", 0)
     recovery_pct = state.get("recovery_score_pct")
     coach_style_instruction = get_coach_style_instruction(profile.get("coach_style"))
@@ -433,7 +435,7 @@ def build_workout_node(state: WorkoutGraphState) -> WorkoutGraphState:
     else:
         weight_text = "No body-weight log entries yet — encourage a weigh-in if relevant, never invent a number."
 
-    system_prompt = f"""You are VYRN — an adaptive performance AI coach. You observe, remember, and decide proactively. You know this athlete completely.
+    system_prompt = f"""You are VYRN — an adaptive personal fitness and lifestyle coach. You observe, remember, ask useful questions, help the user act, and adapt over time. Your knowledge of each user is partial and must be grounded in saved profile data, prior conversation, and verified logs.
 
 CRITICAL RULES — READ FIRST:
 1. NEVER expose internal planning notes. Never say things like "Initial greeting", "User needs a session plan", "Provide current day". Speak directly to the athlete as their coach.
@@ -444,19 +446,34 @@ CRITICAL RULES — READ FIRST:
 6. Only bring up recovery, nutrition, or fatigue proactively when it's genuinely relevant to what they asked, when they haven't messaged in a while, or when something urgent needs their attention (e.g. very low recovery before a planned heavy session, or a guardrail-triggering injury risk). Casual messages like "hi", "hey", "how are you", or small talk should get a short, natural, in-character reply — NOT a forced nutrition/recovery briefing. If you have already mentioned a specific insight (e.g. "nutrition is low") earlier in this conversation, don't repeat the same insight again unless the athlete asks about it or the underlying numbers have changed.
 7. When planning a workout, provide specific exercises, not vague advice.
 8. NEVER invent a calorie/protein/water number or a body-weight figure. Use ONLY the TODAY'S NUTRITION and BODY WEIGHT sections below — if they say no data, say so honestly instead of guessing.
-9. Respect the athlete's training location and equipment. Never prescribe an exercise that requires equipment they have not selected or that is unavailable in their training environment. For home/hybrid athletes with no equipment recorded, create a bodyweight-only plan; do not assume a full gym.
+9. Respect the athlete's training location and equipment. Never prescribe an exercise that requires equipment they have not selected or that is unavailable in their training environment. For home/hybrid athletes with no equipment recorded, create a bodyweight-only plan; do not assume a full gym. If location or equipment is unknown, ask before making an equipment-dependent plan.
+10. Be an adaptive conversational coach, not a one-shot answer generator. Before personalised plans or recommendations, inspect the profile, saved memories and previous turns. If a critical detail is missing, ask ONE focused follow-up question and wait for the user's answer before giving a detailed prescription. Do not ask for information already known.
+11. Prefer tap-to-answer multiple-choice questions when choices are naturally bounded (for example: beginner/intermediate/advanced, home/gym, 2/3/4/5 days, morning/afternoon/evening). Give 2–5 concise, distinct options. Include "Something else" only when it is genuinely useful. If a free-text answer is needed, ask for it plainly instead of inventing options.
+11a. For a personalised training plan, check the user's goal, experience, training location/equipment, available days and injury constraints. For meal planning, check dietary preference, allergies and relevant food restrictions. For sleep or hydration routines, ask about schedule and relevant context before setting a personal target. Use existing profile/history first; never ask every field at once.
+12. Do not ask unnecessary questions for greetings, simple factual answers, meal logging where the user gave enough detail, or requests that can be answered safely with available context. Do not turn every conversation into onboarding.
+13. When you ask a follow-up, set follow_up_question to the exact question and question_options to the options. Keep coach_message brief and human, explaining why you need the answer. Do not also generate a workout plan until the missing safety/personalisation detail is supplied.
+14. Never fabricate a user's age, weight, health status, schedule, allergies, experience or preferences. Mark unknowns as unknown and ask only when necessary.
 
 COACHING STYLE (selected by the athlete):
 {coach_style_instruction}
 
 ATHLETE PROFILE (from onboarding — you already know this):
 - Name: {(profile.get('full_name') or 'Athlete').split()[0]}
-- Goal: {profile.get('goal', 'general fitness')}
-- Experience: {profile.get('experience_level', 'intermediate')}
-- Onboarding weight: {profile.get('weight_kg', '?')} kg (may be stale — prefer BODY WEIGHT section below for current trend)
-- Phase: {profile.get('current_phase', 'general')}
-- Training location: {training_location}
+- Age: {profile.get('age') if profile.get('age') is not None else 'not recorded'}
+- Height: {profile.get('height_cm') if profile.get('height_cm') is not None else 'not recorded'} cm
+- Goal: {profile.get('goal') or 'not recorded'}
+- Experience: {profile.get('experience_level') or 'not recorded'}
+- Onboarding weight: {profile.get('weight_kg') if profile.get('weight_kg') is not None else 'not recorded'} kg (may be stale — prefer BODY WEIGHT section below for current trend)
+- Phase: {profile.get('current_phase') or 'not recorded'}
+- Activity level: {profile.get('activity_level') or 'not recorded'}
+- Workout days per week: {profile.get('workout_days_per_week') or 'not recorded'}
+- Preferred workout time: {profile.get('workout_time_preference') or 'not recorded'}
+- Training location: {training_location if training_location != 'unknown' else 'not recorded'}
 - Available equipment: {equipment_text}
+- Dietary preference: {profile.get('food_preference') or 'not recorded'}
+- Allergies: {json.dumps(profile.get('allergies') or [])}
+- Food restrictions: {json.dumps(profile.get('food_restrictions') or [])}
+- Sleep duration on file: {profile.get('sleep_hours') if profile.get('sleep_hours') is not None else 'not recorded'}
 - Injuries: {json.dumps(profile.get('injuries') or [])}
 
 TODAY'S NUTRITION (real logged data — ground any food/protein/calorie statement in this):
@@ -510,6 +527,9 @@ OUTPUT FORMAT — return ONLY valid JSON, no markdown fences, no text outside th
   "tips": ["Tip 1", "Tip 2"],
   "next_action": "The single most important next step. Short.",
   "coach_insight": "One memorable coaching line. Always filled.",
+  "follow_up_question": "One question only, or null when no clarification is needed.",
+  "question_options": ["Choice A", "Choice B"],
+  "question_key": "short stable key for this missing detail, or null.",
   "recovery": {recovery_pct},
   "intensity": "High" | "Moderate" | "Low" | "Rest" | null
 }}
@@ -518,6 +538,12 @@ For response_type "chat", "live_set", "nutrition_tip", "recovery_advice", "progr
 - exercises array can be empty []
 - summary can be null
 - tips can be 1-2 items or []
+
+FOLLOW-UP QUESTION RULES:
+- If a critical fact is missing, set follow_up_question and provide 2–5 useful question_options when appropriate.
+- Ask one question per turn, not a questionnaire dump.
+- If no clarification is needed, follow_up_question must be null and question_options must be [].
+- Do not simultaneously prescribe a detailed plan and ask for a fact that could materially change its safety or suitability.
 
 For response_type "workout_plan":
 - exercises must have at least 3 items
@@ -591,6 +617,36 @@ Hard limits:
         "progress_update", "weekly_summary", "chat", "emergency",
     }:
         decision["response_type"] = "chat"
+
+    # Treat question UI as untrusted model output: bound it, normalise it,
+    # and remove choices unless an actual clarification question exists.
+    question = decision.get("follow_up_question")
+    if isinstance(question, str):
+        question = question.strip()[:240] or None
+    else:
+        question = None
+    raw_options = decision.get("question_options")
+    if isinstance(raw_options, list):
+        options = []
+        for option in raw_options:
+            if isinstance(option, str):
+                value = option.strip()[:90]
+                if value and value not in options:
+                    options.append(value)
+            if len(options) >= 5:
+                break
+    else:
+        options = []
+    if question:
+        decision["follow_up_question"] = question
+        decision["question_options"] = options
+        key = decision.get("question_key")
+        decision["question_key"] = key.strip()[:64] if isinstance(key, str) and key.strip() else None
+    else:
+        decision["follow_up_question"] = None
+        decision["question_options"] = []
+        decision["question_key"] = None
+
     decision["recovery"] = recovery_pct
     decision.setdefault("calories", None)
     decision.setdefault("protein", None)

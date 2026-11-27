@@ -33,12 +33,28 @@ def test_health_and_core_routes_are_registered() -> None:
         ("POST", "/api/workouts/sessions"),
         ("POST", "/api/workouts/sessions/{session_id}/logs"),
         ("POST", "/api/coach/chat"),
+        ("POST", "/api/nutrition/estimate"),
         ("GET", "/api/mission/today"),
         ("GET", "/api/dashboard/summary"),
     }
     assert expected <= routes
 
 
+def test_food_estimate_request_validates_food_and_portion() -> None:
+    from api.routes.nutrition import FoodEstimateRequest
+
+    payload = FoodEstimateRequest(
+        food_name="Paneer pakoda",
+        portion="2 medium pieces",
+        preparation="Homemade, deep fried",
+    )
+    assert payload.food_name == "Paneer pakoda"
+    assert payload.portion == "2 medium pieces"
+
+    with pytest.raises(ValidationError):
+        FoodEstimateRequest(food_name="P", portion="")
+
+ 
 def test_health_handler_is_independent_of_external_services() -> None:
     health_route = next(
         route
