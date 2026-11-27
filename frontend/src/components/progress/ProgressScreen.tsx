@@ -5,7 +5,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
@@ -24,7 +24,7 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { qk } from '../../lib/queryKeys';
 import NutritionSearchModal from './NutritionSearchModal';
 import WeightChart from './WeightChart';
-import Logo from '../shared/Logo';
+import ProfileAvatar from '../shared/ProfileAvatar';
 import WeeklyReviewScreen from './WeeklyReviewScreen';
 import AnalyticsScreen, { type AnalyticsChartTab, type AnalyticsRangeOption } from './AnalyticsScreen';
 import MuscleRecoveryMap from './MuscleRecoveryMap';
@@ -367,7 +367,7 @@ export default function ProgressScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={[styles.header, { paddingTop: insets.top + 12 }]}><Logo size="sm" /><Text style={styles.headerSub}>Progress</Text></View>
+        <View style={[styles.header, { paddingTop: insets.top + 12 }]}><ProfileAvatar size={38} onPress={() => router.push("/(tabs)/profile")} /><Text style={styles.headerSub}>Progress</Text></View>
         <ScrollView contentContainerStyle={{ padding: 16 }}>
           <SkeletonCard height={110} /><SkeletonCard height={80} /><SkeletonCard height={160} />
         </ScrollView>
@@ -380,7 +380,7 @@ export default function ProgressScreen() {
       <NutritionSearchModal visible={logFoodVisible} onClose={() => setLogFoodVisible(false)} onLogged={loadData} />
       <View style={[styles.header, { paddingTop: insets.top + 15 }]}>
         <View style={styles.headerTopRow}>
-          <Logo size="sm" />
+          <ProfileAvatar size={38} onPress={() => router.push("/(tabs)/profile")} />
           <Text style={styles.headerEyebrow}>YOUR PERFORMANCE</Text>
         </View>
         <Text style={styles.headerSub}>Progress.</Text>
