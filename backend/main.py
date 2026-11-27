@@ -18,6 +18,7 @@ from api.routes.memory import router as memory_router
 from api.routes.review import router as review_router
 from api.routes.decisions import router as decisions_router
 from api.routes.program import router as program_router
+from api.routes.recovery import router as recovery_router
 from api.routes.mission import router as mission_router
 from api.routes.bodyweight import router as bodyweight_router
 from api.routes.notifications import router as notifications_router
@@ -77,6 +78,7 @@ app.include_router(memory_router,    prefix="/api/memory",    tags=["Memory"])
 app.include_router(review_router,    prefix="/api/review",    tags=["Review"])
 app.include_router(decisions_router, prefix="/api/decisions", tags=["Decision History"])
 app.include_router(program_router,   prefix="/api/program",   tags=["Program Evolution"])
+app.include_router(recovery_router,  prefix="/api/recovery",  tags=["Recovery"])
 app.include_router(mission_router,   prefix="/api/mission",   tags=["Mission"])
 app.include_router(bodyweight_router,    prefix="/api/bodyweight",    tags=["Body Weight"])
 app.include_router(notifications_router, prefix="/api/notifications", tags=["Notifications"])
