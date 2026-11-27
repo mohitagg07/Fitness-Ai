@@ -354,9 +354,13 @@ export default function ProgressScreen() {
   return (
     <View style={styles.container}>
       <NutritionSearchModal visible={logFoodVisible} onClose={() => setLogFoodVisible(false)} onLogged={loadData} />
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <Logo size="sm" />
-        <Text style={styles.headerSub}>Progress</Text>
+      <View style={[styles.header, { paddingTop: insets.top + 15 }]}>
+        <View style={styles.headerTopRow}>
+          <Logo size="sm" />
+          <Text style={styles.headerEyebrow}>YOUR PERFORMANCE</Text>
+        </View>
+        <Text style={styles.headerSub}>Progress.</Text>
+        <Text style={styles.headerDescription}>Training, nutrition and recovery — tracked over time.</Text>
       </View>
 
       <ScrollView
@@ -451,7 +455,7 @@ export default function ProgressScreen() {
             <>
               <TouchableOpacity style={styles.logFoodBtn} onPress={() => setLogFoodVisible(true)}>
                 <Ionicons name="add-circle" size={18} color={COLORS.background} />
-                <Text style={styles.logFoodBtnText}>LOG FOOD (FatSecret)</Text>
+                <Text style={styles.logFoodBtnText}>ADD FOOD</Text>
               </TouchableOpacity>
               <TodayMacros todayData={todayData} />
               <CaloriesChart history={nutrition} targetCal={targetCal} />
@@ -459,7 +463,7 @@ export default function ProgressScreen() {
               {nutrition.length === 0 && (
                 <View style={styles.emptyCard}>
                   <Ionicons name="nutrition-outline" size={36} color={COLORS.textDim} />
-                  <Text style={styles.emptyNote}>Tap LOG FOOD to add your first meal via FatSecret</Text>
+                  <Text style={styles.emptyNote}>Search a food or create a custom entry to start tracking your nutrition.</Text>
                 </View>
               )}
             </>
@@ -504,21 +508,24 @@ export default function ProgressScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { paddingHorizontal: 20, paddingTop: 56, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 6 },
-  headerSub: { color: COLORS.text, fontSize: 23, fontWeight: '700', letterSpacing: -0.4 },
-  tabBarScroll: { borderBottomWidth: 1, borderBottomColor: COLORS.border, flexGrow: 0 },
-  tabBar: { paddingHorizontal: 12, paddingVertical: 10, gap: 8, flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center' },
+  header: { paddingHorizontal: 20, paddingBottom: 18, borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 7 },
+  headerTopRow: { flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: 7 },
+  headerEyebrow: { color: COLORS.primaryGreen, fontSize: 9, fontWeight: '800', letterSpacing: 1.75 },
+  headerDescription: { color: COLORS.textMuted, fontSize: 12, lineHeight: 18, marginTop: 1 },
+  headerSub: { color: COLORS.text, fontSize: 29, lineHeight: 34, fontWeight: '800', letterSpacing: -0.9 },
+  tabBarScroll: { borderBottomWidth: 1, borderBottomColor: COLORS.border, flexGrow: 0, backgroundColor: COLORS.background },
+  tabBar: { paddingHorizontal: 18, paddingTop: 5, paddingBottom: 0, gap: 23, flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center' },
   tabBarWide: { justifyContent: 'center' },
-  tab: { flexGrow: 0, flexShrink: 0, minWidth: 104, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, paddingVertical: 9, paddingHorizontal: 12, borderRadius: 10, backgroundColor: COLORS.backgroundTop, borderWidth: 1, borderColor: COLORS.border },
+  tab: { flexGrow: 0, flexShrink: 0, minWidth: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, paddingVertical: 13, paddingHorizontal: 1, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabWide: { minWidth: 120 },
-  tabActive: { backgroundColor: COLORS.card, borderColor: COLORS.primaryGreen + '70' },
-  tabText: { color: COLORS.textMuted, fontSize: 11, fontWeight: '600' },
+  tabActive: { backgroundColor: 'transparent', borderBottomColor: COLORS.primaryGreen },
+  tabText: { color: COLORS.textMuted, fontSize: 11, fontWeight: '600', letterSpacing: 0.1 },
   tabTextActive: { color: COLORS.primaryGreen },
   errorBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 10, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardElevated },
   errorBannerText: { color: COLORS.textSecondary, flex: 1, fontSize: 10, lineHeight: 15 },
   errorRetry: { color: COLORS.primaryGreen, fontSize: 11, fontWeight: '700' },
-  scroll: { paddingHorizontal: 18, paddingTop: 18, paddingBottom: 36 },
-  logCard: { backgroundColor: COLORS.cardElevated, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
+  scroll: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40 },
+  logCard: { backgroundColor: COLORS.card, borderRadius: 19, padding: 17, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
   sectionLabel: { color: COLORS.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 10 },
   helperText: { color: COLORS.textMuted, fontSize: 11, lineHeight: 16, marginBottom: 10 },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -526,19 +533,19 @@ const styles = StyleSheet.create({
   unitLabel: { color: COLORS.textMuted, fontSize: 14, fontWeight: '600' },
   logBtn: { backgroundColor: COLORS.primaryGreen, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 13 },
   logBtnText: { color: COLORS.background, fontSize: 13, fontWeight: '800', letterSpacing: 1 },
-  macrosCard: { backgroundColor: COLORS.cardElevated, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
+  macrosCard: { backgroundColor: COLORS.card, borderRadius: 20, padding: 18, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
   remainingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 10 },
   remainingLabel: { color: COLORS.textMuted, fontSize: 11, fontWeight: '600' },
   remainingVal: { color: COLORS.textSecondary, fontSize: 11 },
   statsGrid: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  statCard: { flex: 1, backgroundColor: COLORS.cardElevated, borderRadius: 14, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
+  statCard: { flex: 1, backgroundColor: COLORS.card, borderRadius: 16, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
   statVal: { color: COLORS.primaryGreen, fontSize: 18, fontWeight: '800' },
   statLabel: { color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 1, marginTop: 2 },
-  chartCard: { backgroundColor: COLORS.cardElevated, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
-  logFoodBtn: { backgroundColor: COLORS.primaryGreen, borderRadius: 14, paddingVertical: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 16 },
+  chartCard: { backgroundColor: COLORS.card, borderRadius: 19, padding: 17, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
+  logFoodBtn: { backgroundColor: COLORS.primaryGreen, borderRadius: 15, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 16 },
   logFoodBtnText: { color: COLORS.background, fontSize: 14, fontWeight: '800', letterSpacing: 0.5 },
   streaksRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
-  streakCard: { flex: 1, backgroundColor: COLORS.cardElevated, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
+  streakCard: { flex: 1, backgroundColor: COLORS.card, borderRadius: 17, padding: 15, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
   streakVal: { color: COLORS.text, fontSize: 22, fontWeight: '800', marginTop: 4 },
   streakLabel: { color: COLORS.textMuted, fontSize: 9, fontWeight: '700', letterSpacing: 0.5, marginTop: 2 },
   recoveryRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
