@@ -904,18 +904,6 @@ function WorkoutHUD() {
   // "no session" and "session started" renders (React's "Rendered more
   // hooks than during the previous render" error, thrown the instant
   // startSession() flips sessionStarted from false to true).
-  const handleMoodSelect = useCallback((mood: MoodValue) => {
-    setPendingMood(mood);
-    setMoodPickerVisible(false);
-    completeAndShowSummary(mood);
-  }, [completeAndShowSummary]);
-
-  const handleMoodSkip = useCallback(() => {
-    setPendingMood(undefined);
-    setMoodPickerVisible(false);
-    completeAndShowSummary(undefined);
-  }, [completeAndShowSummary]);
-
   const handleSummaryClose = useCallback(() => {
     setSummaryVisible(false);
     if (streakData) setTimeout(() => setStreakVisible(true), 300);
