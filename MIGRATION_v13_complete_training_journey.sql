@@ -126,6 +126,96 @@ create policy "Users own workout plan versions"
     using (auth.uid() = user_id)
     with check (auth.uid() = user_id);
 
+create or replace function public.save_workout_plan_draft(
+    p_user_id uuid,
+    p_plan_id uuid,
+    p_name text,
+    p_phase text,
+    p_weeks integer,
+    p_schedule jsonb,
+    p_snapshot jsonb,
+    p_change_reason text
+)
+returns table (
+    out_plan_id uuid,
+    out_version_id uuid,
+    out_version_number integer,
+    out_status text,
+    out_snapshot jsonb
+)
+language plpgsql
+security definer
+set search_path = public
+as $
+declare
+    v_plan public.workout_plans;
+    v_version public.workout_plan_versions;
+    v_schedule jsonb;
+    v_snapshot jsonb;
+    v_next integer;
+begin
+    if p_user_id is null or p_snapshot is null or jsonb_typeof(p_snapshot) is distinct from 'object' then
+        raise exception 'A user and valid plan snapshot are required' using errcode = '22023';
+    end if;
+
+    perform pg_advisory_xact_lock(hashtextextended('workout-plan:' || p_user_id::text, 0));
+
+    if p_plan_id is not null then
+        select * into v_plan
+          from public.workout_plans
+         where id = p_plan_id and user_id = p_user_id
+         for update;
+        if not found then
+            raise exception 'PLAN_NOT_FOUND' using errcode = 'P0002';
+        end if;
+    else
+        select * into v_plan
+          from public.workout_plans
+         where user_id = p_user_id and is_active = true
+         order by created_at desc
+         limit 1
+         for update;
+        if not found then
+            insert into public.workout_plans(user_id, name, phase, weeks, schedule, is_active)
+            values (p_user_id, coalesce(nullif(btrim(p_name), ''), 'VYRN Training Plan'),
+                    p_phase, coalesce(p_weeks, 4), coalesce(p_schedule, '{}'::jsonb), false)
+            returning * into v_plan;
+        end if;
+    end if;
+
+    v_schedule := case
+        when jsonb_typeof(p_schedule) = 'object' and p_schedule <> '{}'::jsonb then p_schedule
+        else coalesce(v_plan.schedule, '{}'::jsonb)
+    end;
+    v_snapshot := p_snapshot || jsonb_build_object(
+        'schedule', v_schedule,
+        'name', coalesce(nullif(btrim(p_name), ''), v_plan.name),
+        'phase', coalesce(p_phase, v_plan.phase),
+        'weeks', coalesce(p_weeks, v_plan.weeks, 4)
+    );
+
+    select coalesce(max(version_number), 0) + 1
+      into v_next
+      from public.workout_plan_versions
+     where plan_id = v_plan.id and user_id = p_user_id;
+
+    insert into public.workout_plan_versions(
+        plan_id, user_id, version_number, status, snapshot, change_reason
+    ) values (
+        v_plan.id, p_user_id, v_next, 'draft', v_snapshot,
+        coalesce(nullif(btrim(p_change_reason), ''), 'New workout plan draft')
+    ) returning * into v_version;
+
+    return query select v_plan.id, v_version.id, v_version.version_number,
+                        v_version.status, v_version.snapshot;
+end;
+$;
+
+revoke all on function public.save_workout_plan_draft(uuid, uuid, text, text, integer, jsonb, jsonb, text)
+    from public, anon, authenticated;
+grant execute on function public.save_workout_plan_draft(uuid, uuid, text, text, integer, jsonb, jsonb, text)
+    to service_role;
+
 create or replace function public.approve_workout_plan_version(
     p_user_id uuid,
     p_plan_id uuid,
@@ -184,7 +274,11 @@ begin
 
     update public.workout_plans
        set is_active = (id = p_plan_id),
-           current_version_id = case when id = p_plan_id then p_version_id else current_version_id end
+           current_version_id = case when id = p_plan_id then p_version_id else current_version_id end,
+           name = case when id = p_plan_id then coalesce(v_version.snapshot->>'name', name) else name end,
+           phase = case when id = p_plan_id then coalesce(v_version.snapshot->>'phase', phase) else phase end,
+           weeks = case when id = p_plan_id then coalesce(nullif(v_version.snapshot->>'weeks', '')::integer, weeks) else weeks end,
+           schedule = case when id = p_plan_id then coalesce(v_version.snapshot->'schedule', schedule) else schedule end
      where user_id = p_user_id;
 
     return next v_version;
@@ -249,7 +343,12 @@ begin
     ) returning * into v_saved;
 
     update public.workout_plans
-       set current_version_id = v_saved.id, is_active = true
+       set current_version_id = v_saved.id,
+           is_active = true,
+           name = coalesce(v_saved.snapshot->>'name', name),
+           phase = coalesce(v_saved.snapshot->>'phase', phase),
+           weeks = coalesce(nullif(v_saved.snapshot->>'weeks', '')::integer, weeks),
+           schedule = coalesce(v_saved.snapshot->'schedule', schedule)
      where id = p_plan_id and user_id = p_user_id;
 
     update public.workout_plans
