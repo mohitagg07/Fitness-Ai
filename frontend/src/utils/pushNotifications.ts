@@ -51,13 +51,16 @@ export async function registerForPushNotificationsAsync(): Promise<void> {
         name: 'VYRN Coach',
         importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0, 200, 150, 200],
-        lightColor: '#16EC06',
+        lightColor: '#B9DE72',
       });
     }
 
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
-    if (existingStatus !== 'granted') {
+    // Ask only once while Android/iOS reports an undecided permission.
+    // A previously denied permission is left alone instead of prompting on
+    // every app launch.
+    if (existingStatus === 'undetermined') {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
