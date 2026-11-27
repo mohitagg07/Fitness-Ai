@@ -37,6 +37,8 @@ def test_health_and_core_routes_are_registered() -> None:
         ("GET", "/api/mission/today"),
         ("GET", "/api/recovery/check-in/today"),
         ("PUT", "/api/recovery/check-in/today"),
+        ("GET", "/api/training-plans/active"),
+        ("POST", "/api/training-plans/drafts"),
         ("GET", "/api/dashboard/summary"),
     }
     assert expected <= routes
