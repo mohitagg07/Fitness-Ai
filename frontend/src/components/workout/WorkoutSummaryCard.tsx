@@ -37,6 +37,7 @@ import Text from '../ui/Text';
 import Button from '../ui/Button';
 import CountUpNumber from '../shared/CountUpNumber';
 import ConfettiBurst from './ConfettiBurst';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 interface NewPR {
   exercise_name: string;
@@ -128,9 +129,19 @@ function WorkoutSummaryCard({ visible, data, onClose }: Props) {
   // Drives the staggered Reveal sections below the hero (0 → 1).
   const mount = useRef(new Animated.Value(0)).current;
   const [confettiActive, setConfettiActive] = React.useState(false);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
-    if (!visible || !data) return;
+    if (!visible || !data) return undefined;
+    if (reduceMotion) {
+      scaleIn.setValue(1);
+      badgeScale.setValue(1);
+      badgeRotate.setValue(0);
+      mount.setValue(1);
+      setConfettiActive(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      return undefined;
+    }
     scaleIn.setValue(0.9);
     badgeScale.setValue(0);
     badgeRotate.setValue(-1);
@@ -155,7 +166,7 @@ function WorkoutSummaryCard({ visible, data, onClose }: Props) {
       return () => clearTimeout(t);
     }
     setConfettiActive(false);
-  }, [visible, data]);
+  }, [visible, data, reduceMotion]);
 
   const badgeSpin = badgeRotate.interpolate({ inputRange: [-1, 0], outputRange: ['-25deg', '0deg'] });
 
@@ -177,7 +188,7 @@ function WorkoutSummaryCard({ visible, data, onClose }: Props) {
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.backdrop}>
-        <ConfettiBurst active={confettiActive} />
+        <ConfettiBurst active={confettiActive && !reduceMotion} />
         <Animated.View style={[styles.card, { transform: [{ scale: scaleIn }] }]}>
           <View style={styles.grabber} />
 
