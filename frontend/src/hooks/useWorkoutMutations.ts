@@ -26,6 +26,7 @@ export interface SetLogInput {
   weight_kg: number;
   reps: number;
   rpe?: number;
+  client_request_id?: string;
 }
 
 export function useLogSet() {
@@ -70,12 +71,21 @@ export function useLogSet() {
   });
 }
 
+export interface WorkoutFeedbackInput {
+  mood?: 'great' | 'good' | 'okay' | 'bad';
+  session_effort?: number;
+  energy_level?: number;
+  pain_status?: 'none' | 'mild' | 'sharp' | 'worsening';
+  pain_notes?: string;
+  session_notes?: string;
+}
+
 export function useCompleteSession() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ sessionId, cnsFatigue, mood }: { sessionId: string; cnsFatigue?: number; mood?: string }) =>
-      workoutApi.completeSession(sessionId, cnsFatigue, mood),
+    mutationFn: ({ sessionId, feedback }: { sessionId: string; feedback?: WorkoutFeedbackInput }) =>
+      workoutApi.completeSession(sessionId, feedback),
     onSuccess: () => {
       // A completed session changes recovery/streak numbers on the
       // dashboard and this week's stats — invalidate rather than
