@@ -69,7 +69,7 @@ function MuscleBelly({
   const isSelected = selected === muscle;
 
   return (
-    <mesh position={position} rotation={rotation} scale={[1, 1, depth]} castShadow receiveShadow>
+    <mesh position={position} rotation={rotation} scale={[1, 1, depth]}>
       <latheGeometry args={[profile, 20]} />
       <meshStandardMaterial
         color={color}
@@ -209,15 +209,15 @@ function RecoveryAvatar({
 
       {/* A restrained instrument platform gives the model depth and a clear centre. */}
       <mesh position={[0, -2.22, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.88, 0.012, 10, 88]} />
+        <torusGeometry args={[0.88, 0.012, 8, 56]} />
         <meshBasicMaterial color="#63816A" transparent opacity={0.62} />
       </mesh>
       <mesh position={[0, -2.24, 0]}>
-        <cylinderGeometry args={[0.70, 0.78, 0.055, 64]} />
+        <cylinderGeometry args={[0.70, 0.78, 0.055, 40]} />
         <meshStandardMaterial color="#17271D" roughness={0.62} metalness={0.16} />
       </mesh>
       <mesh position={[0, 0.12, -0.78]} rotation={[0, 0, 0]}>
-        <torusGeometry args={[1.72, 0.007, 8, 96]} />
+        <torusGeometry args={[1.72, 0.007, 8, 64]} />
         <meshBasicMaterial color="#335441" transparent opacity={0.36} />
       </mesh>
     </>
