@@ -133,7 +133,7 @@ function QuickAction({
         <Text style={styles.quickTitle}>{title}</Text>
         <Text style={styles.quickSubtitle}>{subtitle}</Text>
       </View>
-      <Ionicons name="arrow-up-right" size={17} color={COLORS.textMuted} />
+      <Ionicons name="arrow-forward" size={17} color={COLORS.textMuted} />
     </PressableScale>
   );
 }
