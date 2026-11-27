@@ -197,3 +197,54 @@ def test_today_recovery_checkin_fails_as_unknown_when_migration_is_missing(monke
 
     monkeypatch.setattr(recovery_agent, "get_supabase", lambda: BrokenSupabase())
     assert recovery_agent._today_recovery_checkin("user-1") is None
+
+
+def test_adaptive_plan_transform_creates_a_new_snapshot_and_preserves_original() -> None:
+    from api.routes.program import _apply_adaptive_changes
+
+    original = {
+        "name": "Strength plan",
+        "schedule": {"mon": "push"},
+        "workout": {
+            "label": "Push",
+            "workout_type": "push",
+            "estimated_duration_minutes": 55,
+            "exercises": [
+                {"name": "Bench Press", "sets": 4, "reps": "8-10", "load_kg": 80},
+                {"name": "Triceps Pushdown", "sets": 3, "reps": "10-12", "load_kg": 25},
+            ],
+        },
+    }
+
+    updated = _apply_adaptive_changes(
+        original,
+        [{"type": "deload", "exercise": None}],
+        "recovery_decline",
+    )
+
+    assert original["workout"]["exercises"][0]["sets"] == 4
+    assert original["workout"]["exercises"][0]["load_kg"] == 80
+    assert updated is not original
+    assert updated["workout"]["exercises"][0]["sets"] == 2
+    assert updated["workout"]["exercises"][0]["load_kg"] == 56
+    assert updated["workout"]["exercises"][1]["sets"] == 2
+
+
+def test_adaptive_plan_volume_reduction_targets_the_requested_exercise() -> None:
+    from api.routes.program import _apply_adaptive_changes
+
+    original = {
+        "workout": {
+            "exercises": [
+                {"name": "Bench Press", "sets": 4, "reps": "8-10"},
+                {"name": "Triceps Pushdown", "sets": 3, "reps": "10-12"},
+            ]
+        }
+    }
+    updated = _apply_adaptive_changes(
+        original,
+        [{"type": "volume_reduction", "exercise": "Bench Press"}],
+        "plateau",
+    )
+    assert updated["workout"]["exercises"][0]["sets"] == 3
+    assert updated["workout"]["exercises"][1]["sets"] == 3
