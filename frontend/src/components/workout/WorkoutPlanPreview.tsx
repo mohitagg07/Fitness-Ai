@@ -290,6 +290,8 @@ const styles = StyleSheet.create({
   title: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 24, lineHeight: 29, marginTop: 5 },
   subtitle: { ...BODY, color: COLORS.textSecondary, fontSize: 12, lineHeight: 18, marginTop: 6 },
   close: { padding: 8, borderRadius: 24, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border },
+  reason: { ...BODY, color: COLORS.textSecondary, fontSize: 11, lineHeight: 16, marginTop: SPACING.sm },
+  muscles: { ...EYEBROW, color: COLORS.primaryGreen, fontSize: 8, letterSpacing: 0.8, marginTop: SPACING.xs },
   summary: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     padding: SPACING.md, borderRadius: RADIUS.card, backgroundColor: alpha(COLORS.primaryGreen, 0.07),
