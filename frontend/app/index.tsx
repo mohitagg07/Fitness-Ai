@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { storage } from '../src/utils/storage';
@@ -34,13 +34,14 @@ function readStorageWithTimeout(key: string): Promise<string | null> {
 export default function Index() {
   const [bootError, setBootError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const loginRequested = useRef(false);
 
   useEffect(() => {
     let active = true;
     let routed = false;
 
     const navigate = (path: '/login' | '/(tabs)') => {
-      if (!active || routed) return;
+      if (!active || routed || loginRequested.current) return;
       routed = true;
       router.replace(path as any);
     };
@@ -115,7 +116,10 @@ export default function Index() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Continue to login"
-          onPress={() => router.replace('/login')}
+          onPress={() => {
+            loginRequested.current = true;
+            router.replace('/login');
+          }}
           style={styles.secondaryButton}
         >
           <Text style={styles.secondaryButtonText}>Continue to Login</Text>
