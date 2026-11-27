@@ -233,11 +233,16 @@ def _today_recovery_checkin(user_id: str, target_date: date | None = None) -> di
 
 def _soreness_component(soreness_level: int | None) -> int | None:
     """0-15 pts: lower reported soreness means greater recovery readiness."""
-    if soreness_level is None:
-        return None
-    if soreness_level < 1 or soreness_level > 5:
+    if soreness_level is None or soreness_level < 1 or soreness_level > 5:
         return None
     return round(15 - ((soreness_level - 1) * 3.75))
+
+
+def _energy_component(energy_level: int | None) -> int | None:
+    """0-10 pts: actual reported energy contributes modestly to readiness."""
+    if energy_level is None or energy_level < 1 or energy_level > 5:
+        return None
+    return round((energy_level - 1) * 2.5)
 
 
 def _recent_rpe_stats(
@@ -330,6 +335,7 @@ def run_recovery_agent(
     # measured sleep. Only a dated check-in contributes to daily readiness.
     sleep_hours = check_in.get("sleep_hours") if check_in else None
     soreness_level = check_in.get("soreness_level") if check_in else None
+    energy_level = check_in.get("energy_level") if check_in else None
     cns_fatigue = _last_explicit_cns_fatigue(user_id)
     recent_volume = _last_session_volume(user_id)
     protein_pct, calorie_pct = _nutrition_ratios_today(
@@ -344,16 +350,20 @@ def run_recovery_agent(
     raw_cns_pts = _cns_component(cns_fatigue)
     sleep_pts = round(raw_sleep_pts * (25 / 30)) if raw_sleep_pts is not None else None
     soreness_pts = _soreness_component(soreness_level)
-    vol_pts = _volume_component(recent_volume)
-    nutr_pts = _nutrition_component(protein_pct, calorie_pct)
+    energy_pts = _energy_component(energy_level)
+    raw_volume_pts = _volume_component(recent_volume)
+    raw_nutrition_pts = _nutrition_component(protein_pct, calorie_pct)
+    vol_pts = round(raw_volume_pts * (15 / 20)) if raw_volume_pts is not None else None
+    nutr_pts = round(raw_nutrition_pts * (15 / 20)) if raw_nutrition_pts is not None else None
     rpe_pts = round(raw_rpe_pts * (10 / 15)) if raw_rpe_pts is not None else None
     cns_pts = round(raw_cns_pts * (10 / 15)) if raw_cns_pts is not None else None
 
     weighted = [
         (sleep_pts, 25, "last_night_sleep_checkin"),
         (soreness_pts, 15, "today_soreness_checkin"),
-        (vol_pts, 20, "recent_session_volume"),
-        (nutr_pts, 20, "logged_nutrition"),
+        (energy_pts, 10, "today_energy_checkin"),
+        (vol_pts, 15, "recent_session_volume"),
+        (nutr_pts, 15, "logged_nutrition"),
         (rpe_pts, 10, "rated_training_effort"),
         (cns_pts, 10, "explicit_post_session_fatigue"),
     ]
@@ -448,6 +458,7 @@ def run_recovery_agent(
     decision.__dict__["sub_scores"] = {
         "sleep": sleep_pts,
         "soreness": soreness_pts,
+        "energy": energy_pts,
         "volume": vol_pts,
         "nutrition": nutr_pts,
         "rpe": rpe_pts,
