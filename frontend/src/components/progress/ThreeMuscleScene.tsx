@@ -251,6 +251,10 @@ function SceneInvalidationBridge({
   const invalidate = useThree((state) => state.invalidate);
   useEffect(() => {
     invalidateRef.current = invalidate;
+    // A demand-rendered Canvas does not render until invalidated. Request one
+    // mount frame so first-frame readiness, initial layout and accessibility
+    // status can settle even when Reduce Motion is enabled.
+    invalidate();
     return () => { invalidateRef.current = null; };
   }, [invalidate, invalidateRef]);
   return null;
