@@ -207,7 +207,7 @@ async def update_plan_draft(
 ):
     sb = get_supabase()
     user_id = current_user["user_id"]
-    _owned_plan(sb, user_id, plan_id)
+    plan = _owned_plan(sb, user_id, plan_id)
     current = (
         sb.table("workout_plan_versions")
         .select("*")
@@ -225,6 +225,8 @@ async def update_plan_draft(
     data = payload.model_dump()
     workout = data.pop("workout")
     data.pop("change_reason", None)
+    if not data.get("schedule"):
+        data["schedule"] = plan.get("schedule") or {}
     snapshot = {**data, "workout": workout}
     updated = (
         sb.table("workout_plan_versions")
