@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Tabs, router } from 'expo-router';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { storage } from '../../src/utils/storage';
@@ -11,6 +11,7 @@ import { qk } from '../../src/lib/queryKeys';
 import { clearAuthData } from '../../src/utils/auth';
 import { usePrefetchDashboard } from '../../src/hooks/useDashboardQueries';
 import { COLORS, alpha } from '../../src/theme/colors';
+import { FONTS } from '../../src/theme/typography';
 import {
   registerForPushNotificationsAsync,
   attachNotificationResponseHandler,
@@ -32,6 +33,47 @@ const TABS: TabDef[] = [
 ];
 
 const HIDDEN_TABS = ['decisions', 'simulate', 'formanalysis', 'prs'];
+
+function TabBarIcon({
+  tab,
+  color,
+  focused,
+}: {
+  tab: TabDef;
+  color: string;
+  focused: boolean;
+}) {
+  const scale = useRef(new Animated.Value(focused ? 1.04 : 1)).current;
+
+  useEffect(() => {
+    const animation = Animated.spring(scale, {
+      toValue: focused ? 1.05 : 1,
+      useNativeDriver: true,
+      speed: 26,
+      bounciness: 4,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [focused, scale]);
+
+  const isTrainActive = tab.name === 'workout' && focused;
+
+  return (
+    <Animated.View
+      style={[
+        isTrainActive ? styles.trainActiveIcon : focused ? styles.activeIcon : styles.icon,
+        { transform: [{ scale }] },
+      ]}
+    >
+      <Ionicons
+        name={focused ? tab.activeIcon : tab.icon}
+        size={tab.name === 'workout' ? 22 : 20}
+        color={isTrainActive ? COLORS.background : color}
+      />
+      {focused && <View style={styles.activeIndicator} />}
+    </Animated.View>
+  );
+}
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
@@ -164,8 +206,8 @@ export default function TabsLayout() {
           // side gutters. This aligns the app with native Android geometry.
           marginHorizontal: 0,
           marginBottom: 0,
-          backgroundColor: COLORS.background,
-          borderTopColor: COLORS.cardBorder,
+          backgroundColor: COLORS.tabBg,
+          borderTopColor: COLORS.tabBorder,
           borderTopWidth: StyleSheet.hairlineWidth,
           borderLeftWidth: 0,
           borderRightWidth: 0,
@@ -180,6 +222,7 @@ export default function TabsLayout() {
         tabBarActiveTintColor: COLORS.tabActive,
         tabBarInactiveTintColor: COLORS.tabInactive,
         tabBarLabelStyle: {
+          fontFamily: FONTS.semibold,
           fontSize: 10,
           fontWeight: '600',
           letterSpacing: 0.15,
@@ -195,14 +238,7 @@ export default function TabsLayout() {
           options={{
             title: tab.title,
             tabBarIcon: ({ color, focused }) => (
-              <View style={tab.name === 'workout' && focused ? styles.trainActiveIcon : focused ? styles.activeIcon : styles.icon}>
-                <Ionicons
-                  name={focused ? tab.activeIcon : tab.icon}
-                  size={tab.name === 'workout' ? 22 : 20}
-                  color={tab.name === 'workout' && focused ? COLORS.background : color}
-                />
-                {focused && <View style={styles.activeIndicator} />}
-              </View>
+              <TabBarIcon tab={tab} color={color} focused={focused} />
             ),
           }}
         />

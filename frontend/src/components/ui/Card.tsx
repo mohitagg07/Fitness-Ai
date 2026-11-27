@@ -2,11 +2,12 @@
 // Entrance motion is opt-in; keep repeated dashboard surfaces responsive.
 
 import React, { useEffect, useRef } from 'react';
-import { Animated, TouchableOpacity, StyleSheet, ViewStyle, StyleProp, Easing } from 'react-native';
+import { Animated, StyleSheet, ViewStyle, StyleProp, Easing } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, alpha } from '../../theme/colors';
 import { RADIUS, SPACING } from '../../theme/spacing';
 import { ELEVATION } from '../../theme/layout';
+import PressableScale from './PressableScale';
 
 export type CardVariant = 'flat' | 'elevated' | 'outlined' | 'accent' | 'gradient';
 export type CardPadding = 'none' | 'sm' | 'md' | 'lg';
@@ -77,12 +78,12 @@ export default function Card({
   };
 
   const heroShadow: ViewStyle = isHero
-    ? { shadowColor: '#000000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.18, shadowRadius: 18, elevation: 5 }
+    ? { shadowColor: COLORS.background, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.18, shadowRadius: 18, elevation: 5 }
     : {};
 
-  const InnerWrapper = onPress ? TouchableOpacity : Animated.View;
+  const InnerWrapper = onPress ? PressableScale : Animated.View;
   const innerProps = onPress
-    ? { onPress, disabled, activeOpacity: 0.75, testID }
+    ? { onPress, disabled, testID, accessibilityRole: 'button' as const }
     : { testID };
 
   if (variant === 'gradient') {

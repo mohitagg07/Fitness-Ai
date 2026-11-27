@@ -6,12 +6,13 @@
 // TouchableOpacity + custom pill styling on the screen itself.
 
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, StyleProp, ViewStyle } from 'react-native';
+import { Text, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, alpha } from '../../theme/colors';
 import { FONTS } from '../../theme/typography';
 import { RADIUS, SPACING } from '../../theme/spacing';
 import { ICON_SIZE } from '../../theme/layout';
+import PressableScale from './PressableScale';
 
 interface ChipProps {
   label: string;
@@ -33,10 +34,11 @@ export default function Chip({
   style,
 }: ChipProps) {
   return (
-    <TouchableOpacity
+    <PressableScale
       onPress={onPress}
       disabled={disabled}
-      activeOpacity={0.7}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityState={{ disabled: !!disabled }}
       style={[
         styles.wrap,
         {
@@ -51,7 +53,7 @@ export default function Chip({
       <Text style={[styles.label, { color: selected ? color : COLORS.textSecondary }]} numberOfLines={1}>
         {label}
       </Text>
-    </TouchableOpacity>
+    </PressableScale>
   );
 }
 
@@ -60,7 +62,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.xs + 2,
-    paddingVertical: 9,
+    minHeight: 44,
+    paddingVertical: 8,
     paddingHorizontal: SPACING.md,
     borderRadius: RADIUS.badge + 4,
     borderWidth: 1,
@@ -68,6 +71,6 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: FONTS.medium,
     fontWeight: '600',
-    fontSize: 13,
+    fontSize: 12,
   },
 });

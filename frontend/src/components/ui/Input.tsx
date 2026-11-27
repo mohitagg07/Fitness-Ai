@@ -9,6 +9,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { COLORS, alpha } from '../../theme/colors';
+import { FONTS } from '../../theme/typography';
 import { RADIUS, SPACING } from '../../theme/spacing';
 
 export interface InputProps extends TextInputProps {
@@ -42,7 +43,8 @@ const Input = forwardRef<TextInput, InputProps>(function Input(
 const styles = StyleSheet.create({
   label: {
     color: COLORS.textSecondary,
-    fontSize: 12,
+    fontFamily: FONTS.semibold,
+    fontSize: 11,
     fontWeight: '600',
     marginBottom: SPACING.xs,
   },
@@ -55,7 +57,10 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.sm,
-    fontSize: 15,
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    lineHeight: 20,
+    letterSpacing: 0,
   },
   inputError: { borderColor: COLORS.recoveryLow },
   error: { color: COLORS.recoveryLow, fontSize: 12, marginTop: SPACING.xs },

@@ -16,7 +16,7 @@
 
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, TouchableOpacity,
+  View, Text, ScrollView, StyleSheet,
   Alert, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
@@ -35,6 +35,8 @@ import {
   useProfileMe, useProfilePRs, useUpdateProfile, useUploadAvatar, useDeleteInjury, useAddInjury,
 } from '../../hooks/useProfileQueries';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
+import PressableScale from '../ui/PressableScale';
+import Reveal from '../shared/Reveal';
 
 const APP_VERSION = '1.0.0';
 
@@ -221,10 +223,10 @@ export default function ProfileScreen() {
     return (
       <View style={[styles.center, { padding: 32 }]}>
         <Ionicons name="cloud-offline-outline" size={32} color={COLORS.textMuted} />
-        <Text style={{ color: COLORS.textSecondary, fontSize: 13, textAlign: 'center', marginTop: 12 }}>{errorMsg}</Text>
-        <TouchableOpacity style={styles.retryBtn} onPress={() => refetchMe()}>
-          <Text style={{ color: COLORS.primaryGreen, fontSize: 13, fontWeight: '700' }}>Retry</Text>
-        </TouchableOpacity>
+        <Text style={{ color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 12, textAlign: 'center', marginTop: 12 }}>{errorMsg}</Text>
+        <PressableScale style={styles.retryBtn} onPress={() => refetchMe()}>
+          <Text style={{ color: COLORS.primaryGreen, fontFamily: FONTS.semibold, fontSize: 12, fontWeight: '600' }}>Retry</Text>
+        </PressableScale>
       </View>
     );
   }
@@ -246,10 +248,10 @@ export default function ProfileScreen() {
         style={styles.container}
         contentContainerStyle={{ width: '100%', maxWidth: responsive.pageMaxWidth, alignSelf: 'center', paddingBottom: responsive.gutter * 2 }}
       >
-        <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+        <Reveal delay={20}><View style={[styles.header, { paddingTop: insets.top + 16 }]}>
           <View style={styles.logoBar}><Logo size="sm" /></View>
 
-          <TouchableOpacity style={styles.avatarWrap} onPress={pickAvatar} disabled={uploadingAvatar}>
+          <PressableScale style={styles.avatarWrap} onPress={pickAvatar} disabled={uploadingAvatar}>
             {profile.avatar_url ? (
               <Image
                 source={{ uri: profile.avatar_url }}
@@ -271,7 +273,7 @@ export default function ProfileScreen() {
                 <Ionicons name="camera" size={14} color={COLORS.background} />
               )}
             </View>
-          </TouchableOpacity>
+          </PressableScale>
 
           <Text style={styles.name}>{user?.full_name || profile?.full_name || 'Athlete'}</Text>
           <Text style={styles.email}>{user?.email}</Text>
@@ -284,10 +286,10 @@ export default function ProfileScreen() {
             </View>
           )}
 
-          <TouchableOpacity style={styles.editBtn} onPress={() => setEditVisible(true)}>
+          <PressableScale style={styles.editBtn} onPress={() => setEditVisible(true)}>
             <Ionicons name="create-outline" size={14} color={COLORS.primaryGreen} />
             <Text style={styles.editBtnText}>Edit Profile</Text>
-          </TouchableOpacity>
+          </PressableScale>
 
           {(workoutStreak != null || sessionsThisWeek != null) && (
             <View style={styles.streakStrip}>
@@ -305,16 +307,17 @@ export default function ProfileScreen() {
               )}
             </View>
           )}
-        </View>
+        </View></Reveal>
 
         {/* Body stats */}
-        <View style={styles.statsRow}>
+        <Reveal delay={90}><View style={styles.statsRow}>
           <Stat label="WEIGHT" value={profile.weight_kg ? `${profile.weight_kg} kg` : '—'} />
           <Stat label="HEIGHT" value={profile.height_cm ? `${profile.height_cm} cm` : '—'} />
           <Stat label="AGE" value={profile.age ? `${profile.age}` : '—'} />
           <Stat label="BMI" value={bmi ? `${bmi}` : '—'} />
-        </View>
+        </View></Reveal>
 
+        <Reveal delay={135}>
         {/* Training preferences */}
         <View style={styles.card}>
           <View style={styles.cardLabelRow}>
@@ -381,9 +384,9 @@ export default function ProfileScreen() {
                     {inj.severity}/10
                   </Text>
                 </View>
-                <TouchableOpacity onPress={() => deleteInjury(inj.id)} style={{ marginLeft: 10 }}>
+                <PressableScale onPress={() => deleteInjury(inj.id)} style={{ marginLeft: 10 }}>
                   <Ionicons name="close-circle-outline" size={18} color={COLORS.textMuted} />
-                </TouchableOpacity>
+                </PressableScale>
               </View>
             ))
           ) : (
@@ -411,16 +414,18 @@ export default function ProfileScreen() {
             <Ionicons name="options-outline" size={13} color={COLORS.textSecondary} />
             <Text style={styles.cardLabel}>SETTINGS</Text>
           </View>
-          <TouchableOpacity style={styles.settingsRow} onPress={() => setEditVisible(true)}>
+          <PressableScale style={styles.settingsRow} onPress={() => setEditVisible(true)}>
             <Text style={styles.settingsRowText}>Edit Profile</Text>
             <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
-          </TouchableOpacity>
+          </PressableScale>
         </View>
 
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+        </Reveal>
+
+        <PressableScale style={styles.logoutBtn} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={16} color={COLORS.recoveryLow} />
           <Text style={styles.logoutText}>Log Out</Text>
-        </TouchableOpacity>
+        </PressableScale>
 
         <Text style={styles.versionText}>v{APP_VERSION}</Text>
         <View style={{ height: 32 }} />
@@ -482,10 +487,10 @@ function AddInjuryRow() {
 
   if (!open) {
     return (
-      <TouchableOpacity style={styles.addRowBtn} onPress={() => setOpen(true)}>
+      <PressableScale style={styles.addRowBtn} onPress={() => setOpen(true)}>
         <Ionicons name="add-circle-outline" size={16} color={COLORS.primaryGreen} />
         <Text style={styles.addRowText}>Add injury</Text>
-      </TouchableOpacity>
+      </PressableScale>
     );
   }
 
@@ -495,15 +500,15 @@ function AddInjuryRow() {
       <TextInput style={styles.smallInput} placeholder="Issue (e.g. impingement)" placeholderTextColor={COLORS.textMuted} value={issueType} onChangeText={setIssueType} />
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <TextInput style={[styles.smallInput, { flex: 0, width: 70 }]} placeholder="1-10" placeholderTextColor={COLORS.textMuted} value={severity} onChangeText={setSeverity} keyboardType="numeric" />
-        <Text style={{ color: COLORS.textMuted, fontSize: 12 }}>severity</Text>
+        <Text style={{ color: COLORS.textMuted, fontFamily: FONTS.medium, fontSize: 11 }}>severity</Text>
       </View>
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
-        <TouchableOpacity style={styles.cancelBtn} onPress={() => setOpen(false)}>
+        <PressableScale style={styles.cancelBtn} onPress={() => setOpen(false)}>
           <Text style={styles.cancelBtnText}>Cancel</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.saveSmallBtn} onPress={save} disabled={saving}>
+        </PressableScale>
+        <PressableScale style={styles.saveSmallBtn} onPress={save} disabled={saving}>
           {saving ? <ActivityIndicator size="small" color={COLORS.background} /> : <Text style={styles.saveSmallBtnText}>Save</Text>}
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     </View>
   );
@@ -569,11 +574,11 @@ function EditProfileModal({
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1, backgroundColor: COLORS.background }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={[styles.modalHeader, { paddingTop: insets.top + 14 }]}>
-          <TouchableOpacity onPress={onClose}><Text style={styles.modalCancel}>Cancel</Text></TouchableOpacity>
+          <PressableScale onPress={onClose}><Text style={styles.modalCancel}>Cancel</Text></PressableScale>
           <Text style={styles.modalTitle}>Edit Profile</Text>
-          <TouchableOpacity onPress={save} disabled={saving}>
+          <PressableScale onPress={save} disabled={saving}>
             {saving ? <ActivityIndicator size="small" color={COLORS.primaryGreen} /> : <Text style={styles.modalSave}>Save</Text>}
-          </TouchableOpacity>
+          </PressableScale>
         </View>
 
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
@@ -615,13 +620,13 @@ function EditProfileModal({
 
             <FieldLabel text={`Workout days / week: ${form.workout_days_per_week ?? 4}`} />
             <View style={styles.stepperRow}>
-              <TouchableOpacity style={styles.stepperBtn} onPress={() => set('workout_days_per_week', Math.max(1, (form.workout_days_per_week || 4) - 1))}>
+              <PressableScale style={styles.stepperBtn} onPress={() => set('workout_days_per_week', Math.max(1, (form.workout_days_per_week || 4) - 1))}>
                 <Ionicons name="remove" size={16} color={COLORS.text} />
-              </TouchableOpacity>
+              </PressableScale>
               <Text style={styles.stepperValue}>{form.workout_days_per_week ?? 4}</Text>
-              <TouchableOpacity style={styles.stepperBtn} onPress={() => set('workout_days_per_week', Math.min(7, (form.workout_days_per_week || 4) + 1))}>
+              <PressableScale style={styles.stepperBtn} onPress={() => set('workout_days_per_week', Math.min(7, (form.workout_days_per_week || 4) + 1))}>
                 <Ionicons name="add" size={16} color={COLORS.text} />
-              </TouchableOpacity>
+              </PressableScale>
             </View>
 
             <FieldLabel text="Equipment you have access to" />
@@ -631,9 +636,9 @@ function EditProfileModal({
                   (value) => normalizeEquipmentKey(value) === item.value
                 );
                 return (
-                  <TouchableOpacity key={item.value} style={[styles.chip, active && styles.chipActive]} onPress={() => toggleEquipment(item.value)}>
+                  <PressableScale key={item.value} style={[styles.chip, active && styles.chipActive]} onPress={() => toggleEquipment(item.value)}>
                     <Text style={[styles.chipText, active && styles.chipTextActive]}>{item.label}</Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 );
               })}
             </View>
@@ -683,11 +688,11 @@ function SegmentedRow({ options, value, onChange, wrapLabels }: { options: strin
       {options.map((opt) => {
         const active = value === opt;
         return (
-          <TouchableOpacity key={opt} style={[styles.segment, active && styles.segmentActive]} onPress={() => onChange(opt)}>
+          <PressableScale key={opt} style={[styles.segment, active && styles.segmentActive]} onPress={() => onChange(opt)}>
             <Text style={[styles.segmentText, active && styles.segmentTextActive]} numberOfLines={wrapLabels ? 2 : 1}>
               {cap(opt.replace(/_/g, ' '))}
             </Text>
-          </TouchableOpacity>
+          </PressableScale>
         );
       })}
     </View>
@@ -707,7 +712,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.cardElevated, borderWidth: 2, borderColor: COLORS.primaryGreen,
     alignItems: 'center', justifyContent: 'center',
   },
-  avatarText: { color: COLORS.primaryGreen, fontSize: 34, fontWeight: '800' },
+  avatarText: { color: COLORS.primaryGreen, fontFamily: FONTS.numericBold, fontSize: 34, fontWeight: '700' },
   avatarEditBadge: {
     position: 'absolute', bottom: 0, right: 0,
     width: 28, height: 28, borderRadius: 14,
@@ -715,13 +720,13 @@ const styles = StyleSheet.create({
     borderWidth: 3, borderColor: COLORS.background,
   },
 
-  name: { color: COLORS.text, fontSize: 25, fontWeight: '700', marginBottom: 4, letterSpacing: -0.4 },
-  email: { color: COLORS.textMuted, fontSize: 13, marginBottom: 12 },
+  name: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 27, fontWeight: '600', marginBottom: 4, letterSpacing: -0.5 },
+  email: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 12, marginBottom: 12 },
   goalBadge: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 14 },
-  goalText: { fontSize: 11, fontWeight: '700', letterSpacing: 1 },
+  goalText: { fontFamily: FONTS.bold, fontSize: 9, fontWeight: '700', letterSpacing: 0.9 },
 
   editBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: COLORS.primaryGreen + '50', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 9, backgroundColor: COLORS.primaryGreen + '12' },
-  editBtnText: { color: COLORS.primaryGreen, fontSize: 13, fontWeight: '700' },
+  editBtnText: { color: COLORS.primaryGreen, fontFamily: FONTS.semibold, fontSize: 12, fontWeight: '600' },
 
   streakStrip: { flexDirection: 'row', gap: 8, marginTop: 12 },
   streakChip: {
@@ -729,7 +734,7 @@ const styles = StyleSheet.create({
     borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
     backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.border,
   },
-  streakChipText: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '600' },
+  streakChipText: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 10, fontWeight: '500' },
 
   statsRow: {
     flexDirection: 'row', justifyContent: 'space-around',
@@ -738,48 +743,48 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: COLORS.border,
   },
   stat: { alignItems: 'center' },
-  statValue: { color: COLORS.text, fontSize: 17, fontWeight: '700' },
-  statLabel: { color: COLORS.textMuted, fontSize: 10, marginTop: 2, letterSpacing: 0.5 },
+  statValue: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 17, fontWeight: '600' },
+  statLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, marginTop: 3, letterSpacing: 0.7 },
 
   card: {
     backgroundColor: COLORS.cardElevated, borderRadius: 16,
     padding: 16, marginHorizontal: 16, marginBottom: 12,
     borderWidth: 1, borderColor: COLORS.border,
   },
-  cardLabel: { color: COLORS.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1.5 },
+  cardLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 9, fontWeight: '700', letterSpacing: 1.2 },
   cardLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
 
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  detailLabel: { color: COLORS.textSecondary, fontSize: 13 },
-  detailValue: { color: COLORS.text, fontSize: 13, fontWeight: '600' },
+  detailLabel: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 12 },
+  detailValue: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 12, fontWeight: '600' },
 
-  emptyHint: { color: COLORS.textMuted, fontSize: 12.5, lineHeight: 18 },
+  emptyHint: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 12, lineHeight: 18 },
 
   prRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  prName: { color: COLORS.textSecondary, fontSize: 14 },
-  prWeight: { color: COLORS.primaryGreen, fontSize: 14, fontWeight: '700' },
+  prName: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 12 },
+  prWeight: { color: COLORS.primaryGreen, fontFamily: FONTS.numericSemibold, fontSize: 13, fontWeight: '600' },
 
   injuryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  injuryPart: { color: COLORS.textSecondary, fontSize: 14, fontWeight: '600' },
-  injuryType: { color: COLORS.textSecondary, fontSize: 12, marginTop: 2 },
+  injuryPart: { color: COLORS.textSecondary, fontFamily: FONTS.semibold, fontSize: 12, fontWeight: '600' },
+  injuryType: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 11, marginTop: 3 },
   severityBadge: { borderRadius: 8, padding: 6 },
-  severityText: { fontSize: 12, fontWeight: '700' },
+  severityText: { fontFamily: FONTS.bold, fontSize: 10, fontWeight: '700' },
 
   addRowBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
-  addRowText: { color: COLORS.primaryGreen, fontSize: 13, fontWeight: '600' },
+  addRowText: { color: COLORS.primaryGreen, fontFamily: FONTS.semibold, fontSize: 12, fontWeight: '600' },
   addInjuryForm: { marginTop: 12, gap: 8 },
-  smallInput: { backgroundColor: COLORS.inputBg, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: COLORS.text, fontSize: 13, borderWidth: 1, borderColor: COLORS.border },
+  smallInput: { backgroundColor: COLORS.inputBg, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: COLORS.text, fontFamily: FONTS.regular, fontSize: 13, borderWidth: 1, borderColor: COLORS.border },
   cancelBtn: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border },
-  cancelBtnText: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '600' },
+  cancelBtnText: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 12, fontWeight: '500' },
   saveSmallBtn: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 10, backgroundColor: COLORS.primaryGreen },
-  saveSmallBtnText: { color: COLORS.background, fontSize: 13, fontWeight: '700' },
+  saveSmallBtnText: { color: COLORS.background, fontFamily: FONTS.bold, fontSize: 12, fontWeight: '700' },
 
   tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tag: { backgroundColor: COLORS.card, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
-  tagText: { color: COLORS.textSecondary, fontSize: 12 },
+  tagText: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 11 },
 
   settingsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
-  settingsRowText: { color: COLORS.text, fontSize: 14 },
+  settingsRowText: { color: COLORS.text, fontFamily: FONTS.medium, fontSize: 13 },
 
   logoutBtn: {
     margin: 16, backgroundColor: COLORS.cardElevated,
@@ -787,8 +792,8 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: alpha(COLORS.recoveryLow, 0.22),
     flexDirection: 'row', justifyContent: 'center', gap: 8,
   },
-  logoutText: { color: COLORS.recoveryLow, fontSize: 14, fontWeight: '600' },
-  versionText: { textAlign: 'center', color: COLORS.textDim, fontSize: 11, marginBottom: 8 },
+  logoutText: { color: COLORS.recoveryLow, fontFamily: FONTS.semibold, fontSize: 13, fontWeight: '600' },
+  versionText: { textAlign: 'center', color: COLORS.textDim, fontFamily: FONTS.medium, fontSize: 10, marginBottom: 8 },
   retryBtn: { marginTop: 16, backgroundColor: COLORS.cardElevated, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 10, borderWidth: 1, borderColor: COLORS.border },
 
   // Modal
@@ -797,26 +802,26 @@ const styles = StyleSheet.create({
     paddingBottom: 14, paddingHorizontal: 18,
     borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
-  modalTitle: { color: COLORS.text, fontSize: 16, fontWeight: '700' },
-  modalCancel: { color: COLORS.textSecondary, fontSize: 14 },
-  modalSave: { color: COLORS.primaryGreen, fontSize: 14, fontWeight: '700' },
+  modalTitle: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 17, fontWeight: '600' },
+  modalCancel: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 13 },
+  modalSave: { color: COLORS.primaryGreen, fontFamily: FONTS.semibold, fontSize: 13, fontWeight: '600' },
 
-  sectionTitle: { color: COLORS.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1.5, marginBottom: 12 },
-  fieldLabel: { color: COLORS.textSecondary, fontSize: 12, marginBottom: 6, marginTop: 12 },
-  input: { backgroundColor: COLORS.inputBg, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, color: COLORS.text, fontSize: 14, borderWidth: 1, borderColor: COLORS.border },
+  sectionTitle: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 9, fontWeight: '700', letterSpacing: 1.2, marginBottom: 12 },
+  fieldLabel: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 11, marginBottom: 6, marginTop: 12 },
+  input: { backgroundColor: COLORS.inputBg, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: COLORS.text, fontFamily: FONTS.regular, fontSize: 14, borderWidth: 1, borderColor: COLORS.border },
 
   segmentedRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   segment: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: COLORS.inputBg },
   segmentActive: { borderColor: COLORS.primaryGreen, backgroundColor: COLORS.primaryGreen + '18' },
-  segmentText: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '600' },
+  segmentText: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 11, fontWeight: '500' },
   segmentTextActive: { color: COLORS.primaryGreen },
 
   stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 4 },
   stepperBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
-  stepperValue: { color: COLORS.text, fontSize: 16, fontWeight: '700', width: 24, textAlign: 'center' },
+  stepperValue: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 16, fontWeight: '600', width: 24, textAlign: 'center' },
 
   chip: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: COLORS.inputBg },
   chipActive: { borderColor: COLORS.primaryGreen, backgroundColor: COLORS.primaryGreen + '18' },
-  chipText: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '600' },
+  chipText: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 11, fontWeight: '500' },
   chipTextActive: { color: COLORS.primaryGreen },
 });

@@ -9,9 +9,9 @@
 // release) on top of the existing opacity dim — the tactile "this is a
 // real button" feedback a premium product needs, not just a color change.
 
-import React, { useRef } from 'react';
+import React from 'react';
 import {
-  TouchableOpacity, Animated, Text, StyleSheet, ActivityIndicator, ViewStyle, StyleProp,
+  Text, StyleSheet, ActivityIndicator, ViewStyle, StyleProp,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +19,7 @@ import { COLORS, alpha } from '../../theme/colors';
 import { FONTS } from '../../theme/typography';
 import { RADIUS, SPACING } from '../../theme/spacing';
 import { ICON_SIZE, ELEVATION } from '../../theme/layout';
+import PressableScale from './PressableScale';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 export type ButtonSize = 'sm' | 'md' | 'lg';
@@ -43,8 +44,6 @@ const SIZE_MAP: Record<ButtonSize, { height: number; paddingH: number; fontSize:
   lg: { height: 54, paddingH: 22, fontSize: 15, iconSize: ICON_SIZE.sm },
 };
 
-const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
-
 // Rendered dozens of times per screen (every CTA, card action, and form
 // control in the app goes through this one component), so a plain
 // function export meant every parent re-render reconciled every Button
@@ -67,17 +66,8 @@ function Button({
 }: ButtonProps) {
   const s = SIZE_MAP[size];
   const isDisabled = disabled || loading;
-  const scale = useRef(new Animated.Value(1)).current;
-
-  const pressIn = () => {
-    Animated.spring(scale, { toValue: 0.98, useNativeDriver: true, speed: 45, bounciness: 2 }).start();
-  };
-  const pressOut = () => {
-    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 35, bounciness: 3 }).start();
-  };
-
   const textColor =
-    variant === 'primary' ? '#000000'
+    variant === 'primary' ? COLORS.background
     : variant === 'danger' ? COLORS.text
     : accentColor;
 
@@ -108,73 +98,70 @@ function Button({
     width: fullWidth ? '100%' : undefined,
   };
 
-  const scaleStyle = { transform: [{ scale }] };
-  const pressHandlers = { onPressIn: pressIn, onPressOut: pressOut };
-
   if (variant === 'primary') {
     return (
-      <AnimatedTouchable
+      <PressableScale
         onPress={onPress}
         disabled={isDisabled}
-        activeOpacity={0.9}
-        {...pressHandlers}
-        style={[styles.base, shape, ELEVATION.glow(accentColor) as any, scaleStyle, style]}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ disabled: isDisabled }}
+        style={[styles.base, shape, ELEVATION.glow(accentColor) as any, style]}
       >
         <LinearGradient
           colors={[accentColor, alpha(accentColor, 0.7)]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
+          style={[StyleSheet.absoluteFill, { borderRadius: RADIUS.button }]}
         />
         {content}
-      </AnimatedTouchable>
+      </PressableScale>
     );
   }
 
   if (variant === 'danger') {
     return (
-      <AnimatedTouchable
+      <PressableScale
         onPress={onPress}
         disabled={isDisabled}
-        activeOpacity={0.9}
-        {...pressHandlers}
-        style={[styles.base, shape, { backgroundColor: COLORS.recoveryLow }, scaleStyle, style]}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ disabled: isDisabled }}
+        style={[styles.base, shape, { backgroundColor: COLORS.recoveryLow }, style]}
       >
         {content}
-      </AnimatedTouchable>
+      </PressableScale>
     );
   }
 
   if (variant === 'secondary') {
     return (
-      <AnimatedTouchable
+      <PressableScale
         onPress={onPress}
         disabled={isDisabled}
-        activeOpacity={0.85}
-        {...pressHandlers}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ disabled: isDisabled }}
         style={[
           styles.base, shape,
           { backgroundColor: 'transparent', borderWidth: 1, borderColor: alpha(accentColor, 0.5) },
-          scaleStyle,
           style,
         ]}
       >
         {content}
-      </AnimatedTouchable>
+      </PressableScale>
     );
   }
 
   // ghost
   return (
-    <AnimatedTouchable
+    <PressableScale
       onPress={onPress}
       disabled={isDisabled}
-      activeOpacity={0.75}
-      {...pressHandlers}
-      style={[styles.base, shape, { backgroundColor: alpha(accentColor, 0.09) }, scaleStyle, style]}
+      style={[styles.base, shape, { backgroundColor: alpha(accentColor, 0.09) }, style]}
     >
       {content}
-    </AnimatedTouchable>
+    </PressableScale>
   );
 }
 

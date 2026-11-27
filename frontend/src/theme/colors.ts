@@ -66,6 +66,9 @@ export const COLORS = {
   carbs:    '#A8CF83',
   fat:      '#83B4D8',
   water:    '#82B9D7',
+
+  // Shared depth for movement pictogram tiles and 3D detail wells.
+  movementTileEnd: '#17271D',
 };
 
 /** Returns the semantic recovery color for a 0–100 score. */
