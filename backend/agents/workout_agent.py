@@ -1,16 +1,9 @@
 """
-Workout Agent — decides what today's training should be instead of waiting
-to be asked. Reads the active workout_plans schedule, checks whether
-yesterday's planned session was actually completed, and either confirms
-today's plan or reschedules a missed day.
+Workout Agent — recommends today's scheduled workout without silently moving sessions.
 
-"You missed leg day yesterday. Rescheduling it for today at 6 PM."
-
-Also reads the cached Habit Intelligence profile (agents/habit_engine.py)
-so a reschedule onto a day the user habitually skips gets an honest heads-
-up instead of silently repeating the same miss next week — this is the
-part of Habit Intelligence that actually changes a decision, not just a
-display card.
+A missed workout is reported as context. It is never moved to another day
+or substituted for today's plan without an explicit athlete-approved
+schedule change.
 """
 from datetime import date, timedelta
 from schemas.models import WorkoutDecision
@@ -50,9 +43,28 @@ def _planned_type_for(schedule: dict, on_date: date) -> str | None:
     return (schedule or {}).get(key)
 
 
-def run_workout_agent(user_id: str, preferred_time: str | None = None) -> WorkoutDecision:
+def _was_session_missed(session: dict | None) -> bool:
+    """Only absent or explicitly unfinished terminal sessions count as missed.
+
+    Active/paused sessions are unresolved work and must not be duplicated by
+    suggesting another copy on a different day.
+    """
+    if session is None:
+        return True
+    if session.get("completed") is True:
+        return False
+    if session.get("status") in {"active", "paused"}:
+        return False
+    return True
+
+
+def run_workout_agent(
+    user_id: str,
+    preferred_time: str | None = None,
+    target_date: date | None = None,
+) -> WorkoutDecision:
     plan = _active_plan(user_id)
-    today = date.today()
+    today = target_date or date.today()
     yesterday = today - timedelta(days=1)
 
     if not plan:
@@ -66,53 +78,59 @@ def run_workout_agent(user_id: str, preferred_time: str | None = None) -> Workou
     today_planned = _planned_type_for(schedule, today)
     yesterday_planned = _planned_type_for(schedule, yesterday)
 
-    # Check whether yesterday's planned session (if any, and not "rest") was completed
     missed_yesterday = False
     if yesterday_planned and yesterday_planned.lower() != "rest":
-        y_session = _session_on(user_id, yesterday)
-        if not y_session or not y_session.get("completed"):
-            missed_yesterday = True
+        yesterday_session = _session_on(user_id, yesterday)
+        missed_yesterday = _was_session_missed(yesterday_session)
 
     time_str = f" at {preferred_time}" if preferred_time else ""
 
-    if missed_yesterday:
-        message = (
-            f"You missed {yesterday_planned.replace('_', ' ').title()} day yesterday. "
-            f"Rescheduling it for today{time_str}."
-        )
-        today_name = today.strftime("%A")
-        try:
-            from agents.habit_engine import get_cached_habit_profile
-            habits = get_cached_habit_profile(user_id)
-            if habits.get("has_data") and today_name in habits.get("avoided_days", []):
+    # Today's recorded completion takes precedence over any missed previous day.
+    today_session = None
+    if today_planned and today_planned.lower() != "rest":
+        today_session = _session_on(user_id, today)
+        if today_session and today_session.get("completed"):
+            message = (
+                f"{today_planned.replace('_', ' ').title()} day is already logged as complete. "
+                "Your schedule is unchanged."
+            )
+            if missed_yesterday:
                 message += (
-                    f" Heads up — {today_name}s are usually a day you skip too. "
-                    f"If today's tight, moving this to tomorrow now beats missing it again."
+                    f" Yesterday's {yesterday_planned.replace('_', ' ').title()} session "
+                    "was not logged as complete and has not been moved."
                 )
-        except Exception:
-            pass  # habit profile is a nudge, never a hard dependency for the core reschedule decision
-        return WorkoutDecision(
-            message=message,
-            rescheduled=True,
-            recommended_type=yesterday_planned,
-        )
+            return WorkoutDecision(
+                message=message,
+                rescheduled=False,
+                recommended_type=today_planned,
+            )
 
     if not today_planned or today_planned.lower() == "rest":
+        if missed_yesterday:
+            message = (
+                f"Yesterday's {yesterday_planned.replace('_', ' ').title()} session "
+                "was not logged as complete. Today remains a scheduled rest day; "
+                "nothing has been moved and your weekly plan is unchanged."
+            )
+        else:
+            message = "Today is a scheduled rest day. Recovery is part of the plan — take it."
         return WorkoutDecision(
-            message="Today is a scheduled rest day. Recovery is part of the plan — take it.",
+            message=message,
             rescheduled=False,
             recommended_type="rest",
         )
 
-    today_session = _session_on(user_id, today)
-    if today_session and today_session.get("completed"):
-        return WorkoutDecision(
-            message=f"{today_planned.replace('_', ' ').title()} day is already logged as complete. Nice work.",
-            rescheduled=False,
-            recommended_type=today_planned,
+    today_label = today_planned.replace("_", " ").title()
+    if missed_yesterday:
+        missed_label = yesterday_planned.replace("_", " ").title()
+        message = (
+            f"Yesterday's {missed_label} session was not logged as complete. "
+            f"Today's scheduled {today_label} remains unchanged. "
+            "The missed session has not been rescheduled; move it only after you approve a schedule change."
         )
+    else:
+        message = f"{today_label} day is on schedule for today{time_str}."
 
-    message = f"{today_planned.replace('_', ' ').title()} day is on schedule for today{time_str}."
     return WorkoutDecision(
         message=message,
         rescheduled=False,
