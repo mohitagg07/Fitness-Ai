@@ -12,7 +12,10 @@ FIXES applied in this version:
      silently inserting NULL which broke per-day history queries).
 """
 import asyncio
+import json
+import math
 from datetime import date, timedelta
+from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, HTTPException
 from schemas.models import NutritionCreate, Goal
 from core.security import get_current_user
@@ -26,6 +29,122 @@ router = APIRouter(tags=["Nutrition"])
 
 
 # ─── Targets ─────────────────────────────────────────────────────────────────
+
+class FoodEstimateRequest(BaseModel):
+    food_name: str = Field(min_length=2, max_length=120)
+    portion: str = Field(min_length=1, max_length=100)
+    preparation: str | None = Field(default=None, max_length=240)
+
+
+@router.post("/estimate")
+async def estimate_food_nutrition(
+    payload: FoodEstimateRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Return a clearly-labelled AI estimate for food not found in a database.
+
+    No values are persisted here: the user reviews the assumptions and
+    explicitly confirms before the frontend submits /nutrition/log.
+    """
+    prompt = f"""Estimate nutrition for this food portion, using plausible common recipes and portions.
+Food: {payload.food_name}
+Amount eaten: {payload.portion}
+Preparation/details: {payload.preparation or "Not provided"}
+
+Return ONLY one JSON object with:
+{{
+  "calories": integer,
+  "protein_g": number,
+  "carbs_g": number,
+  "fat_g": number,
+  "confidence": "low" or "medium",
+  "assumptions": ["short concrete assumptions, 1-3 items"],
+  "portion_summary": "short description of the assumed portion"
+}}
+
+Rules:
+- These are estimates, not laboratory values or exact measurements.
+- Prefer conservative, realistic estimates. Do not claim high confidence.
+- For fried food, account for batter and absorbed oil; for mixed dishes, explain recipe variation.
+- Do not invent a precise weight when the user gave only pieces or a bowl; state the assumed size.
+- All nutrient values must be non-negative and plausible for the stated portion.
+- Calories should broadly agree with protein*4 + carbs*4 + fat*9. Return no extra text."""
+
+    def run_estimate() -> dict:
+        from agents.coach_agent import get_llm
+        from langchain_core.messages import HumanMessage
+
+        response = get_llm().invoke([HumanMessage(content=prompt)])
+        content = response.content
+        raw = (
+            "\\n".join(
+                str(part.get("text", "")) if isinstance(part, dict) else str(part)
+                for part in content
+            ).strip()
+            if isinstance(content, list)
+            else str(content or "").strip()
+        )
+        cleaned = raw.replace("```json", "").replace("```", "").strip()
+        try:
+            parsed = json.loads(cleaned)
+        except json.JSONDecodeError:
+            start = cleaned.find("{")
+            if start < 0:
+                raise ValueError("Nutrition estimate was not valid JSON")
+            parsed, _ = json.JSONDecoder().raw_decode(cleaned[start:])
+        if not isinstance(parsed, dict):
+            raise ValueError("Nutrition estimate must be an object")
+
+        values = {}
+        limits = {"calories": 3000, "protein_g": 250, "carbs_g": 400, "fat_g": 250}
+        for key, maximum in limits.items():
+            value = parsed.get(key)
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"Missing or invalid {key}")
+            if not math.isfinite(float(value)) or value < 0 or value > maximum:
+                raise ValueError(f"Out-of-range {key}")
+            values[key] = int(round(value)) if key == "calories" else round(float(value), 1)
+
+        energy_from_macros = (
+            values["protein_g"] * 4
+            + values["carbs_g"] * 4
+            + values["fat_g"] * 9
+        )
+        if energy_from_macros > 0 and abs(values["calories"] - energy_from_macros) > max(120, energy_from_macros * 0.35):
+            raise ValueError("Nutrition estimate failed its consistency check")
+
+        confidence = parsed.get("confidence")
+        if confidence not in {"low", "medium"}:
+            confidence = "low"
+        assumptions = parsed.get("assumptions")
+        if not isinstance(assumptions, list):
+            assumptions = []
+        safe_assumptions = [
+            str(item).strip()[:160] for item in assumptions
+            if isinstance(item, (str, int, float)) and str(item).strip()
+        ][:3]
+        portion_summary = str(parsed.get("portion_summary") or payload.portion).strip()[:160]
+
+        return {
+            "food_name": payload.food_name.strip(),
+            "portion": payload.portion.strip(),
+            "portion_summary": portion_summary,
+            **values,
+            "confidence": confidence,
+            "assumptions": safe_assumptions,
+            "source": "ai_estimate",
+            "requires_confirmation": True,
+        }
+
+    try:
+        return await asyncio.to_thread(run_estimate)
+    except Exception as exc:
+        logger.warning("Food nutrition estimate failed (%s)", type(exc).__name__)
+        raise HTTPException(
+            status_code=503,
+            detail="VYRN could not estimate this food right now. Try again or choose a database result.",
+        )
+
 
 @router.get("/targets")
 async def get_nutrition_targets(
