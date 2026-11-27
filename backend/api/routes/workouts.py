@@ -912,7 +912,10 @@ async def complete_session(
 
     completed_planned_exercises = sum(1 for item in exercise_review if item["completed"])
     skipped_exercises = sum(1 for item in exercise_review if item["status"] == "skipped")
-    replaced_exercises = sum(1 for item in exercise_review if item["status"] == "replaced")
+    replaced_exercises = sum(
+        1 for item in exercise_review
+        if item["status"] in ("replaced", "replacement_not_logged")
+    )
     planned_vs_actual = {
         "has_plan": bool(planned_exercises),
         "planned_exercises": len(planned_exercises),
