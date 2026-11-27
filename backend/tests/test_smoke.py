@@ -850,3 +850,10 @@ async def test_session_create_uses_idempotent_rpc_when_client_key_is_supplied(mo
     assert captured["params"]["p_user_id"] == "user-123"
     assert captured["params"]["p_plan_version_id"] == "version-123"
     assert captured["params"]["p_client_request_id"] == "device-session-key-123"
+
+
+
+def test_workout_exercise_event_routes_are_registered() -> None:
+    routes = _registered_routes()
+    assert ("GET", "/api/workouts/sessions/{session_id}/exercise-events") in routes
+    assert ("POST", "/api/workouts/sessions/{session_id}/exercise-events") in routes
