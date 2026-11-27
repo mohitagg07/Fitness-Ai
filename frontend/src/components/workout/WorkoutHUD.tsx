@@ -1137,6 +1137,11 @@ function WorkoutHUD() {
         return;
       }
       setMoodPickerVisible(true);
+    } catch {
+      Alert.alert(
+        'Could not sync workout sets',
+        'Your pending sets remain saved on this device. Check the connection and try SYNC again before finishing.'
+      );
     } finally {
       setIsFinishing(false);
     }
