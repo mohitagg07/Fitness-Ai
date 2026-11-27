@@ -259,12 +259,14 @@ function RecoveryScene({
   controls,
   reduceMotion,
   onFirstFrame,
+  onInteraction,
 }: {
   selectedMuscle: MuscleKey;
   musclePalette: MusclePalette;
   controls: MutableRefObject<SceneControls>;
   reduceMotion: boolean;
   onFirstFrame?: () => void;
+  onInteraction?: () => void;
 }) {
   return (
     <>
@@ -362,7 +364,6 @@ export default function ThreeMuscleScene({
         Math.min(0.36, controls.current.startX - gesture.dy * 0.0035),
       );
       invalidateRef.current?.();
-
     },
     onPanResponderRelease: () => { controls.current.dragging = false; },
     onPanResponderTerminate: () => { controls.current.dragging = false; },
