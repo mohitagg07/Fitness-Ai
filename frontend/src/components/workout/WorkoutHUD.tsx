@@ -623,9 +623,30 @@ function WorkoutHUD() {
     try {
       let approvedDraft = draftPlan;
       if (!approvedDraft.approved) {
-        const payload = buildDraftPayload(exercises, approvedDraft);
-        await trainingPlanApi.updateDraft(approvedDraft.planId, approvedDraft.versionId, payload);
-        await trainingPlanApi.approveVersion(approvedDraft.planId, approvedDraft.versionId);
+        // A request may have reached the server even when the client timed out.
+        // Check the active version before trying to edit/approve the same draft.
+        let alreadyActive = false;
+        try {
+          const current = await trainingPlanApi.getActive();
+          const activeVersionId = current.data?.version?.id || current.data?.plan?.current_version_id;
+          alreadyActive = activeVersionId === approvedDraft.versionId;
+        } catch {
+          // The normal update/approve path below will surface a useful error.
+        }
+
+        if (!alreadyActive) {
+          const payload = buildDraftPayload(exercises, approvedDraft);
+          await trainingPlanApi.updateDraft(approvedDraft.planId, approvedDraft.versionId, payload);
+          try {
+            await trainingPlanApi.approveVersion(approvedDraft.planId, approvedDraft.versionId);
+          } catch (approvalError) {
+            // Approval can commit while its HTTP response is lost. Verify the
+            // current version before treating that as a failed approval.
+            const current = await trainingPlanApi.getActive();
+            const activeVersionId = current.data?.version?.id || current.data?.plan?.current_version_id;
+            if (activeVersionId !== approvedDraft.versionId) throw approvalError;
+          }
+        }
         approvedDraft = { ...approvedDraft, approved: true };
         setDraftPlan(approvedDraft);
       }
@@ -636,6 +657,8 @@ function WorkoutHUD() {
         String(now.getMonth() + 1).padStart(2, '0'),
         String(now.getDate()).padStart(2, '0'),
       ].join('-');
+      // client_request_id is stable for this preview. A network retry returns
+      // the already-created session instead of opening a duplicate workout.
       const created = await workoutApi.createSession({
         plan_id: approvedDraft.planId,
         plan_version_id: approvedDraft.versionId,
@@ -656,7 +679,7 @@ function WorkoutHUD() {
       setPlanPreviewVisible(false);
       setDraftPlan(null);
     } catch (error: any) {
-      Alert.alert('Could not start workout', error?.response?.data?.detail || 'The approved plan is saved. Retry to create your session, or close this preview and keep the plan for later.');
+      Alert.alert('Could not start workout', error?.response?.data?.detail || 'Your plan is safe. Check your connection and retry; VYRN will reuse the same session request.');
     } finally {
       setIsApprovingPlan(false);
     }
