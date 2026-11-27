@@ -83,10 +83,10 @@ def compute_cns_load(
 
 # ── Recovery sub-score helpers ────────────────────────────────────────────────
 
-def _sleep_component(sleep_hours: float | None) -> int:
-    """0-30 pts — sleep is the single biggest lever."""
+def _sleep_component(sleep_hours: float | None) -> int | None:
+    """0-30 pts — missing sleep is unknown, not a neutral score."""
     if sleep_hours is None:
-        return 15   # unknown → neutral mid-point
+        return None
     if sleep_hours >= 8:
         return 30
     if sleep_hours >= 7:
@@ -98,8 +98,10 @@ def _sleep_component(sleep_hours: float | None) -> int:
     return 0
 
 
-def _volume_component(recent_volume_kg: float) -> int:
-    """0-20 pts — previous session volume (low volume = more recovered)."""
+def _volume_component(recent_volume_kg: float | None) -> int | None:
+    """0-20 pts — missing training history is unknown."""
+    if recent_volume_kg is None:
+        return None
     if recent_volume_kg <= 0:
         return 20
     if recent_volume_kg < 3000:
@@ -111,18 +113,22 @@ def _volume_component(recent_volume_kg: float) -> int:
     return 4
 
 
-def _nutrition_component(protein_pct: float, calorie_pct: float) -> int:
+def _nutrition_component(protein_pct: float | None, calorie_pct: float | None) -> int | None:
     """
     0-20 pts — eating at/above target accelerates recovery.
     protein_pct / calorie_pct are consumed/target ratios (0-1+).
     """
+    if protein_pct is None or calorie_pct is None:
+        return None
     protein_score = min(1.0, protein_pct) * 12  # up to 12 pts for protein
     calorie_score = min(1.0, calorie_pct) * 8   # up to 8 pts for calories
     return round(protein_score + calorie_score)
 
 
-def _rpe_component(consecutive_high_rpe: int) -> int:
-    """0-15 pts — high-RPE runs compound fatigue."""
+def _rpe_component(consecutive_high_rpe: int | None) -> int | None:
+    """0-15 pts — missing rated sessions are unknown."""
+    if consecutive_high_rpe is None:
+        return None
     if consecutive_high_rpe == 0:
         return 15
     if consecutive_high_rpe == 1:
@@ -134,15 +140,17 @@ def _rpe_component(consecutive_high_rpe: int) -> int:
     return 0
 
 
-def _cns_component(cns_fatigue_score: int) -> int:
-    """0-15 pts — accumulated CNS fatigue from agent_state."""
+def _cns_component(cns_fatigue_score: int | None) -> int | None:
+    """0-15 pts — only an explicitly recorded score is used."""
+    if cns_fatigue_score is None:
+        return None
     # cns_fatigue_score is 0-10; 0 = fresh, 10 = torched
     return max(0, 15 - cns_fatigue_score * 2)
 
 
 # ── Session data helpers ──────────────────────────────────────────────────────
 
-def _last_session_volume(user_id: str) -> float:
+def _last_session_volume(user_id: str) -> float | None:
     """Total volume (kg) from the most recently completed session."""
     sb = get_supabase()
     res = (
@@ -155,17 +163,17 @@ def _last_session_volume(user_id: str) -> float:
         .execute()
     )
     rows = res.data or []
-    if not rows:
-        return 0.0
-    return float(rows[0].get("total_volume_kg") or 0)
+    if not rows or rows[0].get("total_volume_kg") is None:
+        return None
+    return float(rows[0]["total_volume_kg"])
 
 
 def _nutrition_ratios_today(
     user_id: str,
-    protein_target_g: float,
-    calorie_target: float,
+    protein_target_g: float | None,
+    calorie_target: float | None,
     target_date: date | None = None,
-) -> tuple[float, float]:
+) -> tuple[float | None, float | None]:
     """Returns (protein_pct, calorie_pct) for the athlete's local day."""
     sb = get_supabase()
     today = str(target_date or date.today())
@@ -177,8 +185,8 @@ def _nutrition_ratios_today(
         .execute()
     )
     logs = res.data or []
-    if not logs or protein_target_g <= 0:
-        return 0.5, 0.5   # unknown → neutral
+    if not logs or protein_target_g is None or calorie_target is None or protein_target_g <= 0 or calorie_target <= 0:
+        return None, None
     protein_consumed = sum(l.get("protein_g") or 0 for l in logs)
     calories_consumed = sum(l.get("calories") or 0 for l in logs)
     return (
@@ -202,13 +210,68 @@ def _sessions_last_7_days(user_id: str, target_date: date | None = None) -> int:
 
 
 # ── Main entry point ──────────────────────────────────────────────────────────
+def _recent_rpe_days(user_id: str, target_date: date | None = None) -> int | None:
+    """Count recent high-effort session dates using actual rated sets."""
+    from datetime import datetime, timezone
+
+    sb = get_supabase()
+    end_day = target_date or date.today()
+    cutoff = datetime.combine(
+        end_day - timedelta(days=6),
+        datetime.min.time(),
+        tzinfo=timezone.utc,
+    ).isoformat()
+    result = (
+        sb.table("exercise_logs")
+        .select("rpe, logged_at")
+        .eq("user_id", user_id)
+        .gte("logged_at", cutoff)
+        .execute()
+    )
+    rows = [row for row in (result.data or []) if row.get("rpe") is not None and row.get("logged_at")]
+    if not rows:
+        return None
+    by_day: dict[str, list[float]] = {}
+    for row in rows:
+        try:
+            stamp = datetime.fromisoformat(str(row["logged_at"]).replace("Z", "+00:00"))
+            by_day.setdefault(stamp.date().isoformat(), []).append(float(row["rpe"]))
+        except (TypeError, ValueError):
+            continue
+    if not by_day:
+        return None
+    return sum(1 for values in by_day.values() if sum(values) / len(values) >= 8)
+
+
+def _last_explicit_cns_fatigue(user_id: str) -> int | None:
+    """Use only a stored post-session self-report; never assume a default zero."""
+    sb = get_supabase()
+    result = (
+        sb.table("workout_sessions")
+        .select("cns_fatigue_after")
+        .eq("user_id", user_id)
+        .eq("completed", True)
+        .order("session_date", desc=True)
+        .limit(10)
+        .execute()
+    )
+    for row in (result.data or []):
+        value = row.get("cns_fatigue_after")
+        if value is not None:
+            try:
+                return max(0, min(10, int(value)))
+            except (TypeError, ValueError):
+                continue
+    return None
+
+
 
 def run_recovery_agent(
     user_id: str,
     sleep_hours: float | None,
     planned_workout_type: str | None = None,
-    protein_target_g: float = 160.0,
-    calorie_target: float = 2400.0,
+    protein_target_g: float | None = None,
+    calorie_target: float | None = None,
     target_date: date | None = None,
 ) -> RecoveryDecision:
     """
@@ -225,40 +288,60 @@ def run_recovery_agent(
       sub_scores      — {"sleep", "volume", "nutrition", "rpe", "cns"}
     """
     agent_state = get_agent_state(user_id)
-    cns_fatigue    = agent_state.get("cns_fatigue_score", 0)
-    high_rpe_days  = agent_state.get("consecutive_high_rpe_days", 0)
-    last_rpe       = agent_state.get("last_logged_rpe", 5.0)
-    freq_7d        = _sessions_last_7_days(user_id, target_date)
-
-    recent_volume  = _last_session_volume(user_id)
+    cns_fatigue = _last_explicit_cns_fatigue(user_id)
+    recent_volume = _last_session_volume(user_id)
     protein_pct, calorie_pct = _nutrition_ratios_today(
         user_id, protein_target_g, calorie_target, target_date
     )
+    high_rpe_days = _recent_rpe_days(user_id, target_date)
 
-    # ── Sub-scores ────────────────────────────────────────────────────────────
-    sleep_pts  = _sleep_component(sleep_hours)
-    vol_pts    = _volume_component(recent_volume)
-    nutr_pts   = _nutrition_component(protein_pct, calorie_pct)
-    rpe_pts    = _rpe_component(high_rpe_days)
-    cns_pts    = _cns_component(cns_fatigue)
+    # Missing sources are excluded from the weighted score, never replaced
+    # with midpoint values that could look like measured readiness.
+    sleep_pts = _sleep_component(sleep_hours)
+    vol_pts = _volume_component(recent_volume)
+    nutr_pts = _nutrition_component(protein_pct, calorie_pct)
+    rpe_pts = _rpe_component(high_rpe_days)
+    cns_pts = _cns_component(cns_fatigue)
 
-    score_100 = sleep_pts + vol_pts + nutr_pts + rpe_pts + cns_pts   # 0-100
-    score_10  = round(score_100 / 10)   # 0-10 for backward-compat callers
+    weighted = [
+        (sleep_pts, 30, "profile_sleep_baseline"),
+        (vol_pts, 20, "recent_session_volume"),
+        (nutr_pts, 20, "logged_nutrition"),
+        (rpe_pts, 15, "rated_training_effort"),
+        (cns_pts, 15, "explicit_post_session_fatigue"),
+    ]
+    confidence_pct = sum(weight for value, weight, _ in weighted if value is not None)
+    available_score = sum(value for value, _, _ in weighted if value is not None)
+    data_sources = [name for value, _, name in weighted if value is not None]
+    missing_sources = [name for value, _, name in weighted if value is None]
+
+    score_100 = round(available_score / confidence_pct * 100) if confidence_pct else None
+    score_10 = round(score_100 / 10) if score_100 is not None else 0
+    # This estimate is used only for the CNS-load breakdown, not as evidence
+    # that a user actually reported RPE or fatigue.
+    last_rpe = 5.0
+    freq_7d = _sessions_last_7_days(user_id, target_date)
 
     # ── CNS Load label ────────────────────────────────────────────────────────
     cns_load = compute_cns_load(
-        volume_kg=recent_volume,
+        volume_kg=recent_volume or 0.0,
         avg_rpe=last_rpe,
         frequency_days=freq_7d,
-        consecutive_high_rpe=high_rpe_days,
-        cns_fatigue_score=cns_fatigue,
+        consecutive_high_rpe=high_rpe_days or 0,
+        cns_fatigue_score=cns_fatigue or 0,
     )
 
     # ── Decision ──────────────────────────────────────────────────────────────
     high_intensity_types = {"push", "pull", "legs", "cardio"}
     is_high = (planned_workout_type or "").lower() in high_intensity_types
 
-    if cns_load["label"] == "Very High" or score_100 < 30:
+    if confidence_pct < 60 or score_100 is None:
+        action = "check_in"
+        message = (
+            "I don't have enough recent recovery data to give you a reliable readiness score yet. "
+            "Log your sleep and a few training sessions with effort ratings; follow your approved plan conservatively meanwhile."
+        )
+    elif cns_load["label"] == "Very High" or score_100 < 30:
         action = "deload"
         if is_high:
             message = (
@@ -304,15 +387,18 @@ def run_recovery_agent(
         action=action,
         message=message,
     )
-    # Attach rich data for callers that can use it (Decision Center, notifications)
-    decision.__dict__["score_pct"]  = score_100
-    decision.__dict__["cns_load"]   = cns_load
+    # Attach data provenance and completeness for the dashboard and Coach.
+    decision.__dict__["score_pct"] = score_100 if confidence_pct >= 60 else None
+    decision.__dict__["confidence_pct"] = confidence_pct
+    decision.__dict__["data_sources"] = data_sources
+    decision.__dict__["missing_sources"] = missing_sources
+    decision.__dict__["cns_load"] = cns_load
     decision.__dict__["sub_scores"] = {
-        "sleep":     sleep_pts,
-        "volume":    vol_pts,
+        "sleep": sleep_pts,
+        "volume": vol_pts,
         "nutrition": nutr_pts,
-        "rpe":       rpe_pts,
-        "cns":       cns_pts,
+        "rpe": rpe_pts,
+        "cns": cns_pts,
     }
 
     return decision
