@@ -34,6 +34,7 @@ export default function RecoveryRing({
       animated.setValue(score);
       return undefined;
     }
+    animated.setValue(0);
     const animation = Animated.timing(animated, {
       toValue: score,
       duration: 1100,
