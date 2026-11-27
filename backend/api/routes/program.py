@@ -227,6 +227,7 @@ async def propose_program_rewrite(
             "changes": result.get("changes") or [],
             "explanation": result.get("explanation"),
             "snapshot": draft["out_snapshot"],
+            "previous_snapshot": current_snapshot,
             "requires_approval": True,
         }
     except HTTPException:
