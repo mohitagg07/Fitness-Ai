@@ -1,8 +1,8 @@
 /**
  * VYRN — Adaptive Performance System
- * A calm, premium performance palette: deep forest surfaces, warm mineral
- * text, and a restrained mineral-lime brand accent. Recovery/strain colors
- * remain semantically distinct so data meaning is never sacrificed for style.
+ * A bright, premium performance palette: warm ivory canvas, clean white
+ * surfaces, deep forest-green identity and clear semantic data accents.
+ * Recovery/strain colors remain distinct so meaning stays legible.
  */
 export const COLORS = {
   // Canvas — warm mineral ivory, lifted surfaces and clear separation.
