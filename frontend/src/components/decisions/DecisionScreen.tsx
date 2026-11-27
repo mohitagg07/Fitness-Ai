@@ -349,7 +349,7 @@ const styles = StyleSheet.create({
   },
   accuracyLeft: { flexDirection: 'row', alignItems: 'center' },
   accuracyPct: { color: COLORS.recoveryHigh, fontFamily: FONTS.numericBold, fontSize: 28, fontWeight: '700' },
-  accuracyLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 9, fontWeight: '700', letterSpacing: 1 },
+  accuracyLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 10, fontWeight: '700', letterSpacing: 1 },
   accuracySub: { color: COLORS.textMuted, fontFamily: FONTS.medium, fontSize: 11 },
   errorBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -369,21 +369,21 @@ const styles = StyleSheet.create({
   cardDecision: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 19, fontWeight: '600', lineHeight: 25 },
   confidenceBadge: { alignItems: 'center', justifyContent: 'center' },
   confidencePct: { fontFamily: FONTS.numericBold, fontSize: 21, fontWeight: '700' },
-  confidenceLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, fontWeight: '700', letterSpacing: 0.5 },
+  confidenceLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
   outcomeBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     borderWidth: 1, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10,
     alignSelf: 'flex-start', marginBottom: 12,
   },
   outcomeDot: { width: 6, height: 6, borderRadius: 3 },
-  outcomeText: { fontFamily: FONTS.bold, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
+  outcomeText: { fontFamily: FONTS.bold, fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
   signalsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
   signalPill: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     borderWidth: 1, borderRadius: 8, paddingVertical: 3, paddingHorizontal: 8,
     backgroundColor: COLORS.cardElevated,
   },
-  signalLabel: { color: COLORS.textMuted, fontFamily: FONTS.medium, fontSize: 9, fontWeight: '500' },
+  signalLabel: { color: COLORS.textMuted, fontFamily: FONTS.medium, fontSize: 10, fontWeight: '500' },
   signalValue: { fontFamily: FONTS.numericSemibold, fontSize: 10, fontWeight: '600' },
   whyBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start',
@@ -397,7 +397,7 @@ const styles = StyleSheet.create({
   },
   whyReasoning: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 12, lineHeight: 20 },
   whyRow: { gap: 3 },
-  whyRowLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, fontWeight: '700', letterSpacing: 1 },
+  whyRowLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 10, fontWeight: '700', letterSpacing: 1 },
   whyRowText: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 11, lineHeight: 18 },
   markOutcomeRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4,
