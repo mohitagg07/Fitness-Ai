@@ -16,14 +16,14 @@ FIXES:
      user's streak was permanently 0.
 """
 import asyncio
-from datetime import date, datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import date, datetime, timedelta, timezone
+from fastapi import APIRouter, Body, Depends, HTTPException
 from schemas.models import SetLog
 from core.security import get_current_user
 from db.supabase_client import get_supabase, upsert_agent_state, get_full_user_context
 from services.pr_validator import validate_logged_weight, find_new_personal_records
-from typing import Optional
-from pydantic import BaseModel, Field, field_validator
+from typing import Optional, Literal
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 router = APIRouter(tags=["Workouts"])
 
@@ -32,6 +32,8 @@ router = APIRouter(tags=["Workouts"])
 
 class SessionCreate(BaseModel):
     plan_id: Optional[str] = None
+    plan_version_id: Optional[str] = None
+    client_request_id: Optional[str] = Field(None, min_length=8, max_length=240)
     session_date: Optional[date] = None
     day_label: Optional[str] = Field(None, max_length=50)
     workout_type: Optional[str] = None
@@ -63,6 +65,7 @@ class SetLogRequest(BaseModel):
     tempo: Optional[str] = Field(None, max_length=20)
     to_failure: bool = False
     set_notes: Optional[str] = Field(None, max_length=300)
+    client_request_id: Optional[str] = Field(None, min_length=8, max_length=240)
 
     @field_validator("exercise_name")
     @classmethod
@@ -74,9 +77,36 @@ class SetLogRequest(BaseModel):
 
 
 class SessionCompleteRequest(BaseModel):
-    """Optional finish-summary payload — personal notes entered at the end of a session."""
+    """Optional, user-reported post-workout feedback."""
     cns_fatigue_after: Optional[int] = Field(None, ge=1, le=10)
     session_notes: Optional[str] = Field(None, max_length=1000)
+    mood: Optional[str] = Field(None, pattern="^(great|good|okay|bad)$")
+    session_effort: Optional[int] = Field(None, ge=1, le=10)
+    energy_level: Optional[int] = Field(None, ge=1, le=5)
+    pain_status: Optional[str] = Field(None, pattern="^(none|mild|sharp|worsening)$")
+    pain_notes: Optional[str] = Field(None, max_length=500)
+
+
+class SessionTransitionRequest(BaseModel):
+    action: str = Field(pattern="^(pause|resume|abandon)$")
+
+
+class SessionExerciseEventRequest(BaseModel):
+    action: Literal["skip", "replace"]
+    exercise_name: str = Field(min_length=1, max_length=120)
+    replacement_exercise: Optional[str] = Field(None, min_length=1, max_length=120)
+    reason: Optional[str] = Field(None, max_length=300)
+
+    @model_validator(mode="after")
+    def validate_replacement(self):
+        if self.action == "replace" and not self.replacement_exercise:
+            raise ValueError("A replacement exercise is required.")
+        if self.action == "skip" and self.replacement_exercise:
+            raise ValueError("A skipped exercise cannot include a replacement.")
+        self.exercise_name = self.exercise_name.strip()
+        if self.replacement_exercise:
+            self.replacement_exercise = self.replacement_exercise.strip()
+        return self
 
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
@@ -104,6 +134,29 @@ async def create_session(
 ):
     sb = get_supabase()
     user_id = current_user["user_id"]
+    if payload.client_request_id:
+        try:
+            result = sb.rpc(
+                "create_workout_session_idempotent",
+                {
+                    "p_user_id": user_id,
+                    "p_client_request_id": payload.client_request_id,
+                    "p_session_date": str(payload.session_date) if payload.session_date else None,
+                    "p_plan_version_id": payload.plan_version_id,
+                    "p_day_label": payload.day_label,
+                    "p_workout_type": payload.workout_type,
+                    "p_muscle_groups": payload.muscle_groups,
+                },
+            ).execute()
+        except Exception as exc:
+            message = str(exc).upper()
+            if "PLAN_VERSION_NOT_APPROVED" in message:
+                raise HTTPException(409, "This workout plan version is not approved or is no longer active") from exc
+            raise HTTPException(500, "Could not create the workout session safely") from exc
+        if not result.data:
+            raise HTTPException(500, "Could not create the workout session")
+        return result.data[0]
+
 
     # CRITICAL FIX: model_dump() returns None for optional fields that were
     # not provided. Sending "session_date": None as JSON explicitly sets the
@@ -114,6 +167,33 @@ async def create_session(
     # so the DB default fires correctly.
     data = {k: v for k, v in payload.model_dump().items() if v is not None}
     data["user_id"] = user_id
+
+    # A planned session must come from a version the athlete explicitly approved.
+    # Never accept a workout prescription copied from an untrusted client payload.
+    if payload.plan_version_id:
+        version_res = (
+            sb.table("workout_plan_versions")
+            .select("*")
+            .eq("id", payload.plan_version_id)
+            .eq("user_id", user_id)
+            .eq("status", "approved")
+            .limit(1)
+            .execute()
+        )
+        if not version_res.data:
+            raise HTTPException(409, "This workout plan version is not approved or no longer available")
+        version = version_res.data[0]
+        snapshot = version.get("snapshot") or {}
+        workout = snapshot.get("workout") or {}
+        data["plan_id"] = version["plan_id"]
+        data["plan_version_id"] = version["id"]
+        data["planned_workout_snapshot"] = workout
+        data["day_label"] = workout.get("label") or data.get("day_label") or "Training Session"
+        data["workout_type"] = workout.get("workout_type") or data.get("workout_type")
+        data["muscle_groups"] = workout.get("muscle_groups") or data.get("muscle_groups") or []
+
+    data["status"] = "active"
+    data["started_at"] = datetime.now(timezone.utc).isoformat()
 
     # Ensure session_date is always present — fall back to today if caller
     # didn't send it and the None-stripping above removed it.
@@ -132,6 +212,154 @@ async def create_session(
     if not res.data:
         raise HTTPException(500, "Failed to create session: no data returned")
     return res.data[0]
+
+
+@router.patch("/sessions/{session_id}/state")
+async def transition_session_state(
+    session_id: str,
+    payload: SessionTransitionRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    try:
+        result = get_supabase().rpc(
+            "transition_workout_session",
+            {
+                "p_user_id": current_user["user_id"],
+                "p_session_id": session_id,
+                "p_action": payload.action,
+            },
+        ).execute()
+    except Exception as exc:
+        message = str(exc).upper()
+        if "SESSION_NOT_FOUND" in message:
+            raise HTTPException(404, "Workout session not found") from exc
+        if "INVALID_SESSION_TRANSITION" in message:
+            raise HTTPException(409, "That workout session action is not valid in its current state") from exc
+        raise HTTPException(500, "Could not update the workout session state") from exc
+    if not result.data:
+        raise HTTPException(409, "Could not update the workout session state")
+    return result.data[0]
+
+
+@router.post("/sessions/{session_id}/exercise-events", status_code=201)
+async def record_session_exercise_event(
+    session_id: str,
+    payload: SessionExerciseEventRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    sb = get_supabase()
+    user_id = current_user["user_id"]
+    session_result = (
+        sb.table("workout_sessions")
+        .select("id, status, completed, planned_workout_snapshot, workout_type")
+        .eq("id", session_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+    if not session_result.data:
+        raise HTTPException(404, "Workout session not found")
+    session = session_result.data[0]
+    if session.get("completed") or session.get("status") != "active":
+        raise HTTPException(409, "Exercises can only be changed in an active workout")
+
+    original_name = payload.exercise_name
+    planned = (session.get("planned_workout_snapshot") or {}).get("exercises") or []
+    matching = next(
+        (
+            item for item in planned
+            if isinstance(item, dict)
+            and str(item.get("name") or "").strip().casefold() == original_name.casefold()
+        ),
+        None,
+    )
+    if matching is None:
+        raise HTTPException(404, "That exercise is not in this session's approved prescription")
+
+    existing_result = (
+        sb.table("workout_session_exercise_events")
+        .select("*")
+        .eq("session_id", session_id)
+        .eq("user_id", user_id)
+        .eq("exercise_name", original_name)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if existing_result.data:
+        latest_event = existing_result.data[0]
+        if (
+            latest_event.get("action") == payload.action
+            and latest_event.get("replacement_exercise") == payload.replacement_exercise
+        ):
+            return latest_event
+
+    replacement_name = None
+    if payload.action == "replace":
+        from api.routes.training_plans import (
+            PlannedExercise,
+            WorkoutPrescription,
+            _load_athlete_constraints,
+            validate_workout_constraints,
+        )
+        equipment, injuries = _load_athlete_constraints(sb, user_id)
+        workout_type = str(session.get("workout_type") or "full_body").lower()
+        allowed_types = {"push", "pull", "legs", "upper", "lower", "full_body", "cardio", "mobility", "recovery"}
+        if workout_type not in allowed_types:
+            workout_type = "full_body"
+        validated = validate_workout_constraints(
+            WorkoutPrescription(
+                label="In-session exercise replacement",
+                workout_type=workout_type,
+                exercises=[PlannedExercise(name=payload.replacement_exercise, sets=1, reps="1")],
+            ),
+            equipment,
+            injuries,
+        )
+        replacement_name = validated["exercises"][0]["name"]
+        if replacement_name.casefold() == original_name.casefold():
+            raise HTTPException(422, "Choose a different exercise to replace this movement")
+
+    try:
+        saved = sb.table("workout_session_exercise_events").insert({
+            "session_id": session_id,
+            "user_id": user_id,
+            "action": payload.action,
+            "exercise_name": original_name,
+            "replacement_exercise": replacement_name,
+            "reason": payload.reason,
+        }).execute()
+    except Exception as exc:
+        raise HTTPException(500, "Could not save the exercise change") from exc
+    if not saved.data:
+        raise HTTPException(500, "Could not save the exercise change")
+    return saved.data[0]
+
+
+@router.get("/sessions/{session_id}/exercise-events")
+async def list_session_exercise_events(
+    session_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    sb = get_supabase()
+    user_id = current_user["user_id"]
+    owned = (
+        sb.table("workout_sessions")
+        .select("id")
+        .eq("id", session_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+    if not owned.data:
+        raise HTTPException(404, "Workout session not found")
+    result = (
+        sb.table("workout_session_exercise_events")
+        .select("action, exercise_name, replacement_exercise, reason, created_at")
+        .eq("session_id", session_id)
+        .eq("user_id", user_id)
+        .order("created_at")
+        .execute()
+    )
+    return {"events": result.data or []}
 
 
 @router.get("/history")
@@ -271,10 +499,43 @@ async def complete_session(
     cns_fatigue_after: Optional[int] = None,
     session_notes: Optional[str] = None,
     mood: Optional[str] = None,
+    payload: Optional[SessionCompleteRequest] = Body(default=None),
     current_user: dict = Depends(get_current_user)
 ):
     sb = get_supabase()
     user_id = current_user["user_id"]
+
+    session_res = (
+        sb.table("workout_sessions")
+        .select("*")
+        .eq("id", session_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+    if not session_res.data:
+        raise HTTPException(404, "Workout session not found")
+    session = session_res.data[0]
+    if session.get("completed") is True or session.get("status") == "completed":
+        cached = session.get("completion_result")
+        if isinstance(cached, dict):
+            return cached
+        raise HTTPException(409, "This workout was already completed. Open Workout History to view the saved session.")
+    if session.get("status") in ("abandoned", "skipped", "draft", "approved"):
+        raise HTTPException(409, "This workout is not in a completable state.")
+
+    if payload is not None:
+        cns_fatigue_after = payload.cns_fatigue_after if payload.cns_fatigue_after is not None else cns_fatigue_after
+        session_notes = payload.session_notes if payload.session_notes is not None else session_notes
+        mood = payload.mood if payload.mood is not None else mood
+        session_effort = payload.session_effort
+        energy_level = payload.energy_level
+        pain_status = payload.pain_status
+        pain_notes = payload.pain_notes
+    else:
+        session_effort = None
+        energy_level = None
+        pain_status = None
+        pain_notes = None
 
     # ── Compute real session stats from actual logged sets ──────────────
     # workout_sessions.total_volume_kg/duration_minutes/calories_burned
@@ -301,14 +562,30 @@ async def complete_session(
 
     total_volume_kg = round(sum((l.get("weight_kg") or 0) * (l.get("reps") or 0) for l in working_logs), 1)
 
+    finished_at = datetime.now(timezone.utc)
     duration_minutes = None
-    if len(logs) >= 2:
-        try:
-            first_ts = datetime.fromisoformat(logs[0]["logged_at"].replace("Z", "+00:00"))
-            last_ts = datetime.fromisoformat(logs[-1]["logged_at"].replace("Z", "+00:00"))
-            duration_minutes = max(1, round((last_ts - first_ts).total_seconds() / 60))
-        except Exception:
-            duration_minutes = None
+    try:
+        started_value = session.get("started_at") or session.get("created_at")
+        if started_value:
+            started_at = datetime.fromisoformat(str(started_value).replace("Z", "+00:00"))
+            if started_at.tzinfo is None:
+                started_at = started_at.replace(tzinfo=timezone.utc)
+            elapsed_seconds = max(0, (finished_at - started_at).total_seconds())
+            paused_seconds = max(0, int(session.get("paused_duration_seconds") or 0))
+            if session.get("status") == "paused" and session.get("paused_at"):
+                paused_at = datetime.fromisoformat(str(session["paused_at"]).replace("Z", "+00:00"))
+                if paused_at.tzinfo is None:
+                    paused_at = paused_at.replace(tzinfo=timezone.utc)
+                paused_seconds += max(0, int((finished_at - paused_at).total_seconds()))
+            duration_minutes = max(0, round(max(0, elapsed_seconds - paused_seconds) / 60))
+    except (TypeError, ValueError, OverflowError):
+        if len(logs) >= 2:
+            try:
+                first_ts = datetime.fromisoformat(logs[0]["logged_at"].replace("Z", "+00:00"))
+                last_ts = datetime.fromisoformat(logs[-1]["logged_at"].replace("Z", "+00:00"))
+                duration_minutes = max(0, round((last_ts - first_ts).total_seconds() / 60))
+            except Exception:
+                duration_minutes = None
 
     # Rough calorie estimate: ~0.1 kcal per kg of volume moved is a crude
     # but directionally-honest approximation for resistance training (not
@@ -317,11 +594,25 @@ async def complete_session(
     # yet). Flagged clearly as an estimate wherever it's shown.
     calories_burned = round(total_volume_kg * 0.1) if total_volume_kg else None
 
-    update_data = {"completed": True}
+    update_data = {
+        "completed": True,
+        "status": "completed",
+        "finished_at": finished_at.isoformat(),
+        "started_at": session.get("started_at") or session.get("created_at") or finished_at.isoformat(),
+        "paused_at": None,
+    }
     if cns_fatigue_after is not None:
         update_data["cns_fatigue_after"] = cns_fatigue_after
     if session_notes is not None:
         update_data["notes"] = session_notes
+    if session_effort is not None:
+        update_data["session_effort"] = session_effort
+    if energy_level is not None:
+        update_data["energy_level"] = energy_level
+    if pain_status is not None:
+        update_data["pain_status"] = pain_status
+    if pain_notes is not None:
+        update_data["pain_notes"] = pain_notes
     # Mood was already a schema column (workout_sessions.mood) but had no
     # writer anywhere in the app — this is the one place a session actually
     # finishes, so it's the natural point to capture it. Purely optional,
@@ -331,7 +622,7 @@ async def complete_session(
         update_data["mood"] = mood
     if total_volume_kg:
         update_data["total_volume_kg"] = total_volume_kg
-    if duration_minutes:
+    if duration_minutes is not None:
         update_data["duration_minutes"] = duration_minutes
     if calories_burned:
         update_data["calories_burned"] = calories_burned
@@ -341,11 +632,12 @@ async def complete_session(
         .update(update_data)
         .eq("id", session_id)
         .eq("user_id", user_id)
+        .eq("completed", False)
         .select("*")
         .execute()
     )
     if not res.data:
-        raise HTTPException(404, "Workout session not found")
+        raise HTTPException(409, "This workout was completed by another request. Refresh Workout History.")
     session = res.data[0]
 
     # ── Detect new PRs set during this specific session ──────────────────
@@ -423,11 +715,36 @@ async def complete_session(
     try:
         from agents.recovery_agent import run_recovery_agent
         profile, _ = await asyncio.to_thread(get_full_user_context, user_id)
+        try:
+            session_local_date = date.fromisoformat(str(session.get("session_date")))
+        except (TypeError, ValueError):
+            session_local_date = date.today()
+        protein_target = None
+        calorie_target = None
+        required_metrics = ("weight_kg", "height_cm", "age", "gender")
+        if all(profile.get(field) not in (None, "", 0) for field in required_metrics):
+            from schemas.models import Goal
+            from services.nutrition import calculate_macros, is_training_day_for_user
+            goal_value = profile.get("goal") or "maintain"
+            goal = Goal(goal_value) if goal_value in Goal._value2member_map_ else Goal.maintain
+            targets = calculate_macros(
+                weight_kg=profile["weight_kg"],
+                height_cm=profile["height_cm"],
+                age=profile["age"],
+                gender=profile["gender"],
+                goal=goal,
+                is_training_day=is_training_day_for_user(user_id, target_date=session_local_date),
+            )
+            protein_target = targets.get("protein_g")
+            calorie_target = targets.get("calories")
         recovery_decision = await asyncio.to_thread(
             run_recovery_agent,
             user_id,
-            sleep_hours=profile.get("sleep_hours"),
+            sleep_hours=None,  # Daily readiness uses the dated check-in, not the onboarding baseline.
             planned_workout_type=None,
+            protein_target_g=protein_target,
+            calorie_target=calorie_target,
+            target_date=session_local_date,
         )
         # NOTE: recovery_decision.recovery_score is 0-10 (schema-constrained,
         # ge=0/le=10) — comparing it against 70/40 here was a pre-existing
@@ -436,19 +753,32 @@ async def complete_session(
         # already computes (attached as an extra attribute, see
         # recovery_agent.py's docstring) — use that for both the label and
         # the percentage the summary card shows.
-        score_pct_val = getattr(recovery_decision, "score_pct", recovery_decision.recovery_score * 10)
-        recovery_pct = round(score_pct_val)
-        recovery_prediction = "High" if score_pct_val >= 70 else "Medium" if score_pct_val >= 40 else "Low"
+        score_pct_val = getattr(recovery_decision, "score_pct", None)
+        if score_pct_val is not None:
+            recovery_pct = round(score_pct_val)
+            recovery_prediction = "High" if score_pct_val >= 70 else "Medium" if score_pct_val >= 40 else "Low"
+        else:
+            recovery_prediction = "Unavailable"
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(f"Recovery prediction failed: {e}")
 
-    # FIX: Update agent_state counters that were defined but never incremented.
-    # streak, total_workouts, last_session_date, weekly_session_count,
-    # and consecutive_high_rpe_days were always 0 for every user.
+    # Update longitudinal counters and store the actual average set RPE.
     workout_streak = None
     try:
-        workout_streak = await asyncio.to_thread(_update_agent_state_on_completion, user_id, cns_fatigue_after)
+        rated_session_rpe = [float(log["rpe"]) for log in working_logs if log.get("rpe") is not None]
+        session_avg_rpe = round(sum(rated_session_rpe) / len(rated_session_rpe), 2) if rated_session_rpe else None
+        try:
+            session_local_date = date.fromisoformat(str(session.get("session_date")))
+        except (TypeError, ValueError):
+            session_local_date = date.today()
+        workout_streak = await asyncio.to_thread(
+            _update_agent_state_on_completion,
+            user_id,
+            cns_fatigue_after,
+            session_avg_rpe,
+            session_local_date,
+        )
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(
@@ -495,6 +825,10 @@ async def complete_session(
         coach_message += " You've earned tomorrow's recovery."
     elif recovery_prediction == "Low":
         coach_message += " Prioritize sleep tonight — recovery's tight."
+    if pain_status in ("sharp", "worsening"):
+        coach_message += " You reported concerning pain. Stop movements that provoke it and get appropriate clinical guidance before repeating them."
+    elif pain_status == "mild":
+        coach_message += " Keep an eye on the discomfort and modify any movement that aggravates it."
 
     # Best set of the session (heaviest working weight, ties broken by reps) —
     # the frontend's WorkoutSummaryCard shows this as a fallback detail.
@@ -518,8 +852,91 @@ async def complete_session(
     # (duration, exercises, volume, PRs) was silently undefined/NaN as a
     # result. Returned flat now, with the old nested "summary" duplicate
     # kept alongside for any other caller that may depend on it.
+    planned_workout = session.get("planned_workout_snapshot") or {}
+    planned_exercises = planned_workout.get("exercises") or []
+    planned_sets = sum(
+        int(exercise.get("sets") or 0)
+        for exercise in planned_exercises
+        if isinstance(exercise, dict)
+    )
+    actual_by_exercise = {}
+    for log in working_logs:
+        name_key = str(log.get("exercise_name") or "").strip().casefold()
+        if name_key:
+            actual_by_exercise[name_key] = actual_by_exercise.get(name_key, 0) + 1
+
+    event_result = (
+        sb.table("workout_session_exercise_events")
+        .select("action, exercise_name, replacement_exercise, reason")
+        .eq("session_id", session_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+    event_by_exercise = {
+        str(event.get("exercise_name") or "").strip().casefold(): event
+        for event in (event_result.data or [])
+    }
+    exercise_review = []
+    for exercise in planned_exercises:
+        if not isinstance(exercise, dict):
+            continue
+        original_name = str(exercise.get("name") or "").strip()
+        original_key = original_name.casefold()
+        event = event_by_exercise.get(original_key)
+        action = event.get("action") if event else None
+        current_name = (
+            str(event.get("replacement_exercise") or original_name)
+            if action == "replace" else original_name
+        )
+        current_key = current_name.casefold()
+        if action == "skip":
+            status = "skipped"
+            # Preserve any work completed before the athlete chose to skip the
+            # remaining sets; the event records the decision, not data loss.
+            logged_sets = actual_by_exercise.get(original_key, 0)
+        elif action == "replace":
+            logged_sets = actual_by_exercise.get(current_key, 0)
+            status = "replaced" if logged_sets else "replacement_not_logged"
+        else:
+            logged_sets = actual_by_exercise.get(original_key, 0)
+            status = "completed" if logged_sets else "not_started"
+        exercise_review.append({
+            "name": original_name,
+            "current_name": current_name,
+            "planned_sets": int(exercise.get("sets") or 0),
+            "logged_working_sets": logged_sets,
+            "completed": status in ("completed", "replaced"),
+            "status": status,
+            "reason": event.get("reason") if event else None,
+        })
+
+    completed_planned_exercises = sum(1 for item in exercise_review if item["completed"])
+    skipped_exercises = sum(1 for item in exercise_review if item["status"] == "skipped")
+    replaced_exercises = sum(
+        1 for item in exercise_review
+        if item["status"] in ("replaced", "replacement_not_logged")
+    )
+    planned_vs_actual = {
+        "has_plan": bool(planned_exercises),
+        "planned_exercises": len(planned_exercises),
+        "exercises_with_logged_sets": completed_planned_exercises,
+        "skipped_exercises": skipped_exercises,
+        "replaced_exercises": replaced_exercises,
+        "not_started_exercises": sum(1 for item in exercise_review if item["status"] == "not_started"),
+        "planned_working_sets": planned_sets,
+        "completed_working_sets": len(working_logs),
+        "set_completion_ratio": round(min(1, len(working_logs) / planned_sets), 2) if planned_sets else None,
+        "exercises": exercise_review,
+    }
+
     summary_flat = {
         "id": session.get("id"),
+        "status": "completed",
+        "planned_vs_actual": planned_vs_actual,
+        "session_effort": session_effort,
+        "energy_level": energy_level,
+        "pain_status": pain_status,
+        "pain_notes": pain_notes,
         "total_volume_kg": total_volume_kg,
         "session_minutes": duration_minutes,
         "duration_minutes": duration_minutes,
@@ -538,11 +955,21 @@ async def complete_session(
         "protein_streak": protein_streak,
     }
 
-    return {
+    response_payload = {
         **session,
         **summary_flat,
         "summary": summary_flat,
     }
+    try:
+        sb.table("workout_sessions").update({
+            "completion_result": response_payload
+        }).eq("id", session_id).eq("user_id", user_id).execute()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            "Could not cache workout completion response for %s: %s", session_id, e
+        )
+    return response_payload
 
 
 def _log_timeline_event(user_id: str, event_type: str, message: str) -> None:
@@ -560,14 +987,19 @@ def _log_timeline_event(user_id: str, event_type: str, message: str) -> None:
     }).execute()
 
 
-def _update_agent_state_on_completion(user_id: str, cns_fatigue_after: Optional[int]):
+def _update_agent_state_on_completion(
+    user_id: str,
+    cns_fatigue_after: Optional[int],
+    session_avg_rpe: Optional[float] = None,
+    target_date: Optional[date] = None,
+):
     """
     Recompute and persist the agent_state fields that track longitudinal
     training history. Called synchronously in a thread after a session
     is marked complete.
     """
     sb = get_supabase()
-    today = date.today()
+    today = target_date or date.today()
 
     # Load current agent state
     state_res = sb.table("agent_states").select("*").eq("user_id", user_id).execute()
@@ -623,14 +1055,11 @@ def _update_agent_state_on_completion(user_id: str, cns_fatigue_after: Optional[
     )
     total = total_res.count or 0
 
-    # ── Consecutive high-RPE days ───────────────────────────────────────
-    # Increment if this session had cns_fatigue_after >= 7, else reset to 0
+    # ── Consecutive high-effort sessions ────────────────────────────────
+    # RPE is kept separate from the explicitly user-reported CNS fatigue score.
     high_rpe_days = state.get("consecutive_high_rpe_days", 0)
-    if cns_fatigue_after is not None:
-        if cns_fatigue_after >= 7:
-            high_rpe_days = high_rpe_days + 1
-        else:
-            high_rpe_days = 0
+    if session_avg_rpe is not None:
+        high_rpe_days = high_rpe_days + 1 if session_avg_rpe >= 8 else 0
 
     # ── Protein streak is updated by nutrition route, not here ──────────
 
@@ -645,6 +1074,8 @@ def _update_agent_state_on_completion(user_id: str, cns_fatigue_after: Optional[
     }
     if cns_fatigue_after is not None:
         updated_state["cns_fatigue_score"] = cns_fatigue_after
+    if session_avg_rpe is not None:
+        updated_state["last_logged_rpe"] = session_avg_rpe
 
     upsert_agent_state(user_id, updated_state)
     return streak
@@ -666,7 +1097,7 @@ async def log_set(
     # next number atomically.
     params = build_log_set_rpc_params(session_id, user_id, payload)
     try:
-        res = sb.rpc("log_workout_set", params).execute()
+        res = sb.rpc("log_workout_set_idempotent", params).execute()
     except Exception as exc:
         error_code = getattr(exc, "code", None)
         error_text = str(exc).upper()
