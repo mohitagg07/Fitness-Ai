@@ -51,6 +51,7 @@ interface AdaptiveProposal {
         rest_seconds?: number;
       }>;
     };
+    adaptive_guardrails?: string[];
   };
 }
 
@@ -227,6 +228,12 @@ function ProgramEvolutionCard() {
               </View>
             </View>
           ))}
+          {(proposal.snapshot.adaptive_guardrails || []).map((item, index) => (
+            <View key={index} style={styles.guardrailRow}>
+              <Ionicons name="shield-checkmark-outline" size={13} color={COLORS.recoveryMed} />
+              <Text style={styles.guardrailText}>{item}</Text>
+            </View>
+          ))}
           <Text style={styles.proposalFootnote}>
             Nothing changes until you approve this version. Your completed sessions keep their original prescription.
           </Text>
@@ -354,6 +361,8 @@ const styles = StyleSheet.create({
   proposedExercise: { borderTopWidth: 1, borderTopColor: '#2A3732', paddingTop: 7 },
   proposedExerciseName: { color: '#E0E8E3', fontSize: 11, fontWeight: '700' },
   proposedExerciseMeta: { color: '#8C9C95', fontSize: 9, marginTop: 3 },
+  guardrailRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 7, paddingVertical: 4 },
+  guardrailText: { color: '#D7C49A', fontSize: 9, lineHeight: 14, flex: 1 },
   proposalFootnote: { color: '#8C9C95', fontSize: 9, lineHeight: 14 },
   proposalActions: { flexDirection: 'row', gap: 8, marginTop: 3 },
   rejectBtn: { flex: 1, borderWidth: 1, borderColor: '#4A5B52', borderRadius: 9, padding: 10, alignItems: 'center' },
