@@ -310,7 +310,6 @@ export default function ThreeMuscleScene({
         <Canvas
           style={styles.canvas}
           camera={{ position: [0, 0.04, 7.55], fov: 33, near: 0.1, far: 40 }}
-          dpr={1.15}
           onCreated={({ gl }) => {
             gl.setClearColor(CANVAS_BACKGROUND, 1);
             setLoading(false);
