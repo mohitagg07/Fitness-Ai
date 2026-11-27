@@ -4,7 +4,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: vyrn-mobile-ci-${{ github.head_ref || github.ref_name }}
+  group: vyrn-mobile-ci-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 on:
