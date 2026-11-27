@@ -205,8 +205,10 @@ export default function DashboardScreen() {
         ? 'Keep the intensity measured'
         : 'Recovery comes first';
 
-  const readinessMessage = summary?.recovery?.action
-    || summary?.recovery?.message
+  const readinessMessage = summary?.recovery?.message
+    || (summary?.recovery?.action === 'check_in'
+      ? 'Log a recovery check-in to build a reliable readiness picture.'
+      : summary?.recovery?.action)
     || 'Log a few workouts and recovery check-ins to build your personal readiness picture.';
 
   return (
