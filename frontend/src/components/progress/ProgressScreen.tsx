@@ -241,6 +241,7 @@ function StreaksRow({ metrics, nutrition }: { metrics: any[]; nutrition: any[] }
 export default function ProgressScreen() {
   const responsive = useResponsiveLayout();
   const insets = useSafeAreaInsets();
+  const reduceMotion = useReducedMotion();
   const routeParams = useLocalSearchParams<{ tab?: string }>();
   const queryClient = useQueryClient();
   const [metrics, setMetrics] = useState<any[]>([]);
@@ -355,7 +356,7 @@ export default function ProgressScreen() {
   ];
 
   const selectTab = (tab: Tab) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    if (!reduceMotion) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setActiveTab(tab);
     const index = tabs.findIndex((item) => item.key === tab);
     const estimatedTabWidth = responsive.isTablet ? 128 : 112;
