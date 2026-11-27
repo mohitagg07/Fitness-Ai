@@ -347,7 +347,6 @@ async def complete_session(
         .select("*")
         .eq("id", session_id)
         .eq("user_id", user_id)
-        .limit(1)
         .execute()
     )
     if not session_res.data:
