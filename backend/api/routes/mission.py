@@ -80,6 +80,8 @@ def _pick_ai_decision(workout_decision, recovery_decision, nutrition_decision) -
         return "Full rest day — no training today"
     if recovery_decision.action == "replace_with_light":
         return "Replace heavy session with light walk or mobility"
+    if recovery_decision.action == "check_in":
+        return "Log recovery check-in; keep today's planned session comfortable"
     if workout_decision.recommended_type and workout_decision.recommended_type.lower() != "rest":
         wtype = workout_decision.recommended_type.replace("_", " ").title()
         return f"{wtype} session as planned"
@@ -102,7 +104,9 @@ def _pick_next_action(
     preferred_time = profile.get("workout_time_preference") or "today"
 
     if recovery_decision.action == "rest":
-        return "Sleep 8h tonight to restore recovery score"
+        return "Rest today and prioritise sleep"
+    if recovery_decision.action == "check_in":
+        return "Log last night's sleep and training effort; keep today's planned session comfortable"
     if workout_decision.rescheduled:
         return f"Complete missed session before {preferred_time}"
     if workout_decision.recommended_type and workout_decision.recommended_type.lower() != "rest":
@@ -127,6 +131,8 @@ def _build_alerts(
 
     if recovery_decision.action in ("rest", "replace_with_light"):
         alerts.append(f"⚠️ Recovery low ({recovery_decision.recovery_score}/10) — modify or skip training")
+    elif recovery_decision.action == "check_in":
+        alerts.append("Recovery score unavailable — log sleep and training effort to build a reliable baseline")
 
     if progress_decision.stalled:
         adj = progress_decision.suggested_calorie_adjustment
@@ -186,6 +192,8 @@ async def get_today_mission(
                 user_id,
                 sleep_hours=profile.get("sleep_hours"),
                 planned_workout_type=None,
+                protein_target_g=None,
+                calorie_target=None,
                 target_date=local_day,
             ),
             asyncio.to_thread(get_daily_motivation, user_id, coach_style),
@@ -229,8 +237,9 @@ async def get_today_mission(
                 "message": workout_decision.message,
             },
             "recovery": {
-                "score": recovery_decision.recovery_score,
+                "score": None if recovery_decision.action == "check_in" else recovery_decision.recovery_score,
                 "score_pct": recovery_pct,
+                "confidence_pct": getattr(recovery_decision, "confidence_pct", 0),
                 "action": recovery_decision.action,
                 "message": recovery_decision.message,
             },
@@ -301,6 +310,8 @@ async def get_today_mission(
         user_id,
         sleep_hours=profile.get("sleep_hours"),
         planned_workout_type=workout_decision.recommended_type,
+        protein_target_g=targets.get("protein_g"),
+        calorie_target=targets.get("calories"),
         target_date=local_day,
     )
 
@@ -348,10 +359,10 @@ async def get_today_mission(
 
     # ── Determine intensity label ─────────────────────────────────────────────
     wtype = (workout_decision.recommended_type or "rest").lower()
-    if recovery_decision.action == "rest":
+    if recovery_decision.action in ("rest", "deload"):
         intensity = "Rest"
-    elif recovery_decision.action == "replace_with_light" or wtype in ("rest",):
-        intensity = "Low"
+    elif recovery_decision.action in ("replace_with_light", "check_in") or wtype in ("rest",):
+        intensity = "Low" if recovery_decision.action == "replace_with_light" else "Moderate"
     elif wtype in ("push", "pull", "legs"):
         intensity = "High"
     else:
@@ -410,8 +421,9 @@ async def get_today_mission(
         },
         # Nested recovery object — DashboardScreen reads .score / .action / .message
         "recovery": {
-            "score":     recovery_decision.recovery_score,  # legacy 0-10 scale
-            "score_pct": recovery_pct,                      # canonical 0-100 scale
+            "score":     None if recovery_decision.action == "check_in" else recovery_decision.recovery_score,
+            "score_pct": recovery_pct,
+            "confidence_pct": getattr(recovery_decision, "confidence_pct", 0),
             "action":    recovery_decision.action,
             "message":   recovery_decision.message,
         },
@@ -431,7 +443,7 @@ async def get_today_mission(
         "protein_target":       targets["protein_g"],
         "workout_rescheduled":  workout_decision.rescheduled,
         "workout_message":      workout_decision.message,
-        "recovery_score":       recovery_decision.recovery_score,
+        "recovery_score":       None if recovery_decision.action == "check_in" else recovery_decision.recovery_score,
         "recovery_action":      recovery_decision.action,
         "progress_stalled":     progress_decision.stalled,
 
