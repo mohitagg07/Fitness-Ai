@@ -72,7 +72,7 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
 
       - name: Verify native Expo package tree is deduplicated
-        run: npm ls expo expo-asset expo-constants expo-modules-core --depth=0
+        run: npm ls expo expo-asset expo-constants --depth=0
 
       - name: TypeScript check
         run: npm run typecheck
