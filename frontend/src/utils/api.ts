@@ -279,7 +279,15 @@ export const dashboardApi = {
 // Use this instead of dashboardApi.getSummary when you need the full
 // Coach Brain output (pattern_insights, proactive_brief, reasoning_steps).
 export const missionApi = {
-  getToday: () => api.get('/mission/today'),
+  getToday: () => {
+    let timezone = 'UTC';
+    try {
+      timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    } catch {
+      // UTC is the explicit fallback when the runtime cannot expose an IANA timezone.
+    }
+    return api.get('/mission/today', { params: { timezone_name: timezone } });
+  },
 };
 
 export const simulationApi = {
