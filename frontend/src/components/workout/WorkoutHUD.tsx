@@ -159,14 +159,14 @@ function RestTimerBar({
     animation.start();
     return () => animation.stop();
   }, [pct, ringProgress]);
-  const ringOffset = ringProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [circumference, 0],
-  });
   const ringSize = 58;
   const ringStroke = 4;
   const ringRadius = (ringSize - ringStroke) / 2;
   const circumference = 2 * Math.PI * ringRadius;
+  const ringOffset = ringProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [circumference, 0],
+  });
 
   return (
     <View style={T.timerBar}>
@@ -976,7 +976,7 @@ const T = StyleSheet.create({
   timerSeconds: { color: COLORS.text, fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 18, lineHeight: 20 },
   timerUnit: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 6, letterSpacing: 1.1, marginTop: 1 },
   timerCopy: { flex: 1, minWidth: 0, gap: 3 },
-  timerLabel: { fontFamily: FONTS.regular,  ...EYEBROW, fontSize: 8, letterSpacing: 1.2 },
+  timerLabel: { ...EYEBROW, fontSize: 8, letterSpacing: 1.2 },
   timerTitle: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 12, lineHeight: 16 },
   timerHint: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 9, lineHeight: 13 },
   skipBtn: {
@@ -991,7 +991,7 @@ const T = StyleSheet.create({
     borderColor: COLORS.borderLight,
     borderRadius: RADIUS.button,
   },
-  skipText: { fontFamily: FONTS.regular,  ...EYEBROW, color: COLORS.textSecondary, fontSize: 9 },
+  skipText: { ...EYEBROW, color: COLORS.textSecondary, fontSize: 9 },
 });
 
 // ─── Session header styles ────────────────────────────────────────────────────
@@ -1015,20 +1015,20 @@ const H = StyleSheet.create({
     marginBottom: 3,
   },
   activeDot:  { width: 5, height: 5, borderRadius: 3, backgroundColor: COLORS.primaryGreen },
-  pillText: { fontFamily: FONTS.regular,  ...EYEBROW, color: COLORS.primaryGreen, fontSize: 8 },
+  pillText: { ...EYEBROW, color: COLORS.primaryGreen, fontSize: 8 },
   timeValue: { color: COLORS.text, fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 25, lineHeight: 29, letterSpacing: -0.7 },
-  timeLabel: { fontFamily: FONTS.regular,  ...EYEBROW, color: COLORS.textMuted, fontSize: 7, letterSpacing: 1.05 },
+  timeLabel: { ...EYEBROW, color: COLORS.textMuted, fontSize: 7, letterSpacing: 1.05 },
   metrics: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
   stat: { alignItems: 'flex-end', minWidth: 45 },
   statVal: { color: COLORS.text, fontFamily: FONTS.numericBold, fontVariant: ['tabular-nums'], fontSize: 17, lineHeight: 22 },
-  statLabel: { fontFamily: FONTS.regular,  ...EYEBROW, color: COLORS.textDim, fontSize: 7, marginTop: 1 },
+  statLabel: { ...EYEBROW, color: COLORS.textDim, fontSize: 7, marginTop: 1 },
   metricDivider: { width: 1, height: 27, backgroundColor: COLORS.border },
 });
 
 // ─── Ghost styles ─────────────────────────────────────────────────────────────
 const G = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, marginBottom: SPACING.sm },
-  text: { fontFamily: FONTS.regular,  ...BODY, color: COLORS.textDim, fontSize: 12 },
+  text: { ...BODY, color: COLORS.textDim, fontSize: 12 },
 });
 
 // ─── Main styles ──────────────────────────────────────────────────────────────
@@ -1048,7 +1048,7 @@ const S = StyleSheet.create({
                  alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.xl },
   gymTitle:    { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 32, letterSpacing: -0.8, textAlign: 'left' },
   gymSubtitle: { ...BODY, color: COLORS.primaryGreen, fontSize: 15, fontFamily: FONTS.semibold, marginTop: SPACING.xs, marginBottom: SPACING.lg },
-  gymDesc: { fontFamily: FONTS.regular,  ...BODY, color: COLORS.textSecondary, fontSize: 14, textAlign: 'left', lineHeight: 22, marginBottom: SPACING.xxl, maxWidth: 340 },
+  gymDesc: { ...BODY, color: COLORS.textSecondary, fontSize: 14, textAlign: 'left', lineHeight: 22, marginBottom: SPACING.xxl, maxWidth: 340 },
   startBtn:    { backgroundColor: COLORS.primaryGreen, borderRadius: RADIUS.button,
                  paddingVertical: 17, paddingHorizontal: SPACING.xl, width: '100%',
                  alignItems: 'center', marginBottom: SPACING.md },
@@ -1071,7 +1071,7 @@ const S = StyleSheet.create({
   exTabDone:    { opacity: 0.45 },
   exTabText:    { ...BODY, color: COLORS.textMuted, fontSize: 11, fontFamily: FONTS.semibold },
   exTabTextActive:{ color: COLORS.primaryGreen },
-  exTabSets: { fontFamily: FONTS.regular,  ...BODY, color: COLORS.textMuted, fontSize: 10, marginTop: 2 },
+  exTabSets: { ...BODY, color: COLORS.textMuted, fontSize: 10, marginTop: 2 },
   exTabSetsActive:{ color: alpha(COLORS.primaryGreen, 0.7) },
   exTabSetsDone:{ color: COLORS.borderLight },
 
@@ -1082,15 +1082,15 @@ const S = StyleSheet.create({
                     marginTop: SPACING.sm, padding: SPACING.lg, borderWidth: 1, borderColor: COLORS.cardBorder },
   exCardHeader:   { flexDirection: 'row', justifyContent: 'space-between',
                     alignItems: 'flex-start', marginBottom: SPACING.sm },
-  setCount: { fontFamily: FONTS.numericSemibold,  ...EYEBROW, color: COLORS.primaryGreen, fontSize: 10, marginBottom: 2 },
+  setCount: { ...EYEBROW, color: COLORS.primaryGreen, fontSize: 10, marginBottom: 2 },
   exerciseName:   { color: COLORS.text, fontFamily: FONTS.extrabold, fontSize: 20 },
-  exerciseTarget: { fontFamily: FONTS.regular,  ...BODY, color: COLORS.textSecondary, fontSize: 13, marginTop: 2 },
+  exerciseTarget: { ...BODY, color: COLORS.textSecondary, fontSize: 13, marginTop: 2 },
   nextExInline:   { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs,
                     backgroundColor: alpha(COLORS.strain, 0.1), borderRadius: RADIUS.badge, paddingHorizontal: SPACING.sm,
                     paddingVertical: SPACING.sm, borderWidth: 1, borderColor: alpha(COLORS.strain, 0.25) },
   nextExInlineText:{ color: COLORS.strain, fontFamily: FONTS.semibold, fontSize: 12 },
   cueRow:         { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, marginBottom: SPACING.md },
-  cue: { fontFamily: FONTS.regular,  ...BODY, color: COLORS.textMuted, fontSize: 12, fontStyle: 'italic', flex: 1 },
+  cue: { ...BODY, color: COLORS.textMuted, fontSize: 12, fontStyle: 'italic', flex: 1 },
   manualEntry:    { marginBottom: SPACING.sm },
   manualTitle:    { color: COLORS.text, fontFamily: FONTS.bold, fontSize: 17, marginBottom: SPACING.sm },
   setCountManual: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 13, marginBottom: SPACING.sm },
@@ -1108,10 +1108,10 @@ const S = StyleSheet.create({
                textAlign: 'center', borderWidth: 1, borderColor: COLORS.borderLight },
   inputUnit: { position: 'absolute', bottom: 6, right: SPACING.sm, color: COLORS.textMuted,
                fontFamily: FONTS.semibold, fontSize: 11 },
-  inputHint: { fontFamily: FONTS.regular,  color: COLORS.textMuted, fontSize: 11, marginTop: -SPACING.xs, marginBottom: SPACING.sm },
+  inputHint: { color: COLORS.textMuted, fontSize: 11, marginTop: -SPACING.xs, marginBottom: SPACING.sm },
 
   rpeRow:    { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.md },
-  rpeLabel: { fontFamily: FONTS.regular,  ...EYEBROW, color: COLORS.textSecondary, fontSize: 10, width: 30 },
+  rpeLabel: { ...EYEBROW, color: COLORS.textSecondary, fontSize: 10, width: 30 },
   rpeChips:  { flexDirection: 'row', gap: SPACING.xs },
   rpeChip:   { paddingVertical: SPACING.sm, paddingHorizontal: SPACING.md, borderRadius: RADIUS.badge,
                backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.borderLight },
@@ -1128,9 +1128,9 @@ const S = StyleSheet.create({
   // Logs
   logsScroll:       { flex: 1, paddingHorizontal: SPACING.md },
   logsReveal: { flex: 1 },
-  logsLabel: { fontFamily: FONTS.regular,  ...EYEBROW, color: COLORS.textMuted, fontSize: 9,
+  logsLabel: { ...EYEBROW, color: COLORS.textMuted, fontSize: 9,
                       marginBottom: SPACING.sm, marginTop: SPACING.xs },
-  noLogs: { fontFamily: FONTS.regular,  ...BODY, color: COLORS.textDim, fontSize: 13, textAlign: 'center', paddingTop: SPACING.md },
+  noLogs: { ...BODY, color: COLORS.textDim, fontSize: 13, textAlign: 'center', paddingTop: SPACING.md },
   exerciseGroup:    { marginBottom: SPACING.sm, backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.card,
                       overflow: 'hidden', borderWidth: 1, borderColor: COLORS.border },
   groupExerciseName:{ color: COLORS.text, fontFamily: FONTS.bold, fontSize: 13,
@@ -1140,7 +1140,7 @@ const S = StyleSheet.create({
                       paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm,
                       borderBottomWidth: 1, borderBottomColor: COLORS.cardBorder, gap: SPACING.md },
   setLabel:         { ...BODY, color: COLORS.textMuted, fontFamily: FONTS.semibold, fontSize: 11, width: 40 },
-  setDetails: { fontFamily: FONTS.regular,  ...BODY, color: COLORS.textSecondary, fontSize: 13, flex: 1 },
+  setDetails: { ...BODY, color: COLORS.textSecondary, fontSize: 13, flex: 1 },
   rpeBadge:         { borderRadius: RADIUS.badge, paddingHorizontal: 7, paddingVertical: 2,
                       backgroundColor: COLORS.cardElevated, borderWidth: 1 },
   rpeBadgeText:     { fontFamily: FONTS.semibold, fontSize: 11 },

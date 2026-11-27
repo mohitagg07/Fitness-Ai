@@ -1,7 +1,7 @@
 // VYRN — Text primitive
 //
-// The ONLY seven text styles in the app: hero, h1, h2, cardTitle, body,
-// caption, eyebrow (see theme/typography.ts TEXT_STYLES for the full
+// The canonical VYRN text variants: display, hero, h1, h2, cardTitle, body,
+// small, caption and eyebrow (see theme/typography.ts TEXT_STYLES for the full
 // rationale). Every screen renders text through this component instead
 // of a raw <Text style={{ fontSize: 17, fontWeight: '600' }}/> — that's
 // how "giant serif heading here, bold sans heading there, random 13px
