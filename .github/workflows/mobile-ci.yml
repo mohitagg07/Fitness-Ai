@@ -196,6 +196,20 @@ jobs:
             grep -q "3D_DRAG_CONFIRMED" "$RUNNER_TEMP/vyrn-window.xml"
 
             adb shell pidof com.vyrn.app
+
+            # Verify an ordinary cold launch reaches the signed-out login screen.
+            adb shell pm clear com.vyrn.app
+            adb shell monkey -p com.vyrn.app 1
+            for attempt in $(seq 1 20); do
+              adb shell uiautomator dump /sdcard/vyrn-window.xml >/dev/null 2>&1 || true
+              adb pull /sdcard/vyrn-window.xml "$RUNNER_TEMP/vyrn-window.xml" >/dev/null 2>&1 || true
+              if grep -q "you@email.com" "$RUNNER_TEMP/vyrn-window.xml" 2>/dev/null; then
+                break
+              fi
+              sleep 1
+            done
+            grep -q "you@email.com" "$RUNNER_TEMP/vyrn-window.xml"
+
             adb logcat -d -v brief > "$RUNNER_TEMP/vyrn-logcat.txt"
             if grep -E "FATAL EXCEPTION|ReactNativeJS.*(TypeError|ReferenceError|Invariant Violation)" "$RUNNER_TEMP/vyrn-logcat.txt"; then
               echo "Android runtime exception detected during native 3D smoke test."
