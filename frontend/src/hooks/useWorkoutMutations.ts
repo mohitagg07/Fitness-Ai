@@ -18,6 +18,52 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { workoutApi } from '../utils/api';
 import { actions } from '../store';
 import { qk } from '../lib/queryKeys';
+import {
+  enqueuePendingWorkoutSet,
+  getPendingWorkoutSets,
+  removePendingWorkoutSet,
+} from '../utils/workoutOutbox';
+
+type PendingSyncResult = { synced: number; remaining: number };
+
+const pendingSyncs = new Map<string, Promise<PendingSyncResult>>();
+
+async function performPendingWorkoutSync(sessionId: string): Promise<PendingSyncResult> {
+  const pending = await getPendingWorkoutSets(sessionId);
+  let synced = 0;
+
+  // Replay in order. The backend makes each client_request_id idempotent,
+  // including the case where the original server response was lost.
+  for (const item of pending) {
+    const { sessionId: queuedSessionId, queued_at: _queuedAt, ...data } = item;
+    try {
+      const response = await workoutApi.logSet(queuedSessionId, data);
+      await removePendingWorkoutSet(item.client_request_id);
+      actions.replaceLogInSession(item, response.data, sessionId);
+      synced += 1;
+    } catch {
+      // Keep this item and later items. The active session must not be closed
+      // while an unsynced set remains in the local outbox.
+      break;
+    }
+  }
+
+  return {
+    synced,
+    remaining: (await getPendingWorkoutSets(sessionId)).length,
+  };
+}
+
+export function syncPendingWorkoutSets(sessionId: string): Promise<PendingSyncResult> {
+  const existing = pendingSyncs.get(sessionId);
+  if (existing) return existing;
+
+  const operation = performPendingWorkoutSync(sessionId).finally(() => {
+    if (pendingSyncs.get(sessionId) === operation) pendingSyncs.delete(sessionId);
+  });
+  pendingSyncs.set(sessionId, operation);
+  return operation;
+}
 
 export interface SetLogInput {
   sessionId: string;
@@ -35,31 +81,47 @@ export function useLogSet() {
   return useMutation({
     mutationFn: async (log: SetLogInput) => {
       const { sessionId, ...data } = log;
-      const response = await workoutApi.logSet(sessionId, data);
-      return { optimistic: log, persisted: response.data };
+      let persisted: any = null;
+      try {
+        const response = await workoutApi.logSet(sessionId, data);
+        persisted = response.data;
+      } catch {
+        // onMutate has already committed the full request to AsyncStorage.
+        // Keep it visible and retry later instead of rolling the set back.
+        return { optimistic: log, persisted: null, pending: true };
+      }
+
+      try {
+        await removePendingWorkoutSet(log.client_request_id);
+        return { optimistic: log, persisted, pending: false };
+      } catch {
+        // The server may have committed but local cleanup failed. A replay is
+        // safe because it reuses the exact same idempotency key.
+        return { optimistic: log, persisted, pending: true };
+      }
     },
     // Runs synchronously before the network call — this is the entire
     // optimistic-update contract: the store already reflects the logged
     // set by the time this function returns, well before any response.
     onMutate: async (log) => {
       const { sessionId, ...data } = log;
+      // Persist first. If local storage fails, do not display a set that
+      // neither the server nor the device has accepted responsibility for.
+      await enqueuePendingWorkoutSet(log);
       actions.addLogToSession(data);
-      // Return the log so onError can identify/roll back exactly this
-      // entry (not just "the last one", in case of rapid double-taps
-      // across different sets before either request settles).
-      return { loggedData: data };
+      return { loggedData: data, sessionId };
     },
     onSuccess: (result) => {
-      // The database is authoritative for set_number. Reconcile the
-      // optimistic row with the inserted row so responses arriving out
-      // of order cannot leave local history different from persisted data.
-      actions.replaceLogInSession(result.optimistic, result.persisted);
+      // A pending result remains in the visible workout log. The later replay
+      // replaces it with the authoritative database row.
+      if (result.persisted) {
+        actions.replaceLogInSession(result.optimistic, result.persisted, result.optimistic.sessionId);
+      }
     },
     onError: (_err, _log, context) => {
-      // Roll back only the optimistic entry this mutation added — a
-      // second in-flight logSet's optimistic entry (or a real
-      // server-confirmed one) must survive this rollback untouched.
-      actions.removeLogFromSession(context?.loggedData);
+      // Network failures are returned as pending successes by mutationFn.
+      // This rollback is only for an unexpected error after local enqueue.
+      actions.removeLogFromSession(context?.loggedData, context?.sessionId);
     },
     onSettled: () => {
       // Background-refresh the numbers that a logged set can move —
