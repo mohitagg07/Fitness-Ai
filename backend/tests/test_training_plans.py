@@ -146,3 +146,48 @@ def test_daily_workout_override_fills_unscheduled_days_as_rest(monkeypatch):
         snapshot["schedule"][day] == "rest"
         for day in ("mon", "tue", "wed", "thu", "fri", "sun")
     )
+
+
+def test_daily_workout_override_preserves_existing_program_metadata(monkeypatch):
+    from datetime import date
+    from api.routes.training_plans import _validated_plan_snapshot
+
+    monkeypatch.setattr(
+        "api.routes.training_plans.validate_workout_constraints",
+        lambda workout, _equipment, _injuries: workout.model_dump(),
+    )
+    payload = PlanDraftRequest(
+        session_date=date(2026, 11, 28),
+        name="Daily Coach suggestion",
+        goal="maintain",
+        phase="daily_recommendation",
+        weeks=4,
+        workout=_workout("legs"),
+    )
+    base = {
+        "name": "12 Week Strength Program",
+        "goal": "bulk",
+        "phase": "hypertrophy",
+        "weeks": 12,
+        "progression_model": {"kind": "double_progression", "increment_kg": 2.5},
+        "schedule": {
+            "mon": "push", "tue": "rest", "wed": "pull",
+            "thu": "rest", "fri": "rest", "sat": "rest", "sun": "rest",
+        },
+        "workouts_by_day": {
+            "mon": _workout("push").model_dump(),
+            "wed": _workout("pull").model_dump(),
+        },
+    }
+
+    snapshot = _validated_plan_snapshot(payload, [], [], base_snapshot=base)
+
+    assert snapshot["name"] == "12 Week Strength Program"
+    assert snapshot["goal"] == "bulk"
+    assert snapshot["phase"] == "hypertrophy"
+    assert snapshot["weeks"] == 12
+    assert snapshot["progression_model"] == {
+        "kind": "double_progression",
+        "increment_kg": 2.5,
+    }
+    assert snapshot["schedule"]["sat"] == "legs"

@@ -260,9 +260,6 @@ def _validated_plan_snapshot(
     individual prescriptions fail closed rather than reusing one workout on
     unrelated training days.
     """
-    snapshot = payload.model_dump(
-        exclude={"workout", "workouts_by_day", "change_reason", "session_date"}
-    )
     single_day_override = (
         payload.workout is not None
         and not payload.schedule
@@ -270,6 +267,17 @@ def _validated_plan_snapshot(
     )
 
     if single_day_override:
+        # Treat a Coach daily suggestion as a patch over the approved version.
+        # Carry forward program metadata and any versioned settings the daily
+        # endpoint does not own; change only the selected weekday and its
+        # prescription below.
+        snapshot = (
+            dict(base_snapshot)
+            if base_snapshot
+            else payload.model_dump(
+                exclude={"workout", "workouts_by_day", "change_reason", "session_date"}
+            )
+        )
         target_date = payload.session_date or date.today()
         week = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
         target_day = week[target_date.weekday()]
@@ -474,7 +482,7 @@ async def create_plan_draft(
 
     active = (
         sb.table("workout_plans")
-        .select("id, current_version_id, schedule")
+        .select("id, current_version_id, schedule, name, phase, weeks")
         .eq("user_id", user_id)
         .eq("is_active", True)
         .order("created_at", desc=True)
@@ -515,9 +523,21 @@ async def create_plan_draft(
             {
                 "p_user_id": user_id,
                 "p_plan_id": None,
-                "p_name": payload.name,
-                "p_phase": payload.phase,
-                "p_weeks": payload.weeks,
+                "p_name": (
+                    active_plan.get("name") if active_plan and payload.workout is not None
+                    and not payload.schedule and not payload.workouts_by_day
+                    else payload.name
+                ),
+                "p_phase": (
+                    active_plan.get("phase") if active_plan and payload.workout is not None
+                    and not payload.schedule and not payload.workouts_by_day
+                    else payload.phase
+                ),
+                "p_weeks": (
+                    active_plan.get("weeks") if active_plan and payload.workout is not None
+                    and not payload.schedule and not payload.workouts_by_day
+                    else payload.weeks
+                ),
                 "p_schedule": snapshot["schedule"],
                 "p_snapshot": snapshot,
                 "p_change_reason": payload.change_reason or "New Coach-generated workout",
