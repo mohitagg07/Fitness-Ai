@@ -118,8 +118,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      # GitHub's ubuntu-latest image already includes Android command-line tools.
+      # The older setup-android action currently asks sdkmanager for the removed
+      # "tools" package, so use the runner's maintained SDK installation directly.
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses >/dev/null || true
 
       - name: Install Android 16 build platform
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
