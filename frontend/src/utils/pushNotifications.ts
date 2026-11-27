@@ -58,7 +58,9 @@ export async function registerForPushNotificationsAsync(): Promise<void> {
 
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
-    if (existingStatus !== 'granted') {
+    // Ask only on the first decision. Re-opening the app after a denial must
+    // not turn a helpful coach into a repeated permission nag.
+    if (existingStatus === 'undetermined') {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
