@@ -212,8 +212,14 @@ def test_workout_prescription_retains_warmup_and_cooldown_notes(monkeypatch):
             "reps": "8-12",
         }],
     )
-    payload = PlanDraftRequest(workout=workout)
-    snapshot = _validated_plan_snapshot(payload, [], [])
+    from datetime import date
 
-    assert snapshot["workout"]["warmup_notes"].startswith("5 minutes")
-    assert snapshot["workout"]["cooldown_notes"].startswith("Gentle chest")
+    payload = PlanDraftRequest(
+        session_date=date(2026, 11, 28),
+        workout=workout,
+    )
+    snapshot = _validated_plan_snapshot(payload, [], [])
+    prescription = snapshot["workouts_by_day"]["sat"]
+
+    assert prescription["warmup_notes"].startswith("5 minutes")
+    assert prescription["cooldown_notes"].startswith("Gentle chest")
