@@ -277,10 +277,14 @@ export const nutritionApi = {
   estimateFood: (data: { food_name: string; portion: string; preparation?: string }) =>
     api.post('/nutrition/estimate', data),
 
-  // Meal Generator — ready-to-eat combo sized to today's remaining macros.
-  getMealPlan: (isTrainingDay?: boolean) =>
-    api.get('/nutrition/meal-plan', isTrainingDay === undefined ? undefined : {
-      params: { is_training_day: isTrainingDay },
+  // Remaining meals for today, based on live macro gaps, saved food
+  // preferences and the user's local time.
+  getMealPlan: (isTrainingDay?: boolean, localHour = new Date().getHours()) =>
+    api.get('/nutrition/meal-plan', {
+      params: {
+        local_hour: localHour,
+        ...(isTrainingDay === undefined ? {} : { is_training_day: isTrainingDay }),
+      },
     }),
 
   // Smart Grocery — weekly shopping quantities from the real weekly protein target.
