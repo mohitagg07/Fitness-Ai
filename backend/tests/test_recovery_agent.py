@@ -194,6 +194,7 @@ def test_recent_post_workout_energy_and_effort_feed_next_recovery_estimate(monke
         "session_effort": 9,
         "energy_level": 2,
         "cns_fatigue_after": 7,
+        "mood": "bad",
     })
     monkeypatch.setattr(recovery_agent, "_last_session_volume", lambda _user_id: 4200)
     monkeypatch.setattr(recovery_agent, "_nutrition_ratios_today", lambda *_args: (0.8, 0.9))
@@ -214,6 +215,8 @@ def test_recent_post_workout_energy_and_effort_feed_next_recovery_estimate(monke
     assert result.source_values["energy_level"] == 2
     assert result.source_values["energy_source"] == "recent_post_workout_checkin"
     assert result.source_values["latest_post_session_effort"] == 9
+    assert result.source_values["latest_post_session_mood"] == "bad"
+    assert "low mood" in result.message.lower()
     assert result.source_values["recent_average_rpe"] == 7.5
     assert result.source_values["recent_high_rpe_days"] == 1
     assert result.data_completeness_pct >= 60
@@ -240,6 +243,7 @@ def test_latest_post_workout_feedback_returns_only_explicit_completed_session_da
                     "session_effort": 8,
                     "energy_level": 3,
                     "cns_fatigue_after": None,
+                    "mood": "good",
                 },
             ])
 
