@@ -244,6 +244,7 @@ export default function ProgressScreen() {
   const reduceMotion = useReducedMotion();
   const routeParams = useLocalSearchParams<{ tab?: string }>();
   const queryClient = useQueryClient();
+  const isNutritionRoute = routeParams.tab === 'nutrition';
   const [metrics, setMetrics] = useState<any[]>([]);
   const [nutrition, setNutrition] = useState<any[]>([]);
   const [todayData, setTodayData] = useState<any>(null);
@@ -253,7 +254,7 @@ export default function ProgressScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [weightInput, setWeightInput] = useState('');
   const [recoveryInput, setRecoveryInput] = useState('');
-  const [activeTab, setActiveTab] = useState<Tab>(routeParams.tab === 'nutrition' ? 'nutrition' : 'body');
+  const [activeTab, setActiveTab] = useState<Tab>(isNutritionRoute ? 'nutrition' : 'body');
   const [activeAnalyticsChart, setActiveAnalyticsChart] = useState<AnalyticsChartTab>('heatmap');
   const [analyticsHeatmapRange, setAnalyticsHeatmapRange] = useState<AnalyticsRangeOption>(8);
   const [analyticsBalanceRange, setAnalyticsBalanceRange] = useState<AnalyticsRangeOption>(4);
