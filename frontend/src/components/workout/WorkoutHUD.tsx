@@ -348,11 +348,14 @@ function WorkoutHUD() {
   const insets = useSafeAreaInsets();
   const {
     activeSession, setActiveSession, addLogToSession, setCnsFatigue,
+    pendingCoachWorkout, setPendingCoachWorkout,
   } = useStore((s) => ({
     activeSession: s.activeSession,
     setActiveSession: s.setActiveSession,
     addLogToSession: s.addLogToSession,
     setCnsFatigue: s.setCnsFatigue,
+    pendingCoachWorkout: s.pendingCoachWorkout,
+    setPendingCoachWorkout: s.setPendingCoachWorkout,
   }));
 
   const [exercises, setExercises]       = useState<ExerciseCard[]>([]);
@@ -637,97 +640,115 @@ function WorkoutHUD() {
     },
   });
 
+  const prepareCoachWorkoutDraft = useCallback(async (sd: any) => {
+    if (!sd?.exercises?.length) throw new Error('The coach did not return an exercise plan.');
+
+    const allowedTypes = ['push', 'pull', 'legs', 'upper', 'lower', 'full_body', 'cardio', 'mobility', 'recovery'];
+    const proposedType = String(sd.workout_type || recommendedWorkout || 'full_body').toLowerCase();
+    const workoutType = allowedTypes.includes(proposedType) ? proposedType : 'full_body';
+    const nextExercises: ExerciseCard[] = sd.exercises.map((exercise: any) => ({
+      name: String(exercise.name || '').trim(),
+      sets: Math.max(1, Math.min(20, Number.parseInt(String(exercise.sets), 10) || 3)),
+      reps: String(exercise.reps || '8-12'),
+      load: String(exercise.weight || exercise.load_guidance || ''),
+      cue: String(exercise.focus || exercise.cue || ''),
+      rest: String(exercise.rest || '90 sec'),
+      completed_sets: 0,
+    })).filter((exercise: ExerciseCard) => exercise.name.length > 0);
+
+    if (!nextExercises.length) throw new Error('The proposed workout did not include valid exercises.');
+
+    const estimatedText = String(sd.summary?.estimated_time || sd.estimated_time || '');
+    const estimatedMatch = estimatedText.match(/\d+/);
+    const estimatedMinutes = estimatedMatch ? Number(estimatedMatch[0]) : null;
+    const title = String(sd.summary?.label || `${workoutType.replace(/_/g, ' ')} workout`).trim();
+    const muscleGroups = Array.isArray(sd.muscle_groups)
+      ? sd.muscle_groups.map((item: unknown) => String(item))
+      : [];
+    const sessionDate = localDateKey();
+    const draftPayload = {
+      name: title,
+      goal: profile?.goal || null,
+      phase: profile?.current_phase || null,
+      weeks: 4,
+      schedule: {},
+      session_date: sessionDate,
+      change_reason: 'Coach-generated training session awaiting athlete approval',
+      workout: {
+        label: title,
+        workout_type: workoutType,
+        muscle_groups: muscleGroups,
+        estimated_duration_minutes: estimatedMinutes,
+        exercises: nextExercises.map((exercise) => {
+          const loadMatch = exercise.load.match(/-?\d+(?:\.\d+)?/);
+          const restMatch = exercise.rest.match(/\d+/);
+          return {
+            name: exercise.name,
+            sets: exercise.sets,
+            reps: exercise.reps,
+            load_kg: loadMatch ? Number(loadMatch[0]) : null,
+            load_guidance: exercise.load || null,
+            rest_seconds: restMatch ? Math.max(0, Math.min(900, Number(restMatch[0]))) : 90,
+            cue: exercise.cue || null,
+            equipment_required: [],
+            muscle_groups: [],
+          };
+        }),
+      },
+    };
+
+    const created = await trainingPlanApi.createDraft(draftPayload);
+    const planId = String(created.data?.plan?.id || '');
+    const versionId = String(created.data?.version?.id || '');
+    if (!planId || !versionId) throw new Error('The server did not return a saved draft version.');
+
+    setDraftPlan({
+      planId,
+      versionId,
+      sessionRequestId: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`,
+      sessionDate,
+      name: title,
+      workoutType,
+      estimatedMinutes,
+      muscleGroups,
+      approved: false,
+    });
+    setExercises(nextExercises);
+    setActiveIdx(0);
+    setPlanPreviewVisible(true);
+  }, [profile?.goal, profile?.current_phase, recommendedWorkout]);
+
+  // A workout created in Coach is handed into this existing plan-review and
+  // approval flow. It is not regenerated, replaced, or started without consent.
+  useEffect(() => {
+    if (!pendingCoachWorkout || activeSession || isRestoringSession || isBuildingPlan || draftPlan || planPreviewVisible) return;
+    setIsBuildingPlan(true);
+    void prepareCoachWorkoutDraft(pendingCoachWorkout)
+      .then(() => setPendingCoachWorkout(null))
+      .catch((error: any) => {
+        setPendingCoachWorkout(null);
+        Alert.alert(
+          'Could not prepare workout',
+          error?.response?.data?.detail || error?.message || 'The coach plan could not be saved. Please try again.',
+        );
+      })
+      .finally(() => setIsBuildingPlan(false));
+  }, [
+    pendingCoachWorkout, activeSession, isRestoringSession, isBuildingPlan,
+    draftPlan, planPreviewVisible, prepareCoachWorkoutDraft, setPendingCoachWorkout,
+  ]);
+
   const askCoachForWorkout = async () => {
     if (isBuildingPlan || isRestoringSession || isApprovingPlan) return;
     setIsBuildingPlan(true);
     try {
       const res = await coachApi.chat("What's my workout today?");
-      const sd = res.data?.structured_decision;
-      if (!sd?.exercises?.length) {
-        Alert.alert('Coach', res.data?.reply || 'Open Coach to refine your plan and try again.');
-        return;
-      }
-
-      const allowedTypes = ['push', 'pull', 'legs', 'upper', 'lower', 'full_body', 'cardio', 'mobility', 'recovery'];
-      const proposedType = String(sd.workout_type || recommendedWorkout || 'full_body').toLowerCase();
-      const workoutType = allowedTypes.includes(proposedType) ? proposedType : 'full_body';
-      const nextExercises: ExerciseCard[] = sd.exercises.map((exercise: any) => ({
-        name: String(exercise.name || '').trim(),
-        sets: Math.max(1, Math.min(20, Number.parseInt(String(exercise.sets), 10) || 3)),
-        reps: String(exercise.reps || '8-12'),
-        load: String(exercise.weight || exercise.load_guidance || ''),
-        cue: String(exercise.focus || exercise.cue || ''),
-        rest: String(exercise.rest || '90 sec'),
-        completed_sets: 0,
-      })).filter((exercise: ExerciseCard) => exercise.name.length > 0);
-
-      if (!nextExercises.length) {
-        Alert.alert('Coach', 'The proposed workout did not include valid exercises. Ask Coach to regenerate it.');
-        return;
-      }
-
-      const estimatedText = String(sd.summary?.estimated_time || sd.estimated_time || '');
-      const estimatedMatch = estimatedText.match(/\d+/);
-      const estimatedMinutes = estimatedMatch ? Number(estimatedMatch[0]) : null;
-      const title = String(sd.summary?.label || `${workoutType.replace(/_/g, ' ')} workout`)
-        .replace(/^\s+|\s+$/g, '');
-      const muscleGroups = Array.isArray(sd.muscle_groups)
-        ? sd.muscle_groups.map((item: unknown) => String(item))
-        : [];
-
-      const sessionDate = localDateKey();
-      const draftPayload = {
-        name: title,
-        goal: profile?.goal || null,
-        phase: profile?.current_phase || null,
-        weeks: 4,
-        schedule: {},
-        session_date: sessionDate,
-        change_reason: 'Coach-generated training session awaiting athlete approval',
-        workout: {
-          label: title,
-          workout_type: workoutType,
-          muscle_groups: muscleGroups,
-          estimated_duration_minutes: estimatedMinutes,
-          exercises: nextExercises.map((exercise) => {
-            const loadMatch = exercise.load.match(/-?\d+(?:\.\d+)?/);
-            const restMatch = exercise.rest.match(/\d+/);
-            return {
-              name: exercise.name,
-              sets: exercise.sets,
-              reps: exercise.reps,
-              load_kg: loadMatch ? Number(loadMatch[0]) : null,
-              load_guidance: exercise.load || null,
-              rest_seconds: restMatch ? Math.max(0, Math.min(900, Number(restMatch[0]))) : 90,
-              cue: exercise.cue || null,
-              equipment_required: [],
-              muscle_groups: [],
-            };
-          }),
-        },
-      };
-
-      const created = await trainingPlanApi.createDraft(draftPayload);
-      const planId = String(created.data?.plan?.id || '');
-      const versionId = String(created.data?.version?.id || '');
-      if (!planId || !versionId) throw new Error('The server did not return a saved draft version.');
-
-      setDraftPlan({
-        planId,
-        versionId,
-        sessionRequestId: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`,
-        sessionDate,
-        name: title,
-        workoutType,
-        estimatedMinutes,
-        muscleGroups,
-        approved: false,
-      });
-      setExercises(nextExercises);
-      setActiveIdx(0);
-      setPlanPreviewVisible(true);
+      await prepareCoachWorkoutDraft(res.data?.structured_decision);
     } catch (error: any) {
-      Alert.alert('Could not prepare workout', error?.response?.data?.detail || 'Could not save the workout draft. Check your connection and try again.');
+      Alert.alert(
+        'Could not prepare workout',
+        error?.response?.data?.detail || error?.message || 'Could not save the workout draft. Check your connection and try again.',
+      );
     } finally {
       setIsBuildingPlan(false);
     }
