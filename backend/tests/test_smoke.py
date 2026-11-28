@@ -12,6 +12,33 @@ from main import app
 from api.routes.workouts import SetLogRequest
 from schemas.models import SetLog
 
+from api.routes.mission import _build_training_window
+
+
+@pytest.mark.parametrize(
+    ("preference", "display_label"),
+    [
+        ("morning", "6:00–10:00 AM"),
+        ("afternoon", "12:00–4:00 PM"),
+        ("evening", "5:00–9:00 PM"),
+    ],
+)
+def test_training_preference_becomes_a_suggested_window(preference, display_label):
+    window = _build_training_window({"workout_time_preference": preference})
+
+    assert window["display_label"] == display_label
+    assert window["source"] == "profile_preference"
+    assert window["is_exact"] is False
+    assert "not a booked gym appointment" in window["note"]
+
+
+def test_missing_training_preference_does_not_invent_a_gym_time():
+    window = _build_training_window({})
+
+    assert window["display_label"] is None
+    assert window["source"] == "unset"
+    assert window["is_exact"] is False
+
 
 def _registered_routes() -> set[tuple[str, str]]:
     return {
