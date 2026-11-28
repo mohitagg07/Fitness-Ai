@@ -195,8 +195,8 @@ def parse_input_node(state: WorkoutGraphState) -> WorkoutGraphState:
 
     # Avoid a second LLM call for greetings, questions and plans. This parser
     # only handles actual performance entries with numeric set data.
-    has_number = bool(re.search(r"\\d", user_msg))
-    has_set_marker = bool(re.search(r"\\b(kg|kgs|lb|lbs|reps?|sets?|rpe|rir)\\b", user_msg.lower()))
+    has_number = bool(re.search(r"\d", user_msg))
+    has_set_marker = bool(re.search(r"\b(kg|kgs|lb|lbs|reps?|sets?|rpe|rir)\\b", user_msg.lower()))
     if not (has_number and has_set_marker):
         state["parsed_logs"] = []
         state["emergency"] = False
