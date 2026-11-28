@@ -652,6 +652,17 @@ const CoachMessage = React.memo(function CoachMessage({
 }) {
   const sd = item.structured_decision;
   const coachText = sd?.coach_message || item.content || '';
+  const toolLabels: Record<string, string> = {
+    get_recent_workouts: 'Training history',
+    get_nutrition_today: "Today's nutrition",
+    get_recovery_checkins: 'Recovery check-ins',
+    get_weight_trend: 'Weight trend',
+    get_profile_constraints: 'Profile constraints',
+    search_fitness_evidence: 'Fitness evidence',
+  };
+  const checkedData = Array.isArray(sd?.agent_activity?.tools_used)
+    ? sd.agent_activity.tools_used.map((name: string) => toolLabels[name]).filter(Boolean)
+    : [];
 
   const renderCard = () => {
     if (!sd) return null;
@@ -670,6 +681,13 @@ const CoachMessage = React.memo(function CoachMessage({
   return (
     <>
       {coachText ? <Text style={S.messageText}>{coachText}</Text> : null}
+      {checkedData.length > 0 && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 8, marginBottom: 4 }}>
+          <Ionicons name="checkmark-circle-outline" size={12} color={COLORS.primaryGreen} />
+          <Text style={{ color: COLORS.textMuted, fontFamily: FONTS.semibold, fontSize: 9, letterSpacing: 0.8 }}>DATA CHECKED</Text>
+          <Text style={{ color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 10 }}>{checkedData.join(' · ')}</Text>
+        </View>
+      )}
       {renderCard()}
       {Array.isArray(sd?.knowledge_sources) && sd.knowledge_sources.length > 0 && (
         <View style={S.sourcesBlock}>
