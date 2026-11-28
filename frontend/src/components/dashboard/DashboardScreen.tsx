@@ -197,8 +197,6 @@ export default function DashboardScreen() {
   const score = rawScore === null ? null : Math.max(0, Math.min(100, rawScore));
   const scoreColor = score === null ? COLORS.textMuted : recoveryColor(score);
 
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   const dateLabel = new Intl.DateTimeFormat('en-IN', {
     weekday: 'long',
     day: 'numeric',
@@ -272,20 +270,17 @@ export default function DashboardScreen() {
         }
       >
         <View style={styles.topline}>
-          <View>
-            <Text style={styles.brandName}>VYRN</Text>
-            <Text style={styles.brandSub}>YOUR PERSONAL PERFORMANCE SPACE</Text>
+          <View style={styles.homeHeading}>
+            <Text style={styles.brandSub}>PERSONAL TRAINING</Text>
+            <Text style={styles.brandName}>Overview</Text>
           </View>
           <ProfileAvatar size={42} onPress={() => router.push('/(tabs)/profile')} />
         </View>
 
         <View style={styles.pageHeading}>
-          <Text style={styles.pageEyebrow}>HOME</Text>
-          <Text style={styles.pageTitle}>Today.</Text>
           <Text style={styles.dateLabel}>{dateLabel.toUpperCase()}</Text>
-          <Text style={styles.greeting}>{greeting},</Text>
-          <Text style={styles.name}>{firstName}.</Text>
-          <Text style={styles.greetingSub}>A clear plan. One good session at a time.</Text>
+          <Text style={styles.greeting}>Welcome back, {firstName}</Text>
+          <Text style={styles.greetingSub}>Your training, nutrition and recovery in one place.</Text>
         </View>
 
         <View style={styles.readinessPanel}>
@@ -332,7 +327,7 @@ export default function DashboardScreen() {
         <View style={styles.sectionHeading}>
           <View>
             <Text style={styles.sectionEyebrow}>YOUR PLAN</Text>
-            <Text style={styles.sectionTitle}>Today's session</Text>
+            <Text style={styles.sectionTitle}>Training plan</Text>
           </View>
           {summary?.workout_today?.rescheduled ? (
             <Text style={styles.rescheduledLabel}>RESCHEDULED</Text>
@@ -379,7 +374,7 @@ export default function DashboardScreen() {
               <View style={styles.coachIcon}>
                 <Ionicons name="sparkles" size={17} color={COLORS.coachPurple} />
               </View>
-              <Text style={styles.coachLabel}>A NOTE FROM VYRN</Text>
+              <Text style={styles.coachLabel}>COACH UPDATE</Text>
               <PressableScale onPress={() => router.push('/(tabs)/coach')} style={styles.coachAction}>
                 <Text style={styles.coachActionText}>ASK COACH</Text>
                 <Ionicons name="arrow-forward" size={13} color={COLORS.coachPurple} />
@@ -395,7 +390,7 @@ export default function DashboardScreen() {
             title="Log food"
             subtitle="Track today's nutrition"
             accent={COLORS.carbs}
-            onPress={() => router.push({ pathname: '/(tabs)/progress', params: { tab: 'nutrition' } } as any)}
+            onPress={() => router.push('/(tabs)/nutrition')}
           />
           <QuickAction
             icon="stats-chart-outline"
@@ -427,45 +422,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 28,
   },
+  homeHeading: { gap: 3 },
   brandName: {
     color: COLORS.text,
-    fontFamily: FONTS.numericBold,
-    fontSize: 16,
-    letterSpacing: 4.8,
+    fontFamily: FONTS.numericSemibold,
+    fontSize: 27,
+    lineHeight: 32,
+    letterSpacing: -0.8,
   },
   brandSub: {
-    color: COLORS.textMuted,
-    fontFamily: FONTS.semibold,
-    fontSize: 10,
-    letterSpacing: 1.05,
-    marginTop: 3,
-  },
-  pageHeading: { marginBottom: 24 },
-  pageEyebrow: {
     color: COLORS.primaryGreen,
     fontFamily: FONTS.bold,
-    fontSize: 10,
-    letterSpacing: 1.8,
-    marginBottom: 3,
+    fontSize: 9,
+    letterSpacing: 1.5,
   },
-  pageTitle: {
-    color: COLORS.text,
-    fontFamily: FONTS.numericBold,
-    fontSize: 28,
-    lineHeight: 34,
-    letterSpacing: -0.9,
-    marginBottom: 17,
-  },
+  pageHeading: { marginBottom: 23, gap: 6 },
   dateLabel: {
     color: COLORS.textMuted,
     fontFamily: FONTS.semibold,
     fontSize: 10,
     letterSpacing: 1.1,
-    marginBottom: 8,
   },
-  greeting: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 17, lineHeight: 23 },
-  name: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 44, lineHeight: 50, letterSpacing: -1.9 },
-  greetingSub: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 12, lineHeight: 18, marginTop: 5 },
+  greeting: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 19, lineHeight: 25, letterSpacing: -0.2 },
+  greetingSub: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 12, lineHeight: 18 },
   readinessPanel: {
     borderRadius: 28,
     backgroundColor: COLORS.card,
