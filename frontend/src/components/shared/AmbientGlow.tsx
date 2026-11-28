@@ -96,8 +96,8 @@ export default function AmbientGlow({ variant, recoveryScore0to100 }: Props) {
 const styles = StyleSheet.create({
   wrap: { overflow: 'hidden' },
   primaryBloom: { ...StyleSheet.absoluteFillObject },
-  cyanBloom: { ...StyleSheet.absoluteFillObject, transform: [{ translateX: width * 0.32 }, { translateY: width * 0.24 }, { scale: 0.84 }] },
-  coralBloom: { ...StyleSheet.absoluteFillObject, transform: [{ translateX: -width * 0.30 }, { translateY: width * 0.36 }, { scale: 0.72 }] },
+  cyanBloom: { ...StyleSheet.absoluteFillObject, left: width * 0.28, top: width * 0.22 },
+  coralBloom: { ...StyleSheet.absoluteFillObject, left: -width * 0.25, top: width * 0.36 },
   blob: {
     position: 'absolute',
     top: -width * 0.5,
