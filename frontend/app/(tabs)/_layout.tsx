@@ -263,14 +263,14 @@ export default function TabsLayout() {
         },
         tabBarActiveTintColor: COLORS.tabActive,
         tabBarInactiveTintColor: COLORS.tabInactive,
-        tabBarShowLabel: false,
+        tabBarShowLabel: true,
         tabBarLabelStyle: {
           fontFamily: FONTS.semibold,
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: '600',
-          letterSpacing: 0.15,
-          marginTop: 1,
-          lineHeight: 14,
+          letterSpacing: 0.1,
+          marginTop: 0,
+          lineHeight: 12,
         },
         tabBarHideOnKeyboard: true,
       }}
@@ -281,7 +281,9 @@ export default function TabsLayout() {
           name={tab.name}
           options={{
             title: tab.title,
-            tabBarLabel: tab.title,
+            // Inactive items remain icon-only; the active destination is
+            // named directly under its icon.
+            tabBarLabel: ({ focused }) => focused ? tab.title : '',
             tabBarAccessibilityLabel: tab.title,
             tabBarIcon: ({ color, focused }) => (
               <TabBarIcon tab={tab} color={color} focused={focused} />
@@ -289,27 +291,6 @@ export default function TabsLayout() {
           }}
         />
       ))}
-      <Tabs.Screen
-        name="nutrition"
-        options={{
-          title: 'Nutrition',
-          tabBarLabel: 'Nutrition',
-          tabBarAccessibilityLabel: 'Nutrition',
-          tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon
-              tab={{ name: 'nutrition', title: 'Nutrition', icon: 'nutrition-outline', activeIcon: 'nutrition' }}
-              color={color}
-              focused={focused}
-            />
-          ),
-        }}
-        listeners={{
-          tabPress: (event) => {
-            event.preventDefault();
-            router.navigate({ pathname: '/(tabs)/progress', params: { tab: 'nutrition' } });
-          },
-        }}
-      />
       {HIDDEN_TABS.map((name) => (
         <Tabs.Screen key={name} name={name} options={{ href: null }} />
       ))}
