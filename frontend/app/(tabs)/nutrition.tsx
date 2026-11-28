@@ -1,4 +1,5 @@
-import { useLocalSearchParams } from 'expo-router';
+import { useEffect } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
 import ProgressScreen from '../../src/components/progress/ProgressScreen';
 
 /**
@@ -9,6 +10,13 @@ import ProgressScreen from '../../src/components/progress/ProgressScreen';
  */
 export default function NutritionTab() {
   const params = useLocalSearchParams<{ openLog?: string }>();
+
+  useEffect(() => {
+    if (params.openLog === '1') {
+      router.setParams({ openLog: undefined });
+    }
+  }, [params.openLog]);
+
   return (
     <ProgressScreen
       initialTab="nutrition"
