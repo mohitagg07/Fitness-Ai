@@ -986,31 +986,49 @@ export default function CoachScreen() {
   const saveWorkoutDraftFromCoach = useCallback(async (plan: any) => {
     if (savingCoachDraft) return;
     const allowedTypes = new Set(['push', 'pull', 'legs', 'upper', 'lower', 'full_body', 'cardio', 'mobility', 'recovery', 'rest']);
-    const rawType = String(plan?.workout_type || plan?.type || 'full_body').toLowerCase().replace(/[ -]+/g, '_');
-    const workoutType = allowedTypes.has(rawType) ? rawType : 'full_body';
-    const toRestSeconds = (value: unknown): number => {
-      const match = String(value ?? '').match(/[0-9]+(?:[.][0-9]+)?/);
-      if (!match) return 90;
-      const amount = Number(match[0]);
-      return String(value).toLowerCase().includes('min') ? Math.round(amount * 60) : Math.round(amount);
-    };
-    const exercises = (Array.isArray(plan?.exercises) ? plan.exercises : []).slice(0, 40).map((exercise: any) => {
+    const rawType = String(plan?.workout_type || plan?.type || '').toLowerCase().replace(/[ -]+/g, '_');
+    if (!allowedTypes.has(rawType)) {
+      Alert.alert('Cannot save this draft', 'The Coach recommendation is missing a supported workout type. Ask the Coach to regenerate it before saving.');
+      return;
+    }
+    const workoutType = rawType;
+    const rawExercises = Array.isArray(plan?.exercises) ? plan.exercises.slice(0, 40) : [];
+    const mappedExercises = rawExercises.map((exercise: any) => {
+      const name = String(exercise?.name || '').trim();
+      const setsValue = Number(exercise?.sets);
+      const reps = String(exercise?.reps ?? '').trim().slice(0, 30);
+      const setsValid = Number.isInteger(setsValue) && setsValue >= 1 && setsValue <= 20;
       const weightText = String(exercise?.weight ?? '').trim();
       const kgMatch = weightText.match(/([0-9]+(?:[.][0-9]+)?)\s*kg/i);
       const loadKg = kgMatch ? Number(kgMatch[1]) : undefined;
       const loadGuidance = weightText && loadKg === undefined ? weightText.slice(0, 240) : undefined;
+      const restMatch = String(exercise?.rest ?? '').match(/[0-9]+(?:[.][0-9]+)?/);
+      const restAmount = restMatch ? Number(restMatch[0]) : undefined;
+      const restSeconds = restAmount === undefined
+        ? undefined
+        : Math.round(restAmount * (String(exercise.rest).toLowerCase().includes('min') ? 60 : 1));
+      const restValid = restSeconds === undefined || (Number.isInteger(restSeconds) && restSeconds >= 0 && restSeconds <= 900);
       return {
-        name: String(exercise?.name || '').trim(),
-        sets: Math.max(1, Math.min(20, Math.round(Number(exercise?.sets) || 3))),
-        reps: String(exercise?.reps ?? '8').slice(0, 30),
-        ...(loadKg !== undefined && Number.isFinite(loadKg) ? { load_kg: loadKg } : {}),
-        ...(loadGuidance ? { load_guidance: loadGuidance } : {}),
-        rest_seconds: Math.max(0, Math.min(900, toRestSeconds(exercise?.rest))),
-        ...(exercise?.focus ? { cue: String(exercise.focus).slice(0, 500) } : {}),
+        valid: Boolean(name && setsValid && reps && restValid && (loadKg === undefined || (Number.isFinite(loadKg) && loadKg >= 0 && loadKg <= 1000))),
+        exercise: {
+          name,
+          sets: setsValue,
+          reps,
+          ...(loadKg !== undefined ? { load_kg: loadKg } : {}),
+          ...(loadGuidance ? { load_guidance: loadGuidance } : {}),
+          ...(restSeconds !== undefined ? { rest_seconds: restSeconds } : {}),
+          ...(exercise?.focus ? { cue: String(exercise.focus).slice(0, 500) } : {}),
+        },
       };
-    }).filter((exercise: any) => exercise.name);
-    if (workoutType !== 'rest' && exercises.length === 0) {
-      Alert.alert('Cannot save this draft', 'The Coach recommendation did not contain a usable exercise prescription.');
+    });
+    const exercises = mappedExercises.map((item: any) => item.exercise);
+    const hasInvalidPrescription = mappedExercises.some((item: any) => !item.valid);
+    if (workoutType !== 'rest' && (exercises.length === 0 || hasInvalidPrescription)) {
+      Alert.alert('Cannot save this draft', 'Every exercise must include a name, valid sets and reps, and valid optional load/rest values. Nothing has been saved. Ask the Coach to regenerate the prescription.');
+      return;
+    }
+    if (workoutType === 'rest' && exercises.length > 0) {
+      Alert.alert('Cannot save this draft', 'A rest-day proposal cannot contain exercises.');
       return;
     }
     const durationMatch = String(plan?.summary?.estimated_time || '').match(/[0-9]+/);
