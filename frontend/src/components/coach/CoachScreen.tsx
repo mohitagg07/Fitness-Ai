@@ -436,6 +436,13 @@ function NutritionCard({ sd, onOpenNutrition }: { sd: any; onOpenNutrition?: () 
           <Text style={{ color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 11, marginTop: 7, marginBottom: 4 }}>
             Remaining: {Math.round(remaining.calories || 0)} kcal · {Math.round(remaining.protein_g || 0)}g protein · {Math.round(remaining.carbs_g || 0)}g carbs
           </Text>
+          {today.nutrition_target_source === 'estimated_defaults' && (
+            <Text style={C.estimateNotice}>
+              These targets are estimates because your profile is missing {Array.isArray(today.missing_measurements)
+                ? today.missing_measurements.map((item: string) => item.replace(/_/g, ' ')).join(', ')
+                : 'required measurements'}. Complete your Profile measurements to personalise them.
+            </Text>
+          )}
         </View>
       )}
       {plans.length > 0 ? (
@@ -1254,6 +1261,7 @@ const C = StyleSheet.create({
   tipDot:    { width: 5, height: 5, borderRadius: 3, marginTop: 6 },
   tipText: { fontFamily: FONTS.regular,  color: COLORS.textSecondary, fontSize: 12, flex: 1, lineHeight: 18 },
   emptyTip: { fontFamily: FONTS.regular,  color: COLORS.textMuted, fontSize: 12 },
+  estimateNotice: { color: COLORS.recoveryMed, fontFamily: FONTS.regular, fontSize: 10, lineHeight: 15, marginTop: 6, padding: 9, borderRadius: 10, backgroundColor: alpha(COLORS.recoveryMed, 0.08) },
 
   // Workout card
   wMeta:         { flexDirection: 'row', alignItems: 'center', gap: 10,
