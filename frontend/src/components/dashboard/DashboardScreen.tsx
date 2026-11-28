@@ -5,6 +5,7 @@ import {
   Alert,
   RefreshControl,
   ScrollView,
+  ImageBackground,
   StyleSheet,
   Text,
   View,
@@ -30,8 +31,18 @@ import RecoveryCheckInModal, { RecoveryCheckInValues } from './RecoveryCheckInMo
 import ProgramEvolutionCard from './ProgramEvolutionCard';
 
 interface DashboardSummary {
+  mission?: string;
   mission_text?: string;
   next_task?: string;
+  intensity?: string;
+  training_time?: {
+    period?: string | null;
+    label?: string;
+    display_label?: string | null;
+    source?: string;
+    is_exact?: boolean;
+    note?: string;
+  };
   workout_today?: {
     type?: string | null;
     rescheduled?: boolean;
@@ -43,10 +54,20 @@ interface DashboardSummary {
     action?: string;
     message?: string;
   };
+  nutrition_status?: {
+    calories_remaining?: number;
+    protein_remaining_g?: number;
+    water_remaining_ml?: number;
+  };
   motivation_message?: string;
   proactive_brief?: {
     coach_message?: string;
+    todays_focus?: string;
+    recommendation?: string;
+    why_summary?: string;
+    suggested_top_set?: string | null;
   };
+
 }
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -129,16 +150,19 @@ function QuickAction({
 }) {
   return (
     <PressableScale style={styles.quickAction} onPress={onPress}>
-      <View style={[styles.quickIcon, { backgroundColor: alpha(accent, 0.12), borderColor: alpha(accent, 0.22) }]}>
-        <Ionicons name={icon} size={19} color={accent} />
+      <View style={[styles.quickIcon, { backgroundColor: alpha(accent, 0.14), borderColor: alpha(accent, 0.28) }]}>
+        <Ionicons name={icon} size={21} color={accent} />
       </View>
       <View style={styles.quickCopy}>
         <Text style={styles.quickTitle}>{title}</Text>
         <Text style={styles.quickSubtitle}>{subtitle}</Text>
       </View>
-      <Ionicons name="arrow-forward" size={17} color={COLORS.textMuted} />
+      <View style={styles.quickArrow}>
+        <Ionicons name="arrow-up-right" size={16} color={COLORS.textSecondary} />
+      </View>
     </PressableScale>
   );
+
 }
 
 export default function DashboardScreen() {
@@ -271,47 +295,94 @@ export default function DashboardScreen() {
       >
         <View style={styles.topline}>
           <View style={styles.homeHeading}>
-            <Text style={styles.brandSub}>PERSONAL TRAINING</Text>
-            <Text style={styles.brandName}>Overview</Text>
+            <Text style={styles.brandSub}>YOUR TRAINING SPACE</Text>
+            <Text style={styles.brandName}>Today</Text>
+            <Text style={styles.dateLabel}>{dateLabel}</Text>
           </View>
-          <ProfileAvatar size={42} onPress={() => router.push('/(tabs)/profile')} />
+          <ProfileAvatar size={44} onPress={() => router.push('/(tabs)/profile')} />
         </View>
 
-        <View style={styles.pageHeading}>
-          <Text style={styles.dateLabel}>{dateLabel.toUpperCase()}</Text>
-          <Text style={styles.greeting}>Welcome back, {firstName}</Text>
-          <Text style={styles.greetingSub}>Your training, nutrition and recovery in one place.</Text>
-        </View>
-
-        <View style={styles.readinessPanel}>
+        <ImageBackground
+          source={{ uri: 'https://images.unsplash.com/photo-1709315957145-a4bad1feef28?auto=format&fit=crop&w=1200&q=85' }}
+          resizeMode="cover"
+          style={styles.heroCard}
+          imageStyle={styles.heroImage}
+          accessibilityLabel="Athlete training with a barbell in a dark gym"
+        >
           <LinearGradient
-            colors={[COLORS.cardElevated, COLORS.card, COLORS.backgroundTop]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
+            colors={['rgba(5,9,13,0.12)', 'rgba(5,9,13,0.52)', 'rgba(5,9,13,0.97)']}
+            locations={[0, 0.42, 1]}
             style={StyleSheet.absoluteFillObject}
           />
-          <View pointerEvents="none" style={styles.readinessAura} />
-          <View style={styles.readinessTopline}>
-            <View style={styles.readinessLabelRow}>
-              <Ionicons name="pulse-outline" size={15} color={COLORS.primaryGreen} />
-              <Text style={styles.eyebrow}>READINESS</Text>
+          <View style={styles.heroContent}>
+            <View style={styles.heroTopline}>
+              <View style={styles.heroEyebrow}>
+                <View style={styles.heroLiveDot} />
+                <Text style={styles.heroEyebrowText}>TODAY'S COACH PLAN</Text>
+              </View>
+              <View style={styles.heroStatus}>
+                <Text style={styles.heroStatusText}>
+                  {score === null ? 'BUILDING BASELINE' : score >= 67 ? 'READY' : score >= 34 ? 'MEASURED' : 'RECOVER'}
+                </Text>
+              </View>
             </View>
-            <View style={[styles.livePill, { borderColor: alpha(scoreColor, 0.42) }]}>
-              <View style={[styles.liveDot, { backgroundColor: scoreColor }]} />
-              <Text style={[styles.liveText, { color: scoreColor }]}>
-                {score === null ? (isPending ? 'SYNCING' : 'NEEDS DATA') : score >= 67 ? 'READY' : score >= 34 ? 'MODERATE' : 'RECOVER'}
+
+            <View style={styles.heroCopy}>
+              <Text style={styles.heroKicker}>THE PRIORITY</Text>
+              <Text style={styles.heroTitle}>
+                {summary?.recovery?.action === 'rest'
+                  ? 'Recovery day.'
+                  : workoutType
+                    ? `${workoutType.replace(/_/g, ' ')} day.`
+                    : 'Build your training plan.'}
+              </Text>
+              <Text style={styles.heroDescription} numberOfLines={3}>
+                {summary?.proactive_brief?.todays_focus
+                  || summary?.proactive_brief?.recommendation
+                  || summary?.workout_today?.message
+                  || 'Your coach is reviewing your training history and readiness.'}
               </Text>
             </View>
-          </View>
-          <View style={styles.readinessBody}>
-            <View style={styles.readinessCopy}>
-              <Text style={styles.readinessHeadline}>{readinessHeadline}</Text>
-              <Text style={styles.readinessDescription} numberOfLines={4}>{readinessMessage}</Text>
-              <Text style={styles.readinessFootnote}>BASED ON YOUR TRACKED DATA</Text>
+
+            <View style={styles.heroMetaRow}>
+              <View style={styles.heroMeta}>
+                <Ionicons name="time-outline" size={16} color={COLORS.primaryGreen} />
+                <View style={styles.heroMetaCopy}>
+                  <Text style={styles.heroMetaLabel}>PREFERRED WINDOW</Text>
+                  <Text style={styles.heroMetaValue}>
+                    {summary?.training_time?.display_label || 'Not set'}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.heroMetaDivider} />
+              <View style={styles.heroMeta}>
+                <Ionicons name="pulse-outline" size={16} color={scoreColor} />
+                <View style={styles.heroMetaCopy}>
+                  <Text style={styles.heroMetaLabel}>READINESS</Text>
+                  <Text style={styles.heroMetaValue}>{score === null ? '—' : `${Math.round(score)} / 100`}</Text>
+                </View>
+              </View>
             </View>
-            <ReadinessDial score={score} color={scoreColor} />
+            <Text style={styles.heroFootnote}>
+              {summary?.training_time?.display_label
+                ? 'Suggested from your profile preference · not a booked appointment'
+                : 'Set your preferred training time in Profile'}
+            </Text>
+
+            <PressableScale
+              style={styles.heroButton}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+                router.push(summary?.recovery?.action === 'rest' ? '/(tabs)/coach' : '/(tabs)/workout');
+              }}
+            >
+              <Text style={styles.heroButtonText}>
+                {summary?.recovery?.action === 'rest' ? 'Open Coach guidance' : workoutType ? 'Review today’s session' : 'Open training'}
+              </Text>
+              <Ionicons name="arrow-forward" size={18} color={COLORS.background} />
+            </PressableScale>
           </View>
-        </View>
+        </ImageBackground>
 
         {summary?.recovery?.action === 'check_in' ? (
           <PressableScale
@@ -319,87 +390,101 @@ export default function DashboardScreen() {
             onPress={() => setRecoveryCheckInVisible(true)}
           >
             <Ionicons name="clipboard-outline" size={16} color={COLORS.primaryGreen} />
-            <Text style={styles.recoveryCheckInText}>Log today's recovery</Text>
+            <Text style={styles.recoveryCheckInText}>Complete today's recovery check-in</Text>
             <Ionicons name="arrow-forward" size={15} color={COLORS.primaryGreen} />
           </PressableScale>
         ) : null}
 
         <View style={styles.sectionHeading}>
           <View>
-            <Text style={styles.sectionEyebrow}>YOUR PLAN</Text>
-            <Text style={styles.sectionTitle}>Training plan</Text>
+            <Text style={styles.sectionEyebrow}>LIVE SNAPSHOT</Text>
+            <Text style={styles.sectionTitle}>Your day at a glance</Text>
           </View>
-          {summary?.workout_today?.rescheduled ? (
-            <Text style={styles.rescheduledLabel}>RESCHEDULED</Text>
-          ) : null}
-        </View>
-
-        <View style={styles.trainingPanel}>
-          <View style={styles.trainingIcon}>
-            <Ionicons name="barbell-outline" size={24} color={COLORS.primaryGreen} />
-          </View>
-          <View style={styles.trainingCopy}>
-            <Text style={styles.trainingLabel}>SCHEDULED WORKOUT</Text>
-            <Text style={styles.trainingName}>{workoutType || 'No workout scheduled'}</Text>
-            <Text style={styles.trainingDetail} numberOfLines={2}>
-              {summary?.workout_today?.message
-                || summary?.next_task
-                || (workoutType ? 'Your session is ready when you are.' : 'Open training to build or start a session.')}
-            </Text>
+          <View style={styles.snapshotCaption}>
+            <View style={styles.snapshotLiveDot} />
+            <Text style={styles.snapshotCaptionText}>TODAY</Text>
           </View>
         </View>
 
-        <PressableScale
-          style={styles.primaryButton}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
-            router.push('/(tabs)/workout');
-          }}
-        >
-          <LinearGradient
-            colors={[COLORS.primaryGreen, '#B4ED4A']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFillObject}
-          />
-          <Text style={styles.primaryButtonText}>{workoutType ? 'Open workout' : 'Plan a workout'}</Text>
-          <Ionicons name="arrow-forward" size={18} color={COLORS.background} />
-        </PressableScale>
-
-        <ProgramEvolutionCard />
-
-        {coachMessage ? (
-          <View style={styles.coachPanel}>
-            <View style={styles.coachPanelTop}>
-              <View style={styles.coachIcon}>
-                <Ionicons name="sparkles" size={17} color={COLORS.coachPurple} />
-              </View>
-              <Text style={styles.coachLabel}>COACH UPDATE</Text>
-              <PressableScale onPress={() => router.push('/(tabs)/coach')} style={styles.coachAction}>
-                <Text style={styles.coachActionText}>ASK COACH</Text>
-                <Ionicons name="arrow-forward" size={13} color={COLORS.coachPurple} />
-              </PressableScale>
+        <View style={styles.snapshotPanel}>
+          <View style={styles.snapshotCell}>
+            <View style={[styles.snapshotIcon, { backgroundColor: alpha(scoreColor, 0.12) }]}>
+              <Ionicons name="pulse-outline" size={16} color={scoreColor} />
             </View>
-            <Text style={styles.coachMessage} numberOfLines={4}>{coachMessage}</Text>
+            <Text style={styles.snapshotValue}>{score === null ? '—' : Math.round(score)}</Text>
+            <Text style={styles.snapshotLabel}>READINESS</Text>
           </View>
-        ) : null}
+          <View style={styles.snapshotDivider} />
+          <View style={styles.snapshotCell}>
+            <View style={[styles.snapshotIcon, { backgroundColor: alpha(COLORS.calories, 0.12) }]}>
+              <Ionicons name="flame-outline" size={16} color={COLORS.calories} />
+            </View>
+            <Text style={styles.snapshotValue}>
+              {summary?.nutrition_status?.calories_remaining == null
+                ? '—'
+                : Math.round(summary.nutrition_status.calories_remaining).toLocaleString('en-IN')}
+            </Text>
+            <Text style={styles.snapshotLabel}>KCAL LEFT</Text>
+          </View>
+          <View style={styles.snapshotDivider} />
+          <View style={styles.snapshotCell}>
+            <View style={[styles.snapshotIcon, { backgroundColor: alpha(COLORS.protein, 0.12) }]}>
+              <Ionicons name="nutrition-outline" size={16} color={COLORS.protein} />
+            </View>
+            <Text style={styles.snapshotValue}>
+              {summary?.nutrition_status?.protein_remaining_g == null
+                ? '—'
+                : `${Math.round(summary.nutrition_status.protein_remaining_g)}g`}
+            </Text>
+            <Text style={styles.snapshotLabel}>PROTEIN LEFT</Text>
+          </View>
+        </View>
 
+        <View style={styles.sectionHeading}>
+          <View>
+            <Text style={styles.sectionEyebrow}>QUICK ACTIONS</Text>
+            <Text style={styles.sectionTitle}>Keep your day moving</Text>
+          </View>
+        </View>
         <View style={styles.quickActions}>
           <QuickAction
             icon="nutrition-outline"
             title="Log food"
-            subtitle="Track today's nutrition"
+            subtitle="Update today's nutrition"
             accent={COLORS.carbs}
             onPress={() => router.push({ pathname: '/(tabs)/nutrition', params: { openLog: '1' } } as any)}
           />
           <QuickAction
             icon="stats-chart-outline"
             title="See progress"
-            subtitle="Body, recovery and trends"
+            subtitle="Body, strength and trends"
             accent={COLORS.strain}
             onPress={() => router.push('/(tabs)/progress')}
           />
         </View>
+
+        {coachMessage ? (
+          <PressableScale
+            style={styles.coachPanel}
+            onPress={() => router.push('/(tabs)/coach')}
+            accessibilityRole="button"
+            accessibilityLabel="Open the personal coach"
+          >
+            <View style={styles.coachPanelTop}>
+              <View style={styles.coachIcon}>
+                <Ionicons name="sparkles" size={17} color={COLORS.coachPurple} />
+              </View>
+              <Text style={styles.coachLabel}>COACH'S READ ON TODAY</Text>
+              <Ionicons name="arrow-up-right" size={16} color={COLORS.coachPurple} />
+            </View>
+            <Text style={styles.coachMessage} numberOfLines={3}>{coachMessage}</Text>
+            {summary?.proactive_brief?.why_summary ? (
+              <Text style={styles.coachReason} numberOfLines={2}>{summary.proactive_brief.why_summary}</Text>
+            ) : null}
+          </PressableScale>
+        ) : null}
+
+        <ProgramEvolutionCard />
       </ScrollView>
       <RecoveryCheckInModal
         visible={recoveryCheckInVisible}
@@ -445,6 +530,47 @@ const styles = StyleSheet.create({
   },
   greeting: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 19, lineHeight: 25, letterSpacing: -0.2 },
   greetingSub: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 12, lineHeight: 18 },
+  heroCard: {
+    minHeight: 380,
+    borderRadius: 28,
+    overflow: 'hidden',
+    backgroundColor: COLORS.card,
+    marginBottom: 25,
+    justifyContent: 'flex-end',
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  heroImage: { borderRadius: 28 },
+  heroContent: { flex: 1, justifyContent: 'space-between', padding: 19, minHeight: 380 },
+  heroTopline: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  heroEyebrow: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: 'rgba(4,8,12,0.56)', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
+  heroLiveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.primaryGreen },
+  heroEyebrowText: { fontFamily: FONTS.bold, color: '#F6F7F1', fontSize: 9, letterSpacing: 1.2 },
+  heroStatus: { backgroundColor: 'rgba(5,9,13,0.58)', borderRadius: 999, borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 9, paddingVertical: 6 },
+  heroStatusText: { fontFamily: FONTS.bold, color: '#F6F7F1', fontSize: 9, letterSpacing: 0.8 },
+  heroCopy: { marginTop: 110 },
+  heroKicker: { fontFamily: FONTS.bold, color: COLORS.primaryGreen, fontSize: 10, letterSpacing: 1.7, marginBottom: 8 },
+  heroTitle: { fontFamily: FONTS.numericBold, color: '#FFFFFF', fontSize: 35, lineHeight: 39, letterSpacing: -1.1, marginBottom: 9 },
+  heroDescription: { fontFamily: FONTS.medium, color: 'rgba(255,255,255,0.86)', fontSize: 12, lineHeight: 19, maxWidth: 320 },
+  heroMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingTop: 17 },
+  heroMeta: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 },
+  heroMetaCopy: { flex: 1, minWidth: 0 },
+  heroMetaLabel: { color: 'rgba(255,255,255,0.62)', fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 0.9, marginBottom: 3 },
+  heroMetaValue: { color: '#FFFFFF', fontFamily: FONTS.numericSemibold, fontSize: 12 },
+  heroMetaDivider: { width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.24)' },
+  heroFootnote: { color: 'rgba(255,255,255,0.62)', fontFamily: FONTS.regular, fontSize: 9, lineHeight: 13, marginTop: 8 },
+  heroButton: { minHeight: 50, marginTop: 15, borderRadius: 16, paddingHorizontal: 16, backgroundColor: COLORS.primaryGreen, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  heroButtonText: { color: COLORS.background, fontFamily: FONTS.bold, fontSize: 12, letterSpacing: 0.1 },
+  snapshotCaption: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 3 },
+  snapshotLiveDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: COLORS.primaryGreen },
+  snapshotCaptionText: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 9, letterSpacing: 0.8 },
+  snapshotPanel: { flexDirection: 'row', alignItems: 'center', minHeight: 116, borderRadius: 22, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card, paddingHorizontal: 7, paddingVertical: 13, marginBottom: 25 },
+  snapshotCell: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  snapshotIcon: { width: 30, height: 30, borderRadius: 11, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+  snapshotValue: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 19, lineHeight: 22 },
+  snapshotLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 0.75 },
+  snapshotDivider: { width: 1, height: 48, backgroundColor: COLORS.border },
+  coachReason: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 10, lineHeight: 15, marginTop: 9 },
   readinessPanel: {
     borderRadius: 28,
     backgroundColor: COLORS.card,
@@ -548,23 +674,13 @@ const styles = StyleSheet.create({
   coachAction: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   coachActionText: { color: COLORS.coachPurple, fontFamily: FONTS.bold, fontSize: 10, letterSpacing: 0.65 },
   coachMessage: { color: COLORS.text, fontFamily: FONTS.medium, fontSize: 13, lineHeight: 20 },
-  quickActions: { gap: 9 },
-  quickAction: {
-    minHeight: 65,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderRadius: 19,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.cardElevated,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-  },
-  quickIcon: { width: 40, height: 40, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  quickCopy: { flex: 1 },
-  quickTitle: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 12 },
-  quickSubtitle: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 10, marginTop: 3 },
+  quickActions: { flexDirection: 'row', gap: 10, marginBottom: 22 },
+  quickAction: { flex: 1, minHeight: 132, borderRadius: 22, borderWidth: 1, borderColor: COLORS.borderLight, backgroundColor: COLORS.cardElevated, padding: 15, justifyContent: 'space-between', overflow: 'hidden' },
+  quickIcon: { width: 43, height: 43, borderRadius: 15, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  quickCopy: { gap: 4, paddingTop: 14, paddingRight: 8 },
+  quickTitle: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 14 },
+  quickSubtitle: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 10, lineHeight: 15 },
+  quickArrow: { position: 'absolute', right: 14, top: 14, width: 27, height: 27, borderRadius: 10, backgroundColor: alpha(COLORS.text, 0.05), alignItems: 'center', justifyContent: 'center' },
   errorScreen: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.background, paddingHorizontal: 28 },
   errorIcon: { width: 58, height: 58, borderRadius: 19, backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
   errorTitle: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 22, textAlign: 'center', marginBottom: 8 },
