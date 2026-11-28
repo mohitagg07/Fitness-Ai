@@ -108,42 +108,107 @@ def generate_meal_plan(
     carbs_remaining_g: float,
     fat_remaining_g: float,
     food_preference: str | None,
+    allergies: list[str] | None = None,
+    food_restrictions: list[str] | None = None,
+    local_hour: int | None = None,
 ) -> list[dict]:
     """
-    Item #10 on the roadmap — "no searching," a ready-to-eat combination
-    rather than a single protein source. Greedily fills protein first
-    (the macro this app treats as non-negotiable — see calculate_macros'
-    2.0-2.5g/kg floor), then carbs, then reports the fat the plan already
-    contains rather than force-adding a fourth item most people wouldn't
-    actually eat separately from oil/nuts already in their cooking.
-    Returns [] once remaining needs are trivial (<10g protein) — a
-    "meal plan" for 4g of protein left is noise, not help.
+    Build a practical plan for the meals still ahead today.
+
+    Portions are estimated from the source protein/carbohydrate values below.
+    The result intentionally omits calorie and fat totals because the compact
+    source catalogue does not contain enough verified values to calculate them.
+    Food exclusions are applied before a source is selected.
     """
-    if protein_remaining_g < 10:
+    protein_left = max(0.0, float(protein_remaining_g or 0))
+    carbs_left = max(0.0, float(carbs_remaining_g or 0))
+    if protein_left < 5 and carbs_left < 10:
         return []
 
-    items = []
-    total_protein = total_carbs = total_fat = 0.0
+    preference = (food_preference or "non-veg").strip().lower()
+    protein_sources = PROTEIN_SOURCES.get(preference, PROTEIN_SOURCES["non-veg"])
+    excluded = [
+        str(value).strip().lower()
+        for value in [*(allergies or []), *(food_restrictions or [])]
+        if str(value).strip()
+    ]
 
-    protein_sources = PROTEIN_SOURCES.get(food_preference or "non-veg", PROTEIN_SOURCES["non-veg"])
-    p_name, p_per_100, _ = min(protein_sources, key=lambda s: abs(protein_remaining_g - s[1]))
-    p_grams = min(300, max(50, round(protein_remaining_g / p_per_100 * 100 / 10) * 10))
-    items.append({"food": p_name, "grams": p_grams, "reason": "protein"})
-    total_protein += p_per_100 * p_grams / 100
+    def is_allowed(food_name: str) -> bool:
+        food = food_name.lower()
+        for term in excluded:
+            if term in food:
+                return False
+            if term in {"dairy", "lactose"} and any(word in food for word in ("paneer", "yogurt", "milk", "curd")):
+                return False
+            if term in {"nuts", "tree nuts"} and any(word in food for word in ("almond", "peanut", "cashew", "walnut")):
+                return False
+            if term in {"egg", "eggs"} and "egg" in food:
+                return False
+        return True
 
-    if carbs_remaining_g > 20:
-        c_name, c_per_100, _ = min(CARB_SOURCES, key=lambda s: abs(carbs_remaining_g - s[1]))
-        c_grams = min(250, max(50, round(carbs_remaining_g / c_per_100 * 100 / 10) * 10))
-        items.append({"food": c_name, "grams": c_grams, "reason": "carbs"})
-        total_carbs += c_per_100 * c_grams / 100
+    protein_sources = [source for source in protein_sources if is_allowed(source[0])]
+    carb_sources = [source for source in CARB_SOURCES if is_allowed(source[0])]
+    if protein_left >= 10 and not protein_sources:
+        return []
 
-    return [{
-        "items": items,
-        "approx_protein_g": round(total_protein),
-        "approx_carbs_g": round(total_carbs),
-        "covers_protein_pct": round(min(100, 100 * total_protein / protein_remaining_g)) if protein_remaining_g > 0 else 100,
-    }]
+    hour = datetime.now().hour if local_hour is None else max(0, min(23, int(local_hour)))
+    if hour < 8:
+        meal_slots = ["Breakfast", "Lunch", "Afternoon snack", "Dinner"]
+    elif hour < 11:
+        meal_slots = ["Lunch", "Afternoon snack", "Dinner"]
+    elif hour < 15:
+        meal_slots = ["Afternoon snack", "Dinner"]
+    elif hour < 19:
+        meal_slots = ["Dinner"]
+    else:
+        meal_slots = ["Evening meal"]
 
+    # Allocate only the unconsumed amount across the remaining meal slots.
+    slots_count = len(meal_slots)
+    protein_per_meal = protein_left / slots_count
+    carbs_per_meal = carbs_left / slots_count
+    plans: list[dict] = []
+
+    for index, meal_name in enumerate(meal_slots):
+        items: list[dict] = []
+        meal_protein = 0.0
+        meal_carbs = 0.0
+
+        if protein_per_meal >= 5 and protein_sources:
+            source = protein_sources[index % len(protein_sources)]
+            food_name, protein_per_100 = source[0], float(source[1])
+            grams = min(300, max(40, round((protein_per_meal / protein_per_100 * 100) / 10) * 10))
+            actual = protein_per_100 * grams / 100
+            items.append({
+                "food": food_name,
+                "grams": grams,
+                "reason": "protein",
+                "approx_protein_g": round(actual, 1),
+            })
+            meal_protein += actual
+
+        if carbs_per_meal >= 10 and carb_sources:
+            source = carb_sources[index % len(carb_sources)]
+            food_name, carbs_per_100 = source[0], float(source[1])
+            grams = min(300, max(40, round((carbs_per_meal / carbs_per_100 * 100) / 10) * 10))
+            actual = carbs_per_100 * grams / 100
+            items.append({
+                "food": food_name,
+                "grams": grams,
+                "reason": "carbohydrate",
+                "approx_carbs_g": round(actual, 1),
+            })
+            meal_carbs += actual
+
+        if items:
+            plans.append({
+                "meal": meal_name,
+                "items": items,
+                "approx_protein_g": round(meal_protein),
+                "approx_carbs_g": round(meal_carbs),
+            })
+
+    return plans
 
 def generate_grocery_list(weekly_protein_target_g: float, food_preference: str | None) -> dict:
     """
