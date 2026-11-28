@@ -30,7 +30,7 @@ const TABS: TabDef[] = [
   { name: 'profile', title: 'Profile', icon: 'person-outline', activeIcon: 'person' },
 ];
 
-const HIDDEN_TABS = ['decisions', 'formanalysis', 'prs'];
+const HIDDEN_TABS = ['decisions', 'simulate', 'formanalysis', 'prs'];
 
 function TabBarIcon({
   tab,
