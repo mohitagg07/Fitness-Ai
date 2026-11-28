@@ -50,7 +50,53 @@ from agents.consistency_agent import run_consistency_agent
 import logging
 
 logger = logging.getLogger(__name__)
+
 router = APIRouter(tags=["Mission"])
+
+
+_TRAINING_WINDOWS = {
+    "morning": {
+        "period": "morning",
+        "label": "Morning",
+        "display_label": "6:00–10:00 AM",
+    },
+    "afternoon": {
+        "period": "afternoon",
+        "label": "Afternoon",
+        "display_label": "12:00–4:00 PM",
+    },
+    "evening": {
+        "period": "evening",
+        "label": "Evening",
+        "display_label": "5:00–9:00 PM",
+    },
+}
+
+
+def _build_training_window(profile: dict) -> dict:
+    """Translate a broad profile preference into a suggested local window.
+
+    This is deliberately not represented as an exact appointment. Exact
+    session times require an explicit time selection or reliable local-time
+    training history, neither of which is stored in the current profile.
+    """
+    preference = str(profile.get("workout_time_preference") or "").strip().lower()
+    window = _TRAINING_WINDOWS.get(preference)
+    if not window:
+        return {
+            "period": None,
+            "label": "No preferred time set",
+            "display_label": None,
+            "source": "unset",
+            "is_exact": False,
+            "note": "Choose a preferred training window in your profile.",
+        }
+    return {
+        **window,
+        "source": "profile_preference",
+        "is_exact": False,
+        "note": "Suggested window from your profile preference, not a booked gym appointment.",
+    }
 
 
 def _today_consumed(user_id: str, target_date: date | None = None) -> dict:
@@ -186,6 +232,7 @@ async def get_today_mission(
     }
     food_pref = profile.get("food_preference") or "non-veg"
     coach_style = profile.get("coach_style") or "friendly"
+    training_time = _build_training_window(profile)
 
     training_day = is_training_day_for_user(user_id, target_date=target_day)
 
@@ -255,6 +302,7 @@ async def get_today_mission(
             progress_decision=progress_decision,
             consumed=consumed,
             targets=targets,
+            training_window=training_time,
         ),
         asyncio.to_thread(run_consistency_agent, user_id, targets.get("protein_g", 160.0)),
     )
@@ -313,6 +361,7 @@ async def get_today_mission(
         "coach_insight": motivation,
         "intensity":     intensity,
         "workout_type":  workout_decision.recommended_type,
+        "training_time":  training_time,
         "alerts":        alerts,
         "greeting":      f"Ready to train, {full_name}?",
         "generated_at":  datetime.now().astimezone().isoformat(),
@@ -327,6 +376,7 @@ async def get_today_mission(
         # field names that dashboard/summary returns, or recovery rings / macros
         # show 0 / undefined silently.
         "mission_text":        next_action,
+        "training_time":       training_time,
         "next_task":           next_action,
         "calories_remaining":  calories_remaining,
         "protein_remaining_g": round(protein_remaining, 1),
