@@ -693,6 +693,7 @@ function ThinkingDots() {
 // ─── Small numeric badge used in the header briefing strip ───────────────────
 function trainingWindowStatus(trainingTime: any): string {
   if (!trainingTime?.display_label) return 'SET A PREFERRED TIME';
+  if (trainingTime?.source === 'training_history') return 'USUAL TIME';
   const hour = new Date().getHours();
   const windows: Record<string, [number, number]> = {
     morning: [6, 10],
@@ -815,9 +816,12 @@ export default function CoachScreen() {
         // Local reminders are rebuilt only from an approved weekly plan and
         // the athlete's selected time preference. The helper no-ops on web,
         // respects notification permission and removes stale reminders first.
+        const reminderPreference = (missionSummary as any)?.training_time?.source === 'profile_preference'
+          ? profile?.workout_time_preference
+          : null;
         void import('../../utils/pushNotifications')
           .then(({ syncTrainingWindowReminders }) => (
-            syncTrainingWindowReminders(profile?.workout_time_preference, schedule)
+            syncTrainingWindowReminders(reminderPreference, schedule)
           ))
           .catch((error) => {
             if (__DEV__) console.warn('[Coach] Training reminders could not be synced', error);
@@ -1017,13 +1021,18 @@ export default function CoachScreen() {
               <Ionicons name="time-outline" size={16} color={COLORS.primaryGreen} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={S.dailyBriefScheduleLabel}>PREFERRED TRAINING WINDOW</Text>
+              <Text style={S.dailyBriefScheduleLabel}>
+                {(missionSummary as any)?.training_time?.source === 'training_history'
+                  ? 'USUAL START TIME'
+                  : 'PREFERRED TRAINING WINDOW'}
+              </Text>
               <Text style={S.dailyBriefScheduleTime}>
                 {(missionSummary as any)?.training_time?.display_label || 'Not set in your profile'}
               </Text>
               <Text style={S.dailyBriefScheduleNote}>
                 {(missionSummary as any)?.training_time?.display_label
-                  ? 'A suggested window based on your profile preference, not a booked appointment.'
+                  ? (missionSummary as any)?.training_time?.note
+                    || 'A suggested window based on your profile preference, not a booked appointment.'
                   : 'Choose morning, afternoon or evening in your profile to personalise timing.'}
               </Text>
               {!(missionSummary as any)?.training_time?.display_label ? (
