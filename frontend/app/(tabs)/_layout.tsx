@@ -262,7 +262,7 @@ export default function TabsLayout() {
         },
         tabBarActiveTintColor: COLORS.tabActive,
         tabBarInactiveTintColor: COLORS.tabInactive,
-        tabBarShowLabel: true,
+        tabBarShowLabel: false,
         tabBarLabelStyle: {
           fontFamily: FONTS.semibold,
           fontSize: 11,
