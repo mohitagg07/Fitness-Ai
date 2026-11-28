@@ -31,7 +31,7 @@ import AnalyticsScreen, { type AnalyticsChartTab, type AnalyticsRangeOption } fr
 import MuscleRecoveryMap from './MuscleRecoveryMap';
 import { SkeletonCard } from '../shared/LoadingOverlay';
 
-type Tab = 'body' | 'nutrition' | 'recovery' | 'review' | 'analytics';
+type Tab = 'overview' | 'body' | 'nutrition' | 'recovery' | 'review' | 'analytics';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -268,7 +268,41 @@ function StreaksRow({ metrics, nutrition }: { metrics: any[]; nutrition: any[] }
   );
 }
 
-export default function ProgressScreen({ initialTab = 'body' }: { initialTab?: Tab } = {}) {
+function ProgressHubCard({
+  icon,
+  title,
+  description,
+  accent,
+  onPress,
+  wide = false,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  description: string;
+  accent: string;
+  onPress: () => void;
+  wide?: boolean;
+}) {
+  return (
+    <PressableScale
+      style={[styles.hubCard, wide && styles.hubCardWide]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={title + '. ' + description}
+    >
+      <View style={[styles.hubIcon, { backgroundColor: alpha(accent, 0.12), borderColor: alpha(accent, 0.24) }]}>
+        <Ionicons name={icon} size={20} color={accent} />
+      </View>
+      <View style={styles.hubCopy}>
+        <Text style={styles.hubTitle}>{title}</Text>
+        <Text style={styles.hubDescription}>{description}</Text>
+      </View>
+      <Ionicons name="arrow-forward" size={16} color={COLORS.textMuted} />
+    </PressableScale>
+  );
+}
+
+export default function ProgressScreen({ initialTab = 'overview' }: { initialTab?: Tab } = {}) {
   const isStandaloneNutrition = initialTab === 'nutrition';
   const responsive = useResponsiveLayout();
   const insets = useSafeAreaInsets();
@@ -285,7 +319,7 @@ export default function ProgressScreen({ initialTab = 'body' }: { initialTab?: T
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [weightInput, setWeightInput] = useState('');
   const [recoveryInput, setRecoveryInput] = useState('');
-  const [activeTab, setActiveTab] = useState<Tab>(initialTab === 'nutrition' || isNutritionRoute ? 'nutrition' : 'body');
+  const [activeTab, setActiveTab] = useState<Tab>(isNutritionRoute ? 'nutrition' : initialTab);
   const [activeAnalyticsChart, setActiveAnalyticsChart] = useState<AnalyticsChartTab>('heatmap');
   const [analyticsHeatmapRange, setAnalyticsHeatmapRange] = useState<AnalyticsRangeOption>(8);
   const [analyticsBalanceRange, setAnalyticsBalanceRange] = useState<AnalyticsRangeOption>(4);
@@ -397,6 +431,7 @@ export default function ProgressScreen({ initialTab = 'body' }: { initialTab?: T
 
   const targetCal = todayData?.targets?.calories || 2000;
   const sectionContext: Record<Tab, { title: string; description: string }> = {
+    overview: { title: 'Progress overview', description: 'Choose what you want to log or review.' },
     body: { title: 'Body & strength', description: 'Track weight changes, training consistency and personal records in one place.' },
     nutrition: { title: 'Food & daily targets', description: 'Log meals and compare calories, protein and macros with today’s targets.' },
     recovery: { title: 'Recovery & readiness', description: 'Record how recovered you feel and follow muscle recovery trends between sessions.' },
@@ -428,33 +463,44 @@ export default function ProgressScreen({ initialTab = 'body' }: { initialTab?: T
         <Text style={styles.headerDescription}>{isStandaloneNutrition ? 'Log meals and keep daily calories, protein, macros and hydration on target.' : 'Training, nutrition and recovery — tracked over time.'}</Text>
       </View>
 
-      {!isStandaloneNutrition && (
-        <ScrollView
-          ref={tabBarRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={[styles.tabBarScroll, { width: '100%', maxWidth: responsive.pageMaxWidth, alignSelf: 'center' }]}
-          contentContainerStyle={[styles.tabBar, responsive.isTablet && styles.tabBarWide]}
-          keyboardShouldPersistTaps="handled"
-          accessibilityRole="tablist"
-        >
-          {tabs.map((tab) => {
-            const selected = activeTab === tab.key;
-            return (
-              <PressableScale
-                key={tab.key}
-                style={[styles.tab, responsive.isTablet && styles.tabWide, selected && styles.tabActive]}
-                onPress={() => selectTab(tab.key)}
-                accessibilityRole="tab"
-                accessibilityLabel={tab.label + ' progress category'}
-                accessibilityState={{ selected }}
-              >
-                <Ionicons name={tab.icon} size={14} color={selected ? COLORS.primaryGreen : COLORS.textMuted} />
-                <Text style={[styles.tabText, selected && styles.tabTextActive]}>{tab.label}</Text>
-              </PressableScale>
-            );
-          })}
-        </ScrollView>
+      {!isStandaloneNutrition && activeTab !== 'overview' && (
+        <View style={styles.progressNavRow}>
+          <PressableScale
+            style={styles.overviewBack}
+            onPress={() => setActiveTab('overview')}
+            accessibilityRole="button"
+            accessibilityLabel="Back to progress overview"
+          >
+            <Ionicons name="grid-outline" size={15} color={COLORS.textSecondary} />
+            <Text style={styles.overviewBackText}>Overview</Text>
+          </PressableScale>
+          <ScrollView
+            ref={tabBarRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={[styles.tabBarScroll, { flex: 1 }]}
+            contentContainerStyle={[styles.tabBar, responsive.isTablet && styles.tabBarWide]}
+            keyboardShouldPersistTaps="handled"
+            accessibilityRole="tablist"
+          >
+            {tabs.map((tab) => {
+              const selected = activeTab === tab.key;
+              return (
+                <PressableScale
+                  key={tab.key}
+                  style={[styles.tab, responsive.isTablet && styles.tabWide, selected && styles.tabActive]}
+                  onPress={() => selectTab(tab.key)}
+                  accessibilityRole="tab"
+                  accessibilityLabel={tab.label + ' progress category'}
+                  accessibilityState={{ selected }}
+                >
+                  <Ionicons name={tab.icon} size={14} color={selected ? COLORS.primaryGreen : COLORS.textMuted} />
+                  <Text style={[styles.tabText, selected && styles.tabTextActive]}>{tab.label}</Text>
+                </PressableScale>
+              );
+            })}
+          </ScrollView>
+        </View>
       )}
 
       {!!errorMsg && (
@@ -467,7 +513,7 @@ export default function ProgressScreen({ initialTab = 'body' }: { initialTab?: T
         </View>
       )}
 
-      {!isStandaloneNutrition && (
+      {!isStandaloneNutrition && activeTab !== 'overview' && (
         <View style={styles.sectionIntro}>
           <View style={styles.sectionIntroMark} />
           <View style={styles.sectionIntroCopy}>
@@ -477,7 +523,68 @@ export default function ProgressScreen({ initialTab = 'body' }: { initialTab?: T
         </View>
       )}
 
-      {activeTab === 'review' ? (
+      {activeTab === 'overview' ? (
+        <Reveal key="overview" distance={7}>
+          <ScrollView
+            style={styles.hubScroll}
+            contentContainerStyle={[styles.hubContent, { width: '100%', maxWidth: responsive.pageMaxWidth, alignSelf: 'center' }]}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primaryGreen} />}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.hubIntro}>
+              <Text style={styles.hubEyebrow}>TRACKING</Text>
+              <Text style={styles.hubHeading}>Your progress</Text>
+              <Text style={styles.hubSubheading}>Log a new entry or open a section to review your training data.</Text>
+            </View>
+            <ProgressHubCard
+              icon="restaurant-outline"
+              title="Log food"
+              description="Search a meal or add a custom food entry."
+              accent={COLORS.calories}
+              onPress={() => setLogFoodVisible(true)}
+              wide
+            />
+            <ProgressHubCard
+              icon="body-outline"
+              title="Body & strength"
+              description="Weight history, consistency and personal records."
+              accent={COLORS.primaryGreen}
+              onPress={() => selectTab('body')}
+              wide
+            />
+            <View style={styles.hubGrid}>
+              <ProgressHubCard
+                icon="nutrition-outline"
+                title="Nutrition"
+                description="Daily calories, protein and macros."
+                accent={COLORS.carbs}
+                onPress={() => selectTab('nutrition')}
+              />
+              <ProgressHubCard
+                icon="pulse-outline"
+                title="Recovery"
+                description="Readiness and muscle recovery."
+                accent={COLORS.strain}
+                onPress={() => selectTab('recovery')}
+              />
+              <ProgressHubCard
+                icon="analytics-outline"
+                title="Analytics"
+                description="Training trends and performance."
+                accent={COLORS.recoveryBlue}
+                onPress={() => selectTab('analytics')}
+              />
+              <ProgressHubCard
+                icon="calendar-outline"
+                title="Weekly review"
+                description="Sessions, consistency and weekly patterns."
+                accent={COLORS.coachPurple}
+                onPress={() => selectTab('review')}
+              />
+            </View>
+          </ScrollView>
+        </Reveal>
+      ) : activeTab === 'review' ? (
         <Reveal key={activeTab} distance={7}><WeeklyReviewScreen /></Reveal>
       ) : activeTab === 'analytics' ? (
         <Reveal key={activeTab} distance={7}><ScrollView
@@ -586,6 +693,22 @@ export default function ProgressScreen({ initialTab = 'body' }: { initialTab?: T
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  progressNavRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingTop: 8, paddingBottom: 4 },
+  overviewBack: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 9, borderRadius: 12, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border },
+  overviewBackText: { color: COLORS.textSecondary, fontFamily: FONTS.semibold, fontSize: 10 },
+  hubScroll: { flex: 1 },
+  hubContent: { paddingHorizontal: 18, paddingTop: 20, paddingBottom: 36, gap: 11 },
+  hubIntro: { gap: 5, marginBottom: 7 },
+  hubEyebrow: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 9, letterSpacing: 1.5 },
+  hubHeading: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 25, lineHeight: 31, letterSpacing: -0.6 },
+  hubSubheading: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 12, lineHeight: 18, maxWidth: 360 },
+  hubGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10, marginTop: 1 },
+  hubCard: { width: '48.5%', minHeight: 104, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 12, paddingVertical: 13, borderRadius: 18, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card, marginBottom: 0 },
+  hubCardWide: { width: '100%', minHeight: 78, backgroundColor: COLORS.cardElevated },
+  hubIcon: { width: 38, height: 38, borderRadius: 13, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  hubCopy: { flex: 1, minWidth: 0, gap: 4 },
+  hubTitle: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 12, lineHeight: 16 },
+  hubDescription: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 10, lineHeight: 14 },
   header: { paddingHorizontal: 20, paddingBottom: 18, borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 7 },
   headerTopRow: { flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: 7 },
   headerEyebrow: { fontFamily: FONTS.bold,  color: COLORS.primaryGreen, fontSize: 10, fontWeight: '800', letterSpacing: 1.75 },
