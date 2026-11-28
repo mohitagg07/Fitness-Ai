@@ -23,6 +23,9 @@ export interface WorkoutExerciseDraft {
   cue: string;
   rest: string;
   completed_sets: number;
+  rpe_target?: number | null;
+  rir_target?: number | null;
+  tempo?: string;
 }
 
 interface Props {
@@ -206,9 +209,80 @@ function WorkoutPlanPreview({
                     />
                   </View>
                 </View>
-                <View style={styles.restRow}>
-                  <Ionicons name="timer-outline" size={13} color={COLORS.textMuted} />
-                  <Text style={styles.restText}>Rest: {exercise.rest || '90 sec'}</Text>
+                <View style={styles.detailRow}>
+                  <View style={styles.field}>
+                    <Text style={styles.fieldLabel}>REST</Text>
+                    <TextInput
+                      value={exercise.rest}
+                      onChangeText={(value) => patchExercise(index, { rest: value })}
+                      style={styles.input}
+                      placeholder="90 sec"
+                      placeholderTextColor={COLORS.textDim}
+                      maxLength={20}
+                      accessibilityLabel={`${exercise.name} rest period`}
+                    />
+                  </View>
+                  <View style={styles.field}>
+                    <Text style={styles.fieldLabel}>TARGET RPE</Text>
+                    <TextInput
+                      value={exercise.rpe_target == null ? '' : String(exercise.rpe_target)}
+                      onChangeText={(value) => {
+                        const parsed = value.trim() ? Number(value) : NaN;
+                        patchExercise(index, {
+                          rpe_target: Number.isFinite(parsed) ? Math.max(1, Math.min(10, parsed)) : null,
+                        });
+                      }}
+                      style={styles.input}
+                      placeholder="Optional"
+                      placeholderTextColor={COLORS.textDim}
+                      keyboardType="decimal-pad"
+                      accessibilityLabel={`${exercise.name} target RPE`}
+                    />
+                  </View>
+                  <View style={styles.field}>
+                    <Text style={styles.fieldLabel}>TARGET RIR</Text>
+                    <TextInput
+                      value={exercise.rir_target == null ? '' : String(exercise.rir_target)}
+                      onChangeText={(value) => {
+                        const parsed = value.trim() ? Number(value) : NaN;
+                        patchExercise(index, {
+                          rir_target: Number.isFinite(parsed) ? Math.max(0, Math.min(10, parsed)) : null,
+                        });
+                      }}
+                      style={styles.input}
+                      placeholder="Optional"
+                      placeholderTextColor={COLORS.textDim}
+                      keyboardType="decimal-pad"
+                      accessibilityLabel={`${exercise.name} target reps in reserve`}
+                    />
+                  </View>
+                </View>
+                <View style={styles.detailRow}>
+                  <View style={[styles.field, { flex: 0.75 }]}>
+                    <Text style={styles.fieldLabel}>TEMPO</Text>
+                    <TextInput
+                      value={exercise.tempo || ''}
+                      onChangeText={(value) => patchExercise(index, { tempo: value })}
+                      style={styles.input}
+                      placeholder="e.g. 3-1-1"
+                      placeholderTextColor={COLORS.textDim}
+                      maxLength={20}
+                      accessibilityLabel={`${exercise.name} tempo`}
+                    />
+                  </View>
+                  <View style={[styles.field, { flex: 1.75 }]}>
+                    <Text style={styles.fieldLabel}>COACH CUE</Text>
+                    <TextInput
+                      value={exercise.cue}
+                      onChangeText={(value) => patchExercise(index, { cue: value })}
+                      style={[styles.input, styles.cueInput]}
+                      placeholder="Setup, technique or movement cue"
+                      placeholderTextColor={COLORS.textDim}
+                      maxLength={500}
+                      multiline
+                      accessibilityLabel={`${exercise.name} coaching cue`}
+                    />
+                  </View>
                 </View>
               </View>
             ))}
@@ -327,8 +401,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 9, paddingVertical: 7, borderRadius: RADIUS.button,
     backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.border,
   },
-  restRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: SPACING.sm },
-  restText: { color: COLORS.textMuted, fontFamily: FONTS.medium, fontSize: 10 },
+  detailRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, marginTop: SPACING.md },
+  cueInput: { minHeight: 58, textAlignVertical: 'top', paddingTop: 9 },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   addButton: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.primaryGreen },
   empty: { color: COLORS.recoveryLow, fontFamily: FONTS.medium, fontSize: 12, textAlign: 'center', padding: SPACING.md },
