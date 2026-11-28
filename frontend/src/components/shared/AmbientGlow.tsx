@@ -60,24 +60,56 @@ export default function AmbientGlow({ variant, recoveryScore0to100 }: Props) {
   const color = colorFor(variant, recoveryScore0to100);
 
   return (
-    <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.wrap, animatedStyle]}>
-      <LinearGradient
-        colors={[alpha(color, 0.35), alpha(color, 0)]}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        style={styles.blob}
-      />
+    <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.wrap]}>
+      <Animated.View style={[styles.primaryBloom, animatedStyle]}>
+        <LinearGradient
+          colors={[alpha(color, variant === 'coach' ? 0.38 : 0.35), alpha(color, 0)]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={styles.blob}
+        />
+      </Animated.View>
+      {variant === 'coach' ? (
+        <>
+          <Animated.View style={[styles.cyanBloom, animatedStyle]}>
+            <LinearGradient
+              colors={[alpha(COLORS.coachCyan, 0.27), alpha(COLORS.coachCyan, 0)]}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={styles.secondaryBlob}
+            />
+          </Animated.View>
+          <Animated.View style={[styles.coralBloom, animatedStyle]}>
+            <LinearGradient
+              colors={[alpha(COLORS.coachCoral, 0.22), alpha(COLORS.coachCoral, 0)]}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={styles.secondaryBlob}
+            />
+          </Animated.View>
+        </>
+      ) : null}
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { overflow: 'hidden' },
+  primaryBloom: { ...StyleSheet.absoluteFillObject },
+  cyanBloom: { ...StyleSheet.absoluteFillObject, transform: [{ translateX: width * 0.32 }, { translateY: width * 0.24 }, { scale: 0.84 }] },
+  coralBloom: { ...StyleSheet.absoluteFillObject, transform: [{ translateX: -width * 0.30 }, { translateY: width * 0.36 }, { scale: 0.72 }] },
   blob: {
     position: 'absolute',
     top: -width * 0.5,
     left: -width * 0.2,
     width: width * 1.4,
     height: width * 1.1,
+  },
+  secondaryBlob: {
+    position: 'absolute',
+    top: -width * 0.30,
+    left: -width * 0.22,
+    width: width * 1.08,
+    height: width * 0.98,
   },
 });
