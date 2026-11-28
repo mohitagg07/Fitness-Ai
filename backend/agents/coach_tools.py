@@ -13,6 +13,7 @@ from datetime import date, timedelta
 from typing import Any
 
 from langchain_core.tools import StructuredTool
+from services.timezone import local_today
 
 from db.supabase_client import get_supabase
 
@@ -50,6 +51,8 @@ def build_coach_tools(user_id: str, profile: dict | None = None) -> list[Structu
                 .select("id, session_date, workout_type, day_label, status, completed, total_volume_kg, duration_minutes")
                 .eq("user_id", user_id)
                 .gte("session_date", str(date.today() - timedelta(days=days)))
+                .lte("session_date", str(date.today()))
+                .in_("status", ["completed", "active", "paused"])
                 .order("session_date", desc=True)
                 .limit(limit)
                 .execute()
@@ -123,7 +126,8 @@ def build_coach_tools(user_id: str, profile: dict | None = None) -> list[Structu
                 get_supabase().table("recovery_checkins")
                 .select("local_date, sleep_hours, soreness_level, energy_level, notes")
                 .eq("user_id", user_id)
-                .gte("local_date", str(date.today() - timedelta(days=days)))
+                .gte("local_date", str(local_today(safe_profile.get("timezone") or safe_profile.get("timezone_name")) - timedelta(days=days)))
+                .lte("local_date", str(local_today(safe_profile.get("timezone") or safe_profile.get("timezone_name"))))
                 .order("local_date", desc=True)
                 .limit(days)
                 .execute()
@@ -153,6 +157,7 @@ def build_coach_tools(user_id: str, profile: dict | None = None) -> list[Structu
                 .eq("user_id", user_id)
                 .not_.is_("weight_kg", "null")
                 .gte("recorded_date", str(date.today() - timedelta(days=days)))
+                .lte("recorded_date", str(date.today()))
                 .order("recorded_date", desc=False)
                 .limit(100)
                 .execute()
