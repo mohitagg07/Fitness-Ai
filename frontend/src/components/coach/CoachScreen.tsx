@@ -640,12 +640,14 @@ const CoachMessage = React.memo(function CoachMessage({
   onSelectOption,
   showQuestion,
   onStartWorkout,
+  onSaveDraft,
   onOpenNutrition,
 }: {
   item: any;
   onSelectOption?: (option: string) => void;
   showQuestion?: boolean;
   onStartWorkout?: (plan: any) => void;
+  onSaveDraft?: (plan: any) => void;
   onOpenNutrition?: () => void;
 }) {
   const sd = item.structured_decision;
@@ -654,7 +656,7 @@ const CoachMessage = React.memo(function CoachMessage({
   const renderCard = () => {
     if (!sd) return null;
     switch (sd.response_type) {
-      case 'workout_plan':    return (sd.exercises?.length > 0) ? <WorkoutCard sd={sd} onStartWorkout={onStartWorkout} /> : null;
+      case 'workout_plan':    return (sd.exercises?.length > 0) ? <WorkoutCard sd={sd} onStartWorkout={onStartWorkout} onSaveDraft={onSaveDraft} /> : null;
       case 'live_set':        return <LiveSetCard   sd={sd} />;
       case 'recovery_advice': return <RecoveryCard  sd={sd} />;
       case 'nutrition_tip':   return <NutritionCard sd={sd} onOpenNutrition={onOpenNutrition} />;
@@ -772,6 +774,7 @@ export default function CoachScreen() {
   const [brief, setBrief] = useState<{ recoveryScore: number; cnsFatigue: number; message: string } | null>(null);
   const [todaysPrescription, setTodaysPrescription] = useState<any | null>(null);
   const [trainingPlanLoaded, setTrainingPlanLoaded] = useState(false);
+  const [savingCoachDraft, setSavingCoachDraft] = useState(false);
   const flatListRef = useRef<FlashListRef<any>>(null);
   // Selector form — see src/store/index.ts. CoachScreen needs chatHistory/
   // profile/user, but previously re-rendered on every store
