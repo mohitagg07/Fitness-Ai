@@ -1,7 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Animated,
-  Easing,
   Alert,
   RefreshControl,
   ScrollView,
@@ -12,7 +10,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Circle } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,7 +20,6 @@ import { useMissionSummary, useRefreshDashboard } from '../../hooks/useDashboard
 import { describeApiError, recoveryApi } from '../../utils/api';
 import { COLORS, alpha, recoveryColor } from '../../theme/colors';
 import { FONTS } from '../../theme/typography';
-import { useReducedMotion } from '../../hooks/useReducedMotion';
 import ProfileAvatar from '../shared/ProfileAvatar';
 import AmbientGlow from '../shared/AmbientGlow';
 import PressableScale from '../ui/PressableScale';
@@ -68,71 +64,6 @@ interface DashboardSummary {
     suggested_top_set?: string | null;
   };
 
-}
-
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
-
-function ReadinessDial({ score, color }: { score: number | null; color: string }) {
-  const size = 98;
-  const stroke = 7;
-  const radius = (size - stroke) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const progress = useRef(new Animated.Value(0)).current;
-  const reduceMotion = useReducedMotion();
-
-  useEffect(() => {
-    progress.stopAnimation();
-    const target = score === null ? 0 : Math.max(0, Math.min(100, score));
-    if (reduceMotion) {
-      progress.setValue(target);
-      return undefined;
-    }
-    const animation = Animated.timing(progress, {
-      toValue: target,
-      duration: 580,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    });
-    animation.start();
-    return () => animation.stop();
-  }, [progress, score, reduceMotion]);
-
-  const dashOffset = progress.interpolate({
-    inputRange: [0, 100],
-    outputRange: [circumference, 0],
-  });
-
-  return (
-    <View style={styles.dial}>
-      <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke={COLORS.border}
-          strokeWidth={stroke}
-          fill="none"
-        />
-        <AnimatedCircle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke={color}
-          strokeWidth={stroke}
-          strokeDasharray={`${circumference} ${circumference}`}
-          strokeDashoffset={dashOffset as any}
-          strokeLinecap="round"
-          fill="none"
-          rotation="-90"
-          origin={`${size / 2}, ${size / 2}`}
-        />
-      </Svg>
-      <View style={styles.dialCenter}>
-        <Text style={styles.dialScore}>{score === null ? '—' : Math.round(score)}</Text>
-        <Text style={styles.dialOutOf}>/ 100</Text>
-      </View>
-    </View>
-  );
 }
 
 function QuickAction({
@@ -302,6 +233,7 @@ export default function DashboardScreen() {
           <ProfileAvatar size={44} onPress={() => router.push('/(tabs)/profile')} />
         </View>
 
+        {/* Training photo: Redd Francisco on Unsplash, free under the Unsplash License. */}
         <ImageBackground
           source={{ uri: 'https://images.unsplash.com/photo-1709315957145-a4bad1feef28?auto=format&fit=crop&w=1200&q=85' }}
           resizeMode="cover"
@@ -332,9 +264,11 @@ export default function DashboardScreen() {
               <Text style={styles.heroTitle}>
                 {summary?.recovery?.action === 'rest'
                   ? 'Recovery day.'
-                  : workoutType
-                    ? `${workoutType.replace(/_/g, ' ')} day.`
-                    : 'Build your training plan.'}
+                  : summary?.mission
+                    ? summary.mission
+                    : workoutType
+                      ? `${workoutType.replace(/_/g, ' ')} day.`
+                      : 'Build your training plan.'}
               </Text>
               <Text style={styles.heroDescription} numberOfLines={3}>
                 {summary?.proactive_brief?.todays_focus
