@@ -87,3 +87,89 @@ def test_decision_center_coverage_uses_recovery_agents_weighted_completeness():
     assert _recovery_data_coverage(SimpleNamespace(data_completeness_pct=None)) == 0
     assert _recovery_data_coverage(SimpleNamespace(data_completeness_pct=140)) == 100
     assert _recovery_data_coverage(SimpleNamespace(data_completeness_pct=-5)) == 0
+
+
+
+def test_recent_sharp_pain_overrides_a_favourable_readiness_score(monkeypatch):
+    monkeypatch.setattr(
+        recovery_agent,
+        "_today_recovery_checkin",
+        lambda _user_id, _target_date: {
+            "sleep_hours": 8,
+            "soreness_level": 1,
+            "energy_level": 5,
+        },
+    )
+    monkeypatch.setattr(recovery_agent, "_last_session_volume", lambda _user_id: 2500)
+    monkeypatch.setattr(
+        recovery_agent,
+        "_nutrition_ratios_today",
+        lambda *_args: (1.0, 1.0),
+    )
+    monkeypatch.setattr(
+        recovery_agent,
+        "_recent_rpe_stats",
+        lambda *_args: (6.0, 0),
+    )
+    monkeypatch.setattr(recovery_agent, "_last_explicit_cns_fatigue", lambda _user_id: 1)
+    monkeypatch.setattr(
+        recovery_agent,
+        "_latest_reported_session_pain",
+        lambda *_args: {
+            "status": "sharp",
+            "notes": "Pain during shoulder press",
+            "session_date": "2026-11-28",
+            "source": "post_workout_checkin",
+        },
+    )
+
+    result = recovery_agent.run_recovery_agent(
+        "u1",
+        sleep_hours=None,
+        planned_workout_type="push",
+        protein_target_g=140,
+        calorie_target=2400,
+        target_date=date(2026, 11, 28),
+    )
+
+    assert result.action == "pain_review"
+    assert result.score_pct is not None
+    assert "sharp pain" in result.message
+    assert "shoulder press" in result.message
+    assert "approved plan unchanged" in result.message.lower()
+    assert result.pain_signal["source"] == "post_workout_checkin"
+
+
+def test_latest_explicit_no_pain_report_clears_older_sharp_report(monkeypatch):
+    class Query:
+        def select(self, *_args, **_kwargs): return self
+        def eq(self, *_args): return self
+        def gte(self, *_args): return self
+        def order(self, *_args, **_kwargs): return self
+        def limit(self, *_args): return self
+        def execute(self):
+            return SimpleNamespace(data=[
+                {
+                    "pain_status": "none",
+                    "pain_notes": None,
+                    "session_date": "2026-11-28",
+                    "finished_at": "2026-11-28T13:00:00+00:00",
+                },
+                {
+                    "pain_status": "sharp",
+                    "pain_notes": "Old shoulder pain",
+                    "session_date": "2026-11-26",
+                    "finished_at": "2026-11-26T13:00:00+00:00",
+                },
+            ])
+
+    class Supabase:
+        def table(self, _name): return Query()
+
+    monkeypatch.setattr(recovery_agent, "get_supabase", lambda: Supabase())
+    result = recovery_agent._latest_reported_session_pain(
+        "u1", date(2026, 11, 28)
+    )
+
+    assert result["status"] == "none"
+    assert result["session_date"] == "2026-11-28"
