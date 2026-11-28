@@ -99,6 +99,8 @@ interface SummaryData {
       reason?: string | null;
     }>;
   };
+  mood?: 'great' | 'good' | 'okay' | 'bad' | null;
+  session_notes?: string | null;
   session_effort?: number | null;
   energy_level?: number | null;
   pain_status?: 'none' | 'mild' | 'sharp' | 'worsening' | null;
@@ -432,10 +434,13 @@ function WorkoutSummaryCard({ visible, data, onClose }: Props) {
             </Reveal>
           )}
 
-          {(data.session_effort != null || data.energy_level != null || (data.pain_status && data.pain_status !== 'none')) && (
+          {(data.mood || data.session_notes || data.session_effort != null || data.energy_level != null || (data.pain_status && data.pain_status !== 'none')) && (
             <Reveal mount={mount} delay={0.25} style={styles.checkin}>
               <Text variant="caption" weight="bold" color={COLORS.textDim} style={{ letterSpacing: 1.1 }}>YOUR CHECK-IN</Text>
               <View style={styles.checkinRow}>
+                {!!data.mood && (
+                  <Text variant="caption" color={COLORS.textSecondary}>Mood: {data.mood}</Text>
+                )}
                 {data.session_effort != null && (
                   <Text variant="caption" color={COLORS.textSecondary}>Effort {data.session_effort}/10</Text>
                 )}
@@ -450,6 +455,9 @@ function WorkoutSummaryCard({ visible, data, onClose }: Props) {
               </View>
               {!!data.pain_notes && (
                 <Text variant="caption" color={COLORS.textMuted}>{data.pain_notes}</Text>
+              )}
+              {!!data.session_notes && (
+                <Text variant="caption" color={COLORS.textMuted}>Session notes: {data.session_notes}</Text>
               )}
             </Reveal>
           )}
