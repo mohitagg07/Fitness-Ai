@@ -546,8 +546,8 @@ export default function ProgressScreen({ initialTab = 'overview' }: { initialTab
             />
             <ProgressHubCard
               icon="body-outline"
-              title="Body & strength"
-              description="Weight history, consistency and personal records."
+              title="See progress"
+              description="Weight history, strength, consistency and personal records."
               accent={COLORS.primaryGreen}
               onPress={() => selectTab('body')}
               wide
