@@ -50,6 +50,7 @@ async def run_agentic_research(
     user_id: str,
     user_message: str,
     user_profile: dict | None = None,
+    prior_messages: list[dict] | None = None,
 ) -> dict:
     """Run one bounded, user-scoped research/tool cycle and return its trace."""
     tools = build_coach_tools(user_id=user_id, profile=user_profile)
@@ -90,13 +91,22 @@ async def run_agentic_research(
             "state when a tool reports data unavailable."
         )
     )
+    conversation = [system]
+    for turn in (prior_messages or [])[-8:]:
+        role = turn.get("role")
+        content = str(turn.get("content") or "").strip()
+        if not content:
+            continue
+        if role == "user":
+            conversation.append(HumanMessage(content=content[:1200]))
+        elif role == "assistant":
+            conversation.append(AIMessage(content=content[:1200]))
+    conversation.append(HumanMessage(content=str(user_message)[:3000]))
+
     try:
         result = await graph.ainvoke(
             {
-                "messages": [
-                    system,
-                    HumanMessage(content=str(user_message)[:3000]),
-                ],
+                "messages": conversation,
                 "tool_rounds": 0,
             },
             config={"recursion_limit": 10},
@@ -131,7 +141,9 @@ async def run_agentic_research(
     return {
         "findings": findings[:MAX_TOOL_ROUNDS * 4],
         "tools_used": tools_used[:12],
-        "tool_rounds": min(int(result.get("tool_rounds") or 0), MAX_TOOL_ROUNDS),
+        # The final assistant decision call also increments tool_rounds; subtract
+        # that non-tool call so this reports actual ToolNode cycles.
+        "tool_rounds": min(MAX_TOOL_ROUNDS, max(0, int(result.get("tool_rounds") or 0) - 1)),
         "research_note": research_note,
         "available": True,
     }
