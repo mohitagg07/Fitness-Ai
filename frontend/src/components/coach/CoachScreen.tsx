@@ -619,35 +619,8 @@ function ThinkingDots() {
 }
 
 // ─── Offline/fallback responses when backend is unreachable ──────────────────
-const OFFLINE_RESPONSES: Record<string, string> = {
-  default:
-    "I'm having trouble reaching the server right now. " +
-    "Make sure the backend is running and EXPO_PUBLIC_API_URL is set to your machine's LAN IP. " +
-    "In the meantime, here's what I'd suggest: log your sets, check your recovery score on the dashboard, and keep your protein intake on track.",
-  workout:
-    "I can't pull your live plan right now (server offline), but here's a general template: " +
-    "Warm-up 5 min → Main lifts 3–4 sets × 5 reps → Accessories 3 × 8–12 → Cool-down. " +
-    "Use RPE 7–8 for main lifts. Log your sets when you're back online.",
-  recovery:
-    "Server is offline, so I can't check your real-time recovery data. " +
-    "Rule of thumb: if you slept <7 hrs or feel sore/sluggish, drop intensity 20% today. " +
-    "Prioritise sleep, hydration, and 0.8–1g protein per lb bodyweight.",
-  nutrition:
-    "Can't reach the server, but here's the universal formula: " +
-    "protein = 0.8–1g per lb bodyweight, calories = TDEE ± 200 depending on your goal, " +
-    "carbs = fill remaining calories after protein & fat. Log meals when reconnected.",
-};
-
-function getOfflineFallback(message: string): string {
-  const m = message.toLowerCase();
-  if (m.includes('workout') || m.includes('exercise') || m.includes('gym') || m.includes('train'))
-    return OFFLINE_RESPONSES.workout;
-  if (m.includes('recovery') || m.includes('tired') || m.includes('sore') || m.includes('sleep'))
-    return OFFLINE_RESPONSES.recovery;
-  if (m.includes('eat') || m.includes('protein') || m.includes('nutrition') || m.includes('calorie'))
-    return OFFLINE_RESPONSES.nutrition;
-  return OFFLINE_RESPONSES.default;
-}
+// Connection failures are reported honestly; the coach never substitutes generic advice
+// for a personalised answer based on unavailable profile or training data.
 
 // ─── Small numeric badge used in the header briefing strip ───────────────────
 // ─── Main Screen ──────────────────────────────────────────────────────────────
@@ -738,7 +711,7 @@ export default function CoachScreen() {
       addChatMessage('assistant', data.reply, data.structured_decision);
       if (data.cns_fatigue_score != null) setCnsFatigue(data.cns_fatigue_score);
       if (data.emergency) {
-        Alert.alert('⚠️ Training Stopped', 'Injury signal detected. See the message below.', [
+        Alert.alert('Training Stopped', 'Injury signal detected. See the message below.', [
           { text: 'Understood', style: 'default' },
         ]);
       }
@@ -747,8 +720,10 @@ export default function CoachScreen() {
       const pendingMessage = pendingUserMessageRef.current;
       pendingUserMessageRef.current = null;
       setServerStatus('offline');
-      const fallback = pendingMessage ? getOfflineFallback(pendingMessage) : message;
-      addChatMessage('assistant', fallback);
+      const detail = pendingMessage
+        ? 'I could not complete that coaching request. Your logged data has not been changed. Please try again when the connection is available.'
+        : message;
+      addChatMessage('assistant', detail);
     },
   });
   // The stream hook owns connection, auth, cancellation and error settlement.
@@ -808,7 +783,7 @@ export default function CoachScreen() {
             <View style={S.headerTitleRow}>
               <Text style={S.headerTitle}>Coach</Text>
               <View style={S.proBadge}>
-                <Text style={S.proBadgeText}>VYRN AI</Text>
+                <Text style={S.proBadgeText}>PERSONAL COACH</Text>
               </View>
             </View>
             <Text style={S.headerSub}>Your training, in context</Text>
