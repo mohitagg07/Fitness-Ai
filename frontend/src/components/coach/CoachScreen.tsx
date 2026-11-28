@@ -343,7 +343,7 @@ function WorkoutCard({ sd, onStartWorkout, onSaveDraft }: { sd: any; onStartWork
               <Text style={{ color: COLORS.background, fontFamily: FONTS.bold, fontSize: 11 }}>Save draft</Text>
             </PressableScale>
             <PressableScale
-              style={{ minHeight: 44, flex: 1, borderRadius: 13, borderWidth: 1, borderColor: COLORS.borderStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 10 }}
+              style={{ minHeight: 44, flex: 1, borderRadius: 13, borderWidth: 1, borderColor: COLORS.borderLight, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 10 }}
               onPress={() => onStartWorkout?.(sd)}
               accessibilityRole="button"
               accessibilityLabel="Review this coach workout in Train"
