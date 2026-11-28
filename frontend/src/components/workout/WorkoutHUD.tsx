@@ -48,6 +48,7 @@ interface ExerciseCard {
   cue: string;
   rest: string;
   completed_sets: number;
+  target_unknown?: boolean;
   rpe_target?: number | null;
   rir_target?: number | null;
   tempo?: string;
@@ -381,6 +382,7 @@ function WorkoutHUD() {
   const [streakData, setStreakData]     = useState<MilestoneInfo | null>(null);
   const [moodPickerVisible, setMoodPickerVisible] = useState(false);
   const [isRestoringSession, setIsRestoringSession] = useState(true);
+  const [restoredPlanUnavailable, setRestoredPlanUnavailable] = useState(false);
   const [isBuildingPlan, setIsBuildingPlan] = useState(false);
   const [isApprovingPlan, setIsApprovingPlan] = useState(false);
   const [planPreviewVisible, setPlanPreviewVisible] = useState(false);
@@ -455,6 +457,8 @@ function WorkoutHUD() {
           });
 
         const plannedExercises = session.planned_workout_snapshot?.exercises;
+        const hasRestorablePrescription = Array.isArray(plannedExercises) && plannedExercises.length > 0;
+        setRestoredPlanUnavailable(!hasRestorablePrescription);
         const eventResponse = await workoutApi.getSessionExerciseEvents(session.id).catch(() => ({ data: { events: [] } }));
         const exerciseEvents = Array.isArray(eventResponse.data?.events) ? eventResponse.data.events : [];
         const latestEventByExercise = new Map<string, any>();
@@ -501,12 +505,15 @@ function WorkoutHUD() {
               return {
                 name,
                 original_name: name,
-                sets: Math.max(3, exerciseLogs.length + 1),
-                reps: String(last?.reps || 8),
+                // Legacy sessions without an approved prescription snapshot
+                // cannot truthfully recover planned sets or rep targets.
+                sets: Math.max(1, exerciseLogs.length + 1),
+                reps: last ? String(last.reps) : '',
                 load: last ? `${last.weight_kg}kg` : '',
-                cue: 'Continue your saved session',
-                rest: '90 sec',
+                cue: 'Original prescription unavailable. Use the previous logged set only as a reference; no target was saved for this session.',
+                rest: '90 sec default',
                 completed_sets: exerciseLogs.length,
+                target_unknown: true,
               };
             });
 
@@ -730,6 +737,7 @@ function WorkoutHUD() {
     });
     setExercises(nextExercises);
     setActiveIdx(0);
+    setRestoredPlanUnavailable(false);
     setPlanPreviewVisible(true);
   }, [profile?.goal, profile?.current_phase, recommendedWorkout]);
 
@@ -834,6 +842,7 @@ function WorkoutHUD() {
         logs: [],
         startedAt: Number.isFinite(startedAtMs) ? startedAtMs : Date.now(),
       });
+      setRestoredPlanUnavailable(false);
       setActiveIdx(0);
       setIsSessionPaused(false);
       setRestStartedAt(null);
@@ -1448,6 +1457,15 @@ function WorkoutHUD() {
         </PressableScale>
       )}
 
+      {restoredPlanUnavailable && (
+        <View style={S.planUnavailableBanner}>
+          <Ionicons name="information-circle-outline" size={15} color={COLORS.recoveryMed} />
+          <Text style={S.planUnavailableText}>
+            This older session has no saved exercise prescription. Only logged movements were restored; original exercise order, targets and unstarted movements cannot be recovered.
+          </Text>
+        </View>
+      )}
+
       {/* Exercise plan tabs */}
       {exercises.length > 0 && (
         <ScrollView
@@ -1457,7 +1475,7 @@ function WorkoutHUD() {
           contentContainerStyle={S.exTabs}
         >
           {exercises.map((e, i) => {
-            const done = e.skipped || e.completed_sets >= e.sets;
+            const done = e.skipped || (!e.target_unknown && e.completed_sets >= e.sets);
             return (
               <PressableScale
                 key={i}
@@ -1468,7 +1486,7 @@ function WorkoutHUD() {
                   {e.name.split(' ').slice(0, 2).join(' ')}
                 </Text>
                 <Text style={[S.exTabSets, done ? S.exTabSetsDone : i === activeIdx && S.exTabSetsActive]}>
-                  {e.skipped ? 'SKIP' : String(e.completed_sets) + '/' + String(e.sets)}
+                  {e.skipped ? 'SKIP' : e.target_unknown ? `${e.completed_sets} LOGGED` : String(e.completed_sets) + '/' + String(e.sets)}
                 </Text>
               </PressableScale>
             );
@@ -1483,15 +1501,23 @@ function WorkoutHUD() {
             <View style={S.exCardHeader}>
               <View>
                 <Text style={S.setCount}>
-                  {ex.skipped ? 'SKIPPED' : 'SET ' + (ex.completed_sets + 1) + ' / ' + ex.sets}
+                  {ex.skipped
+                    ? 'SKIPPED'
+                    : ex.target_unknown
+                      ? `SET ${ex.completed_sets + 1} · TARGET UNKNOWN`
+                      : 'SET ' + (ex.completed_sets + 1) + ' / ' + ex.sets}
                 </Text>
                 <Text style={S.exerciseName}>{ex.name}</Text>
                 <Text style={S.exerciseTarget}>
-                  {ex.skipped
-                    ? 'Remaining sets skipped'
-                    : ex.replaced
-                      ? 'Replacement · ' + ex.reps + ' reps · ' + ex.load
-                      : ex.reps + ' reps · ' + ex.load}
+                  {ex.target_unknown
+                    ? (ex.completed_sets > 0
+                      ? `No saved target · last logged: ${ex.load} × ${ex.reps}`
+                      : 'Original exercise target was not saved')
+                    : ex.skipped
+                      ? 'Remaining sets skipped'
+                      : ex.replaced
+                        ? 'Replacement · ' + ex.reps + ' reps · ' + ex.load
+                        : ex.reps + ' reps · ' + ex.load}
                 </Text>
               </View>
               {/* Next exercise button */}
@@ -1958,6 +1984,8 @@ const S = StyleSheet.create({
   // Secondary/closing action — kept visually quieter than the green Log
   // Set CTA above (tinted, not solid) since it ends the session rather
   // than driving it.
+  planUnavailableBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, marginHorizontal: SPACING.lg, marginTop: SPACING.sm, padding: SPACING.md, borderRadius: RADIUS.button, backgroundColor: alpha(COLORS.recoveryMed, 0.09), borderWidth: 1, borderColor: alpha(COLORS.recoveryMed, 0.24) },
+  planUnavailableText: { ...BODY, flex: 1, color: COLORS.recoveryMed, fontSize: 10, lineHeight: 15 },
   pendingSyncBanner: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginHorizontal: SPACING.lg, marginTop: SPACING.sm, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderRadius: RADIUS.button, backgroundColor: alpha(COLORS.recoveryMed, 0.09), borderWidth: 1, borderColor: alpha(COLORS.recoveryMed, 0.28) },
   pendingSyncText: { ...BODY, color: COLORS.textSecondary, fontSize: 11, flex: 1 },
   pendingSyncAction: { color: COLORS.recoveryMed, fontFamily: FONTS.bold, fontSize: 10, letterSpacing: 0.8 },
