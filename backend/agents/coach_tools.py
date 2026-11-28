@@ -44,9 +44,10 @@ def build_coach_tools(user_id: str, profile: dict | None = None) -> list[Structu
         days = max(1, min(int(days), 90))
         limit = max(1, min(int(limit), 20))
         try:
+            client = get_supabase()
             result = (
-                get_supabase().table("workout_sessions")
-                .select("session_date, workout_type, day_label, status, completed, total_volume_kg, duration_minutes")
+                client.table("workout_sessions")
+                .select("id, session_date, workout_type, day_label, status, completed, total_volume_kg, duration_minutes")
                 .eq("user_id", user_id)
                 .gte("session_date", str(date.today() - timedelta(days=days)))
                 .order("session_date", desc=True)
@@ -54,11 +55,24 @@ def build_coach_tools(user_id: str, profile: dict | None = None) -> list[Structu
                 .execute()
             )
             rows = result.data or []
+            session_ids = [row.get("id") for row in rows if row.get("id")]
+            exercise_logs = []
+            if session_ids:
+                log_result = (
+                    client.table("exercise_logs")
+                    .select("session_id, exercise_name, weight_kg, reps, rpe, is_warmup, logged_at")
+                    .eq("user_id", user_id)
+                    .in_("session_id", session_ids)
+                    .order("logged_at", desc=False)
+                    .execute()
+                )
+                exercise_logs = log_result.data or []
             return _json({
                 "available": True,
                 "window_days": days,
                 "count": len(rows),
                 "sessions": rows,
+                "exercise_logs": exercise_logs,
             })
         except Exception as exc:
             logger.warning("Coach workout-history tool unavailable (%s)", type(exc).__name__)
