@@ -152,6 +152,7 @@ def generate_proactive_brief(
     progress_decision,
     consumed: dict,
     targets: dict,
+    training_window: dict | None = None,
 ) -> dict:
     """
     Generate the proactive coach brief.
@@ -191,11 +192,22 @@ def generate_proactive_brief(
         top_ex = list(prs.keys())[0]
         top_pr_str = f"Current {top_ex} PR: {prs[top_ex]}kg. "
 
+    training_window = training_window or {}
+    window_display = training_window.get("display_label")
+    window_label = training_window.get("label") or "not set"
+    window_context = (
+        f"Preferred training window: {window_label} ({window_display}). "
+        "This is a broad profile preference, not a confirmed appointment."
+        if window_display else
+        "Preferred training window: not set. Do not invent an exact gym time."
+    )
+
     context = f"""ATHLETE: {name} | Goal: {goal} | Recovery: {rec_score}/10
 Workout today: {wtype} {"(RESCHEDULED)" if workout_decision.rescheduled else ""}
 Protein remaining: {max(0, protein_remaining):.0f}g | Calories remaining: {max(0, calories_remaining)} kcal
 {injury_note}{top_pr_str}
 Progress stalled: {progress_decision.stalled}
+{window_context}
 Memories: {memories_text}"""
 
     prompt = f"""You are VYRN — the athlete's personal coach. You think about them before they even open the app.
@@ -206,9 +218,9 @@ Based on this data, generate a PROACTIVE coach brief — what you've decided for
 
 Return ONLY valid JSON (no markdown fences):
 {{
-  "coach_message": "A warm, specific 2-3 sentence message. Reference actual numbers. First-person coach voice. Never say 'I will provide' or 'generating'. Max 60 words.",
+  "coach_message": "A warm, specific 2-3 sentence message. Reference actual numbers. First-person coach voice. State the preferred training window when one is available. Never imply an exact booking. Never say 'I will provide' or 'generating'. Max 60 words.",
   "todays_focus": "The single most important thing they should do today (one sentence, concrete).",
-  "recommendation": "The specific training recommendation (e.g. 'Push Day — target Bench Press 82.5kg x 3 for your top set').",
+  "recommendation": "The specific training recommendation and preferred time window when configured (never invent an exact appointment).",
   "suggested_top_set": "A specific set suggestion like 'Bench Press 82.5kg × 3' or null if rest day.",
   "confidence_pct": 85,
   "why_summary": "1-2 sentences explaining WHY you made this recommendation, citing specific data.",
@@ -232,7 +244,7 @@ Keep coach_message under 60 words. Make it feel like a real coach who has been t
     except Exception as e:
         logger.warning(f"Coach brain LLM failed: {e}")
         result = {
-            "coach_message": f"Recovery at {rec_score}/10 — {wtype} day is on schedule. Let's hit it.",
+            "coach_message": (f"Recovery at {rec_score}/10 — {wtype} day is on schedule. " + (f"Your preferred training window is {window_display}." if window_display and wtype.lower() != "rest" else "Let's keep the day focused.")),
             "todays_focus": wtype if wtype.lower() != "rest" else "Full recovery — sleep and hydration today.",
             "recommendation": workout_decision.message,
             "suggested_top_set": None,
