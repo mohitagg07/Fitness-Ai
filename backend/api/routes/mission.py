@@ -147,21 +147,23 @@ def _pick_next_action(
     """
     One concrete next step the user should do right now.
     """
-    preferred_time = profile.get("workout_time_preference") or "today"
+    training_window = _build_training_window(profile)
 
     if recovery_decision.action == "check_in":
-        return "Log recovery details; keep the approved workout plan conservative and unchanged"
+        return "Complete today's recovery check-in before deciding on training intensity"
     if recovery_decision.action == "rest":
-        return "Sleep 8h tonight to restore recovery score"
+        return "Keep today restful; prioritise sleep, hydration and light movement"
     if workout_decision.rescheduled:
-        return f"Complete missed session before {preferred_time}"
+        return "Review the missed-session adjustment with Coach; keep today's approved plan unchanged"
     if workout_decision.recommended_type and workout_decision.recommended_type.lower() != "rest":
-        return f"Train before {preferred_time}"
+        if training_window.get("display_label"):
+            return f"Plan your session in your {training_window['label'].lower()} window ({training_window['display_label']})"
+        return "Choose a training time that fits your schedule today"
     if protein_remaining > 20:
-        return f"Hit {int(protein_remaining)}g more protein today"
+        return f"Prioritise {int(protein_remaining)}g more protein across today's meals"
     if water_remaining_ml > 500:
-        return f"Drink {water_remaining_ml}ml water"
-    return "Rest and recover well tonight"
+        return f"Drink {water_remaining_ml}ml water across the rest of today"
+    return "Keep recovery on track tonight"
 
 
 def _build_alerts(
@@ -364,7 +366,7 @@ async def get_today_mission(
         "training_time":  training_time,
         "alerts":        alerts,
         "greeting":      f"Ready to train, {full_name}?",
-        "generated_at":  datetime.now().astimezone().isoformat(),
+        "generated_at":  local_datetime.isoformat(),
         "user_id":       user_id,
         "measurement_sources": measurement_sources,
         "missing_measurements": missing_measurements,
