@@ -33,6 +33,37 @@ def _today_recovery_checkin(user_id: str, target_date: date | None = None) -> di
     return rows[0] if rows else None
 
 
+def _latest_post_session_feedback(
+    user_id: str,
+    target_date: date | None = None,
+    lookback_days: int = 7,
+) -> dict | None:
+    """Read explicit recent session-effort and energy feedback for next-session coaching."""
+    end_day = target_date or date.today()
+    cutoff = str(end_day - timedelta(days=lookback_days - 1))
+    try:
+        result = (
+            get_supabase().table("workout_sessions")
+            .select("session_date, session_effort, energy_level, cns_fatigue_after, finished_at")
+            .eq("user_id", user_id)
+            .eq("completed", True)
+            .gte("session_date", cutoff)
+            .lte("session_date", str(end_day))
+            .order("session_date", desc=True)
+            .order("finished_at", desc=True)
+            .limit(10)
+            .execute()
+        )
+    except Exception:
+        # Failed reads remain unavailable; do not convert them into a clean check-in.
+        return None
+
+    for row in result.data or []:
+        if any(row.get(key) is not None for key in ("session_effort", "energy_level", "cns_fatigue_after")):
+            return row
+    return None
+
+
 def _latest_reported_session_pain(
     user_id: str,
     target_date: date | None = None,
@@ -286,12 +317,38 @@ def run_recovery_agent(
     reported_sleep = check_in.get("sleep_hours") if check_in else None
     soreness_level = check_in.get("soreness_level") if check_in else None
     energy_level = check_in.get("energy_level") if check_in else None
+    energy_source = "today_recovery_checkin" if energy_level is not None else None
+    latest_session_feedback = _latest_post_session_feedback(user_id, target_date)
+    if energy_level is None and latest_session_feedback and latest_session_feedback.get("energy_level") is not None:
+        energy_level = latest_session_feedback["energy_level"]
+        energy_source = "recent_post_workout_checkin"
 
     recent_volume = _last_session_volume(user_id)
     protein_pct, calorie_pct = _nutrition_ratios_today(
         user_id, protein_target_g, calorie_target, target_date
     )
     avg_rpe, high_rpe_days = _recent_rpe_stats(user_id, target_date)
+    latest_session_effort = (
+        latest_session_feedback.get("session_effort")
+        if latest_session_feedback else None
+    )
+    if latest_session_effort is not None:
+        try:
+            session_effort_value = float(latest_session_effort)
+            if 1 <= session_effort_value <= 10:
+                avg_rpe = (
+                    round((avg_rpe + session_effort_value) / 2, 2)
+                    if avg_rpe is not None
+                    else session_effort_value
+                )
+                if high_rpe_days is None:
+                    high_rpe_days = 1 if session_effort_value >= 8 else 0
+                elif session_effort_value >= 8:
+                    high_rpe_days = max(1, high_rpe_days)
+            else:
+                latest_session_effort = None
+        except (TypeError, ValueError):
+            latest_session_effort = None
     cns_fatigue = _last_explicit_cns_fatigue(user_id)
     pain_signal = _latest_reported_session_pain(user_id, target_date)
 
@@ -396,6 +453,12 @@ def run_recovery_agent(
         "last_night_sleep_hours": reported_sleep,
         "soreness_level": soreness_level,
         "energy_level": energy_level,
+        "energy_source": energy_source,
+        "latest_post_session_effort": latest_session_effort,
+        "latest_post_session_feedback_date": (
+            latest_session_feedback.get("session_date")
+            if latest_session_feedback else None
+        ),
         "last_session_volume_kg": recent_volume,
         "protein_ratio": protein_pct,
         "calorie_ratio": calorie_pct,
