@@ -892,6 +892,13 @@ export default function CoachScreen() {
   // The stream hook owns connection, auth, cancellation and error settlement.
 
   const startWorkoutFromCoach = useCallback((plan: any) => {
+    if (missionSummary?.recovery?.action === 'pain_review') {
+      Alert.alert(
+        'Review pain before training',
+        missionSummary.recovery.message || 'Your recent post-workout check-in reported sharp or worsening pain. Do not repeat the movement that caused it. Keep the approved plan unchanged while you review the symptoms.',
+      );
+      return;
+    }
     if (activeSession) {
       Alert.alert(
         'Workout already in progress',
@@ -902,7 +909,7 @@ export default function CoachScreen() {
     }
     setPendingCoachWorkout(plan);
     router.push('/(tabs)/workout');
-  }, [activeSession, setPendingCoachWorkout]);
+  }, [activeSession, missionSummary?.recovery?.action, missionSummary?.recovery?.message, setPendingCoachWorkout]);
 
   const openNutritionFromCoach = useCallback(() => {
     router.push({ pathname: '/(tabs)/nutrition', params: { openLog: '1' } } as any);
@@ -999,9 +1006,11 @@ export default function CoachScreen() {
               <Text style={S.dailyBriefEyebrow}>YOUR COACH · DAILY BRIEF</Text>
             </View>
             <Text style={S.dailyBriefStatus}>
-              {missionSummary?.recovery?.action === 'rest'
-                ? 'RECOVERY DAY'
-                : trainingWindowStatus((missionSummary as any)?.training_time)}
+              {missionSummary?.recovery?.action === 'pain_review'
+                ? 'PAIN REVIEW'
+                : missionSummary?.recovery?.action === 'rest'
+                  ? 'RECOVERY DAY'
+                  : trainingWindowStatus((missionSummary as any)?.training_time)}
             </Text>
           </View>
           <Text style={S.dailyBriefTitle}>
@@ -1070,12 +1079,35 @@ export default function CoachScreen() {
           <View style={S.dailyBriefActions}>
             <PressableScale
               style={S.dailyBriefPrimary}
-              onPress={() => router.push('/(tabs)/workout')}
+              onPress={() => {
+                if (missionSummary?.recovery?.action === 'pain_review') {
+                  Alert.alert(
+                    'Training paused for review',
+                    missionSummary.recovery.message || 'Do not repeat the movement that caused the reported pain. Keep the approved plan unchanged while you review the symptoms.',
+                  );
+                  return;
+                }
+                router.push('/(tabs)/workout');
+              }}
               accessibilityRole="button"
-              accessibilityLabel={activeSession ? 'Continue current workout' : 'Review today’s training session'}
+              accessibilityLabel={
+                missionSummary?.recovery?.action === 'pain_review'
+                  ? 'Read pain-related training guidance'
+                  : activeSession ? 'Continue current workout' : 'Review today’s training session'
+              }
             >
-              <Ionicons name={activeSession ? 'play' : 'barbell-outline'} size={15} color={COLORS.background} />
-              <Text style={S.dailyBriefPrimaryText}>{activeSession ? 'Continue session' : 'Review in Train'}</Text>
+              <Ionicons
+                name={missionSummary?.recovery?.action === 'pain_review'
+                  ? 'shield-checkmark-outline'
+                  : activeSession ? 'play' : 'barbell-outline'}
+                size={15}
+                color={COLORS.background}
+              />
+              <Text style={S.dailyBriefPrimaryText}>
+                {missionSummary?.recovery?.action === 'pain_review'
+                  ? 'Read guidance'
+                  : activeSession ? 'Continue session' : 'Review in Train'}
+              </Text>
               <Ionicons name="arrow-forward" size={14} color={COLORS.background} />
             </PressableScale>
             <PressableScale
