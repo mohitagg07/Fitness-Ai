@@ -79,7 +79,9 @@ interface SummaryData {
   planned_vs_actual?: {
     has_plan: boolean;
     planned_exercises: number;
+    completed_exercises?: number;
     exercises_with_logged_sets: number;
+    partially_completed_exercises?: number;
     skipped_exercises: number;
     replaced_exercises?: number;
     not_started_exercises?: number;
@@ -92,7 +94,8 @@ interface SummaryData {
       planned_sets: number;
       logged_working_sets: number;
       completed: boolean;
-      status?: 'completed' | 'skipped' | 'replaced' | 'replacement_not_logged' | 'not_started';
+      status?: 'completed' | 'partially_completed' | 'skipped' | 'replaced' | 'replacement_not_logged' | 'not_started';
+      action?: 'skip' | 'replace' | null;
       reason?: string | null;
     }>;
   };
@@ -302,7 +305,7 @@ function WorkoutSummaryCard({ visible, data, onClose }: Props) {
                 <View style={styles.reviewHeading}>
                   <Text variant="caption" weight="bold" color={COLORS.textDim} style={{ letterSpacing: 1.1 }}>PLAN VS COMPLETED</Text>
                   <Text variant="caption" weight="semibold" color={COLORS.primaryGreen}>
-                    {data.planned_vs_actual.exercises_with_logged_sets}/{data.planned_vs_actual.planned_exercises} exercises
+                    {(data.planned_vs_actual.completed_exercises ?? data.planned_vs_actual.exercises_with_logged_sets)}/{data.planned_vs_actual.planned_exercises} completed
                   </Text>
                 </View>
                 <View style={styles.reviewStats}>
@@ -326,17 +329,27 @@ function WorkoutSummaryCard({ visible, data, onClose }: Props) {
                       <Text variant="caption" color={COLORS.textMuted}>Exercises replaced</Text>
                     </View>
                   )}
+                  {!!data.planned_vs_actual.partially_completed_exercises && (
+                    <View style={styles.reviewStat}>
+                      <Text variant="body" weight="bold" numeric color={COLORS.text}>
+                        {data.planned_vs_actual.partially_completed_exercises}
+                      </Text>
+                      <Text variant="caption" color={COLORS.textMuted}>Partially completed</Text>
+                    </View>
+                  )}
                 </View>
                 {data.planned_vs_actual.exercises.filter((exercise) => exercise.status && exercise.status !== 'completed').map((exercise, index) => {
                   const wasSkipped = exercise.status === 'skipped';
-                  const wasReplaced = exercise.status === 'replaced' || exercise.status === 'replacement_not_logged';
+                  const wasReplaced = exercise.action === 'replace';
                   const statusLabel = wasSkipped
                     ? 'Skipped'
                     : exercise.status === 'replaced'
-                      ? 'Replaced'
-                      : exercise.status === 'replacement_not_logged'
-                        ? 'Replacement not logged'
-                        : 'Not started';
+                      ? 'Completed'
+                      : exercise.status === 'partially_completed'
+                        ? 'Partially completed'
+                        : exercise.status === 'replacement_not_logged'
+                          ? 'Replacement not logged'
+                          : 'Not started';
                   return (
                     <View key={`${exercise.name}-${index}`} style={styles.skippedRow}>
                       <Ionicons
