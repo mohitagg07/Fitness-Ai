@@ -109,6 +109,7 @@ def build_coach_tools(user_id: str, profile: dict | None = None) -> list[Structu
                 get_supabase().table("recovery_checkins")
                 .select("local_date, sleep_hours, soreness_level, energy_level, notes")
                 .eq("user_id", user_id)
+                .gte("local_date", str(date.today() - timedelta(days=days)))
                 .order("local_date", desc=True)
                 .limit(days)
                 .execute()
