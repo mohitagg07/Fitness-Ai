@@ -140,33 +140,46 @@ def get_memory_collection():
 
 
 @lru_cache()
-def get_memory_settings_collection():
-    """Separate per-user settings store; settings never enter semantic memory recall."""
-    return get_memory_chroma_client().get_or_create_collection(
-        name=MEMORY_SETTINGS_COLLECTION_NAME,
-        embedding_function=LocalHashEmbeddingFunction(),
-        metadata={"hnsw:space": "cosine"},
-    )
-
-
 def get_auto_memory_enabled(user_id: str) -> bool:
-    """Automatic fact extraction is opt-in and defaults off for new users."""
+    """Read durable automatic-memory consent from the user's Supabase profile.
+
+    Missing columns, profiles or database connectivity all fail closed.
+    Apply MIGRATION_v15_coach_memory_consent.sql before exposing the toggle.
+    """
     try:
-        result = get_memory_settings_collection().get(ids=[user_id], include=["metadatas"])
-        metadata = (result.get("metadatas") or [None])[0] or {}
-        return bool(metadata.get("auto_memory_enabled", False))
+        from db.supabase_client import get_supabase
+
+        result = (
+            get_supabase().table("profiles")
+            .select("coach_auto_memory_enabled")
+            .eq("id", user_id)
+            .limit(1)
+            .execute()
+        )
+        rows = result.data or []
+        return bool(rows[0].get("coach_auto_memory_enabled", False)) if rows else False
     except Exception as exc:
-        logger.warning("Could not read memory preference for user %s (%s)", user_id, type(exc).__name__)
+        logger.warning(
+            "Could not read durable Coach memory preference for user %s (%s)",
+            user_id,
+            type(exc).__name__,
+        )
         return False
 
 
 def set_auto_memory_enabled(user_id: str, enabled: bool) -> None:
-    """Persist a user's explicit choice without requiring a Supabase migration."""
-    get_memory_settings_collection().upsert(
-        ids=[user_id],
-        documents=[f"Automatic coach memory extraction: {'enabled' if enabled else 'disabled'}"],
-        metadatas=[{"user_id": user_id, "auto_memory_enabled": bool(enabled)}],
+    """Persist explicit memory consent on the user's profile row."""
+    from db.supabase_client import get_supabase
+
+    result = (
+        get_supabase().table("profiles")
+        .update({"coach_auto_memory_enabled": bool(enabled)})
+        .eq("id", user_id)
+        .select("id")
+        .execute()
     )
+    if not result.data:
+        raise RuntimeError("The user's profile preference row could not be updated.")
 
 
 def remember(user_id: str, fact: str, category: str = "general") -> str | None:
