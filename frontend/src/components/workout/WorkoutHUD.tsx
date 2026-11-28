@@ -1507,6 +1507,27 @@ function WorkoutHUD() {
         </View>
       )}
 
+      {(activeSession?.planned_workout_snapshot?.warmup_notes || activeSession?.planned_workout_snapshot?.cooldown_notes) && (
+        <View style={S.sessionGuidanceCard}>
+          <View style={S.sessionGuidanceHeader}>
+            <Ionicons name="clipboard-outline" size={14} color={COLORS.primaryGreen} />
+            <Text style={S.sessionGuidanceTitle}>SESSION GUIDANCE</Text>
+          </View>
+          {activeSession?.planned_workout_snapshot?.warmup_notes ? (
+            <View style={S.sessionGuidanceBlock}>
+              <Text style={S.sessionGuidanceLabel}>WARM-UP</Text>
+              <Text style={S.sessionGuidanceText}>{activeSession.planned_workout_snapshot.warmup_notes}</Text>
+            </View>
+          ) : null}
+          {activeSession?.planned_workout_snapshot?.cooldown_notes ? (
+            <View style={S.sessionGuidanceBlock}>
+              <Text style={S.sessionGuidanceLabel}>COOL-DOWN</Text>
+              <Text style={S.sessionGuidanceText}>{activeSession.planned_workout_snapshot.cooldown_notes}</Text>
+            </View>
+          ) : null}
+        </View>
+      )}
+
       {/* Exercise plan tabs */}
       {exercises.length > 0 && (
         <ScrollView
@@ -2025,6 +2046,12 @@ const S = StyleSheet.create({
   // Secondary/closing action — kept visually quieter than the green Log
   // Set CTA above (tinted, not solid) since it ends the session rather
   // than driving it.
+  sessionGuidanceCard: { marginHorizontal: SPACING.md, marginVertical: SPACING.sm, padding: SPACING.md, borderRadius: RADIUS.card, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, gap: SPACING.sm },
+  sessionGuidanceHeader: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  sessionGuidanceTitle: { ...EYEBROW, color: COLORS.primaryGreen, fontSize: 9, letterSpacing: 1 },
+  sessionGuidanceBlock: { gap: 3 },
+  sessionGuidanceLabel: { ...EYEBROW, color: COLORS.textMuted, fontSize: 8, letterSpacing: 0.9 },
+  sessionGuidanceText: { ...BODY, color: COLORS.textSecondary, fontSize: 11, lineHeight: 16 },
   planUnavailableBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, marginHorizontal: SPACING.lg, marginTop: SPACING.sm, padding: SPACING.md, borderRadius: RADIUS.button, backgroundColor: alpha(COLORS.recoveryMed, 0.09), borderWidth: 1, borderColor: alpha(COLORS.recoveryMed, 0.24) },
   planUnavailableText: { ...BODY, flex: 1, color: COLORS.recoveryMed, fontSize: 10, lineHeight: 15 },
   pendingSyncBanner: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginHorizontal: SPACING.lg, marginTop: SPACING.sm, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderRadius: RADIUS.button, backgroundColor: alpha(COLORS.recoveryMed, 0.09), borderWidth: 1, borderColor: alpha(COLORS.recoveryMed, 0.28) },
