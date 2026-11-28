@@ -40,7 +40,7 @@ FITNESS_KNOWLEDGE: list[dict[str,str]] = [
  {"id":"cdc_sleep_guidance","title":"CDC: About sleep","category":"sleep_recovery","url":"https://www.cdc.gov/sleep/about/index.html","content":(
   "The CDC states that adults aged 18–60 should generally get at least 7 hours of sleep each day; recommendations differ for other age groups. Helpful sleep habits include consistent bedtimes and wake times, a quiet relaxing cool bedroom, turning off electronic devices at least 30 minutes before bed, and avoiding afternoon or evening caffeine. Sleep needs and sleep quality vary. Persistent insomnia, excessive daytime sleepiness or other sleep concerns warrant discussion with a healthcare professional rather than diagnosis by a fitness chatbot."
  )},
- {"id":"training_safety_scope","title":"VYRN coaching safety and evidence boundaries","category":"pain_injury_safety","url":"https://acsm.org/resistance-training-guidelines-update-2026/","content":(
+ {"id":"training_safety_scope","title":"VYRN coaching safety and evidence boundaries","category":"pain_injury_safety","url":"","content":(
   "The fitness coach is not a medical diagnostic service. It must not diagnose pain or injury, prescribe rehabilitation, or tell a user to train through sharp, sudden, worsening or function-limiting pain. Stop the aggravating exercise and recommend assessment by a qualified healthcare professional when symptoms are significant, persistent or worsening. Severe symptoms such as chest pain, fainting, severe breathing difficulty, major deformity or inability to use a limb need urgent medical assessment. Never fabricate a safe substitute exercise."
  )},
 ]
