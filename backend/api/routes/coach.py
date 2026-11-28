@@ -56,41 +56,9 @@ def _load_prior_messages(
         return []
 
 
-def _persist_coach_plan(user_id: str, blocks: dict) -> None:
-    """Merge today's coach recommendation into the user's existing active plan.
-
-    The database RPC takes an advisory transaction lock per user, preserves
-    every other weekday, and creates an active plan only when none exists.
-    This prevents a single-day AI recommendation from replacing a full weekly
-    split and prevents concurrent coach calls from losing schedule updates.
-    """
-    from datetime import date as _date
-    from db.supabase_client import get_supabase as _get_sb
-
-    day_keys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-    today_key = day_keys[_date.today().weekday()]
-    workout_type = str(
-        blocks.get("type") or blocks.get("workout_type") or "full_body"
-    ).strip().lower().replace(" ", "_").replace("-", "_")
-
-    allowed_types = {
-        "push", "pull", "legs", "upper", "lower",
-        "full_body", "cardio", "rest",
-    }
-    if workout_type not in allowed_types:
-        raise ValueError(f"Unsupported coach workout type: {workout_type!r}")
-
-    response = _get_sb().rpc(
-        "merge_coach_workout_day",
-        {
-            "p_user_id": user_id,
-            "p_day_key": today_key,
-            "p_workout_type": workout_type,
-        },
-    ).execute()
-    if not response.data:
-        raise RuntimeError("Workout plan merge returned no persisted plan")
-
+# Workout recommendations are proposals. The versioned training-plan API
+# is the only path that can make a Coach-generated plan active, and it requires
+# an explicit athlete approval call.
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(
@@ -133,15 +101,8 @@ async def chat(
             {"structured_decision": result.get("structured_decision")},
         )
 
-        # ── Persist generated workout to workout_plans so the dashboard
-        # shows the type instead of "NO PLAN TODAY" ─────────────────────
-        # When the coach generates a WorkoutCard the reply contains a type
-        # (e.g. "Push", "Full Body"). Write that into workout_plans as the
-        # today-only active schedule so workout_agent picks it up on the
-        # next /mission/today or /dashboard/summary call.
-        blocks = result.get("workout_blocks")
-        if blocks:
-            await asyncio.to_thread(_persist_coach_plan, user_id, blocks)
+        # Do not promote generated workouts here. Coach recommendations are
+        # proposals; the athlete must save and approve a validated plan draft.
     except Exception as e:
         import logging
         logging.getLogger(__name__).error(f"Failed to persist coach conversation for user {user_id}: {e}")
@@ -240,9 +201,7 @@ async def _stream_coach_reply(payload: ChatMessage, user_id: str):
                 {"structured_decision": result.get("structured_decision")},
             )
 
-            blocks = result.get("workout_blocks")
-            if blocks:
-                await asyncio.to_thread(_persist_coach_plan, user_id, blocks)
+            # Plan activation is handled only by the explicit approval endpoint.
         except Exception as e:
             logger.error(f"Failed to persist coach conversation for user {user_id}: {e}")
 
@@ -348,9 +307,7 @@ async def regenerate_workout(
         await asyncio.to_thread(upsert_agent_state, user_id, result["updated_agent_state"])
         await asyncio.to_thread(save_conversation_message, user_id, None, "assistant", result["reply"])
         await asyncio.to_thread(_log_timeline_event, user_id, "workout_generated", "Workout regenerated")
-        regen_blocks = result.get("workout_blocks")
-        if regen_blocks:
-            await asyncio.to_thread(_persist_coach_plan, user_id, regen_blocks)
+        # Regeneration returns a proposal; it does not activate a plan.
     except Exception as e:
         import logging
         logging.getLogger(__name__).error(f"Failed to persist regenerated workout for {user_id}: {e}")
