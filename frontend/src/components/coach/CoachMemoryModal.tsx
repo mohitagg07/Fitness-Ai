@@ -199,7 +199,7 @@ export default function CoachMemoryModal({ visible, onClose }: { visible: boolea
               </View>
             ) : (
               <View style={styles.card}>
-                <Text style={styles.emptyHint}>No injuries on file — the coach will train you at full intensity.</Text>
+                <Text style={styles.emptyHint}>No injuries are recorded. Add any current pain or training constraints before asking for a detailed exercise plan.</Text>
               </View>
             )}
 
