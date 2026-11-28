@@ -49,6 +49,9 @@ interface DashboardSummary {
     score_pct?: number | null;
     action?: string;
     message?: string;
+    data_completeness_pct?: number;
+    missing_signals?: string[];
+    pain_signal?: { status?: string; notes?: string; session_date?: string; source?: string } | null;
   };
   nutrition_status?: {
     calories_remaining?: number;
@@ -254,7 +257,11 @@ export default function DashboardScreen() {
               </View>
               <View style={styles.heroStatus}>
                 <Text style={styles.heroStatusText}>
-                  {score === null ? 'BUILDING BASELINE' : score >= 67 ? 'READY' : score >= 34 ? 'MEASURED' : 'RECOVER'}
+                  {summary?.recovery?.action === 'pain_review'
+                    ? 'PAIN REVIEW'
+                    : summary?.recovery?.action === 'check_in'
+                      ? 'NEEDS CHECK-IN'
+                      : score === null ? 'BUILDING BASELINE' : score >= 67 ? 'READY' : score >= 34 ? 'MEASURED' : 'RECOVER'}
                 </Text>
               </View>
             </View>
@@ -262,13 +269,15 @@ export default function DashboardScreen() {
             <View style={styles.heroCopy}>
               <Text style={styles.heroKicker}>THE PRIORITY</Text>
               <Text style={styles.heroTitle}>
-                {summary?.recovery?.action === 'rest'
-                  ? 'Recovery day.'
-                  : summary?.mission
-                    ? summary.mission
-                    : workoutType
-                      ? `${workoutType.replace(/_/g, ' ')} day.`
-                      : 'Build your training plan.'}
+                {summary?.recovery?.action === 'pain_review'
+                  ? 'Review pain before training.'
+                  : summary?.recovery?.action === 'rest'
+                    ? 'Recovery day.'
+                    : summary?.mission
+                      ? summary.mission
+                      : workoutType
+                        ? `${workoutType.replace(/_/g, ' ')} day.`
+                        : 'Build your training plan.'}
               </Text>
               <Text style={styles.heroDescription} numberOfLines={3}>
                 {summary?.proactive_brief?.todays_focus
@@ -304,6 +313,11 @@ export default function DashboardScreen() {
                 ? (summary?.training_time?.note || 'Suggested from your profile preference · not a booked appointment')
                 : 'Set your preferred training time in Profile'}
             </Text>
+            <Text style={styles.heroDataNote}>
+              {summary?.recovery?.data_completeness_pct != null
+                ? `READINESS DATA COVERAGE · ${Math.round(summary.recovery.data_completeness_pct)}% OF WEIGHTED SIGNALS AVAILABLE`
+                : 'READINESS SCORE UNAVAILABLE UNTIL ENOUGH RECOVERY DATA IS REPORTED'}
+            </Text>
             {!summary?.training_time?.display_label ? (
               <PressableScale
                 style={styles.heroSetTime}
@@ -320,11 +334,19 @@ export default function DashboardScreen() {
               style={styles.heroButton}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
-                router.push(summary?.recovery?.action === 'rest' ? '/(tabs)/coach' : '/(tabs)/workout');
+                router.push(
+                  summary?.recovery?.action === 'rest' || summary?.recovery?.action === 'pain_review'
+                    ? '/(tabs)/coach'
+                    : '/(tabs)/workout'
+                );
               }}
             >
               <Text style={styles.heroButtonText}>
-                {summary?.recovery?.action === 'rest' ? 'Open Coach guidance' : workoutType ? 'Review today’s session' : 'Open training'}
+                {summary?.recovery?.action === 'pain_review'
+                  ? 'Review Coach guidance'
+                  : summary?.recovery?.action === 'rest'
+                    ? 'Open Coach guidance'
+                    : workoutType ? 'Review today’s session' : 'Open training'}
               </Text>
               <Ionicons name="arrow-forward" size={18} color={COLORS.background} />
             </PressableScale>
@@ -506,6 +528,7 @@ const styles = StyleSheet.create({
   heroMetaValue: { color: '#FFFFFF', fontFamily: FONTS.numericSemibold, fontSize: 12 },
   heroMetaDivider: { width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.24)' },
   heroFootnote: { color: 'rgba(255,255,255,0.62)', fontFamily: FONTS.regular, fontSize: 9, lineHeight: 13, marginTop: 8 },
+  heroDataNote: { color: 'rgba(255,255,255,0.72)', fontFamily: FONTS.semibold, fontSize: 8, lineHeight: 12, letterSpacing: 0.55, marginTop: 8 },
   heroSetTime: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', paddingTop: 6 },
   heroSetTimeText: { color: COLORS.primaryGreen, fontFamily: FONTS.semibold, fontSize: 10 },
   heroButton: { minHeight: 50, marginTop: 15, borderRadius: 16, paddingHorizontal: 16, backgroundColor: COLORS.primaryGreen, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
