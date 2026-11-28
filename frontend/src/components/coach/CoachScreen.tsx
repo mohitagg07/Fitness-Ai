@@ -22,7 +22,7 @@ import Svg, { Circle, Path, Defs, LinearGradient as SvgGradient, Stop } from 're
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { coachApi, describeApiError, nutritionApi } from '../../utils/api';
+import { coachApi, describeApiError, nutritionApi, trainingPlanApi } from '../../utils/api';
 import { useCoachChatStream } from '../../hooks/useCoachChatStream';
 import { useMissionSummary } from '../../hooks/useDashboardQueries';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
@@ -691,6 +691,24 @@ function ThinkingDots() {
 // for a personalised answer based on unavailable profile or training data.
 
 // ─── Small numeric badge used in the header briefing strip ───────────────────
+function trainingWindowStatus(trainingTime: any): string {
+  if (!trainingTime?.display_label) return 'SET A PREFERRED TIME';
+  const hour = new Date().getHours();
+  const windows: Record<string, [number, number]> = {
+    morning: [6, 10],
+    afternoon: [12, 16],
+    evening: [17, 21],
+  };
+  const range = windows[String(trainingTime.period || '')];
+  if (!range) return 'PREFERRED WINDOW';
+  if (hour >= range[0] && hour < range[1]) return 'WINDOW OPEN';
+  return hour < range[0] ? 'UP NEXT' : 'PASSED FOR TODAY';
+}
+
+function weekdayKeyLocal(): string {
+  return ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][new Date().getDay()];
+}
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function CoachScreen() {
   const responsive = useResponsiveLayout();
@@ -704,6 +722,8 @@ export default function CoachScreen() {
   // disagree about "how am I today". No fabricated Sleep/Readiness rings
   // here since the backend doesn't return those as distinct scores.
   const [brief, setBrief] = useState<{ recoveryScore: number; cnsFatigue: number; message: string } | null>(null);
+  const [todaysPrescription, setTodaysPrescription] = useState<any | null>(null);
+  const [trainingPlanLoaded, setTrainingPlanLoaded] = useState(false);
   const flatListRef = useRef<FlashListRef<any>>(null);
   // Selector form — see src/store/index.ts. CoachScreen needs chatHistory/
   // profile/user, but previously re-rendered on every store
@@ -770,6 +790,32 @@ export default function CoachScreen() {
       message: missionSummary.recovery?.message || "Recovery data will show up here once you've logged a session.",
     });
   }, [missionSummary]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setTrainingPlanLoaded(false);
+    trainingPlanApi.getActive()
+      .then((response) => {
+        if (cancelled) return;
+        const version = response.data?.version;
+        const snapshot = version?.status === 'approved' ? (version.snapshot || {}) : {};
+        const todayKey = weekdayKeyLocal();
+        const schedule = snapshot.schedule || response.data?.plan?.schedule || {};
+        const workoutType = String(missionSummary?.workout_today?.type || schedule[todayKey] || '').toLowerCase();
+        const dayPrescription = snapshot.workouts_by_day?.[todayKey] || null;
+        const singlePrescription = !Object.keys(schedule).length ? snapshot.workout || null : null;
+        const prescription = workoutType === 'rest' ? null : (dayPrescription || singlePrescription);
+        setTodaysPrescription(prescription);
+        setTrainingPlanLoaded(true);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setTodaysPrescription(null);
+          setTrainingPlanLoaded(true);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [missionSummary?.generated_at, missionSummary?.workout_today?.type]);
 
   // Streaming reply: chunks arrive over SSE and accumulate in
   // `streamingText`, rendered as a live "still typing" bubble (see
@@ -927,6 +973,87 @@ export default function CoachScreen() {
             <Text style={S.briefMetricInline}>CNS load <Text style={{ color: brief.cnsFatigue <= 30 ? COLORS.recoveryHigh : brief.cnsFatigue <= 60 ? COLORS.recoveryMed : COLORS.recoveryLow }}>{Math.round(brief.cnsFatigue)}</Text></Text>
           </View>
         )}
+        <View style={S.dailyBriefCard}>
+          <View style={S.dailyBriefTop}>
+            <View style={S.dailyBriefEyebrowRow}>
+              <View style={S.dailyBriefLiveDot} />
+              <Text style={S.dailyBriefEyebrow}>YOUR COACH · DAILY BRIEF</Text>
+            </View>
+            <Text style={S.dailyBriefStatus}>
+              {missionSummary?.recovery?.action === 'rest'
+                ? 'RECOVERY DAY'
+                : trainingWindowStatus((missionSummary as any)?.training_time)}
+            </Text>
+          </View>
+          <Text style={S.dailyBriefTitle}>
+            {(missionSummary as any)?.mission
+              || (missionSummary as any)?.workout_today?.type?.replace(/_/g, ' ')?.replace(/\b\w/g, (m: string) => m.toUpperCase())
+              || 'Your training direction'}
+          </Text>
+          <Text style={S.dailyBriefMessage}>
+            {(missionSummary as any)?.proactive_brief?.coach_message
+              || (missionSummary as any)?.proactive_brief?.todays_focus
+              || (missionSummary as any)?.workout_today?.message
+              || 'Your coach will update this briefing when your training and recovery data is available.'}
+          </Text>
+
+          <View style={S.dailyBriefSchedule}>
+            <View style={S.dailyBriefScheduleIcon}>
+              <Ionicons name="time-outline" size={16} color={COLORS.primaryGreen} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={S.dailyBriefScheduleLabel}>PREFERRED TRAINING WINDOW</Text>
+              <Text style={S.dailyBriefScheduleTime}>
+                {(missionSummary as any)?.training_time?.display_label || 'Not set in your profile'}
+              </Text>
+              <Text style={S.dailyBriefScheduleNote}>
+                {(missionSummary as any)?.training_time?.display_label
+                  ? 'A suggested window based on your profile preference, not a booked appointment.'
+                  : 'Choose morning, afternoon or evening in your profile to personalise timing.'}
+              </Text>
+            </View>
+          </View>
+
+          {Array.isArray(todaysPrescription?.exercises) && todaysPrescription.exercises.length > 0 ? (
+            <View style={S.dailyBriefExercises}>
+              <Text style={S.dailyBriefExercisesTitle}>TODAY'S PRESCRIBED SESSION</Text>
+              {todaysPrescription.exercises.slice(0, 3).map((exercise: any, index: number) => (
+                <View key={exercise.exercise_id || exercise.name || index} style={S.dailyBriefExerciseRow}>
+                  <View style={S.dailyBriefExerciseIndex}><Text style={S.dailyBriefExerciseIndexText}>{String(index + 1).padStart(2, '0')}</Text></View>
+                  <Text style={S.dailyBriefExerciseName} numberOfLines={1}>{exercise.name}</Text>
+                  <Text style={S.dailyBriefExerciseTarget}>{exercise.sets} × {exercise.reps}</Text>
+                </View>
+              ))}
+              {todaysPrescription.exercises.length > 3 ? (
+                <Text style={S.dailyBriefMoreExercises}>+ {todaysPrescription.exercises.length - 3} more movements in your session</Text>
+              ) : null}
+            </View>
+          ) : trainingPlanLoaded && missionSummary?.workout_today?.type && missionSummary.workout_today.type !== 'rest' ? (
+            <Text style={S.dailyBriefPlanNote}>Your training day is set. Open Train to review the active prescription or prepare a session.</Text>
+          ) : null}
+
+          <View style={S.dailyBriefActions}>
+            <PressableScale
+              style={S.dailyBriefPrimary}
+              onPress={() => router.push('/(tabs)/workout')}
+              accessibilityRole="button"
+              accessibilityLabel={activeSession ? 'Continue current workout' : 'Review today’s training session'}
+            >
+              <Ionicons name={activeSession ? 'play' : 'barbell-outline'} size={15} color={COLORS.background} />
+              <Text style={S.dailyBriefPrimaryText}>{activeSession ? 'Continue session' : 'Review in Train'}</Text>
+              <Ionicons name="arrow-forward" size={14} color={COLORS.background} />
+            </PressableScale>
+            <PressableScale
+              style={S.dailyBriefSecondary}
+              onPress={openNutritionFromCoach}
+              accessibilityRole="button"
+              accessibilityLabel="Open nutrition and log food"
+            >
+              <Ionicons name="nutrition-outline" size={15} color={COLORS.text} />
+              <Text style={S.dailyBriefSecondaryText}>Food</Text>
+            </PressableScale>
+          </View>
+        </View>
       </View>
       <CoachMemoryModal visible={memoryVisible} onClose={() => setMemoryVisible(false)} />
 
@@ -950,14 +1077,14 @@ export default function CoachScreen() {
               </View>
               <View style={S.coachOrbStatus} />
             </View>
-            <Text style={S.emptyEyebrow}>TRAINING AND NUTRITION</Text>
-            <Text style={S.emptyTitle}>What would you like to work on?</Text>
+            <Text style={S.emptyEyebrow}>COACHING, CONTINUED</Text>
+            <Text style={S.emptyTitle}>Your day is already in view.</Text>
             <Text style={S.emptySubtitle}>
-              Ask about a workout, meal plan, recovery or performance. Recommendations use your profile and recorded activity.
+              Your daily recommendation and preferred training window are above. Use chat for adjustments, questions and set-by-set guidance.
             </Text>
           </View>
           <View style={S.suggestionsHeading}>
-            <Text style={S.suggestionsHeadingLabel}>CHOOSE A STARTING POINT</Text>
+            <Text style={S.suggestionsHeadingLabel}>ASK FOR A DEEPER LOOK</Text>
           </View>
           <View style={S.suggestions}>
             {SUGGESTIONS.map((s, i) => (
@@ -1174,6 +1301,33 @@ const S = StyleSheet.create({
   briefContextTitle: { fontFamily: FONTS.bold, color: COLORS.textMuted, fontSize: 10, letterSpacing: 0.8 },
   briefDividerVertical: { width: 1, height: 15, backgroundColor: COLORS.border },
   briefMetricInline: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 10 },
+  dailyBriefCard: { marginTop: 13, padding: 15, backgroundColor: COLORS.cardElevated, borderRadius: 20, borderWidth: 1, borderColor: COLORS.borderLight, gap: 10 },
+  dailyBriefTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 7 },
+  dailyBriefEyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  dailyBriefLiveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: COLORS.primaryGreen },
+  dailyBriefEyebrow: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 9, letterSpacing: 1.15 },
+  dailyBriefStatus: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 0.65 },
+  dailyBriefTitle: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 23, lineHeight: 28, letterSpacing: -0.45 },
+  dailyBriefMessage: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 12, lineHeight: 19 },
+  dailyBriefSchedule: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: COLORS.backgroundTop, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, padding: 11, marginTop: 1 },
+  dailyBriefScheduleIcon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(COLORS.primaryGreen, 0.12) },
+  dailyBriefScheduleLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 0.9 },
+  dailyBriefScheduleTime: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 14, marginTop: 2 },
+  dailyBriefScheduleNote: { color: COLORS.textDim, fontFamily: FONTS.regular, fontSize: 9, lineHeight: 13, marginTop: 2 },
+  dailyBriefExercises: { paddingTop: 3, gap: 7 },
+  dailyBriefExercisesTitle: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1, marginBottom: 1 },
+  dailyBriefExerciseRow: { minHeight: 35, flexDirection: 'row', alignItems: 'center', gap: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 5 },
+  dailyBriefExerciseIndex: { width: 25, height: 25, borderRadius: 8, backgroundColor: alpha(COLORS.primaryGreen, 0.10), alignItems: 'center', justifyContent: 'center' },
+  dailyBriefExerciseIndexText: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 9 },
+  dailyBriefExerciseName: { color: COLORS.text, fontFamily: FONTS.medium, fontSize: 11, flex: 1 },
+  dailyBriefExerciseTarget: { color: COLORS.textSecondary, fontFamily: FONTS.numericSemibold, fontSize: 10 },
+  dailyBriefMoreExercises: { color: COLORS.textMuted, fontFamily: FONTS.medium, fontSize: 9, paddingTop: 3 },
+  dailyBriefPlanNote: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 10, lineHeight: 15 },
+  dailyBriefActions: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 3 },
+  dailyBriefPrimary: { flex: 1, minHeight: 43, borderRadius: 13, backgroundColor: COLORS.primaryGreen, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 10 },
+  dailyBriefPrimaryText: { color: COLORS.background, fontFamily: FONTS.bold, fontSize: 11, flex: 1 },
+  dailyBriefSecondary: { minWidth: 82, minHeight: 43, borderRadius: 13, backgroundColor: COLORS.backgroundTop, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 11 },
+  dailyBriefSecondaryText: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 11 },
   offlineBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: alpha(COLORS.recoveryMed, 0.10), paddingVertical: 9, paddingHorizontal: 16,
