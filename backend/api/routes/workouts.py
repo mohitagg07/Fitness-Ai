@@ -960,6 +960,7 @@ async def complete_session(
             if action == "replace" else original_name
         )
         current_key = current_name.casefold()
+        planned_count = int(exercise.get("sets") or 0)
         if action == "skip":
             status = "skipped"
             # Preserve any work completed before the athlete chose to skip the
@@ -967,25 +968,39 @@ async def complete_session(
             logged_sets = actual_by_exercise.get(original_key, 0)
         elif action == "replace":
             logged_sets = actual_by_exercise.get(current_key, 0)
-            status = "replaced" if logged_sets else "replacement_not_logged"
+            status = (
+                "replaced" if planned_count > 0 and logged_sets >= planned_count
+                else "partially_completed" if logged_sets > 0
+                else "replacement_not_logged"
+            )
         else:
             logged_sets = actual_by_exercise.get(original_key, 0)
-            status = "completed" if logged_sets else "not_started"
+            status = (
+                "completed" if planned_count > 0 and logged_sets >= planned_count
+                else "partially_completed" if logged_sets > 0
+                else "not_started"
+            )
         exercise_review.append({
             "name": original_name,
             "current_name": current_name,
-            "planned_sets": int(exercise.get("sets") or 0),
+            "planned_sets": planned_count,
             "logged_working_sets": logged_sets,
             "completed": status in ("completed", "replaced"),
             "status": status,
+            "action": action,
             "reason": event.get("reason") if event else None,
         })
 
     completed_planned_exercises = sum(1 for item in exercise_review if item["completed"])
+    exercises_with_logged_sets = sum(
+        1 for item in exercise_review if item["logged_working_sets"] > 0
+    )
+    partially_completed_exercises = sum(
+        1 for item in exercise_review if item["status"] == "partially_completed"
+    )
     skipped_exercises = sum(1 for item in exercise_review if item["status"] == "skipped")
     replaced_exercises = sum(
-        1 for item in exercise_review
-        if item["status"] in ("replaced", "replacement_not_logged")
+        1 for item in exercise_review if item.get("action") == "replace"
     )
     # Compare only against the most recent completed workout of the same
     # workout type (or day label for legacy sessions). This is a reference
@@ -1031,10 +1046,12 @@ async def complete_session(
     planned_vs_actual = {
         "has_plan": bool(planned_exercises),
         "planned_exercises": len(planned_exercises),
-        "exercises_with_logged_sets": completed_planned_exercises,
+        "completed_exercises": completed_planned_exercises,
+        "exercises_with_logged_sets": exercises_with_logged_sets,
+        "partially_completed_exercises": partially_completed_exercises,
         "skipped_exercises": skipped_exercises,
         "replaced_exercises": replaced_exercises,
-        "not_started_exercises": sum(1 for item in exercise_review if item["status"] == "not_started"),
+        "not_started_exercises": sum(1 for item in exercise_review if item["status"] in ("not_started", "replacement_not_logged")),
         "planned_working_sets": planned_sets,
         "completed_working_sets": len(working_logs),
         "set_completion_ratio": round(min(1, len(working_logs) / planned_sets), 2) if planned_sets else None,
