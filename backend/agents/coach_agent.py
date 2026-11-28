@@ -65,6 +65,7 @@ class WorkoutGraphState(TypedDict):
     fitness_knowledge: List[dict]
     agent_tool_context: List[dict]
     agent_activity: Optional[dict]
+    agent_research_note: Optional[str]
 
 
 def _load_nutrition_today(user_id: str) -> dict:
@@ -389,6 +390,13 @@ async def agentic_research_node(state: WorkoutGraphState) -> WorkoutGraphState:
     if state.get("emergency"):
         state["agent_tool_context"] = []
         state["agent_activity"] = {"available": False, "tools_used": [], "tool_rounds": 0, "skipped": "emergency"}
+        state["agent_research_note"] = None
+        return state
+    normalized_message = re.sub(r"[\\s.!?]+", " ", str(state.get("user_message") or "").lower()).strip()
+    if normalized_message in {"hi", "hello", "hey", "thanks", "thank you", "ok", "okay", "good morning", "good afternoon", "good evening", "bye"}:
+        state["agent_tool_context"] = []
+        state["agent_activity"] = {"available": True, "tools_used": [], "tool_rounds": 0, "skipped": "not_needed"}
+        state["agent_research_note"] = None
         return state
     try:
         result = await run_agentic_research(
@@ -396,6 +404,7 @@ async def agentic_research_node(state: WorkoutGraphState) -> WorkoutGraphState:
             user_id=state["user_id"],
             user_message=state["user_message"],
             user_profile=state.get("user_profile") or {},
+            prior_messages=state.get("prior_messages") or [],
         )
         state["agent_tool_context"] = result.get("findings") or []
         state["agent_activity"] = {
