@@ -138,6 +138,10 @@ async def run_agentic_research(
             if isinstance(content, str) and content.strip():
                 research_note = content.strip()[:1800]
 
+    # Without tool results, the model's pre-search text is not an evidence source.
+    if not findings:
+        research_note = None
+
     return {
         "findings": findings[:MAX_TOOL_ROUNDS * 4],
         "tools_used": tools_used[:12],
