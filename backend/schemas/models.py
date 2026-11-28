@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from typing import Optional, List, Any
 from datetime import date, datetime
 from enum import Enum
@@ -335,45 +335,193 @@ class ChatMessage(BaseModel):
     session_id: Optional[str] = None
 
 
+class CoachExercise(BaseModel):
+    """Bounded exercise data used by the Coach cards and plan-draft adapter."""
+    model_config = ConfigDict(extra="ignore")
+
+    name: str = Field(min_length=1, max_length=120)
+    sets: int = Field(ge=1, le=20)
+    reps: str = Field(min_length=1, max_length=30)
+    weight: Optional[str] = Field(default=None, max_length=60)
+    rest: Optional[str] = Field(default=None, max_length=30)
+    focus: Optional[str] = Field(default=None, max_length=500)
+
+    @field_validator("name", "reps", mode="before")
+    @classmethod
+    def _clean_required_text(cls, value):
+        if not isinstance(value, (str, int, float)):
+            raise ValueError("Expected short text")
+        cleaned = str(value).strip()
+        if not cleaned:
+            raise ValueError("Text cannot be blank")
+        return cleaned
+
+    @field_validator("weight", "rest", "focus", mode="before")
+    @classmethod
+    def _clean_optional_text(cls, value):
+        if value is None:
+            return None
+        if not isinstance(value, (str, int, float)):
+            raise ValueError("Expected short text")
+        return str(value).strip()[:500] or None
+
+
+class CoachSummary(BaseModel):
+    """Short, bounded explanation of a Coach proposal."""
+    model_config = ConfigDict(extra="ignore")
+
+    intensity: Optional[str] = Field(default=None, max_length=20)
+    estimated_time: Optional[str] = Field(default=None, max_length=32)
+    reason: Optional[str] = Field(default=None, max_length=500)
+
+
 class StructuredDecision(BaseModel):
     """
-    Structured coach decision returned by the LangGraph agent.
-    response_type drives which card the frontend renders.
-    All fields optional so partial decisions valid for chat/plain turns.
+    Validated public Coach response. This schema is used by both JSON and SSE
+    routes so non-streaming clients retain the same evidence and action metadata.
     """
-    # v2 fields (new card system)
+    model_config = ConfigDict(extra="ignore")
+
     response_type: Optional[ResponseType] = None
-    coach_message: Optional[str] = None    # user-facing message — never internal reasoning
-    exercises: Optional[List[Any]] = None  # [{name, sets, reps, weight, rest, focus}]
-    summary: Optional[Any] = None          # {intensity, estimated_time, reason}
-    tips: Optional[List[str]] = None
-    next_action: Optional[str] = None
-    coach_insight: Optional[str] = None
-    # Optional dynamic clarification: one question and tap-to-answer choices.
-    follow_up_question: Optional[str] = None
-    question_options: Optional[List[str]] = None
-    question_key: Optional[str] = None
-    recovery: Optional[int] = None         # 0-100
+    coach_message: Optional[str] = Field(default=None, max_length=600)
+    exercises: List[CoachExercise] = Field(default_factory=list, max_length=40)
+    summary: Optional[CoachSummary] = None
+    tips: List[str] = Field(default_factory=list, max_length=4)
+    next_action: Optional[str] = Field(default=None, max_length=180)
+    coach_insight: Optional[str] = Field(default=None, max_length=320)
+    follow_up_question: Optional[str] = Field(default=None, max_length=240)
+    question_options: List[str] = Field(default_factory=list, max_length=5)
+    question_key: Optional[str] = Field(default=None, max_length=64)
+    recovery: Optional[int] = Field(default=None, ge=0, le=100)
     intensity: Optional[Intensity] = None
+
+    # Server-authored metadata. Never accept model-invented citations or tool labels.
+    knowledge_sources: List[dict] = Field(default_factory=list, max_length=6)
+    agent_activity: Optional[dict] = None
 
     @field_validator("response_type", mode="before")
     @classmethod
-    def _fallback_response_type(cls, v):
-        # LLM-generated field — never let an unexpected value 500 the chat endpoint.
-        if v is None or v in ResponseType._value2member_map_:
-            return v
+    def _fallback_response_type(cls, value):
+        if value is None or value in ResponseType._value2member_map_:
+            return value
         return ResponseType.chat
 
     @field_validator("intensity", mode="before")
     @classmethod
-    def _fallback_intensity(cls, v):
-        # LLM-generated field (the prompt itself inconsistently says "Recovery" in one
-        # spot vs "Rest" elsewhere) — normalize instead of raising.
-        if v is None or v in Intensity._value2member_map_:
-            return v
-        if isinstance(v, str) and v.strip().lower() in ("recovery", "rest", "deload"):
+    def _fallback_intensity(cls, value):
+        if value is None or value in Intensity._value2member_map_:
+            return value
+        if isinstance(value, str) and value.strip().lower() in ("recovery", "rest", "deload"):
             return Intensity.rest
         return None
+
+    @field_validator("exercises", mode="before")
+    @classmethod
+    def _validate_exercises(cls, values):
+        if not isinstance(values, list):
+            return []
+        valid = []
+        for item in values[:40]:
+            if not isinstance(item, dict):
+                continue
+            try:
+                valid.append(CoachExercise.model_validate(item))
+            except Exception:
+                # Never display or activate an incomplete prescription.
+                continue
+        return valid
+
+    @field_validator("summary", mode="before")
+    @classmethod
+    def _validate_summary(cls, value):
+        if value is None or isinstance(value, CoachSummary):
+            return value
+        if not isinstance(value, dict):
+            return None
+        try:
+            return CoachSummary.model_validate(value)
+        except Exception:
+            return None
+
+    @field_validator("tips", mode="before")
+    @classmethod
+    def _bound_tips(cls, values):
+        if not isinstance(values, list):
+            return []
+        return [
+            value.strip()[:160]
+            for value in values
+            if isinstance(value, str) and value.strip()
+        ][:4]
+
+    @field_validator("question_options", mode="before")
+    @classmethod
+    def _bound_question_options(cls, values):
+        if not isinstance(values, list):
+            return []
+        output = []
+        for value in values:
+            if isinstance(value, str) and value.strip():
+                cleaned = value.strip()[:90]
+                if cleaned not in output:
+                    output.append(cleaned)
+            if len(output) == 5:
+                break
+        return output
+
+    @field_validator("knowledge_sources", mode="before")
+    @classmethod
+    def _server_sources_only(cls, values):
+        if not isinstance(values, list):
+            return []
+        output = []
+        for source in values[:6]:
+            if not isinstance(source, dict):
+                continue
+            title = source.get("title")
+            url = source.get("url")
+            if isinstance(title, str) and title.strip() and isinstance(url, str) and url.startswith("https://"):
+                output.append({
+                    "title": title.strip()[:180],
+                    "url": url[:600],
+                    "category": str(source.get("category") or "general")[:80],
+                })
+        return output
+
+    @field_validator("workout_type", mode="before")
+    @classmethod
+    def _normalise_workout_type(cls, value):
+        if not isinstance(value, str):
+            return None
+        value = value.strip().lower().replace("-", "_").replace(" ", "_")
+        supported = {"push", "pull", "legs", "upper", "lower", "full_body", "cardio", "mobility", "recovery", "rest"}
+        return value if value in supported else None
+
+    @model_validator(mode="after")
+    def _downgrade_incomplete_workout(self):
+        if self.response_type == ResponseType.workout_plan:
+            complete = (
+                self.workout_type is not None
+                and self.summary is not None
+                and (
+                    self.workout_type == "rest"
+                    or len(self.exercises) >= 3
+                )
+                and not (self.workout_type == "rest" and self.exercises)
+            )
+            if not complete:
+                self.response_type = ResponseType.chat
+                self.exercises = []
+                self.summary = None
+                self.coach_message = (
+                    "I couldn't validate a complete workout prescription from the available details. "
+                    "Let's clarify what is missing before I recommend a session."
+                )
+        if self.follow_up_question is None:
+            self.question_options = []
+            self.question_key = None
+        return self
+
     # v1 backward-compat aliases
     mode: Optional[str] = None
     analysis: Optional[str] = None
