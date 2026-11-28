@@ -1063,6 +1063,8 @@ async def complete_session(
         "status": "completed",
         "planned_vs_actual": planned_vs_actual,
         "previous_comparable_session": previous_comparison,
+        "mood": session.get("mood"),
+        "session_notes": session.get("notes"),
         "session_effort": session_effort,
         "energy_level": energy_level,
         "pain_status": pain_status,
