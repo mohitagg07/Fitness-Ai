@@ -732,7 +732,7 @@ export default function CoachScreen() {
   // subscribed to the whole store unconditionally.
   const {
     chatHistory, addChatMessage, hydrateChatHistory, setCnsFatigue,
-    activeSession, setPendingCoachWorkout,
+    activeSession, setPendingCoachWorkout, profile,
   } = useStore((s) => ({
     chatHistory: s.chatHistory,
     addChatMessage: s.addChatMessage,
@@ -740,6 +740,7 @@ export default function CoachScreen() {
     setCnsFatigue: s.setCnsFatigue,
     activeSession: s.activeSession,
     setPendingCoachWorkout: s.setPendingCoachWorkout,
+    profile: s.profile,
   }));
 
   // Restore conversation history from Supabase when the Coach tab opens.
@@ -798,15 +799,29 @@ export default function CoachScreen() {
       .then((response) => {
         if (cancelled) return;
         const version = response.data?.version;
-        const snapshot = version?.status === 'approved' ? (version.snapshot || {}) : {};
+        const approved = version?.status === 'approved';
+        const snapshot = approved ? (version.snapshot || {}) : {};
         const todayKey = weekdayKeyLocal();
-        const schedule = snapshot.schedule || response.data?.plan?.schedule || {};
+        const schedule = approved
+          ? (snapshot.schedule || response.data?.plan?.schedule || {})
+          : {};
         const workoutType = String(missionSummary?.workout_today?.type || schedule[todayKey] || '').toLowerCase();
         const dayPrescription = snapshot.workouts_by_day?.[todayKey] || null;
         const singlePrescription = !Object.keys(schedule).length ? snapshot.workout || null : null;
         const prescription = workoutType === 'rest' ? null : (dayPrescription || singlePrescription);
         setTodaysPrescription(prescription);
         setTrainingPlanLoaded(true);
+
+        // Local reminders are rebuilt only from an approved weekly plan and
+        // the athlete's selected time preference. The helper no-ops on web,
+        // respects notification permission and removes stale reminders first.
+        void import('../../utils/pushNotifications')
+          .then(({ syncTrainingWindowReminders }) => (
+            syncTrainingWindowReminders(profile?.workout_time_preference, schedule)
+          ))
+          .catch((error) => {
+            if (__DEV__) console.warn('[Coach] Training reminders could not be synced', error);
+          });
       })
       .catch(() => {
         if (!cancelled) {
@@ -815,7 +830,7 @@ export default function CoachScreen() {
         }
       });
     return () => { cancelled = true; };
-  }, [missionSummary?.generated_at, missionSummary?.workout_today?.type]);
+  }, [missionSummary?.generated_at, missionSummary?.workout_today?.type, profile?.workout_time_preference]);
 
   // Streaming reply: chunks arrive over SSE and accumulate in
   // `streamingText`, rendered as a live "still typing" bubble (see
@@ -1011,6 +1026,17 @@ export default function CoachScreen() {
                   ? 'A suggested window based on your profile preference, not a booked appointment.'
                   : 'Choose morning, afternoon or evening in your profile to personalise timing.'}
               </Text>
+              {!(missionSummary as any)?.training_time?.display_label ? (
+                <PressableScale
+                  style={S.dailyBriefSetTime}
+                  onPress={() => router.push('/(tabs)/profile')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Set preferred training time in Profile"
+                >
+                  <Text style={S.dailyBriefSetTimeText}>Set training window</Text>
+                  <Ionicons name="arrow-forward" size={13} color={COLORS.primaryGreen} />
+                </PressableScale>
+              ) : null}
             </View>
           </View>
 
@@ -1314,6 +1340,8 @@ const S = StyleSheet.create({
   dailyBriefScheduleLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 0.9 },
   dailyBriefScheduleTime: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 14, marginTop: 2 },
   dailyBriefScheduleNote: { color: COLORS.textDim, fontFamily: FONTS.regular, fontSize: 9, lineHeight: 13, marginTop: 2 },
+  dailyBriefSetTime: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', paddingTop: 7 },
+  dailyBriefSetTimeText: { color: COLORS.primaryGreen, fontFamily: FONTS.semibold, fontSize: 10 },
   dailyBriefExercises: { paddingTop: 3, gap: 7 },
   dailyBriefExercisesTitle: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1, marginBottom: 1 },
   dailyBriefExerciseRow: { minHeight: 35, flexDirection: 'row', alignItems: 'center', gap: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: 5 },
