@@ -40,8 +40,14 @@ export const COLORS = {
   primaryGreen:   '#D0FF55',
   primaryBlue:    '#69D5F5',
 
-  // Intelligence is deliberately violet, distinct from performance.
+  // Coach intelligence palette — violet, cyan, coral and mint create
+  // an iridescent product signature without changing recovery semantics.
   coachPurple:    '#B7A0FF',
+  coachLavender:  '#D6C4FF',
+  coachCyan:      '#6EDDF6',
+  coachCoral:     '#FF93B7',
+  coachMint:      '#70E6C2',
+  coachDeep:      '#17162F',
 
   // Semantic aliases.
   success: '#CFFF66',
