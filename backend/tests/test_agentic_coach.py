@@ -98,3 +98,54 @@ def test_auto_memory_is_disabled_for_new_users_and_explicitly_toggleable(monkeyp
     assert memory_client.get_auto_memory_enabled("athlete-123") is True
     memory_client.set_auto_memory_enabled("athlete-123", False)
     assert memory_client.get_auto_memory_enabled("athlete-123") is False
+
+def test_langgraph_executes_a_requested_tool_and_returns_its_result(monkeypatch):
+    import asyncio
+    from langchain_core.messages import AIMessage
+    from langchain_core.tools import StructuredTool
+    from agents import agentic_research
+
+    def fake_lookup() -> str:
+        """Return a deterministic test record."""
+        return '{"available": true, "sessions": 2}'
+
+    tool = StructuredTool.from_function(
+        fake_lookup,
+        name="fake_lookup",
+        description="Read the deterministic test record.",
+    )
+
+    class FakeModel:
+        def __init__(self):
+            self.calls = 0
+        def bind_tools(self, _tools):
+            return self
+        async def ainvoke(self, _messages):
+            self.calls += 1
+            if self.calls == 1:
+                return AIMessage(
+                    content="",
+                    tool_calls=[{
+                        "name": "fake_lookup",
+                        "args": {},
+                        "id": "call-test-1",
+                        "type": "tool_call",
+                    }],
+                )
+            return AIMessage(content="The data lookup returned two sessions.")
+
+    fake_model = FakeModel()
+    monkeypatch.setattr(agentic_research, "build_coach_tools", lambda **_kwargs: [tool])
+    result = asyncio.run(
+        agentic_research.run_agentic_research(
+            llm=fake_model,
+            user_id="athlete-123",
+            user_message="How many recent workouts do I have?",
+        )
+    )
+
+    assert result["available"] is True
+    assert result["tools_used"] == ["fake_lookup"]
+    assert result["tool_rounds"] == 1
+    assert "sessions" in result["findings"][0]["result"]
+    assert "two sessions" in result["research_note"]
