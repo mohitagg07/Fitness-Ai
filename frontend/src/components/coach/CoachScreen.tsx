@@ -944,14 +944,14 @@ export default function CoachScreen() {
               </View>
               <View style={S.coachOrbStatus} />
             </View>
-            <Text style={S.emptyEyebrow}>YOUR TRAINING PARTNER</Text>
-            <Text style={S.emptyTitle}>A coach that knows your training.</Text>
+            <Text style={S.emptyEyebrow}>TRAINING AND NUTRITION</Text>
+            <Text style={S.emptyTitle}>What would you like to work on?</Text>
             <Text style={S.emptySubtitle}>
-              Get help with your workout, time, recovery, technique and food. Choose a task below or ask your own question.
+              Ask about a workout, meal plan, recovery or performance. Recommendations use your profile and recorded activity.
             </Text>
           </View>
           <View style={S.suggestionsHeading}>
-            <Text style={S.suggestionsHeadingLabel}>WHAT DO YOU NEED TODAY?</Text>
+            <Text style={S.suggestionsHeadingLabel}>CHOOSE A STARTING POINT</Text>
           </View>
           <View style={S.suggestions}>
             {SUGGESTIONS.map((s, i) => (
@@ -1012,7 +1012,7 @@ export default function CoachScreen() {
           style={S.input}
           value={input}
           onChangeText={setInput}
-          placeholder="Log a set, ask anything..."
+          placeholder="Ask about training, food or recovery..."
           placeholderTextColor={COLORS.textDim}
           multiline
           maxLength={2000}
