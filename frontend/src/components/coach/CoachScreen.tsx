@@ -965,6 +965,89 @@ export default function CoachScreen() {
     router.push({ pathname: '/(tabs)/nutrition', params: { openLog: '1' } } as any);
   }, []);
 
+  const saveWorkoutDraftFromCoach = useCallback(async (plan: any) => {
+    if (savingCoachDraft) return;
+    const allowedTypes = new Set(['push', 'pull', 'legs', 'upper', 'lower', 'full_body', 'cardio', 'mobility', 'recovery', 'rest']);
+    const rawType = String(plan?.workout_type || plan?.type || 'full_body').toLowerCase().replace(/[ -]+/g, '_');
+    const workoutType = allowedTypes.has(rawType) ? rawType : 'full_body';
+    const toRestSeconds = (value: unknown): number => {
+      const match = String(value ?? '').match(/[0-9]+(?:[.][0-9]+)?/);
+      if (!match) return 90;
+      const amount = Number(match[0]);
+      return String(value).toLowerCase().includes('min') ? Math.round(amount * 60) : Math.round(amount);
+    };
+    const exercises = (Array.isArray(plan?.exercises) ? plan.exercises : []).slice(0, 40).map((exercise: any) => {
+      const weightText = String(exercise?.weight ?? '').trim();
+      const kgMatch = weightText.match(/([0-9]+(?:[.][0-9]+)?)\s*kg/i);
+      const loadKg = kgMatch ? Number(kgMatch[1]) : undefined;
+      const loadGuidance = weightText && loadKg === undefined ? weightText.slice(0, 240) : undefined;
+      return {
+        name: String(exercise?.name || '').trim(),
+        sets: Math.max(1, Math.min(20, Math.round(Number(exercise?.sets) || 3))),
+        reps: String(exercise?.reps ?? '8').slice(0, 30),
+        ...(loadKg !== undefined && Number.isFinite(loadKg) ? { load_kg: loadKg } : {}),
+        ...(loadGuidance ? { load_guidance: loadGuidance } : {}),
+        rest_seconds: Math.max(0, Math.min(900, toRestSeconds(exercise?.rest))),
+        ...(exercise?.focus ? { cue: String(exercise.focus).slice(0, 500) } : {}),
+      };
+    }).filter((exercise: any) => exercise.name);
+    if (workoutType !== 'rest' && exercises.length === 0) {
+      Alert.alert('Cannot save this draft', 'The Coach recommendation did not contain a usable exercise prescription.');
+      return;
+    }
+    const durationMatch = String(plan?.summary?.estimated_time || '').match(/[0-9]+/);
+    const duration = durationMatch ? Math.max(5, Math.min(300, Number(durationMatch[0]))) : undefined;
+    setSavingCoachDraft(true);
+    try {
+      const response = await trainingPlanApi.createDraft({
+        name: 'VYRN Coach Plan',
+        goal: profile?.goal || undefined,
+        phase: 'Coach proposal',
+        weeks: 4,
+        change_reason: String(plan?.summary?.reason || 'Athlete-requested Coach workout proposal').slice(0, 1000),
+        evidence: { source: 'vyrn_coach_agent', rationale: String(plan?.summary?.reason || '').slice(0, 500) },
+        workout: {
+          label: (workoutType.replace(/_/g, ' ') + ' session').slice(0, 80),
+          workout_type: workoutType,
+          ...(duration ? { estimated_duration_minutes: duration } : {}),
+          exercises,
+        },
+      });
+      const planId = response.data?.plan?.id;
+      const versionId = response.data?.version?.id;
+      if (!planId || !versionId) {
+        throw new Error('The draft was saved but its approval reference was not returned. Refresh your training plans before continuing.');
+      }
+      Alert.alert(
+        'Draft saved',
+        'Your Coach recommendation is saved as an unapproved draft. Your active plan has not changed.',
+        [
+          { text: 'Review later', style: 'cancel' },
+          {
+            text: 'Approve plan',
+            onPress: () => {
+              Alert.alert('Approve this workout plan?', 'This will make the validated draft your active training plan.', [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Approve',
+                  onPress: () => {
+                    void trainingPlanApi.approveVersion(planId, versionId)
+                      .then(() => Alert.alert('Plan approved', 'Your approved plan is now active.'))
+                      .catch((error: any) => Alert.alert('Approval failed', describeApiError(error).message));
+                  },
+                },
+              ]);
+            },
+          },
+        ],
+      );
+    } catch (error: any) {
+      Alert.alert('Could not save draft', describeApiError(error).message);
+    } finally {
+      setSavingCoachDraft(false);
+    }
+  }, [savingCoachDraft, profile?.goal]);
+
   const sendMessage = useCallback((text?: string) => {
     const message = text || input.trim();
     if (!message || isStreaming || isEnrichingResponse) return;
@@ -998,6 +1081,7 @@ export default function CoachScreen() {
             item={item}
             onSelectOption={sendMessage}
             onStartWorkout={startWorkoutFromCoach}
+            onSaveDraft={saveWorkoutDraftFromCoach}
             onOpenNutrition={openNutritionFromCoach}
             showQuestion={index === chatHistory.length - 1}
           />
@@ -1005,7 +1089,7 @@ export default function CoachScreen() {
         : <Text style={[S.messageText, S.userText]}>{item.content}</Text>
       }
     </View>
-  ), [sendMessage, startWorkoutFromCoach, openNutritionFromCoach, chatHistory.length]);
+  ), [sendMessage, startWorkoutFromCoach, saveWorkoutDraftFromCoach, openNutritionFromCoach, chatHistory.length]);
 
   return (
     <KeyboardAvoidingView
