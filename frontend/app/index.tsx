@@ -116,7 +116,7 @@ export default function Index() {
   if (bootError) {
     return (
       <View style={styles.container}>
-        <Text style={styles.brand}>VYRN</Text>
+        
         <Text style={styles.title}>We could not restore your session</Text>
         <Text style={styles.message}>
           Your saved sign-in information is taking too long to load. Retry, or
@@ -126,7 +126,7 @@ export default function Index() {
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Retry opening VYRN"
+          accessibilityLabel="Retry opening the fitness workspace"
           onPress={() => setAttempt((value) => value + 1)}
           style={styles.primaryButton}
         >
@@ -156,17 +156,15 @@ export default function Index() {
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFillObject}
       />
-      <View pointerEvents="none" style={styles.orbitTop} />
-      <View pointerEvents="none" style={styles.orbitBottom} />
       <Animated.View style={[styles.hero, { opacity: heroOpacity, transform: [{ translateY: heroLift }] }]}>
         <View style={styles.brandMark}>
-          <Ionicons name="pulse" size={30} color={COLORS.background} />
+          <Ionicons name="barbell-outline" size={25} color={COLORS.background} />
         </View>
-        <Text style={styles.brand}>VYRN</Text>
-        <Text style={styles.tagline}>YOUR DAY. YOUR GOALS. YOUR COACH.</Text>
+        <Text style={styles.brand}>Fitness workspace</Text>
+        
         <View style={styles.loadingRow}>
           <ActivityIndicator color={COLORS.primaryGreen} size="small" />
-          <Text style={styles.loadingText}>Getting your day ready</Text>
+          <Text style={styles.loadingText}>Preparing your workspace</Text>
         </View>
       </Animated.View>
     </View>
@@ -183,17 +181,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   hero: { alignItems: 'center', justifyContent: 'center', padding: 28 },
-  brandMark: { width: 76, height: 76, borderRadius: 26, backgroundColor: COLORS.primaryGreen, alignItems: 'center', justifyContent: 'center', marginBottom: 20, shadowColor: COLORS.primaryGreen, shadowOpacity: 0.2, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 6 },
-  orbitTop: { position: 'absolute', top: -130, right: -90, width: 320, height: 320, borderRadius: 160, borderWidth: 1, borderColor: 'rgba(208,255,85,0.16)', backgroundColor: 'rgba(208,255,85,0.055)' },
-  orbitBottom: { position: 'absolute', bottom: -150, left: -120, width: 340, height: 340, borderRadius: 170, borderWidth: 1, borderColor: 'rgba(183,160,255,0.18)', backgroundColor: 'rgba(183,160,255,0.07)' },
-  brand: {
-    color: COLORS.text,
-    fontSize: 30,
-    fontWeight: '800',
-    letterSpacing: 7,
-    marginBottom: 10,
-  },
-  tagline: { color: COLORS.textMuted, fontSize: 9, fontWeight: '800', letterSpacing: 2, marginBottom: 25 },
+  brandMark: { width: 54, height: 54, borderRadius: 18, backgroundColor: COLORS.primaryGreen, alignItems: 'center', justifyContent: 'center', marginBottom: 22 },
   loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 3 },
   title: {
     color: COLORS.text,
