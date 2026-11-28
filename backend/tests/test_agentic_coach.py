@@ -79,25 +79,58 @@ def test_nutrition_tool_scopes_query_to_authenticated_user(monkeypatch):
     assert result["totals"]["protein_g"] == 30
 
 
-def test_auto_memory_is_disabled_for_new_users_and_explicitly_toggleable(monkeypatch):
-    class SettingsCollection:
-        def __init__(self):
-            self.metadata = {}
-        def get(self, ids, include):
-            assert include == ["metadatas"]
-            return {"metadatas": [self.metadata] if self.metadata else [None]}
-        def upsert(self, ids, documents, metadatas):
-            assert len(ids) == 1
-            self.metadata = metadatas[0]
+def test_auto_memory_is_disabled_for_new_users_and_persisted_in_profile(monkeypatch):
+    class ProfileQuery:
+        def __init__(self, client):
+            self.client = client
+            self.operation = "read"
+            self.payload = None
+            self.filters = []
 
-    collection = SettingsCollection()
-    monkeypatch.setattr(memory_client, "get_memory_settings_collection", lambda: collection)
+        def table(self, name):
+            assert name == "profiles"
+            return self
+
+        def select(self, *_args, **_kwargs):
+            return self
+
+        def update(self, payload):
+            self.operation = "update"
+            self.payload = payload
+            return self
+
+        def eq(self, key, value):
+            self.filters.append((key, value))
+            return self
+
+        def limit(self, _value):
+            return self
+
+        def execute(self):
+            if self.operation == "update":
+                self.client.profile.update(self.payload)
+            return SimpleNamespace(data=[self.client.profile] if self.client.profile else [])
+
+    class Supabase:
+        def __init__(self):
+            self.profile = {"id": "athlete-123", "coach_auto_memory_enabled": False}
+            self.queries = []
+
+        def table(self, _name):
+            query = ProfileQuery(self)
+            self.queries.append(query)
+            return query
+
+    client = Supabase()
+    monkeypatch.setattr("db.supabase_client.get_supabase", lambda: client)
 
     assert memory_client.get_auto_memory_enabled("athlete-123") is False
     memory_client.set_auto_memory_enabled("athlete-123", True)
     assert memory_client.get_auto_memory_enabled("athlete-123") is True
     memory_client.set_auto_memory_enabled("athlete-123", False)
     assert memory_client.get_auto_memory_enabled("athlete-123") is False
+    assert all(("id", "athlete-123") in query.filters for query in client.queries)
+    assert client.profile["coach_auto_memory_enabled"] is False
 
 def test_langgraph_executes_a_requested_tool_and_returns_its_result(monkeypatch):
     import asyncio
