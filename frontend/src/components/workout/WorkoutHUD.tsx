@@ -366,6 +366,8 @@ function WorkoutHUD() {
   }));
 
   const [exercises, setExercises]       = useState<ExerciseCard[]>([]);
+  const [warmupNotes, setWarmupNotes] = useState('');
+  const [cooldownNotes, setCooldownNotes] = useState('');
   const [activeIdx, setActiveIdx]       = useState(0);
   const [restStartedAt, setRestStartedAt] = useState<number | null>(null);
   const [restTotal, setRestTotal] = useState(90);
@@ -640,6 +642,8 @@ function WorkoutHUD() {
       workout_type: draft.workoutType,
       muscle_groups: draft.muscleGroups,
       estimated_duration_minutes: draft.estimatedMinutes,
+      warmup_notes: warmupNotes.trim() || null,
+      cooldown_notes: cooldownNotes.trim() || null,
       exercises: items.map((exercise) => {
         const loadMatch = exercise.load.match(/-?\d+(?:\.\d+)?/);
         const loadKg = loadMatch ? Number(loadMatch[0]) : null;
@@ -693,6 +697,10 @@ function WorkoutHUD() {
     const muscleGroups = Array.isArray(sd.muscle_groups)
       ? sd.muscle_groups.map((item: unknown) => String(item))
       : [];
+    const requestedWarmupNotes = String(sd.warmup_notes || sd.warm_up_notes || '');
+    const requestedCooldownNotes = String(sd.cooldown_notes || sd.cool_down_notes || '');
+    setWarmupNotes(requestedWarmupNotes);
+    setCooldownNotes(requestedCooldownNotes);
     const sessionDate = localDateKey();
     const draftPayload = {
       name: title,
@@ -707,6 +715,8 @@ function WorkoutHUD() {
         workout_type: workoutType,
         muscle_groups: muscleGroups,
         estimated_duration_minutes: estimatedMinutes,
+        warmup_notes: requestedWarmupNotes.trim() || null,
+        cooldown_notes: requestedCooldownNotes.trim() || null,
         exercises: nextExercises.map((exercise) => {
           const loadMatch = exercise.load.match(/-?\d+(?:\.\d+)?/);
           const restMatch = exercise.rest.match(/\d+/);
@@ -735,7 +745,10 @@ function WorkoutHUD() {
 
     // Use the server-validated exercise catalogue metadata in the review UI.
     // The server, not the LLM, owns canonical IDs, muscle groups and equipment.
-    const canonicalExercises = created.data?.version?.snapshot?.workout?.exercises;
+    const canonicalWorkout = created.data?.version?.snapshot?.workout || {};
+    setWarmupNotes(String(canonicalWorkout.warmup_notes || requestedWarmupNotes));
+    setCooldownNotes(String(canonicalWorkout.cooldown_notes || requestedCooldownNotes));
+    const canonicalExercises = canonicalWorkout.exercises;
     const reviewExercises: ExerciseCard[] = nextExercises.map((exercise, index) => {
       const canonical = Array.isArray(canonicalExercises) ? canonicalExercises[index] : null;
       return {
@@ -884,6 +897,8 @@ function WorkoutHUD() {
     setPlanPreviewVisible(false);
     setDraftPlan(null);
     setExercises([]);
+    setWarmupNotes('');
+    setCooldownNotes('');
   };
 
   const logSetMutation = useLogSet();
@@ -1314,6 +1329,10 @@ function WorkoutHUD() {
           saving={isApprovingPlan}
           reason={draftPlan ? 'This proposal is not active until you approve it.' : undefined}
           muscleGroups={draftPlan?.muscleGroups}
+          warmupNotes={warmupNotes}
+          cooldownNotes={cooldownNotes}
+          onWarmupNotesChange={setWarmupNotes}
+          onCooldownNotesChange={setCooldownNotes}
         />
         <WorkoutSummaryCard
           visible={summaryVisible}
