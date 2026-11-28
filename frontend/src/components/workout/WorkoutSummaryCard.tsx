@@ -62,6 +62,20 @@ interface SummaryData {
   recovery_pct?: number | null;
   recovery_prediction?: string | null;
   coach_message?: string | null;
+  previous_comparable_session?: {
+    session_id?: string;
+    session_date?: string | null;
+    workout_type?: string | null;
+    day_label?: string | null;
+    comparison_basis: 'workout_type' | 'day_label';
+    previous_total_volume_kg?: number | null;
+    current_total_volume_kg?: number | null;
+    volume_delta_kg?: number | null;
+    volume_delta_pct?: number | null;
+    previous_duration_minutes?: number | null;
+    current_duration_minutes?: number | null;
+    duration_delta_minutes?: number | null;
+  } | null;
   planned_vs_actual?: {
     has_plan: boolean;
     planned_exercises: number;
@@ -346,6 +360,65 @@ function WorkoutSummaryCard({ visible, data, onClose }: Props) {
             </Reveal>
           )}
 
+          {data.previous_comparable_session && (
+            <Reveal mount={mount} delay={0.24} style={styles.comparison}>
+              <>
+                <View style={styles.comparisonHeading}>
+                  <View style={{ flex: 1 }}>
+                    <Text variant="caption" weight="bold" color={COLORS.textDim} style={{ letterSpacing: 1.1 }}>
+                      VS LAST {String(data.previous_comparable_session.workout_type || data.previous_comparable_session.day_label || 'MATCHING').replace(/_/g, ' ').toUpperCase()}
+                    </Text>
+                    <Text variant="caption" color={COLORS.textMuted}>
+                      {data.previous_comparable_session.session_date
+                        ? `Previous session · ${data.previous_comparable_session.session_date}`
+                        : 'Previous comparable session'}
+                    </Text>
+                  </View>
+                  <Ionicons name="git-compare-outline" size={16} color={COLORS.strain} />
+                </View>
+                {data.previous_comparable_session.volume_delta_kg != null ? (
+                  <View style={styles.comparisonMetric}>
+                    <View style={{ flex: 1 }}>
+                      <Text variant="caption" color={COLORS.textMuted}>Working-set volume</Text>
+                      <Text variant="body" weight="semibold" numeric color={COLORS.text}>
+                        {Math.round(data.previous_comparable_session.current_total_volume_kg || 0).toLocaleString()} kg
+                        {' '}vs{' '}
+                        {Math.round(data.previous_comparable_session.previous_total_volume_kg || 0).toLocaleString()} kg
+                      </Text>
+                    </View>
+                    <View style={styles.comparisonDelta}>
+                      <Text variant="body" weight="bold" numeric color={COLORS.text}>
+                        {data.previous_comparable_session.volume_delta_kg > 0 ? '+' : ''}
+                        {data.previous_comparable_session.volume_delta_kg.toLocaleString()} kg
+                      </Text>
+                      {data.previous_comparable_session.volume_delta_pct != null ? (
+                        <Text variant="caption" color={COLORS.textMuted}>
+                          {data.previous_comparable_session.volume_delta_pct > 0 ? '+' : ''}
+                          {data.previous_comparable_session.volume_delta_pct}%
+                        </Text>
+                      ) : null}
+                    </View>
+                  </View>
+                ) : (
+                  <Text variant="caption" color={COLORS.textMuted}>Volume comparison is unavailable for one of the sessions.</Text>
+                )}
+                {data.previous_comparable_session.duration_delta_minutes != null ? (
+                  <View style={styles.comparisonFooter}>
+                    <Text variant="caption" color={COLORS.textMuted}>
+                      Duration: {Math.round(data.previous_comparable_session.current_duration_minutes || 0)} min
+                      {' '}vs {Math.round(data.previous_comparable_session.previous_duration_minutes || 0)} min
+                      {' '}({data.previous_comparable_session.duration_delta_minutes > 0 ? '+' : ''}
+                      {Math.round(data.previous_comparable_session.duration_delta_minutes)} min)
+                    </Text>
+                  </View>
+                ) : null}
+                <Text variant="caption" color={COLORS.textDim}>
+                  Same workout type comparison. Higher volume is not automatically better; interpret it alongside effort, recovery and technique.
+                </Text>
+              </>
+            </Reveal>
+          )}
+
           {(data.session_effort != null || data.energy_level != null || (data.pain_status && data.pain_status !== 'none')) && (
             <Reveal mount={mount} delay={0.25} style={styles.checkin}>
               <Text variant="caption" weight="bold" color={COLORS.textDim} style={{ letterSpacing: 1.1 }}>YOUR CHECK-IN</Text>
@@ -465,6 +538,19 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm, paddingHorizontal: SPACING.md,
   },
 
+  comparison: {
+    marginTop: SPACING.sm,
+    padding: SPACING.md,
+    borderRadius: RADIUS.card,
+    backgroundColor: COLORS.cardElevated,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 9,
+  },
+  comparisonHeading: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  comparisonMetric: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  comparisonDelta: { alignItems: 'flex-end', gap: 2 },
+  comparisonFooter: { borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 7 },
   planReview: {
     backgroundColor: COLORS.cardElevated, borderRadius: RADIUS.card - 8, padding: SPACING.md,
     marginBottom: SPACING.md, borderWidth: 1, borderColor: COLORS.cardBorder, gap: SPACING.sm,
