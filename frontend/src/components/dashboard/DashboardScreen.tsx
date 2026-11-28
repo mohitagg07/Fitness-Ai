@@ -282,7 +282,9 @@ export default function DashboardScreen() {
               <View style={styles.heroMeta}>
                 <Ionicons name="time-outline" size={16} color={COLORS.primaryGreen} />
                 <View style={styles.heroMetaCopy}>
-                  <Text style={styles.heroMetaLabel}>PREFERRED WINDOW</Text>
+                  <Text style={styles.heroMetaLabel}>
+                    {summary?.training_time?.source === 'training_history' ? 'USUAL START TIME' : 'PREFERRED WINDOW'}
+                  </Text>
                   <Text style={styles.heroMetaValue}>
                     {summary?.training_time?.display_label || 'Not set'}
                   </Text>
@@ -299,7 +301,7 @@ export default function DashboardScreen() {
             </View>
             <Text style={styles.heroFootnote}>
               {summary?.training_time?.display_label
-                ? 'Suggested from your profile preference · not a booked appointment'
+                ? (summary?.training_time?.note || 'Suggested from your profile preference · not a booked appointment')
                 : 'Set your preferred training time in Profile'}
             </Text>
             {!summary?.training_time?.display_label ? (
