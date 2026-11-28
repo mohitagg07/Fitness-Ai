@@ -1,11 +1,18 @@
+import { useLocalSearchParams } from 'expo-router';
 import ProgressScreen from '../../src/components/progress/ProgressScreen';
 
 /**
  * Dedicated Nutrition destination.
  *
- * Reuses the existing nutrition tracker and its API/cache rather than
- * introducing a second data implementation or duplicating nutrition state.
+ * Reuses the existing nutrition tracker and API cache. The openLog parameter
+ * lets Coach and Home hand the athlete directly into meal entry.
  */
 export default function NutritionTab() {
-  return <ProgressScreen initialTab="nutrition" />;
+  const params = useLocalSearchParams<{ openLog?: string }>();
+  return (
+    <ProgressScreen
+      initialTab="nutrition"
+      initialOpenFood={params.openLog === '1'}
+    />
+  );
 }
