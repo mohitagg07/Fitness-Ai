@@ -49,6 +49,9 @@ interface ExerciseCard {
   rest: string;
   completed_sets: number;
   target_unknown?: boolean;
+  exercise_id?: string | null;
+  equipment_required?: string[];
+  muscle_groups?: string[];
   rpe_target?: number | null;
   rir_target?: number | null;
   tempo?: string;
@@ -494,6 +497,9 @@ function WorkoutHUD() {
                 rpe_target: planned.rpe_target ?? null,
                 rir_target: planned.rir_target ?? null,
                 tempo: String(planned.tempo || ''),
+                exercise_id: planned.exercise_id || null,
+                equipment_required: Array.isArray(planned.equipment_required) ? planned.equipment_required : [],
+                muscle_groups: Array.isArray(planned.muscle_groups) ? planned.muscle_groups : [],
                 completed_sets: exerciseLogs.length,
                 skipped,
                 replaced: event?.action === 'replace',
@@ -649,8 +655,8 @@ function WorkoutHUD() {
           rir_target: exercise.rir_target ?? null,
           tempo: exercise.tempo?.trim() || null,
           cue: exercise.cue || null,
-          equipment_required: [],
-          muscle_groups: [],
+          equipment_required: exercise.equipment_required || [],
+          muscle_groups: exercise.muscle_groups || [],
         };
       }),
     },
@@ -672,6 +678,9 @@ function WorkoutHUD() {
       rpe_target: exercise.rpe_target != null ? Number(exercise.rpe_target) : null,
       rir_target: exercise.rir_target != null ? Number(exercise.rir_target) : null,
       tempo: String(exercise.tempo || ''),
+      exercise_id: exercise.exercise_id ? String(exercise.exercise_id) : null,
+      equipment_required: Array.isArray(exercise.equipment_required) ? exercise.equipment_required.map((item: unknown) => String(item)) : [],
+      muscle_groups: Array.isArray(exercise.muscle_groups) ? exercise.muscle_groups.map((item: unknown) => String(item)) : [],
       completed_sets: 0,
     })).filter((exercise: ExerciseCard) => exercise.name.length > 0);
 
@@ -724,6 +733,19 @@ function WorkoutHUD() {
     const versionId = String(created.data?.version?.id || '');
     if (!planId || !versionId) throw new Error('The server did not return a saved draft version.');
 
+    // Use the server-validated exercise catalogue metadata in the review UI.
+    // The server, not the LLM, owns canonical IDs, muscle groups and equipment.
+    const canonicalExercises = created.data?.version?.snapshot?.workout?.exercises;
+    const reviewExercises: ExerciseCard[] = nextExercises.map((exercise, index) => {
+      const canonical = Array.isArray(canonicalExercises) ? canonicalExercises[index] : null;
+      return {
+        ...exercise,
+        exercise_id: canonical?.exercise_id || null,
+        equipment_required: Array.isArray(canonical?.equipment_required) ? canonical.equipment_required : [],
+        muscle_groups: Array.isArray(canonical?.muscle_groups) ? canonical.muscle_groups : [],
+      };
+    });
+
     setDraftPlan({
       planId,
       versionId,
@@ -735,7 +757,7 @@ function WorkoutHUD() {
       muscleGroups,
       approved: false,
     });
-    setExercises(nextExercises);
+    setExercises(reviewExercises);
     setActiveIdx(0);
     setRestoredPlanUnavailable(false);
     setPlanPreviewVisible(true);
