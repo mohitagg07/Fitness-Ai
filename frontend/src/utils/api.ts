@@ -355,6 +355,9 @@ export default api;
 // Memory API — "What my coach knows" card, manual remember/forget
 export const memoryApi = {
   getAll: () => api.get('/memory'),
+  getSettings: () => api.get('/memory/settings'),
+  updateSettings: (auto_memory_enabled: boolean) =>
+    api.patch('/memory/settings', { auto_memory_enabled }),
   add: (fact: string, category = 'general') =>
     api.post('/memory', { fact, category }),
   delete: (factId: string) => api.delete(`/memory/${factId}`),
