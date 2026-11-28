@@ -89,6 +89,76 @@ export async function registerForPushNotificationsAsync(): Promise<void> {
   }
 }
 
+/**
+ * Rebuilds weekly local training-window reminders from the athlete's saved
+ * training preference and approved plan. The reminder marks the opening of
+ * a broad preferred window; it is not represented as an exact appointment.
+ * Existing reminders are replaced so edits to the plan cannot leave stale
+ * workout alerts behind.
+ */
+export async function syncTrainingWindowReminders(
+  preference: string | null | undefined,
+  schedule: Record<string, string> | null | undefined,
+): Promise<void> {
+  if (Platform.OS === 'web') return;
+
+  try {
+    const { Notifications } = await loadNativeModules();
+    const existing = await Notifications.getAllScheduledNotificationsAsync();
+    const managed = existing.filter(
+      (item) => item.content.data?.reminder_kind === 'training_window',
+    );
+    await Promise.all(
+      managed.map((item) => Notifications.cancelScheduledNotificationAsync(item.identifier)),
+    );
+
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== 'granted') return;
+
+    const windows: Record<string, { hour: number; minute: number }> = {
+      morning: { hour: 6, minute: 0 },
+      afternoon: { hour: 12, minute: 0 },
+      evening: { hour: 17, minute: 0 },
+    };
+    const selectedWindow = windows[String(preference || '').toLowerCase()];
+    if (!selectedWindow || !schedule || typeof schedule !== 'object') return;
+
+    // Expo weekly weekday values are 1=Sunday through 7=Saturday.
+    const weekdayNumbers: Record<string, number> = {
+      sun: 1, mon: 2, tue: 3, wed: 4, thu: 5, fri: 6, sat: 7,
+    };
+    const trainingDays = Object.entries(schedule).filter(([day, workout]) => (
+      weekdayNumbers[day.toLowerCase()] !== undefined
+      && typeof workout === 'string'
+      && workout.toLowerCase() !== 'rest'
+    ));
+
+    await Promise.all(trainingDays.map(([day, workout]) => {
+      const dayName = day.charAt(0).toUpperCase() + day.slice(1).toLowerCase();
+      const workoutName = String(workout).replace(/_/g, ' ');
+      return Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'Your training window is open',
+          body: `Your preferred ${preference} window has started for your ${workoutName} day. Check today's plan and readiness in Coach.`,
+          data: {
+            reminder_kind: 'training_window',
+            cta: '/(tabs)/coach',
+          },
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+          weekday: weekdayNumbers[day.toLowerCase()],
+          hour: selectedWindow.hour,
+          minute: selectedWindow.minute,
+          ...(Platform.OS === 'android' ? { channelId: 'default' } : {}),
+        },
+      });
+    }));
+  } catch (error) {
+    console.warn('[VYRN] training window reminders could not be synced (non-fatal):', error);
+  }
+}
+
 /** Unregisters the current device's push token — call on logout so a
  * signed-out device doesn't keep receiving the previous user's pushes. */
 export async function unregisterPushNotificationsAsync(): Promise<void> {
