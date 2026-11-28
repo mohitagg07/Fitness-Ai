@@ -289,6 +289,27 @@ export default function TabsLayout() {
           }}
         />
       ))}
+      <Tabs.Screen
+        name="nutrition"
+        options={{
+          title: 'Nutrition',
+          tabBarLabel: 'Nutrition',
+          tabBarAccessibilityLabel: 'Nutrition',
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon
+              tab={{ name: 'nutrition', title: 'Nutrition', icon: 'nutrition-outline', activeIcon: 'nutrition' }}
+              color={color}
+              focused={focused}
+            />
+          ),
+        }}
+        listeners={{
+          tabPress: (event) => {
+            event.preventDefault();
+            router.navigate({ pathname: '/(tabs)/progress', params: { tab: 'nutrition' } });
+          },
+        }}
+      />
       {HIDDEN_TABS.map((name) => (
         <Tabs.Screen key={name} name={name} options={{ href: null }} />
       ))}
