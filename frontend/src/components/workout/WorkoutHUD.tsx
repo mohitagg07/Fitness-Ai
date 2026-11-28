@@ -48,6 +48,9 @@ interface ExerciseCard {
   cue: string;
   rest: string;
   completed_sets: number;
+  rpe_target?: number | null;
+  rir_target?: number | null;
+  tempo?: string;
   skipped?: boolean;
   replaced?: boolean;
 }
@@ -484,6 +487,9 @@ function WorkoutHUD() {
                     ? 'Replacement for ' + originalName
                     : String(planned.cue || 'Follow the approved exercise prescription'),
                 rest: String(Number(planned.rest_seconds) || 90) + ' sec',
+                rpe_target: planned.rpe_target ?? null,
+                rir_target: planned.rir_target ?? null,
+                tempo: String(planned.tempo || ''),
                 completed_sets: exerciseLogs.length,
                 skipped,
                 replaced: event?.action === 'replace',
@@ -632,6 +638,9 @@ function WorkoutHUD() {
           load_kg: Number.isFinite(loadKg) ? loadKg : null,
           load_guidance: exercise.load.trim() || null,
           rest_seconds: restMatch ? Math.max(0, Math.min(900, Number(restMatch[0]))) : 90,
+          rpe_target: exercise.rpe_target ?? null,
+          rir_target: exercise.rir_target ?? null,
+          tempo: exercise.tempo?.trim() || null,
           cue: exercise.cue || null,
           equipment_required: [],
           muscle_groups: [],
@@ -653,6 +662,9 @@ function WorkoutHUD() {
       load: String(exercise.weight || exercise.load_guidance || ''),
       cue: String(exercise.focus || exercise.cue || ''),
       rest: String(exercise.rest || '90 sec'),
+      rpe_target: exercise.rpe_target != null ? Number(exercise.rpe_target) : null,
+      rir_target: exercise.rir_target != null ? Number(exercise.rir_target) : null,
+      tempo: String(exercise.tempo || ''),
       completed_sets: 0,
     })).filter((exercise: ExerciseCard) => exercise.name.length > 0);
 
@@ -689,6 +701,9 @@ function WorkoutHUD() {
             load_kg: loadMatch ? Number(loadMatch[0]) : null,
             load_guidance: exercise.load || null,
             rest_seconds: restMatch ? Math.max(0, Math.min(900, Number(restMatch[0]))) : 90,
+            rpe_target: exercise.rpe_target ?? null,
+            rir_target: exercise.rir_target ?? null,
+            tempo: exercise.tempo?.trim() || null,
             cue: exercise.cue || null,
             equipment_required: [],
             muscle_groups: [],
