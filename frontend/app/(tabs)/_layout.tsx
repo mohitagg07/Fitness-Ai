@@ -23,13 +23,14 @@ type TabDef = {
 
 const TABS: TabDef[] = [
   { name: 'index', title: 'Home', icon: 'home-outline', activeIcon: 'home' },
-  { name: 'coach', title: 'Coach', icon: 'flash-outline', activeIcon: 'flash' },
+  { name: 'coach', title: 'Coach', icon: 'chatbubble-ellipses-outline', activeIcon: 'chatbubble-ellipses' },
   { name: 'workout', title: 'Train', icon: 'barbell-outline', activeIcon: 'barbell' },
   { name: 'progress', title: 'Progress', icon: 'stats-chart-outline', activeIcon: 'stats-chart' },
+  { name: 'nutrition', title: 'Nutrition', icon: 'nutrition-outline', activeIcon: 'nutrition' },
   { name: 'profile', title: 'Profile', icon: 'person-outline', activeIcon: 'person' },
 ];
 
-const HIDDEN_TABS = ['decisions', 'simulate', 'formanalysis', 'prs'];
+const HIDDEN_TABS = ['decisions', 'formanalysis', 'prs'];
 
 function TabBarIcon({
   tab,
