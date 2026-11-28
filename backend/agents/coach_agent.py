@@ -392,7 +392,7 @@ async def agentic_research_node(state: WorkoutGraphState) -> WorkoutGraphState:
         state["agent_activity"] = {"available": False, "tools_used": [], "tool_rounds": 0, "skipped": "emergency"}
         state["agent_research_note"] = None
         return state
-    normalized_message = re.sub(r"[\\s.!?]+", " ", str(state.get("user_message") or "").lower()).strip()
+    normalized_message = re.sub(r"[\s.!?]+", " ", str(state.get("user_message") or "").lower()).strip()
     if normalized_message in {"hi", "hello", "hey", "thanks", "thank you", "ok", "okay", "good morning", "good afternoon", "good evening", "bye"}:
         state["agent_tool_context"] = []
         state["agent_activity"] = {"available": True, "tools_used": [], "tool_rounds": 0, "skipped": "not_needed"}
