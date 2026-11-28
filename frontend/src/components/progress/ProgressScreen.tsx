@@ -467,13 +467,15 @@ export default function ProgressScreen({ initialTab = 'body' }: { initialTab?: T
         </View>
       )}
 
-      <View style={styles.sectionIntro}>
-        <View style={styles.sectionIntroMark} />
-        <View style={styles.sectionIntroCopy}>
-          <Text style={styles.sectionIntroTitle}>{sectionContext[activeTab].title}</Text>
-          <Text style={styles.sectionIntroText}>{sectionContext[activeTab].description}</Text>
+      {!isStandaloneNutrition && (
+        <View style={styles.sectionIntro}>
+          <View style={styles.sectionIntroMark} />
+          <View style={styles.sectionIntroCopy}>
+            <Text style={styles.sectionIntroTitle}>{sectionContext[activeTab].title}</Text>
+            <Text style={styles.sectionIntroText}>{sectionContext[activeTab].description}</Text>
+          </View>
         </View>
-      </View>
+      )}
 
       {activeTab === 'review' ? (
         <Reveal key={activeTab} distance={7}><WeeklyReviewScreen /></Reveal>
