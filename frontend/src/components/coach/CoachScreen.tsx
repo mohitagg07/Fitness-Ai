@@ -1409,28 +1409,48 @@ export default function CoachScreen() {
 
       {/* Input row */}
       <View style={[S.inputRow, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-        <TextInput
-          style={S.input}
-          value={input}
-          onChangeText={setInput}
-          placeholder="Ask about training, food or recovery..."
-          placeholderTextColor={COLORS.textDim}
-          multiline
-          maxLength={2000}
-          onSubmitEditing={() => sendMessage()}
-          blurOnSubmit={false}
-          keyboardAppearance="light"
-          selectionColor={COLORS.primaryGreen}
-          underlineColorAndroid="transparent"
-        />
+        <LinearGradient
+          colors={[alpha(COLORS.coachCyan, 0.74), alpha(COLORS.coachPurple, 0.82), alpha(COLORS.coachCoral, 0.70)]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={S.inputGlowBorder}
+        >
+          <View style={S.inputField}>
+            <Ionicons name="sparkles" size={16} color={COLORS.coachLavender} />
+            <TextInput
+              style={S.input}
+              value={input}
+              onChangeText={setInput}
+              placeholder="Ask VYRN about training, food or recovery..."
+              placeholderTextColor={COLORS.textDim}
+              multiline
+              maxLength={2000}
+              onSubmitEditing={() => sendMessage()}
+              blurOnSubmit={false}
+              keyboardAppearance="light"
+              selectionColor={COLORS.coachCyan}
+              underlineColorAndroid="transparent"
+            />
+          </View>
+        </LinearGradient>
         <PressableScale
           style={[S.sendBtn, (!input.trim() || isStreaming || isEnrichingResponse) && S.sendBtnOff]}
           onPress={() => sendMessage()}
           disabled={!input.trim() || isStreaming || isEnrichingResponse}
+          accessibilityRole="button"
+          accessibilityLabel="Send message to VYRN Coach"
         >
+          <LinearGradient
+            colors={input.trim() && !isStreaming && !isEnrichingResponse
+              ? [COLORS.coachCyan, COLORS.coachPurple, COLORS.coachCoral]
+              : [COLORS.cardElevated, COLORS.card]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFillObject}
+          />
           <Ionicons
             name="arrow-up"
-            size={18}
+            size={19}
             color={input.trim() && !isStreaming && !isEnrichingResponse ? COLORS.background : COLORS.textDim}
           />
         </PressableScale>
