@@ -129,6 +129,49 @@ def _build_training_window(
     }
 
 
+def _last_completed_session_summary(user_id: str) -> dict | None:
+    """Return the last completed session and its saved review for Home continuity."""
+    try:
+        result = (
+            get_supabase().table("workout_sessions")
+            .select(
+                "id, session_date, workout_type, day_label, total_volume_kg, "
+                "duration_minutes, session_effort, energy_level, pain_status, completion_result"
+            )
+            .eq("user_id", user_id)
+            .eq("completed", True)
+            .order("session_date", desc=True)
+            .order("finished_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:
+        logger.warning("Could not load last completed session for %s: %s", user_id, exc)
+        return None
+
+    rows = result.data or []
+    if not rows:
+        return None
+
+    session = rows[0]
+    review = session.get("completion_result")
+    review = review if isinstance(review, dict) else {}
+    return {
+        "id": session.get("id"),
+        "session_date": session.get("session_date"),
+        "workout_type": session.get("workout_type"),
+        "day_label": session.get("day_label"),
+        "total_volume_kg": session.get("total_volume_kg"),
+        "duration_minutes": session.get("duration_minutes"),
+        "session_effort": session.get("session_effort"),
+        "energy_level": session.get("energy_level"),
+        "pain_status": session.get("pain_status"),
+        "planned_vs_actual": review.get("planned_vs_actual"),
+        "previous_comparable_session": review.get("previous_comparable_session"),
+        "coach_message": review.get("coach_message"),
+    }
+
+
 def _today_consumed(user_id: str, target_date: date | None = None) -> dict:
     sb = get_supabase()
     today = str(target_date or date.today())
@@ -362,6 +405,10 @@ async def get_today_mission(
         )
         proactive_brief["suggested_top_set"] = None
 
+    last_completed_session = await asyncio.to_thread(
+        _last_completed_session_summary, user_id
+    )
+
     # ── Compute remaining macros ──────────────────────────────────────────────
     calories_remaining = max(0, targets["calories"] - int(consumed["calories"]))
     protein_remaining  = round(max(0.0, targets["protein_g"] - consumed["protein_g"]), 1)
@@ -447,6 +494,7 @@ async def get_today_mission(
             "rescheduled": workout_decision.rescheduled,
             "message":     workout_decision.message,
         },
+        "last_completed_session": last_completed_session,
         # Nested recovery object — DashboardScreen reads .score / .action / .message
         "recovery": {
             "score": recovery_decision.recovery_score if recovery_pct is not None else None,
