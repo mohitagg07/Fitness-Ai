@@ -784,18 +784,22 @@ export default function CoachScreen() {
       if (structured?.response_type === 'nutrition_tip') {
         setIsEnrichingResponse(true);
         try {
-          const [todayResponse, planResponse] = await Promise.all([
+          const [todayResult, planResult] = await Promise.allSettled([
             nutritionApi.getToday(),
             nutritionApi.getMealPlan(undefined, new Date().getHours()),
           ]);
           structured = {
             ...structured,
-            nutrition_today: todayResponse.data,
-            meal_plan: Array.isArray(planResponse.data?.plans) ? planResponse.data.plans : [],
+            ...(todayResult.status === 'fulfilled'
+              ? { nutrition_today: todayResult.value.data }
+              : { nutrition_data_unavailable: true }),
+            ...(planResult.status === 'fulfilled'
+              ? { meal_plan: Array.isArray(planResult.value.data?.plans) ? planResult.value.data.plans : [] }
+              : { meal_plan_unavailable: true }),
           };
-        } catch (error) {
-          structured = { ...structured, nutrition_data_unavailable: true };
-          if (__DEV__) console.warn('[Coach] Meal plan enrichment unavailable', error);
+          if (todayResult.status === 'rejected' || planResult.status === 'rejected') {
+            if (__DEV__) console.warn('[Coach] Some nutrition context could not be loaded');
+          }
         } finally {
           setIsEnrichingResponse(false);
         }
@@ -834,7 +838,7 @@ export default function CoachScreen() {
   }, [activeSession, setPendingCoachWorkout]);
 
   const openNutritionFromCoach = useCallback(() => {
-    router.push('/(tabs)/nutrition');
+    router.push({ pathname: '/(tabs)/nutrition', params: { openLog: '1' } } as any);
   }, []);
 
   const sendMessage = useCallback((text?: string) => {
