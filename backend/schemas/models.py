@@ -394,6 +394,7 @@ class StructuredDecision(BaseModel):
     question_key: Optional[str] = Field(default=None, max_length=64)
     recovery: Optional[int] = Field(default=None, ge=0, le=100)
     intensity: Optional[Intensity] = None
+    workout_type: Optional[str] = None
 
     # Server-authored metadata. Never accept model-invented citations or tool labels.
     knowledge_sources: List[dict] = Field(default_factory=list, max_length=6)
@@ -488,6 +489,31 @@ class StructuredDecision(BaseModel):
                 })
         return output
 
+    @field_validator("coach_message", mode="before")
+    @classmethod
+    def _bound_coach_message(cls, value):
+        return value.strip()[:600] if isinstance(value, str) else None
+
+    @field_validator("next_action", mode="before")
+    @classmethod
+    def _bound_next_action(cls, value):
+        return value.strip()[:180] if isinstance(value, str) else None
+
+    @field_validator("coach_insight", mode="before")
+    @classmethod
+    def _bound_coach_insight(cls, value):
+        return value.strip()[:320] if isinstance(value, str) else None
+
+    @field_validator("follow_up_question", mode="before")
+    @classmethod
+    def _bound_follow_up_question(cls, value):
+        return value.strip()[:240] if isinstance(value, str) else None
+
+    @field_validator("question_key", mode="before")
+    @classmethod
+    def _bound_question_key(cls, value):
+        return value.strip()[:64] if isinstance(value, str) else None
+
     @field_validator("workout_type", mode="before")
     @classmethod
     def _normalise_workout_type(cls, value):
@@ -526,7 +552,6 @@ class StructuredDecision(BaseModel):
     mode: Optional[str] = None
     analysis: Optional[str] = None
     mission: Optional[str] = None
-    workout_type: Optional[str] = None
     calories: Optional[int] = None
     protein: Optional[int] = None
     ai_decision: Optional[str] = None
