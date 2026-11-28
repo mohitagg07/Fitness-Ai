@@ -160,8 +160,7 @@ export default function Index() {
         <View style={styles.brandMark}>
           <Ionicons name="barbell-outline" size={25} color={COLORS.background} />
         </View>
-        <Text style={styles.brand}>Fitness workspace</Text>
-        
+
         <View style={styles.loadingRow}>
           <ActivityIndicator color={COLORS.primaryGreen} size="small" />
           <Text style={styles.loadingText}>Preparing your workspace</Text>
