@@ -59,7 +59,7 @@ def _latest_post_session_feedback(
         return None
 
     for row in result.data or []:
-        if any(row.get(key) is not None for key in ("session_effort", "energy_level", "cns_fatigue_after")):
+        if any(row.get(key) is not None for key in ("session_effort", "energy_level", "cns_fatigue_after", "mood")):
             return row
     return None
 
