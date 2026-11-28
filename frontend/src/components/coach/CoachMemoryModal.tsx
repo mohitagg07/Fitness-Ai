@@ -11,11 +11,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  ActivityIndicator,
+  ActivityIndicator, Switch, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { coachApi, describeApiError } from '../../utils/api';
+import { coachApi, describeApiError, memoryApi } from '../../utils/api';
 import { COLORS } from '../../theme/colors';
 
 interface MemoryData {
@@ -40,13 +40,22 @@ export default function CoachMemoryModal({ visible, onClose }: { visible: boolea
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [data, setData] = useState<MemoryData | null>(null);
+  const [memoryFacts, setMemoryFacts] = useState<Array<{ id: string; fact: string; category: string }>>([]);
+  const [autoMemoryEnabled, setAutoMemoryEnabled] = useState(false);
+  const [savingPreference, setSavingPreference] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setErrorMsg(null);
     try {
-      const res = await coachApi.getMemory();
-      setData(res.data);
+      const [coachResult, factsResult, settingsResult] = await Promise.all([
+        coachApi.getMemory(),
+        memoryApi.getAll().catch(() => ({ data: { facts: [] } })),
+        memoryApi.getSettings().catch(() => ({ data: { auto_memory_enabled: false } })),
+      ]);
+      setData(coachResult.data);
+      setMemoryFacts(Array.isArray(factsResult.data?.facts) ? factsResult.data.facts : []);
+      setAutoMemoryEnabled(Boolean(settingsResult.data?.auto_memory_enabled));
     } catch (err: any) {
       const { message } = describeApiError(err);
       setErrorMsg(message);
@@ -59,7 +68,34 @@ export default function CoachMemoryModal({ visible, onClose }: { visible: boolea
 
   const prefs = data?.known_preferences;
   const hasAnyPrefs = !!(prefs && (prefs.goal || prefs.experience_level || prefs.workout_time_preference || prefs.food_preference || prefs.equipment?.length));
-  const memoryCount = data?.freeform_memories?.length || 0;
+  const memoryCount = memoryFacts.length;
+
+  const updateAutoMemory = async (enabled: boolean) => {
+    if (savingPreference) return;
+    setSavingPreference(true);
+    try {
+      const result = await memoryApi.updateSettings(enabled);
+      setAutoMemoryEnabled(Boolean(result.data?.auto_memory_enabled));
+    } catch (err: any) {
+      Alert.alert('Could not update memory preference', describeApiError(err).message);
+    } finally {
+      setSavingPreference(false);
+    }
+  };
+
+  const confirmDeleteMemory = (fact: { id: string; fact: string }) => {
+    Alert.alert('Forget this memory?', 'The Coach will no longer use this saved fact in future conversations.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Forget', style: 'destructive',
+        onPress: () => {
+          void memoryApi.delete(fact.id)
+            .then(() => setMemoryFacts((current) => current.filter((item) => item.id !== fact.id)))
+            .catch((err: any) => Alert.alert('Could not delete memory', describeApiError(err).message));
+        },
+      },
+    ]);
+  };
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -89,6 +125,25 @@ export default function CoachMemoryModal({ visible, onClose }: { visible: boolea
               <Text style={styles.introText}>
                 This is what your coach actually remembers about you — the same data it reads before every reply.
               </Text>
+            </View>
+
+            <View style={styles.preferenceCard}>
+              <View style={{ flex: 1, paddingRight: 14 }}>
+                <Text style={styles.preferenceTitle}>Automatically remember useful facts</Text>
+                <Text style={styles.preferenceDescription}>
+                  {autoMemoryEnabled
+                    ? 'On. The Coach may save durable preferences and training constraints from future conversations. You can delete saved facts below.'
+                    : 'Off by default. Turn this on only when you want the Coach to save durable preferences from future conversations.'}
+                </Text>
+              </View>
+              <Switch
+                value={autoMemoryEnabled}
+                onValueChange={updateAutoMemory}
+                disabled={savingPreference}
+                trackColor={{ false: COLORS.borderStrong, true: COLORS.primaryGreen + '88' }}
+                thumbColor={autoMemoryEnabled ? COLORS.primaryGreen : COLORS.textMuted}
+                accessibilityLabel="Automatically remember useful facts"
+              />
             </View>
 
             <SectionLabel text="WHAT YOUR COACH KNOWS" />
@@ -131,16 +186,30 @@ export default function CoachMemoryModal({ visible, onClose }: { visible: boolea
             <SectionLabel text={`STORED MEMORIES (${memoryCount})`} />
             {memoryCount > 0 ? (
               <View style={styles.card}>
-                {data!.freeform_memories.map((m, i) => (
-                  <View key={i} style={[styles.freeformRow, i === memoryCount - 1 && { borderBottomWidth: 0 }]}>
+                {memoryFacts.map((fact, i) => (
+                  <View key={fact.id} style={[styles.freeformRow, i === memoryCount - 1 && { borderBottomWidth: 0 }]}>
                     <Ionicons name="bookmark-outline" size={13} color={COLORS.textMuted} style={{ marginTop: 2 }} />
-                    <Text style={styles.freeformText}>{m}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.freeformText}>{fact.fact}</Text>
+                      <Text style={styles.memoryCategory}>{cap(fact.category)}</Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => confirmDeleteMemory(fact)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Forget saved memory"
+                      hitSlop={10}
+                      style={styles.forgetButton}
+                    >
+                      <Ionicons name="trash-outline" size={16} color={COLORS.recoveryLow} />
+                    </TouchableOpacity>
                   </View>
                 ))}
               </View>
             ) : (
               <View style={styles.card}>
-                <Text style={styles.emptyHint}>Nothing extracted yet — the more you chat with your coach, the more it remembers.</Text>
+                <Text style={styles.emptyHint}>
+                  No saved facts yet. You can add a fact manually, or enable automatic memory above.
+                </Text>
               </View>
             )}
           </ScrollView>
@@ -192,6 +261,13 @@ const styles = StyleSheet.create({
     padding: 14, marginBottom: 20,
   },
   introText: { flex: 1, color: COLORS.textSecondary, fontSize: 12.5, lineHeight: 18 },
+  preferenceCard: {
+    flexDirection: 'row', alignItems: 'center',
+    padding: 14, marginBottom: 20, borderRadius: 12,
+    backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.border,
+  },
+  preferenceTitle: { color: COLORS.text, fontSize: 13, fontWeight: '700', marginBottom: 5 },
+  preferenceDescription: { color: COLORS.textMuted, fontSize: 11.5, lineHeight: 17 },
 
   sectionLabel: { color: COLORS.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1.3, marginBottom: 8, marginTop: 4 },
 
@@ -217,4 +293,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
   freeformText: { flex: 1, color: COLORS.textSecondary, fontSize: 12.5, lineHeight: 18 },
+  memoryCategory: { color: COLORS.textMuted, fontSize: 10, marginTop: 4 },
+  forgetButton: { padding: 6, marginLeft: 4 },
 });
