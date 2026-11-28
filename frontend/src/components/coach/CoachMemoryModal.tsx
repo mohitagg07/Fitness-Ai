@@ -140,7 +140,7 @@ export default function CoachMemoryModal({ visible, onClose }: { visible: boolea
                 value={autoMemoryEnabled}
                 onValueChange={updateAutoMemory}
                 disabled={savingPreference}
-                trackColor={{ false: COLORS.borderStrong, true: COLORS.primaryGreen + '88' }}
+                trackColor={{ false: COLORS.borderLight, true: COLORS.primaryGreen + '88' }}
                 thumbColor={autoMemoryEnabled ? COLORS.primaryGreen : COLORS.textMuted}
                 accessibilityLabel="Automatically remember useful facts"
               />
