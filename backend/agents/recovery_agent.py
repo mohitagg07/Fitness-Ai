@@ -33,6 +33,57 @@ def _today_recovery_checkin(user_id: str, target_date: date | None = None) -> di
     return rows[0] if rows else None
 
 
+def _latest_reported_session_pain(
+    user_id: str,
+    target_date: date | None = None,
+    lookback_days: int = 7,
+) -> dict | None:
+    """Return the most recent explicit post-session pain report.
+
+    A later explicit 'none' or 'mild' report clears an older sharp/worsening
+    report. Sessions without a pain check-in are ignored rather than treated
+    as a negative report.
+    """
+    end_day = target_date or date.today()
+    cutoff = str(end_day - timedelta(days=lookback_days - 1))
+    try:
+        result = (
+            get_supabase().table("workout_sessions")
+            .select("pain_status, pain_notes, session_date, finished_at")
+            .eq("user_id", user_id)
+            .eq("completed", True)
+            .gte("session_date", cutoff)
+            .order("session_date", desc=True)
+            .order("finished_at", desc=True)
+            .limit(20)
+            .execute()
+        )
+    except Exception:
+        # A pain-history read failure must not be represented as a clean report.
+        return {"status": "unavailable", "source": "session_feedback", "read_failed": True}
+
+    for row in result.data or []:
+        status = str(row.get("pain_status") or "").strip().lower()
+        if status not in {"none", "mild", "sharp", "worsening"}:
+            continue
+        session_day = row.get("session_date")
+        try:
+            reported_day = date.fromisoformat(str(session_day))
+        except (TypeError, ValueError):
+            continue
+        if reported_day > end_day or (end_day - reported_day).days >= lookback_days:
+            continue
+        return {
+            "status": status,
+            "notes": row.get("pain_notes"),
+            "session_date": str(session_day),
+            "source": "post_workout_checkin",
+            "lookback_days": lookback_days,
+        }
+
+    return None
+
+
 def compute_cns_load(volume_kg: float, avg_rpe: float, frequency_days: int,
                      consecutive_high_rpe: int, cns_fatigue_score: int) -> dict:
     """Return the deterministic CNS-load estimate and its observed components."""
@@ -242,6 +293,7 @@ def run_recovery_agent(
     )
     avg_rpe, high_rpe_days = _recent_rpe_stats(user_id, target_date)
     cns_fatigue = _last_explicit_cns_fatigue(user_id)
+    pain_signal = _latest_reported_session_pain(user_id, target_date)
 
     raw_sleep = _sleep_component(reported_sleep)
     raw_volume = _volume_component(recent_volume)
@@ -315,6 +367,22 @@ def run_recovery_agent(
         )
         score_pct = score_100
 
+    # Pain is a separate safety gate, not a readiness-score component. A recent
+    # sharp/worsening report overrides a favourable score until the athlete
+    # reviews the affected movement. It never edits the approved plan.
+    pain_status = pain_signal.get("status") if isinstance(pain_signal, dict) else None
+    if pain_status in {"sharp", "worsening"}:
+        action = "pain_review"
+        pain_detail = f" Note recorded: {pain_signal['notes']}" if pain_signal.get("notes") else ""
+        message = (
+            f"Your latest post-workout check-in on {pain_signal.get('session_date')} reported "
+            f"{pain_status} pain.{pain_detail} Do not repeat or load the movement that caused it. "
+            "Keep the approved plan unchanged while you review the symptoms; seek appropriate "
+            "clinical guidance for sharp, worsening or persistent pain."
+        )
+    elif pain_status == "mild":
+        message += " Your latest check-in mentioned mild discomfort; modify any movement that aggravates it."
+
     decision = RecoveryDecision(recovery_score=score_10, action=action, message=message)
     decision.__dict__["score_pct"] = score_pct
     decision.__dict__["data_completeness_pct"] = completeness_pct
@@ -323,6 +391,7 @@ def run_recovery_agent(
     decision.__dict__["sub_scores"] = components
     decision.__dict__["cns_load"] = cns_load
     decision.__dict__["check_in"] = check_in
+    decision.__dict__["pain_signal"] = pain_signal
     decision.__dict__["source_values"] = {
         "last_night_sleep_hours": reported_sleep,
         "soreness_level": soreness_level,
@@ -333,5 +402,6 @@ def run_recovery_agent(
         "recent_average_rpe": avg_rpe,
         "recent_high_rpe_days": high_rpe_days,
         "explicit_post_session_cns_fatigue": cns_fatigue,
+        "latest_post_session_pain": pain_signal,
     }
     return decision
