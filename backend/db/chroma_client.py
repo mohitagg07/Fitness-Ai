@@ -138,25 +138,24 @@ def get_guardrail_collection():
         elif "no documents" not in str(e).lower():
             logger.warning(f"Guardrails collection probe warning: {e}")
 
+    # The collection is cached for this process. Refresh curated documents
+    # once when it is first opened so edits to a safety rule take effect.
+    seed_guardrails(collection=collection)
     return collection
 
 
 def seed_guardrails(collection=None):
     if collection is None:
         collection = get_guardrail_collection()
-    existing = collection.get()["ids"]
-
-    docs_to_add = [d for d in GUARDRAIL_DOCS if d["id"] not in existing]
-    if not docs_to_add:
-        logger.debug("ChromaDB already seeded — skipping.")
-        return
-
-    collection.add(
-        ids=[d["id"] for d in docs_to_add],
-        documents=[d["content"] for d in docs_to_add],
-        metadatas=[{"tags": ",".join(d["tags"])} for d in docs_to_add],
+    # Upsert every curated document, not only missing IDs. This refreshes
+    # already-seeded local Chroma stores when a safety rule is corrected;
+    # otherwise stale advice would remain searchable after a code deploy.
+    collection.upsert(
+        ids=[d["id"] for d in GUARDRAIL_DOCS],
+        documents=[d["content"] for d in GUARDRAIL_DOCS],
+        metadatas=[{"tags": ",".join(d["tags"])} for d in GUARDRAIL_DOCS],
     )
-    logger.info(f"Seeded {len(docs_to_add)} guardrail documents into ChromaDB.")
+    logger.info(f"Upserted {len(GUARDRAIL_DOCS)} curated guardrail documents into ChromaDB.")
 
 
 def query_guardrails(query_text: str, injury_tags: list = None, n_results: int = 4) -> list:
