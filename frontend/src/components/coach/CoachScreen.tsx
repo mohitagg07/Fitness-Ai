@@ -1299,6 +1299,12 @@ export default function CoachScreen() {
                   : activeSession ? 'Continue current workout' : 'Review today’s training session'
               }
             >
+              <LinearGradient
+                colors={[COLORS.coachCyan, COLORS.primaryGreen]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFillObject}
+              />
               <Ionicons
                 name={missionSummary?.recovery?.action === 'pain_review'
                   ? 'shield-checkmark-outline'
@@ -1575,10 +1581,10 @@ const S = StyleSheet.create({
   headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   headerTitle: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 21, fontWeight: '600', letterSpacing: -0.45 },
   proBadge: {
-    backgroundColor: COLORS.recoveryHigh + '20', borderRadius: 6,
-    paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: COLORS.recoveryHigh + '50',
+    backgroundColor: alpha(COLORS.coachPurple, 0.16), borderRadius: 7,
+    paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: alpha(COLORS.coachCyan, 0.40),
   },
-  proBadgeText: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 10, fontWeight: '800', letterSpacing: 0.9 },
+  proBadgeText: { color: COLORS.coachLavender, fontFamily: FONTS.bold, fontSize: 9, fontWeight: '800', letterSpacing: 0.85 },
   headerSub: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 11, letterSpacing: 0.1, marginTop: 1 },
   headerIcons: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   notifDot: {
@@ -1586,18 +1592,28 @@ const S = StyleSheet.create({
     backgroundColor: COLORS.recoveryHigh, borderWidth: 1.5, borderColor: COLORS.background,
   },
   // Live training context stays secondary to the actual coaching actions.
-  briefCard: { minHeight: 38, paddingHorizontal: 12, paddingVertical: 8, marginTop: 2, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.card, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border },
+  briefCard: { minHeight: 38, paddingHorizontal: 12, paddingVertical: 8, marginTop: 2, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: alpha(COLORS.coachPurple, 0.10), borderRadius: 12, borderWidth: 1, borderColor: alpha(COLORS.coachPurple, 0.24) },
   briefContextTitle: { fontFamily: FONTS.bold, color: COLORS.textMuted, fontSize: 10, letterSpacing: 0.8 },
   briefDividerVertical: { width: 1, height: 15, backgroundColor: COLORS.border },
   briefMetricInline: { color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 10 },
-  dailyBriefCard: { marginTop: 13, padding: 15, backgroundColor: COLORS.cardElevated, borderRadius: 20, borderWidth: 1, borderColor: COLORS.borderLight, gap: 10 },
+  dailyBriefCard: {
+    marginTop: 13, padding: 15, backgroundColor: COLORS.cardElevated,
+    borderRadius: 22, borderWidth: 1, borderColor: alpha(COLORS.coachPurple, 0.42),
+    gap: 11, overflow: 'hidden', position: 'relative',
+    shadowColor: COLORS.coachPurple, shadowOpacity: 0.20, shadowRadius: 22,
+    shadowOffset: { width: 0, height: 10 }, elevation: 7,
+  },
   dailyBriefTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 7 },
   dailyBriefEyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   dailyBriefLiveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: COLORS.primaryGreen },
   dailyBriefEyebrow: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 9, letterSpacing: 1.15 },
   dailyBriefStatus: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 0.65 },
-  dailyBriefTitle: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 23, lineHeight: 28, letterSpacing: -0.45 },
-  dailyBriefMessage: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 12, lineHeight: 19 },
+  dailyBriefHeroRow: { flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 120 },
+  dailyBriefHeroCopy: { flex: 1, minWidth: 0, gap: 8, paddingRight: 2 },
+  dailyBriefOrbWrap: { width: 118, height: 122, alignItems: 'center', justifyContent: 'center', marginRight: -6 },
+  dailyBriefOrbFallback: { width: 96, height: 96, borderRadius: 48, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(COLORS.coachPurple, 0.16), borderWidth: 1, borderColor: alpha(COLORS.coachCyan, 0.35) },
+  dailyBriefTitle: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 23, lineHeight: 28, letterSpacing: -0.55 },
+  dailyBriefMessage: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 11, lineHeight: 17 },
   dailyBriefScheduleNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, borderRadius: 12, backgroundColor: alpha(COLORS.recoveryMed, 0.08), borderWidth: 1, borderColor: alpha(COLORS.recoveryMed, 0.2) },
   dailyBriefScheduleNoticeText: { flex: 1, color: COLORS.recoveryMed, fontFamily: FONTS.regular, fontSize: 10, lineHeight: 15 },
   dailyBriefWhy: { gap: 4, paddingTop: 2 },
@@ -1620,9 +1636,9 @@ const S = StyleSheet.create({
   dailyBriefMoreExercises: { color: COLORS.textMuted, fontFamily: FONTS.medium, fontSize: 9, paddingTop: 3 },
   dailyBriefPlanNote: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 10, lineHeight: 15 },
   dailyBriefActions: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 3 },
-  dailyBriefPrimary: { flex: 1, minHeight: 43, borderRadius: 13, backgroundColor: COLORS.primaryGreen, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 10 },
+  dailyBriefPrimary: { flex: 1, minHeight: 44, borderRadius: 13, backgroundColor: COLORS.primaryGreen, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 10, overflow: 'hidden' },
   dailyBriefPrimaryText: { color: COLORS.background, fontFamily: FONTS.bold, fontSize: 11, flex: 1 },
-  dailyBriefSecondary: { minWidth: 82, minHeight: 43, borderRadius: 13, backgroundColor: COLORS.backgroundTop, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 11 },
+  dailyBriefSecondary: { minWidth: 82, minHeight: 44, borderRadius: 13, backgroundColor: alpha(COLORS.coachCyan, 0.07), borderWidth: 1, borderColor: alpha(COLORS.coachCyan, 0.32), flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 11 },
   dailyBriefSecondaryText: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 11 },
   offlineBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -1633,31 +1649,28 @@ const S = StyleSheet.create({
 
   emptyScroll: { flex: 1 },
   emptyContent: { paddingHorizontal: 20, paddingTop: 28, paddingBottom: 24 },
-  emptyHero: { alignItems: 'flex-start', marginBottom: 26 },
-  coachOrb: {
-    width: 66, height: 66, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.borderLight,
-    marginBottom: 22, position: 'relative',
-  },
-  coachOrbInner: {
-    width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: alpha(COLORS.primaryGreen, 0.10),
-  },
-  coachOrbStatus: {
-    position: 'absolute', right: -3, bottom: -3, width: 13, height: 13, borderRadius: 7,
-    backgroundColor: COLORS.recoveryHigh, borderWidth: 3, borderColor: COLORS.background,
-  },
-  emptyEyebrow: { fontFamily: FONTS.bold,  color: COLORS.primaryGreen, fontSize: 10, fontWeight: '800', letterSpacing: 1.8, marginBottom: 9 },
-  emptyTitle: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 28, lineHeight: 33, fontWeight: '700', letterSpacing: -0.8, marginBottom: 9, maxWidth: 310 },
+  emptyHero: { alignItems: 'flex-start', marginBottom: 22, paddingTop: 6 },
+  emptyEyebrow: { fontFamily: FONTS.bold, color: COLORS.coachCyan, fontSize: 9, fontWeight: '800', letterSpacing: 1.7, marginBottom: 9 },
+  emptyTitle: { color: COLORS.text, fontFamily: FONTS.numericBold, fontSize: 27, lineHeight: 33, fontWeight: '700', letterSpacing: -0.8, marginBottom: 8, maxWidth: 320 },
   emptySubtitle: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 12, lineHeight: 19, maxWidth: 340 },
-  suggestionsHeading: { marginBottom: 11 },
-  suggestionsHeadingLabel: { fontFamily: FONTS.bold, color: COLORS.textSecondary, fontSize: 10, fontWeight: '800', letterSpacing: 1.2 },
-  suggestions: { gap: 9 },
-  suggestion: { width: '100%', minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 13, backgroundColor: COLORS.card, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: COLORS.border },
-  suggestionIcon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  suggestionCopy: { flex: 1, minWidth: 0, gap: 4 },
-  suggestionTitle: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 13, lineHeight: 17 },
-  suggestionText: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 11, lineHeight: 16 },
+  suggestionsHeading: { marginBottom: 13, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 },
+  suggestionsHeadingLabel: { fontFamily: FONTS.bold, color: COLORS.coachLavender, fontSize: 9, fontWeight: '800', letterSpacing: 1.35 },
+  suggestionsSubheading: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 17, marginTop: 4 },
+  suggestionsCount: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: alpha(COLORS.coachPurple, 0.34), backgroundColor: alpha(COLORS.coachPurple, 0.10) },
+  suggestionsCountText: { color: COLORS.coachLavender, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 0.8 },
+  suggestions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
+  suggestionReveal: { width: '48.5%' },
+  suggestion: {
+    width: '100%', minHeight: 126, flexDirection: 'column', alignItems: 'flex-start',
+    gap: 8, backgroundColor: COLORS.card, borderRadius: 17, padding: 12,
+    borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden',
+    shadowColor: COLORS.coachPurple, shadowOpacity: 0.08, shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 }, elevation: 2,
+  },
+  suggestionIcon: { width: 38, height: 38, borderRadius: 13, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  suggestionTitle: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 12, lineHeight: 16 },
+  suggestionText: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 10, lineHeight: 14, flex: 1 },
+  suggestionArrow: { position: 'absolute', right: 10, top: 10, width: 23, height: 23, borderRadius: 8, backgroundColor: alpha(COLORS.text, 0.035), alignItems: 'center', justifyContent: 'center' },
 
   messageList: { padding: 16, paddingBottom: 12 },
   bubble:      { marginBottom: 12, borderRadius: 18, padding: 15, maxWidth: '92%' },
@@ -1689,13 +1702,26 @@ const S = StyleSheet.create({
                     paddingVertical: 8, borderWidth: 1, borderColor: COLORS.border },
   thinkingText: { fontFamily: FONTS.regular,  color: COLORS.textMuted, fontSize: 13 },
 
-  inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10,
-              paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10,
-              backgroundColor: COLORS.background, borderTopWidth: 1, borderTopColor: COLORS.border },
-  input:    { flex: 1, backgroundColor: COLORS.inputBg, borderRadius: 16,
-              paddingHorizontal: 16, paddingVertical: 11, color: COLORS.text,
-              fontFamily: FONTS.regular, fontSize: 14, maxHeight: 110, borderWidth: 1, borderColor: COLORS.border },
-  sendBtn:  { width: 44, height: 44, borderRadius: 15,
-              backgroundColor: COLORS.primaryGreen, alignItems: 'center', justifyContent: 'center' },
+  inputRow: {
+    flexDirection: 'row', alignItems: 'flex-end', gap: 10,
+    paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10,
+    backgroundColor: COLORS.background, borderTopWidth: 1, borderTopColor: alpha(COLORS.coachPurple, 0.22),
+  },
+  inputGlowBorder: { flex: 1, padding: 1.2, borderRadius: 18 },
+  inputField: {
+    minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 9,
+    backgroundColor: COLORS.inputBg, borderRadius: 17, paddingHorizontal: 12,
+  },
+  input: {
+    flex: 1, backgroundColor: 'transparent', borderRadius: 0,
+    paddingHorizontal: 0, paddingVertical: 11, color: COLORS.text,
+    fontFamily: FONTS.regular, fontSize: 13, maxHeight: 110,
+  },
+  sendBtn: {
+    width: 48, height: 48, borderRadius: 17,
+    backgroundColor: COLORS.coachPurple, alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden', shadowColor: COLORS.coachCyan, shadowOpacity: 0.22,
+    shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 5,
+  },
   sendBtnOff: { backgroundColor: COLORS.cardElevated, shadowOpacity: 0, elevation: 0 },
 });
