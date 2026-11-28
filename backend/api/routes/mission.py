@@ -152,6 +152,8 @@ def _pick_ai_decision(workout_decision, recovery_decision, nutrition_decision) -
     Single most important AI decision for the card — gym exercise, nutrition
     action, or rest directive. Priority: recovery override > workout > nutrition.
     """
+    if recovery_decision.action == "pain_review":
+        return "Pause the painful movement and review the recent pain report before training"
     if recovery_decision.action == "check_in":
         return "Recovery check-in needed — no readiness score is available yet"
     if recovery_decision.action == "rest":
@@ -179,6 +181,8 @@ def _pick_next_action(
     """
     training_window = _build_training_window(profile)
 
+    if recovery_decision.action == "pain_review":
+        return "Do not repeat or load the movement that caused the reported pain; review guidance before training"
     if recovery_decision.action == "check_in":
         return "Complete today's recovery check-in before deciding on training intensity"
     if recovery_decision.action == "rest":
@@ -207,7 +211,9 @@ def _build_alerts(
     """
     alerts: list[str] = []
 
-    if recovery_decision.action == "check_in":
+    if recovery_decision.action == "pain_review":
+        alerts.append("Pain reported after training — avoid the provoking movement and review guidance before repeating it")
+    elif recovery_decision.action == "check_in":
         alerts.append("Recovery information is incomplete — keep the approved plan unchanged")
     elif recovery_decision.action in ("rest", "replace_with_light"):
         alerts.append(f"⚠️ Recovery low ({recovery_decision.recovery_score}/10) — modify or skip training")
@@ -340,6 +346,21 @@ async def get_today_mission(
         asyncio.to_thread(run_consistency_agent, user_id, targets.get("protein_g", 160.0)),
     )
 
+    # The LLM brief must never soften or bury a deterministic pain safety gate.
+    # A recent sharp/worsening report pauses the affected movement, while the
+    # approved weekly prescription remains untouched until the athlete approves
+    # a deliberate change.
+    if recovery_decision.action == "pain_review" and isinstance(proactive_brief, dict):
+        proactive_brief["coach_message"] = recovery_decision.message
+        proactive_brief["todays_focus"] = (
+            "Do not repeat or load the movement that caused the reported pain. "
+            "Review symptoms before deciding how to train."
+        )
+        proactive_brief["recommendation"] = (
+            "Pause the affected movement; no automatic workout or schedule change has been applied."
+        )
+        proactive_brief["suggested_top_set"] = None
+
     # ── Compute remaining macros ──────────────────────────────────────────────
     calories_remaining = max(0, targets["calories"] - int(consumed["calories"]))
     protein_remaining  = round(max(0.0, targets["protein_g"] - consumed["protein_g"]), 1)
@@ -370,7 +391,8 @@ async def get_today_mission(
 
     # ── Assemble the card ─────────────────────────────────────────────────────
     mission_label = (
-        "Rest Day" if wtype == "rest"
+        "Pain Review" if recovery_decision.action == "pain_review"
+        else "Rest Day" if wtype == "rest"
         else workout_decision.recommended_type.replace("_", " ").title() + " Day"
         if workout_decision.recommended_type else "Focus Day"
     )
@@ -433,6 +455,7 @@ async def get_today_mission(
             "data_completeness_pct": getattr(recovery_decision, "data_completeness_pct", 0),
             "available_signals": getattr(recovery_decision, "available_signals", []),
             "missing_signals": getattr(recovery_decision, "missing_signals", []),
+            "pain_signal": getattr(recovery_decision, "pain_signal", None),
         },
         "progress": {
             "stalled":            progress_decision.stalled,
