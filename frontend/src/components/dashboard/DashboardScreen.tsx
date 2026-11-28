@@ -92,7 +92,8 @@ interface DashboardSummary {
 }
 
 function describeSessionVolumeChange(comparison: { volume_delta_kg?: number | null; volume_delta_pct?: number | null } | null | undefined): string | null {
-  const delta = comparison?.volume_delta_kg;
+  if (!comparison) return null;
+  const delta = comparison.volume_delta_kg;
   if (typeof delta !== 'number' || !Number.isFinite(delta)) return null;
   if (delta === 0) return 'Working-set volume matched your previous comparable session.';
   const magnitude = Math.abs(delta).toLocaleString('en-IN');
