@@ -7,10 +7,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber/native';
-import {
-  Group,
-  Mesh,
-} from 'three';
+import type { Group, Mesh } from 'three';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, alpha } from '../../theme/colors';
