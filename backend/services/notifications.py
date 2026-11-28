@@ -30,6 +30,22 @@ logger = logging.getLogger(__name__)
 
 # ── Individual notification builders ─────────────────────────────────────────
 
+def _has_personalized_nutrition_measurements(profile: dict) -> bool:
+    """A numeric macro push requires every input used by the target formula."""
+    required = ("weight_kg", "height_cm", "age", "gender")
+    for field in required:
+        value = profile.get(field)
+        if value in (None, ""):
+            return False
+        if field in ("weight_kg", "height_cm", "age"):
+            try:
+                if float(value) <= 0:
+                    return False
+            except (TypeError, ValueError):
+                return False
+    return True
+
+
 def _recovery_notification(recovery_decision, profile: dict) -> dict | None:
     """
     Recovery ≥ 80% → fire.
@@ -43,9 +59,9 @@ def _recovery_notification(recovery_decision, profile: dict) -> dict | None:
     if score_pct < 80:
         return None
 
-    body = f"Recovery {score_pct}% — today's a good day to push."
+    body = f"Your recorded recovery score is {score_pct}%. Check today's approved session and adjust to how you feel."
     if score_pct >= 90:
-        body = f"Recovery {score_pct}% — conditions are ideal. Consider a top set at 95% of your best lift."
+        body = f"Your recorded recovery score is {score_pct}%. Follow your approved plan; a score is not a guarantee of performance or safety."
 
     return {
         "type": "recovery_high",
@@ -67,7 +83,7 @@ def _cns_deload_notification(recovery_decision) -> dict | None:
     return {
         "type": "cns_very_high",
         "title": "CNS overloaded",
-        "body": "CNS load is Very High. Deload this week — 60% intensity, cut volume 30%. Your next block will be stronger for it.",
+        "body": "Your fatigue signal is high. Consider a lighter session or rest, and review recent training and symptoms with Coach.",
         "priority": "high",
         "cta": "/recovery",
         "data": {"cns_score": cns_load.get("score")},
@@ -93,15 +109,25 @@ def _missed_workout_notification(insights: list) -> dict | None:
     return None
 
 
-def _protein_notification(nutrition_today: dict, protein_target_g: float) -> dict | None:
+def _protein_notification(
+    nutrition_today: dict,
+    protein_target_g: float | None,
+    target_is_personalized: bool = False,
+) -> dict | None:
     """
     Protein 62% → Need another 48 g.
     Only fires when the gap is meaningful (≥15 g) — avoids nagging at 2g
     under target or right after breakfast with all day left.
     """
-    if not nutrition_today or protein_target_g <= 0:
+    if (
+        not target_is_personalized
+        or not nutrition_today
+        or not nutrition_today.get("logged")
+        or not isinstance(protein_target_g, (int, float))
+        or protein_target_g <= 0
+    ):
         return None
-    consumed  = nutrition_today.get("protein_g", 0)
+    consumed = nutrition_today.get("protein_g", 0)
     pct       = round(100 * consumed / protein_target_g)
     remaining = round(protein_target_g - consumed)
     if remaining < 15:
@@ -109,7 +135,7 @@ def _protein_notification(nutrition_today: dict, protein_target_g: float) -> dic
     return {
         "type": "protein_gap",
         "title": f"Protein {pct}%",
-        "body": f"Need another {remaining}g to hit today's target. Greek yogurt + chicken = ~45g.",
+        "body": f"Your logged intake is {consumed:.1f}g against your profile-based target. About {remaining}g remains; check your food preferences before choosing the next meal.",
         "priority": "normal",
         "cta": "/nutrition",
         "data": {"protein_pct": pct, "remaining_g": remaining},
@@ -190,24 +216,38 @@ def generate_notifications_for_user(user_id: str) -> list[dict]:
     profile, agent_state = get_full_user_context(user_id)
     goal_str = profile.get("goal") or "maintain"
     goal     = Goal(goal_str) if goal_str in Goal._value2member_map_ else Goal.maintain
-    targets  = calculate_macros(
-        weight_kg=profile.get("weight_kg") or 75,
-        height_cm=profile.get("height_cm") or 175,
-        age=profile.get("age") or 28,
-        gender=profile.get("gender") or "male",
-        goal=goal,
-        is_training_day=True,
-    )
+    # Numeric nutrition alerts require all inputs used by calculate_macros.
+    # Defaults remain available only for explicitly-labelled UI estimates.
+    targets_personalized = _has_personalized_nutrition_measurements(profile)
+    targets = None
+    if targets_personalized:
+        targets = calculate_macros(
+            weight_kg=profile["weight_kg"],
+            height_cm=profile["height_cm"],
+            age=profile["age"],
+            gender=profile["gender"],
+            goal=goal,
+            is_training_day=True,
+        )
 
-    workout_decision  = run_workout_agent(user_id, preferred_time=profile.get("workout_time_preference"))
+    workout_decision = run_workout_agent(user_id, preferred_time=profile.get("workout_time_preference"))
+    recovery_kwargs = {}
+    if targets is not None:
+        recovery_kwargs = {
+            "protein_target_g": targets["protein_g"],
+            "calorie_target": targets["calories"],
+        }
     recovery_decision = run_recovery_agent(
         user_id,
         sleep_hours=profile.get("sleep_hours"),
         planned_workout_type=workout_decision.recommended_type,
-        protein_target_g=targets["protein_g"],
-        calorie_target=targets["calories"],
+        **recovery_kwargs,
     )
-    insights = run_pattern_engine(user_id, protein_target_g=targets["protein_g"])
+    # Zero disables protein-gap comparisons until measurements are complete.
+    insights = run_pattern_engine(
+        user_id,
+        protein_target_g=targets["protein_g"] if targets is not None else 0,
+    )
 
     sb    = get_supabase()
     today = str(date.today())
@@ -232,7 +272,11 @@ def generate_notifications_for_user(user_id: str) -> list[dict]:
         _pr_opportunity_notification(insights),              # PR window (high)
         _missed_workout_notification(insights),              # skipped sessions
         _recovery_notification(recovery_decision, profile),  # ≥80% recovery
-        _protein_notification(nutrition_today, targets["protein_g"]),
+        _protein_notification(
+            nutrition_today,
+            targets["protein_g"] if targets is not None else None,
+            target_is_personalized=targets_personalized,
+        ),
         _motivation_notification(user_id, profile),          # lowest priority
     ]
     notifications = [n for n in candidates if n is not None]
