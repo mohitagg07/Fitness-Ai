@@ -9,7 +9,9 @@ Mounted in main.py under prefix="/api/memory".
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from core.security import get_current_user
-from db.memory_client import remember, recall_all, forget
+from db.memory_client import (
+    remember, recall_all, forget, get_auto_memory_enabled, set_auto_memory_enabled,
+)
 
 router = APIRouter(tags=["Memory"])
 
@@ -22,6 +24,32 @@ VALID_CATEGORIES = {
 class MemoryCreate(BaseModel):
     fact: str = Field(min_length=3, max_length=500)
     category: str = Field(default="general")
+
+
+class MemorySettingsUpdate(BaseModel):
+    auto_memory_enabled: bool
+
+
+@router.get("/settings")
+async def get_memory_settings(current_user: dict = Depends(get_current_user)):
+    """Return explicit auto-memory consent; new users default to disabled."""
+    return {
+        "auto_memory_enabled": get_auto_memory_enabled(current_user["user_id"]),
+        "default_enabled": False,
+    }
+
+
+@router.patch("/settings")
+async def update_memory_settings(
+    payload: MemorySettingsUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    """Persist the athlete's choice about automatic extraction from chat."""
+    try:
+        set_auto_memory_enabled(current_user["user_id"], payload.auto_memory_enabled)
+    except Exception as exc:
+        raise HTTPException(503, "Coach memory preferences could not be saved.") from exc
+    return {"auto_memory_enabled": payload.auto_memory_enabled}
 
 
 @router.get("")
