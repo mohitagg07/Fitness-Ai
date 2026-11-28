@@ -110,14 +110,13 @@ def _semantic_collection():
         embedding_function=OpenAIKnowledgeEmbeddingFunction(),
         metadata={"hnsw:space":"cosine","embedding_model":"text-embedding-3-small"},
     )
-    existing=set(collection.get().get("ids") or [])
-    missing=[doc for doc in FITNESS_KNOWLEDGE if doc["id"] not in existing]
-    if missing:
-        collection.add(
-            ids=[doc["id"] for doc in missing],
-            documents=[doc["content"] for doc in missing],
-            metadatas=[{"title":doc["title"],"url":doc["url"],"category":doc["category"]} for doc in missing],
-        )
+    # Upsert the full curated corpus on process warm-up. Adding only absent IDs
+    # left stale passages behind after source corrections or safety updates.
+    collection.upsert(
+        ids=[doc["id"] for doc in FITNESS_KNOWLEDGE],
+        documents=[doc["content"] for doc in FITNESS_KNOWLEDGE],
+        metadatas=[{"title":doc["title"],"url":doc["url"],"category":doc["category"]} for doc in FITNESS_KNOWLEDGE],
+    )
     return collection
 
 def retrieve_fitness_knowledge(query:str,top_k:int=4)->list[dict[str,Any]]:
@@ -136,7 +135,8 @@ def retrieve_fitness_knowledge(query:str,top_k:int=4)->list[dict[str,Any]]:
                 (result.get("distances") or [[]])[0],
             ):
                 similarity=max(0.0,min(1.0,1.0-float(distance)))
-                if similarity<0.18:continue
+                # Reject weak matches rather than attaching tangential evidence.
+                if similarity<0.30:continue
                 docs.append({"id":doc_id,"title":(meta or {}).get("title","Fitness evidence"),
                     "category":(meta or {}).get("category","general"),"url":(meta or {}).get("url",""),
                     "content":content,"score":round(similarity,4),"retrieval_method":"chroma_openai_semantic"})
