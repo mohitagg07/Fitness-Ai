@@ -327,6 +327,10 @@ export default function ProgressScreen({ initialTab = 'overview', initialOpenFoo
   const tabBarRef = useRef<ScrollView | null>(null);
 
   useEffect(() => {
+    if (initialOpenFood) setLogFoodVisible(true);
+  }, [initialOpenFood]);
+
+  useEffect(() => {
     if (routeParams.tab === 'nutrition') setActiveTab('nutrition');
   }, [routeParams.tab]);
 
