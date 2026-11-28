@@ -128,6 +128,65 @@ def build_log_set_rpc_params(
     }
 
 
+def build_previous_session_comparison(
+    current_workout_type: str | None,
+    current_day_label: str | None,
+    current_volume_kg: float | None,
+    current_duration_minutes: int | None,
+    previous_session: dict | None,
+) -> dict | None:
+    """Build an explicitly like-for-like comparison from a prior saved session."""
+    if not previous_session:
+        return None
+
+    previous_volume = previous_session.get("total_volume_kg")
+    previous_duration = previous_session.get("duration_minutes")
+
+    def _number(value):
+        try:
+            return float(value) if value is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    current_volume = _number(current_volume_kg)
+    previous_volume = _number(previous_volume)
+    current_duration = _number(current_duration_minutes)
+    previous_duration = _number(previous_duration)
+
+    volume_delta = (
+        round(current_volume - previous_volume, 1)
+        if current_volume is not None and previous_volume is not None
+        else None
+    )
+    volume_delta_pct = (
+        round((volume_delta / previous_volume) * 100, 1)
+        if volume_delta is not None and previous_volume > 0
+        else None
+    )
+    duration_delta = (
+        round(current_duration - previous_duration, 1)
+        if current_duration is not None and previous_duration is not None
+        else None
+    )
+
+    return {
+        "session_id": previous_session.get("id"),
+        "session_date": previous_session.get("session_date"),
+        "workout_type": previous_session.get("workout_type"),
+        "day_label": previous_session.get("day_label"),
+        "comparison_basis": "workout_type" if current_workout_type else "day_label",
+        "current_workout_type": current_workout_type,
+        "current_day_label": current_day_label,
+        "previous_total_volume_kg": previous_volume,
+        "current_total_volume_kg": current_volume,
+        "volume_delta_kg": volume_delta,
+        "volume_delta_pct": volume_delta_pct,
+        "previous_duration_minutes": previous_duration,
+        "current_duration_minutes": current_duration,
+        "duration_delta_minutes": duration_delta,
+    }
+
+
 @router.post("/sessions", status_code=201)
 async def create_session(
     payload: SessionCreate,
@@ -928,6 +987,47 @@ async def complete_session(
         1 for item in exercise_review
         if item["status"] in ("replaced", "replacement_not_logged")
     )
+    # Compare only against the most recent completed workout of the same
+    # workout type (or day label for legacy sessions). This is a reference
+    # point, not a judgement: more volume is not automatically better.
+    previous_comparison = None
+    try:
+        previous_query = (
+            sb.table("workout_sessions")
+            .select("id, session_date, workout_type, day_label, total_volume_kg, duration_minutes")
+            .eq("user_id", user_id)
+            .eq("completed", True)
+            .neq("id", session_id)
+        )
+        if session.get("workout_type"):
+            previous_query = previous_query.eq("workout_type", session.get("workout_type"))
+        elif session.get("day_label"):
+            previous_query = previous_query.eq("day_label", session.get("day_label"))
+        else:
+            previous_query = None
+
+        if previous_query is not None:
+            previous_rows = (
+                previous_query
+                .order("session_date", desc=True)
+                .order("finished_at", desc=True)
+                .limit(1)
+                .execute()
+            ).data or []
+            if previous_rows:
+                previous_comparison = build_previous_session_comparison(
+                    session.get("workout_type"),
+                    session.get("day_label"),
+                    total_volume_kg,
+                    duration_minutes,
+                    previous_rows[0],
+                )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            "Could not load prior comparable workout for %s: %s", session_id, e
+        )
+
     planned_vs_actual = {
         "has_plan": bool(planned_exercises),
         "planned_exercises": len(planned_exercises),
@@ -945,6 +1045,7 @@ async def complete_session(
         "id": session.get("id"),
         "status": "completed",
         "planned_vs_actual": planned_vs_actual,
+        "previous_comparable_session": previous_comparison,
         "session_effort": session_effort,
         "energy_level": energy_level,
         "pain_status": pain_status,
