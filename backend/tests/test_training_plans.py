@@ -194,7 +194,13 @@ def test_daily_workout_override_preserves_existing_program_metadata(monkeypatch)
 
 
 
-def test_workout_prescription_retains_warmup_and_cooldown_notes():
+def test_workout_prescription_retains_warmup_and_cooldown_notes(monkeypatch):
+    from api.routes.training_plans import _validated_plan_snapshot
+
+    monkeypatch.setattr(
+        "api.routes.training_plans.validate_workout_constraints",
+        lambda workout, _equipment, _injuries: workout.model_dump(),
+    )
     workout = WorkoutPrescription(
         label="Push Day",
         workout_type="push",
@@ -206,6 +212,8 @@ def test_workout_prescription_retains_warmup_and_cooldown_notes():
             "reps": "8-12",
         }],
     )
+    payload = PlanDraftRequest(workout=workout)
+    snapshot = _validated_plan_snapshot(payload, [], [])
 
-    assert workout.warmup_notes.startswith("5 minutes")
-    assert workout.cooldown_notes.startswith("Gentle chest")
+    assert snapshot["workout"]["warmup_notes"].startswith("5 minutes")
+    assert snapshot["workout"]["cooldown_notes"].startswith("Gentle chest")
