@@ -33,66 +33,18 @@ from functools import lru_cache
 settings = get_settings()
 
 GUARDRAIL_DOCS = [
-    {
-        "id": "shoulder_overhead_barbell",
-        "content": "SAFETY RULE: Barbell Overhead Press is HIGH RISK for users with shoulder clicking or subacromial impingement. REPLACE WITH: Seated Neutral-Grip DB Press (opens joint space) or Landmine Press. Scapular-plane lateral raises (30° forward) instead of strict side laterals.",
-        "tags": ["left_shoulder", "right_shoulder", "shoulder_clicking", "subacromial_impingement", "overhead_press"],
-    },
-    {
-        "id": "shoulder_bench_hyperextension",
-        "content": "SAFETY RULE: Deep barbell bench press ROM causing anterior delt strain. REPLACE WITH: Stop-2-inches press (bar never touches chest), DB Bench (natural wrist rotation), Floor Press. Never allow elbow flare beyond 45°.",
-        "tags": ["left_shoulder", "right_shoulder", "anterior_delt_strain", "bench_press"],
-    },
-    {
-        "id": "spinal_deadlift_compression",
-        "content": "SAFETY RULE: Conventional Deadlift causes lumbar axial compression. MANDATORY PROTOCOL: (1) 360° intra-abdominal pressure. (2) Lats packed tight. (3) Immediately after final set: 2-minute dead hang for disc rehydration. (4) Follow with chest-supported rows only.",
-        "tags": ["lower_back", "lumbar", "deadlift", "axial_compression"],
-    },
-    {
-        "id": "spinal_squat_compression",
-        "content": "SAFETY RULE: Barbell Squat causes significant spinal compression. PROTOCOL: (1) Mandatory belt above 85% 1RM. (2) 3-second controlled descent. (3) Post-squat: leg extensions and leg press only. (4) 2-minute dead hang at session end.",
-        "tags": ["lower_back", "lumbar", "squat", "axial_compression", "knee"],
-    },
-    {
-        "id": "lower_back_free_rows",
-        "content": "SAFETY RULE: Free-standing barbell rows after heavy Deadlifts or Squats are PROHIBITED. Spinal erectors are pre-fatigued. REPLACE WITH: Chest-Supported Row, Single-Arm DB Row with knee braced, Seated Cable Row with back support.",
-        "tags": ["lower_back", "lumbar", "barbell_row", "spinal_erector", "post_deadlift"],
-    },
-    {
-        "id": "knee_pain_squat",
-        "content": "SAFETY RULE: Knee pain detected. MODIFY SQUATS: Reduce depth to parallel only, widen stance 10-15°. REPLACE: Bulgarian Split Squat → Leg Press, Jump Squats → Leg Extensions only. No direct knee flexion under heavy load.",
-        "tags": ["left_knee", "right_knee", "knee_pain", "squat", "lunge"],
-    },
-    {
-        "id": "wrist_pain_pressing",
-        "content": "SAFETY RULE: Wrist pain during pressing. PROTOCOL: Neutral grip preferred. Wrist wraps mandatory for all pressing above 60% 1RM. REPLACE: Straight-bar curls → EZ-bar curls. Flat barbell bench → DB bench or neutral-grip machine press.",
-        "tags": ["left_wrist", "right_wrist", "wrist_pain", "bench_press", "curls"],
-    },
-    {
-        "id": "cns_fatigue_high",
-        "content": "CNS FATIGUE PROTOCOL: User shows high fatigue score. IMMEDIATE ACTION: (1) Remove all remaining compound free-weight movements. (2) Replace with machine-only, fixed-track isolation. (3) Reduce volume by 40%. (4) Cap session at 45 minutes. (5) Mandatory rest day tomorrow.",
-        "tags": ["cns_fatigue", "overtraining", "rpe_10", "burnout", "exhausted"],
-    },
-    {
-        "id": "acute_pain_emergency",
-        "content": "EMERGENCY PROTOCOL: SHARP PAIN, POP, SNAP, TORE, or INJURED reported. IMMEDIATELY: (1) TERMINATE WORKOUT. (2) Do not suggest any exercises. (3) Display R.I.C.E protocol. (4) Recommend consulting a doctor before returning to training.",
-        "tags": ["sharp_pain", "injury", "pop", "snap", "tore", "torn", "acute_injury"],
-    },
-    {
-        "id": "post_workout_nutrition",
-        "content": "RECOVERY PROTOCOL: After heavy training (Deadlift/Squat day): (1) Protein within 15 minutes. Solid food after 45-60 min on deadlift days. (2) Omega-3 with next meal for joint lubrication. (3) Magnesium 300mg before bed for CNS recovery.",
-        "tags": ["post_workout", "nutrition", "recovery", "protein", "deadlift_day"],
-    },
-    {
-        "id": "deload_protocol",
-        "content": "DELOAD PROTOCOL: 3+ weeks at high intensity OR CNS fatigue score above 7. DELOAD WEEK: (1) Drop all weights to 65-70% of working weight. (2) Max 3 working sets per exercise. (3) No sets to failure. (4) Reduce session to 45 minutes. (5) No new PRs attempted.",
-        "tags": ["deload", "recovery_week", "overtraining", "high_fatigue"],
-    },
-    {
-        "id": "ai_safety_disclaimer",
-        "content": "AI SAFETY RULE: The AI coach provides guidance based on logged data and general principles. For acute injuries, unusual pain, or medical concerns, always consult a qualified healthcare professional. The AI cannot diagnose injuries or replace medical advice.",
-        "tags": ["disclaimer", "medical", "safety", "ai_limitations"],
-    },
+    {"id":"shoulder_overhead_barbell","content":"SAFETY CONTEXT: If overhead pressing produces shoulder pain, stop that movement rather than forcing range or load. The coach must not diagnose the cause or prescribe rehabilitation. For persistent, worsening or function-limiting symptoms, recommend assessment by a qualified healthcare professional.","tags":["left_shoulder","right_shoulder","shoulder_clicking","subacromial_impingement","overhead_press"]},
+    {"id":"shoulder_bench_hyperextension","content":"SAFETY CONTEXT: If bench pressing causes sharp or worsening shoulder pain, stop the aggravating movement. Do not automatically prescribe a replacement or a specific range of motion without assessment. Refer persistent or function-limiting symptoms to a qualified healthcare professional.","tags":["left_shoulder","right_shoulder","anterior_delt_strain","bench_press"]},
+    {"id":"spinal_deadlift_compression","content":"SAFETY CONTEXT: Stop deadlifting if it causes sharp, sudden or worsening back pain. Do not prescribe dead hangs, spinal decompression, belts or rehabilitation routines as treatment. Persistent symptoms or changes in function warrant assessment by a qualified healthcare professional.","tags":["lower_back","lumbar","deadlift","axial_compression"]},
+    {"id":"spinal_squat_compression","content":"SAFETY CONTEXT: If squatting causes sharp or worsening back or knee pain, stop the aggravating movement. A belt, fixed depth, mandatory accessory exercise or dead hang is not a universal medical protocol. Recommend clinical assessment when pain persists or limits function.","tags":["lower_back","lumbar","squat","axial_compression","knee"]},
+    {"id":"lower_back_free_rows","content":"TRAINING CONTEXT: Exercise choice after demanding compound lifts should account for fatigue, technique and the athlete's symptoms. Do not label one row variation universally prohibited. If pain or loss of control occurs, stop and reassess rather than forcing the set.","tags":["lower_back","lumbar","barbell_row","spinal_erector","post_deadlift"]},
+    {"id":"knee_pain_squat","content":"SAFETY CONTEXT: If squats or lunges cause sharp or worsening knee pain, stop the aggravating movement. Do not prescribe a mandatory stance, depth, or replacement as treatment. Persistent swelling, instability, loss of function or significant pain should be assessed by a qualified healthcare professional.","tags":["left_knee","right_knee","knee_pain","squat","lunge"]},
+    {"id":"wrist_pain_pressing","content":"SAFETY CONTEXT: Stop pressing or curling movements that cause sharp or worsening wrist pain. Neutral grips or wraps are not a universal treatment or substitute for assessment. Persistent symptoms, swelling, numbness or reduced function warrant clinical review.","tags":["left_wrist","right_wrist","wrist_pain","bench_press","curls"]},
+    {"id":"cns_fatigue_high","content":"RECOVERY CONTEXT: Subjective fatigue, poor sleep and recent training load can inform a conservative session adjustment or rest. A fatigue score is not a medical diagnosis and must not trigger a fixed percentage reduction, mandatory machine-only workout or automatic rest-day prescription.","tags":["cns_fatigue","overtraining","rpe_10","burnout","exhausted"]},
+    {"id":"acute_pain_emergency","content":"SAFETY RULE: For sharp, sudden or worsening pain, stop the aggravating exercise and do not encourage training through it. The coach cannot diagnose injury or prescribe RICE or rehabilitation. Recommend qualified clinical assessment for significant or persistent symptoms; severe symptoms, chest pain, fainting or serious breathing difficulty need urgent medical assessment.","tags":["sharp_pain","injury","pop","snap","tore","torn","acute_injury"]},
+    {"id":"post_workout_nutrition","content":"NUTRITION CONTEXT: Adequate daily nutrition and hydration support training and recovery. Do not claim that protein must be consumed within 15 minutes, or prescribe omega-3 or magnesium doses. Use actual food logs and verified targets; clearly label estimates and respect allergies and dietary preferences.","tags":["post_workout","nutrition","recovery","protein","deadlift_day"]},
+    {"id":"deload_protocol","content":"TRAINING CONTEXT: Reducing training load may be appropriate when the athlete reports sustained fatigue or performance decline. Consider symptoms, recent workload and context; never invent a fixed percentage reduction or mandatory deload duration.","tags":["deload","recovery_week","overtraining","high_fatigue"]},
+    {"id":"ai_safety_disclaimer","content":"AI SAFETY RULE: The AI coach provides fitness information, not medical diagnosis or treatment. It cannot replace a qualified healthcare professional. It must distinguish retrieved evidence, user-reported information, logged measurements and estimates, and say when evidence or user data is insufficient.","tags":["disclaimer","medical","safety","ai_limitations"]},
 ]
 
 
