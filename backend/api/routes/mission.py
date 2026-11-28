@@ -175,11 +175,12 @@ def _pick_next_action(
     profile: dict,
     protein_remaining: float,
     water_remaining_ml: int,
+    training_window: dict | None = None,
 ) -> str:
     """
     One concrete next step the user should do right now.
     """
-    training_window = _build_training_window(profile)
+    training_window = training_window or _build_training_window(profile)
 
     if recovery_decision.action == "pain_review":
         return "Do not repeat or load the movement that caused the reported pain; review guidance before training"
@@ -400,7 +401,7 @@ async def get_today_mission(
     ai_decision = _pick_ai_decision(workout_decision, recovery_decision, nutrition_decision)
     next_action  = _pick_next_action(
         workout_decision, recovery_decision, nutrition_decision,
-        profile, protein_remaining, water_remaining
+        profile, protein_remaining, water_remaining, training_time
     )
     alerts = _build_alerts(recovery_decision, progress_decision, protein_remaining, targets)
 
