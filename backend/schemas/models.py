@@ -107,6 +107,7 @@ class ResponseType(str, Enum):
     nutrition_tip = "nutrition_tip"
     recovery_advice = "recovery_advice"
     progress_update = "progress_update"
+    weekly_summary = "weekly_summary"
     chat = "chat"
     emergency = "emergency"
 
@@ -405,12 +406,12 @@ class ConversationMessage(BaseModel):
 # ─── Parsed Performance Log (LangGraph output) ───────────────────────────────
 
 class PerformanceLog(BaseModel):
-    exercise_name: str
-    weight_kg: float
-    reps_completed: int
-    equipment_modifiers: Optional[List[str]] = Field(default_factory=list)
+    exercise_name: str = Field(min_length=1, max_length=120)
+    weight_kg: float = Field(ge=0, le=1000)
+    reps_completed: int = Field(ge=1, le=1000)
+    equipment_modifiers: Optional[List[str]] = Field(default_factory=list, max_length=12)
     user_reported_rpe: Optional[float] = Field(None, ge=1, le=10)
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(None, max_length=300)
 
 
 # ─── Progress Metrics ────────────────────────────────────────────────────────
