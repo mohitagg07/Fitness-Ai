@@ -191,3 +191,21 @@ def test_daily_workout_override_preserves_existing_program_metadata(monkeypatch)
         "increment_kg": 2.5,
     }
     assert snapshot["schedule"]["sat"] == "legs"
+
+
+
+def test_workout_prescription_retains_warmup_and_cooldown_notes():
+    workout = WorkoutPrescription(
+        label="Push Day",
+        workout_type="push",
+        warmup_notes="5 minutes easy cycling and progressive bench warm-up sets",
+        cooldown_notes="Gentle chest and shoulder mobility; stop if painful",
+        exercises=[{
+            "name": "Bench Press",
+            "sets": 3,
+            "reps": "8-12",
+        }],
+    )
+
+    assert workout.warmup_notes.startswith("5 minutes")
+    assert workout.cooldown_notes.startswith("Gentle chest")
