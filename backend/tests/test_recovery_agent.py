@@ -113,6 +113,7 @@ def test_recent_sharp_pain_overrides_a_favourable_readiness_score(monkeypatch):
         lambda *_args: (6.0, 0),
     )
     monkeypatch.setattr(recovery_agent, "_last_explicit_cns_fatigue", lambda _user_id: 1)
+    monkeypatch.setattr(recovery_agent, "_latest_post_session_feedback", lambda *_args: None)
     monkeypatch.setattr(
         recovery_agent,
         "_latest_reported_session_pain",
@@ -174,3 +175,80 @@ def test_latest_explicit_no_pain_report_clears_older_sharp_report(monkeypatch):
 
     assert result["status"] == "none"
     assert result["session_date"] == "2026-11-28"
+
+
+
+def test_recent_post_workout_energy_and_effort_feed_next_recovery_estimate(monkeypatch):
+    monkeypatch.setattr(
+        recovery_agent,
+        "_today_recovery_checkin",
+        lambda _user_id, _target_date: {
+            "sleep_hours": 7.5,
+            "soreness_level": 2,
+            "energy_level": None,
+        },
+    )
+    monkeypatch.setattr(recovery_agent, "_latest_post_session_feedback", lambda *_args: {
+        "session_date": "2026-11-28",
+        "session_effort": 9,
+        "energy_level": 2,
+        "cns_fatigue_after": 7,
+    })
+    monkeypatch.setattr(recovery_agent, "_last_session_volume", lambda _user_id: 4200)
+    monkeypatch.setattr(recovery_agent, "_nutrition_ratios_today", lambda *_args: (0.8, 0.9))
+    monkeypatch.setattr(recovery_agent, "_recent_rpe_stats", lambda *_args: (6.0, 0))
+    monkeypatch.setattr(recovery_agent, "_last_explicit_cns_fatigue", lambda _user_id: 7)
+    monkeypatch.setattr(recovery_agent, "_latest_reported_session_pain", lambda *_args: None)
+
+    result = recovery_agent.run_recovery_agent(
+        "u1",
+        sleep_hours=None,
+        planned_workout_type="pull",
+        protein_target_g=140,
+        calorie_target=2400,
+        target_date=date(2026, 11, 28),
+    )
+
+    assert result.source_values["energy_level"] == 2
+    assert result.source_values["energy_source"] == "recent_post_workout_checkin"
+    assert result.source_values["latest_post_session_effort"] == 9
+    assert result.source_values["recent_average_rpe"] == 7.5
+    assert result.source_values["recent_high_rpe_days"] == 1
+    assert result.data_completeness_pct >= 60
+
+
+def test_latest_post_workout_feedback_returns_only_explicit_completed_session_data(monkeypatch):
+    class Query:
+        def select(self, *_args, **_kwargs): return self
+        def eq(self, *_args): return self
+        def gte(self, *_args): return self
+        def lte(self, *_args): return self
+        def order(self, *_args, **_kwargs): return self
+        def limit(self, *_args): return self
+        def execute(self):
+            return SimpleNamespace(data=[
+                {
+                    "session_date": "2026-11-28",
+                    "session_effort": None,
+                    "energy_level": None,
+                    "cns_fatigue_after": None,
+                },
+                {
+                    "session_date": "2026-11-27",
+                    "session_effort": 8,
+                    "energy_level": 3,
+                    "cns_fatigue_after": None,
+                },
+            ])
+
+    class Supabase:
+        def table(self, _name): return Query()
+
+    monkeypatch.setattr(recovery_agent, "get_supabase", lambda: Supabase())
+    result = recovery_agent._latest_post_session_feedback(
+        "u1", date(2026, 11, 28)
+    )
+
+    assert result["session_date"] == "2026-11-27"
+    assert result["session_effort"] == 8
+    assert result["energy_level"] == 3
