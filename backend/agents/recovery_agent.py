@@ -44,7 +44,7 @@ def _latest_post_session_feedback(
     try:
         result = (
             get_supabase().table("workout_sessions")
-            .select("session_date, session_effort, energy_level, cns_fatigue_after, finished_at")
+            .select("session_date, session_effort, energy_level, cns_fatigue_after, mood, finished_at")
             .eq("user_id", user_id)
             .eq("completed", True)
             .gte("session_date", cutoff)
@@ -424,6 +424,15 @@ def run_recovery_agent(
         )
         score_pct = score_100
 
+    # Mood is qualitative context, not a numeric readiness input. Surface a
+    # low post-session mood to Coach without inventing fatigue or changing the plan.
+    latest_session_mood = (
+        str(latest_session_feedback.get("mood") or "").strip().lower()
+        if latest_session_feedback else ""
+    )
+    if latest_session_mood == "bad":
+        message += " Your last post-workout check-in recorded a low mood; review how you feel today before deciding on training effort."
+
     # Pain is a separate safety gate, not a readiness-score component. A recent
     # sharp/worsening report overrides a favourable score until the athlete
     # reviews the affected movement. It never edits the approved plan.
@@ -455,6 +464,7 @@ def run_recovery_agent(
         "energy_level": energy_level,
         "energy_source": energy_source,
         "latest_post_session_effort": latest_session_effort,
+        "latest_post_session_mood": latest_session_mood or None,
         "latest_post_session_feedback_date": (
             latest_session_feedback.get("session_date")
             if latest_session_feedback else None
