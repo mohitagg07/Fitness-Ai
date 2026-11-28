@@ -143,7 +143,7 @@ export default function NutritionSearchModal({
     setLogging(true);
     try {
       await nutritionApi.quickLog(selected.food_id, g, selected.name);
-      Alert.alert('Logged ✓', `${selected.name} (${g}g) added to today's log.`);
+      Alert.alert('Food logged', `${selected.name} (${g}g) added to today's log.`);
       onLogged();
       closeAndReset();
     } catch (err: any) {
@@ -170,7 +170,7 @@ export default function NutritionSearchModal({
     const name = manualName.trim();
     const portion = manualAmount.trim();
     if (name.length < 2) {
-      Alert.alert('Food name required', 'Tell VYRN what you ate.');
+      Alert.alert('Food name required', 'Enter the name of the food you ate.');
       return;
     }
     if (!portion) {
@@ -197,7 +197,7 @@ export default function NutritionSearchModal({
   const saveManualEntry = async () => {
     const name = manualName.trim();
     if (!estimatedFood) {
-      Alert.alert('Estimate first', 'Ask VYRN to estimate the nutrition, then review it before adding it.');
+      Alert.alert('Estimate first', 'Create and review the nutrition estimate before adding it.');
       return;
     }
 
@@ -218,7 +218,7 @@ export default function NutritionSearchModal({
       });
       onLogged();
       closeAndReset();
-      Alert.alert('Food logged', `${name} was added using an AI nutrition estimate.`);
+      Alert.alert('Food logged', `${name} was added using estimated nutrition values.`);
     } catch (err: any) {
       Alert.alert('Could not log food', describeApiError(err).message);
     } finally {
