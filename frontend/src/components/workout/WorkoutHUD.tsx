@@ -755,6 +755,13 @@ function WorkoutHUD() {
 
   const askCoachForWorkout = async () => {
     if (isBuildingPlan || isRestoringSession || isApprovingPlan) return;
+    if (missionSummary?.recovery?.action === 'pain_review') {
+      Alert.alert(
+        'Review pain before training',
+        missionSummary.recovery.message || 'Do not repeat the movement that caused the pain. Keep the approved plan unchanged while you review the symptoms.',
+      );
+      return;
+    }
     setIsBuildingPlan(true);
     try {
       const res = await coachApi.chat("What's my workout today?");
@@ -771,6 +778,13 @@ function WorkoutHUD() {
 
   const approveDraftAndStart = async () => {
     if (!draftPlan || isApprovingPlan || exercises.length === 0) return;
+    if (missionSummary?.recovery?.action === 'pain_review') {
+      Alert.alert(
+        'Workout not started',
+        missionSummary.recovery.message || 'A recent post-workout check-in requires a pain review. Your approved plan has not been changed.',
+      );
+      return;
+    }
     setIsApprovingPlan(true);
     try {
       let approvedDraft = draftPlan;
@@ -1318,8 +1332,20 @@ function WorkoutHUD() {
             <Text style={S.actionSectionLabel}>CHOOSE HOW TO START</Text>
             <PressableScale style={S.startBtn} onPress={askCoachForWorkout} disabled={isRestoringSession || isBuildingPlan || isApprovingPlan} accessibilityRole="button" accessibilityLabel="Review today's workout before starting">
               <View style={S.actionCopy}>
-                <Text style={S.startBtnText}>{isRestoringSession ? 'Checking saved session…' : isBuildingPlan ? 'Preparing your plan…' : 'Review today’s workout'}</Text>
-                <Text style={S.actionHelper}>See, edit and approve the exercise plan before training</Text>
+                <Text style={S.startBtnText}>
+                  {isRestoringSession
+                    ? 'Checking saved session…'
+                    : isBuildingPlan
+                      ? 'Preparing your plan…'
+                      : missionSummary?.recovery?.action === 'pain_review'
+                        ? 'Training paused for pain review'
+                        : 'Review today’s workout'}
+                </Text>
+                <Text style={S.actionHelper}>
+                  {missionSummary?.recovery?.action === 'pain_review'
+                    ? 'Read the Coach guidance before repeating the affected movement'
+                    : 'See, edit and approve the exercise plan before training'}
+                </Text>
               </View>
               {isBuildingPlan ? <ActivityIndicator size="small" color={COLORS.background} /> : <Ionicons name="arrow-forward" size={18} color={COLORS.background} />}
             </PressableScale>
