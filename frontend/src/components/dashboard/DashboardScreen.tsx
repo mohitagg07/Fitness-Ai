@@ -89,7 +89,7 @@ function QuickAction({
         <Text style={styles.quickSubtitle}>{subtitle}</Text>
       </View>
       <View style={styles.quickArrow}>
-        <Ionicons name="arrow-up-right" size={16} color={COLORS.textSecondary} />
+        <Ionicons name="arrow-up-right-box" size={16} color={COLORS.textSecondary} />
       </View>
     </PressableScale>
   );
@@ -409,7 +409,7 @@ export default function DashboardScreen() {
                 <Ionicons name="sparkles" size={17} color={COLORS.coachPurple} />
               </View>
               <Text style={styles.coachLabel}>COACH'S READ ON TODAY</Text>
-              <Ionicons name="arrow-up-right" size={16} color={COLORS.coachPurple} />
+              <Ionicons name="arrow-up-right-box" size={16} color={COLORS.coachPurple} />
             </View>
             <Text style={styles.coachMessage} numberOfLines={3}>{coachMessage}</Text>
             {summary?.proactive_brief?.why_summary ? (
