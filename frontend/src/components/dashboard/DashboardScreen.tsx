@@ -390,7 +390,7 @@ export default function DashboardScreen() {
             title="Log food"
             subtitle="Track today's nutrition"
             accent={COLORS.carbs}
-            onPress={() => router.push({ pathname: '/(tabs)/nutrition', params: { openLog: '1' } } as any)}}
+            onPress={() => router.push({ pathname: '/(tabs)/nutrition', params: { openLog: '1' } } as any)}
           />
           <QuickAction
             icon="stats-chart-outline"
