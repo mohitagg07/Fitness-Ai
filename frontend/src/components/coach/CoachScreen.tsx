@@ -22,7 +22,7 @@ import Svg, { Circle, Path, Defs, LinearGradient as SvgGradient, Stop } from 're
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { coachApi, describeApiError } from '../../utils/api';
+import { coachApi, describeApiError, nutritionApi } from '../../utils/api';
 import { useCoachChatStream } from '../../hooks/useCoachChatStream';
 import { useMissionSummary } from '../../hooks/useDashboardQueries';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
@@ -218,7 +218,7 @@ function TipRow({ text, accent = COLORS.recoveryHigh }: { text: string; accent?:
 }
 
 // ─── 1. Workout Plan Card ─────────────────────────────────────────────────────
-function WorkoutCard({ sd }: { sd: any }) {
+function WorkoutCard({ sd, onStartWorkout }: { sd: any; onStartWorkout?: (plan: any) => void }) {
   const exercises = sd.exercises || [];
   const summary   = sd.summary   || {};
   const tips      = sd.tips      || [];
@@ -321,6 +321,23 @@ function WorkoutCard({ sd }: { sd: any }) {
           {tips.map((t: string, i: number) => <TipRow key={i} text={t} />)}
         </View>
       )}
+      {exercises.length > 0 && (
+        <View style={{ paddingHorizontal: 14, paddingTop: 13, paddingBottom: 14, borderTopWidth: 1, borderTopColor: COLORS.border }}>
+          <Text style={{ color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 12, marginBottom: 9 }}>
+            Ready to start with {exercises[0].name}?
+          </Text>
+          <PressableScale
+            style={{ minHeight: 46, borderRadius: 14, backgroundColor: COLORS.primaryGreen, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 14 }}
+            onPress={() => onStartWorkout?.(sd)}
+            accessibilityRole="button"
+            accessibilityLabel="Review this coach workout in Train"
+          >
+            <Ionicons name="barbell-outline" size={16} color={COLORS.background} />
+            <Text style={{ color: COLORS.background, fontFamily: FONTS.bold, fontSize: 12 }}>Review session in Train</Text>
+            <Ionicons name="arrow-forward" size={15} color={COLORS.background} />
+          </PressableScale>
+        </View>
+      )}
     </CardShell>
   );
 }
@@ -383,39 +400,73 @@ function RecoveryCard({ sd }: { sd: any }) {
 }
 
 // ─── 4. Nutrition Card ────────────────────────────────────────────────────────
-function NutritionCard({ sd }: { sd: any }) {
+function NutritionCard({ sd, onOpenNutrition }: { sd: any; onOpenNutrition?: () => void }) {
   const tips = sd.tips || [];
-  // Optionally the backend may include macro targets
-  const macros = sd.macros || null;
+  const today = sd.nutrition_today || {};
+  const consumed = today.consumed || {};
+  const targets = today.targets || {};
+  const remaining = today.remaining || {};
+  const plans = Array.isArray(sd.meal_plan) ? sd.meal_plan : [];
 
   return (
-    <CardShell color={COLORS.cardElevated} icon="nutrition-outline" label="NUTRITION ADVICE" accent={COLORS.calories}>
-      {macros && (
-        <View style={C.macroRow}>
-          {macros.protein != null && (
+    <CardShell color={COLORS.cardElevated} icon="nutrition-outline" label="TODAY'S FOOD PLAN" accent={COLORS.calories}>
+      {Object.keys(targets).length > 0 && (
+        <View style={{ paddingHorizontal: 14, paddingTop: 12 }}>
+          <Text style={{ color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 9, letterSpacing: 1.2, marginBottom: 8 }}>
+            DAILY TARGETS AND REMAINING
+          </Text>
+          <View style={C.macroRow}>
             <View style={C.macroChip}>
-              <Text style={[C.macroVal, { color: COLORS.protein }]}>{macros.protein}g</Text>
-              <Text style={C.macroLabel}>PROTEIN</Text>
-            </View>
-          )}
-          {macros.carbs != null && (
-            <View style={C.macroChip}>
-              <Text style={[C.macroVal, { color: COLORS.carbs }]}>{macros.carbs}g</Text>
-              <Text style={C.macroLabel}>CARBS</Text>
-            </View>
-          )}
-          {macros.fat != null && (
-            <View style={C.macroChip}>
-              <Text style={[C.macroVal, { color: COLORS.fat }]}>{macros.fat}g</Text>
-              <Text style={C.macroLabel}>FAT</Text>
-            </View>
-          )}
-          {macros.calories != null && (
-            <View style={C.macroChip}>
-              <Text style={[C.macroVal, { color: COLORS.calories }]}>{macros.calories}</Text>
+              <Text style={[C.macroVal, { color: COLORS.calories }]}>{Math.round(consumed.calories || 0)} / {Math.round(targets.calories || 0)}</Text>
               <Text style={C.macroLabel}>KCAL</Text>
             </View>
-          )}
+            <View style={C.macroChip}>
+              <Text style={[C.macroVal, { color: COLORS.protein }]}>{Math.round(consumed.protein_g || 0)} / {Math.round(targets.protein_g || 0)}g</Text>
+              <Text style={C.macroLabel}>PROTEIN</Text>
+            </View>
+            <View style={C.macroChip}>
+              <Text style={[C.macroVal, { color: COLORS.carbs }]}>{Math.round(consumed.carbs_g || 0)} / {Math.round(targets.carbs_g || 0)}g</Text>
+              <Text style={C.macroLabel}>CARBS</Text>
+            </View>
+            <View style={C.macroChip}>
+              <Text style={[C.macroVal, { color: COLORS.fat }]}>{Math.round(consumed.fat_g || 0)} / {Math.round(targets.fat_g || 0)}g</Text>
+              <Text style={C.macroLabel}>FAT</Text>
+            </View>
+          </View>
+          <Text style={{ color: COLORS.textSecondary, fontFamily: FONTS.medium, fontSize: 11, marginTop: 7, marginBottom: 4 }}>
+            Remaining: {Math.round(remaining.calories || 0)} kcal · {Math.round(remaining.protein_g || 0)}g protein · {Math.round(remaining.carbs_g || 0)}g carbs
+          </Text>
+        </View>
+      )}
+      {plans.length > 0 ? (
+        <View style={{ paddingHorizontal: 14, paddingTop: 12, gap: 10 }}>
+          <Text style={{ color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 9, letterSpacing: 1.2 }}>
+            SUGGESTED MEALS FOR THE REST OF TODAY
+          </Text>
+          {plans.map((meal: any, index: number) => (
+            <View key={meal.meal || index} style={{ borderTopWidth: index === 0 ? 0 : 1, borderTopColor: COLORS.border, paddingTop: index === 0 ? 0 : 10 }}>
+              <Text style={{ color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 13, marginBottom: 5 }}>{meal.meal}</Text>
+              {(meal.items || []).map((item: any, itemIndex: number) => (
+                <Text key={itemIndex} style={{ color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 11, lineHeight: 17 }}>
+                  {item.grams}g {item.food}
+                </Text>
+              ))}
+              <Text style={{ color: COLORS.textMuted, fontFamily: FONTS.medium, fontSize: 10, marginTop: 4 }}>
+                Approx. {meal.approx_protein_g || 0}g protein · {meal.approx_carbs_g || 0}g carbs
+              </Text>
+            </View>
+          ))}
+          <Text style={{ color: COLORS.textDim, fontFamily: FONTS.regular, fontSize: 10, lineHeight: 15 }}>
+            Portions are estimates. Confirm your food and serving in Nutrition before logging.
+          </Text>
+        </View>
+      ) : (
+        <View style={{ paddingHorizontal: 14, paddingTop: 12 }}>
+          <Text style={{ color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 11, lineHeight: 17 }}>
+            {sd.nutrition_data_unavailable
+              ? 'Today’s intake could not be loaded. Open Nutrition to refresh your targets and food log.'
+              : 'Your remaining macro gap does not require another meal suggestion right now.'}
+          </Text>
         </View>
       )}
       {tips.length > 0 && (
@@ -423,10 +474,21 @@ function NutritionCard({ sd }: { sd: any }) {
           {tips.map((t: string, i: number) => <TipRow key={i} text={t} accent={COLORS.calories} />)}
         </View>
       )}
+      <View style={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: 14, borderTopWidth: 1, borderTopColor: COLORS.border }}>
+        <PressableScale
+          style={{ minHeight: 46, borderRadius: 14, backgroundColor: COLORS.primaryGreen, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 14 }}
+          onPress={onOpenNutrition}
+          accessibilityRole="button"
+          accessibilityLabel="Open Nutrition to log food and review daily intake"
+        >
+          <Ionicons name="restaurant-outline" size={16} color={COLORS.background} />
+          <Text style={{ color: COLORS.background, fontFamily: FONTS.bold, fontSize: 12 }}>Open Nutrition & log food</Text>
+          <Ionicons name="arrow-forward" size={15} color={COLORS.background} />
+        </PressableScale>
+      </View>
     </CardShell>
   );
 }
-
 // ─── 5. Progress / PR Card ────────────────────────────────────────────────────
 function ProgressCard({ sd }: { sd: any }) {
   const tips = sd.tips || [];
@@ -548,10 +610,14 @@ const CoachMessage = React.memo(function CoachMessage({
   item,
   onSelectOption,
   showQuestion,
+  onStartWorkout,
+  onOpenNutrition,
 }: {
   item: any;
   onSelectOption?: (option: string) => void;
   showQuestion?: boolean;
+  onStartWorkout?: (plan: any) => void;
+  onOpenNutrition?: () => void;
 }) {
   const sd = item.structured_decision;
   const coachText = sd?.coach_message || item.content || '';
@@ -559,10 +625,10 @@ const CoachMessage = React.memo(function CoachMessage({
   const renderCard = () => {
     if (!sd) return null;
     switch (sd.response_type) {
-      case 'workout_plan':    return (sd.exercises?.length > 0) ? <WorkoutCard   sd={sd} /> : null;
+      case 'workout_plan':    return (sd.exercises?.length > 0) ? <WorkoutCard sd={sd} onStartWorkout={onStartWorkout} /> : null;
       case 'live_set':        return <LiveSetCard   sd={sd} />;
       case 'recovery_advice': return <RecoveryCard  sd={sd} />;
-      case 'nutrition_tip':   return <NutritionCard sd={sd} />;
+      case 'nutrition_tip':   return <NutritionCard sd={sd} onOpenNutrition={onOpenNutrition} />;
       case 'progress_update': return <ProgressCard  sd={sd} />;
       case 'weekly_summary':  return <WeeklyCard    sd={sd} />;
       default:
@@ -630,6 +696,7 @@ export default function CoachScreen() {
   const [input, setInput]   = useState('');
   const [serverStatus, setServerStatus] = useState<'online' | 'offline' | 'unknown'>('unknown');
   const [memoryVisible, setMemoryVisible] = useState(false);
+  const [isEnrichingResponse, setIsEnrichingResponse] = useState(false);
   // Real recovery/CNS numbers for the header briefing strip — reuses the
   // same summary endpoint the Dashboard uses, so the two screens never
   // disagree about "how am I today". No fabricated Sleep/Readiness rings
@@ -641,11 +708,16 @@ export default function CoachScreen() {
   // update including ones it never reads (e.g. Dashboard calling
   // setCnsFatigue, or ProfileScreen editing injuries) since useStore()
   // subscribed to the whole store unconditionally.
-  const { chatHistory, addChatMessage, hydrateChatHistory, setCnsFatigue } = useStore((s) => ({
+  const {
+    chatHistory, addChatMessage, hydrateChatHistory, setCnsFatigue,
+    activeSession, setPendingCoachWorkout,
+  } = useStore((s) => ({
     chatHistory: s.chatHistory,
     addChatMessage: s.addChatMessage,
     hydrateChatHistory: s.hydrateChatHistory,
     setCnsFatigue: s.setCnsFatigue,
+    activeSession: s.activeSession,
+    setPendingCoachWorkout: s.setPendingCoachWorkout,
   }));
 
   // Restore conversation history from Supabase when the Coach tab opens.
@@ -705,10 +777,30 @@ export default function CoachScreen() {
   // handling below is unchanged from the non-streaming version.
   const pendingUserMessageRef = useRef<string | null>(null);
   const { send: sendStream, isStreaming, streamingText } = useCoachChatStream({
-    onDone: (data) => {
+    onDone: async (data) => {
       pendingUserMessageRef.current = null;
       setServerStatus('online');
-      addChatMessage('assistant', data.reply, data.structured_decision);
+      let structured = data.structured_decision || null;
+      if (structured?.response_type === 'nutrition_tip') {
+        setIsEnrichingResponse(true);
+        try {
+          const [todayResponse, planResponse] = await Promise.all([
+            nutritionApi.getToday(),
+            nutritionApi.getMealPlan(undefined, new Date().getHours()),
+          ]);
+          structured = {
+            ...structured,
+            nutrition_today: todayResponse.data,
+            meal_plan: Array.isArray(planResponse.data?.plans) ? planResponse.data.plans : [],
+          };
+        } catch (error) {
+          structured = { ...structured, nutrition_data_unavailable: true };
+          if (__DEV__) console.warn('[Coach] Meal plan enrichment unavailable', error);
+        } finally {
+          setIsEnrichingResponse(false);
+        }
+      }
+      addChatMessage('assistant', data.reply, structured);
       if (data.cns_fatigue_score != null) setCnsFatigue(data.cns_fatigue_score);
       if (data.emergency) {
         Alert.alert('Training Stopped', 'Injury signal detected. See the message below.', [
@@ -728,9 +820,26 @@ export default function CoachScreen() {
   });
   // The stream hook owns connection, auth, cancellation and error settlement.
 
+  const startWorkoutFromCoach = useCallback((plan: any) => {
+    if (activeSession) {
+      Alert.alert(
+        'Workout already in progress',
+        'Continue your current session in Train. Finish it before starting another plan.',
+      );
+      router.push('/(tabs)/workout');
+      return;
+    }
+    setPendingCoachWorkout(plan);
+    router.push('/(tabs)/workout');
+  }, [activeSession, setPendingCoachWorkout]);
+
+  const openNutritionFromCoach = useCallback(() => {
+    router.push('/(tabs)/nutrition');
+  }, []);
+
   const sendMessage = useCallback((text?: string) => {
     const message = text || input.trim();
-    if (!message || isStreaming) return;
+    if (!message || isStreaming || isEnrichingResponse) return;
 
     setInput('');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
@@ -738,7 +847,7 @@ export default function CoachScreen() {
     pendingUserMessageRef.current = message;
 
     void sendStream(message);
-  }, [input, isStreaming, addChatMessage, sendStream]);
+  }, [input, isStreaming, isEnrichingResponse, addChatMessage, sendStream]);
 
   useEffect(() => {
     if (chatHistory.length > 0) {
@@ -760,13 +869,15 @@ export default function CoachScreen() {
           <CoachMessage
             item={item}
             onSelectOption={sendMessage}
+            onStartWorkout={startWorkoutFromCoach}
+            onOpenNutrition={openNutritionFromCoach}
             showQuestion={index === chatHistory.length - 1}
           />
         )
         : <Text style={[S.messageText, S.userText]}>{item.content}</Text>
       }
     </View>
-  ), [sendMessage, chatHistory.length]);
+  ), [sendMessage, startWorkoutFromCoach, openNutritionFromCoach, chatHistory.length]);
 
   return (
     <KeyboardAvoidingView
@@ -818,7 +929,7 @@ export default function CoachScreen() {
         <View style={S.offlineBanner}>
           <Ionicons name="cloud-offline-outline" size={13} color={COLORS.recoveryMed} />
           <Text style={S.offlineBannerText}>
-            Server offline — responses are smart fallbacks. Check EXPO_PUBLIC_API_URL.
+            Coach is offline. Your request could not be completed; reconnect to continue.
           </Text>
         </View>
       )}
@@ -881,8 +992,8 @@ export default function CoachScreen() {
           same dot-typing indicator as before; once text starts arriving
           it's replaced by the live-growing bubble so the user is reading
           the reply well before the full response has finished. */}
-      {isStreaming && (
-        streamingText ? (
+      {(isStreaming || isEnrichingResponse) && (
+        isStreaming && streamingText ? (
           <Reveal distance={5} duration={220}><View style={[S.bubble, S.aiBubble]}>
             <View style={S.roleLabelRow}>
               <Ionicons name="flash" size={10} color={COLORS.recoveryHigh} />
@@ -912,14 +1023,14 @@ export default function CoachScreen() {
           underlineColorAndroid="transparent"
         />
         <PressableScale
-          style={[S.sendBtn, (!input.trim() || isStreaming) && S.sendBtnOff]}
+          style={[S.sendBtn, (!input.trim() || isStreaming || isEnrichingResponse) && S.sendBtnOff]}
           onPress={() => sendMessage()}
-          disabled={!input.trim() || isStreaming}
+          disabled={!input.trim() || isStreaming || isEnrichingResponse}
         >
           <Ionicons
             name="arrow-up"
             size={18}
-            color={input.trim() && !isStreaming ? COLORS.background : COLORS.textDim}
+            color={input.trim() && !isStreaming && !isEnrichingResponse ? COLORS.background : COLORS.textDim}
           />
         </PressableScale>
       </View>
