@@ -411,7 +411,6 @@ async def agentic_research_node(state: WorkoutGraphState) -> WorkoutGraphState:
     if normalized_message in {"hi", "hello", "hey", "thanks", "thank you", "ok", "okay", "good morning", "good afternoon", "good evening", "bye"}:
         state["agent_tool_context"] = []
         state["agent_activity"] = {"available": True, "tools_used": [], "tool_rounds": 0, "skipped": "not_needed"}
-        state["agent_research_note"] = None
         return state
     try:
         result = await run_agentic_research(
@@ -431,7 +430,6 @@ async def agentic_research_node(state: WorkoutGraphState) -> WorkoutGraphState:
         logger.warning("Agentic research node unavailable (%s)", type(exc).__name__)
         state["agent_tool_context"] = []
         state["agent_activity"] = {"available": False, "tools_used": [], "tool_rounds": 0}
-        state["agent_research_note"] = None
     return state
 
 
