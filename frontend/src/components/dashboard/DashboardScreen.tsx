@@ -31,6 +31,9 @@ interface DashboardSummary {
   mission_text?: string;
   next_task?: string;
   intensity?: string;
+  nutrition_target_source?: 'profile' | 'estimated_defaults';
+  nutrition_target_confidence?: 'personalized' | 'estimated';
+  missing_measurements?: string[];
   training_time?: {
     period?: string | null;
     label?: string;
@@ -351,7 +354,7 @@ export default function DashboardScreen() {
             </Text>
             <Text style={styles.heroDataNote}>
               {summary?.recovery?.data_completeness_pct != null
-                ? `READINESS DATA COVERAGE · ${Math.round(summary.recovery.data_completeness_pct)}% OF WEIGHTED SIGNALS AVAILABLE`
+                ? `READINESS DATA COVERAGE · ${Math.round(summary.recovery.data_completeness_pct)}%${summary.recovery.missing_signals?.length ? ` · NOT REPORTED: ${summary.recovery.missing_signals.join(', ').toUpperCase()}` : ' · TRACKED SIGNALS AVAILABLE'}`
                 : 'READINESS SCORE UNAVAILABLE UNTIL ENOUGH RECOVERY DATA IS REPORTED'}
             </Text>
             {!summary?.training_time?.display_label ? (
@@ -444,6 +447,28 @@ export default function DashboardScreen() {
             <Text style={styles.snapshotLabel}>PROTEIN LEFT</Text>
           </View>
         </View>
+
+        {summary?.nutrition_target_source === 'estimated_defaults' ? (
+          <PressableScale
+            style={styles.estimatedTargetsNotice}
+            onPress={() => router.push('/(tabs)/profile')}
+            accessibilityRole="button"
+            accessibilityLabel="Complete profile measurements to personalise nutrition targets"
+          >
+            <Ionicons name="information-circle-outline" size={15} color={COLORS.recoveryMed} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.estimatedTargetsText}>
+                Nutrition targets are estimates until your profile measurements are complete
+                {summary.missing_measurements?.length
+                  ? ` · missing ${summary.missing_measurements.join(', ').replace(/_/g, ' ')}`
+                  : ''}
+                .
+              </Text>
+              <Text style={styles.estimatedTargetsAction}>Complete profile measurements</Text>
+            </View>
+            <Ionicons name="arrow-forward" size={14} color={COLORS.recoveryMed} />
+          </PressableScale>
+        ) : null}
 
         {summary?.last_completed_session ? (
           <View style={styles.lastSessionCard}>
@@ -651,6 +676,9 @@ const styles = StyleSheet.create({
   snapshotLiveDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: COLORS.primaryGreen },
   snapshotCaptionText: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 9, letterSpacing: 0.8 },
   snapshotPanel: { flexDirection: 'row', alignItems: 'center', minHeight: 116, borderRadius: 22, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card, paddingHorizontal: 7, paddingVertical: 13, marginBottom: 25 },
+  estimatedTargetsNotice: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: -14, marginBottom: 20, padding: 11, borderRadius: 14, backgroundColor: alpha(COLORS.recoveryMed, 0.08), borderWidth: 1, borderColor: alpha(COLORS.recoveryMed, 0.22) },
+  estimatedTargetsText: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 10, lineHeight: 15 },
+  estimatedTargetsAction: { color: COLORS.recoveryMed, fontFamily: FONTS.semibold, fontSize: 10, marginTop: 4 },
   snapshotCell: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 },
   snapshotIcon: { width: 30, height: 30, borderRadius: 11, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
   snapshotValue: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 19, lineHeight: 22 },
