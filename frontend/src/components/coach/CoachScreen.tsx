@@ -224,7 +224,7 @@ function TipRow({ text, accent = COLORS.recoveryHigh }: { text: string; accent?:
 }
 
 // ─── 1. Workout Plan Card ─────────────────────────────────────────────────────
-function WorkoutCard({ sd, onStartWorkout }: { sd: any; onStartWorkout?: (plan: any) => void }) {
+function WorkoutCard({ sd, onStartWorkout, onSaveDraft }: { sd: any; onStartWorkout?: (plan: any) => void; onSaveDraft?: (plan: any) => void }) {
   const exercises = sd.exercises || [];
   const summary   = sd.summary   || {};
   const tips      = sd.tips      || [];
@@ -330,18 +330,32 @@ function WorkoutCard({ sd, onStartWorkout }: { sd: any; onStartWorkout?: (plan: 
       {exercises.length > 0 && (
         <View style={{ paddingHorizontal: 14, paddingTop: 13, paddingBottom: 14, borderTopWidth: 1, borderTopColor: COLORS.border }}>
           <Text style={{ color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 12, marginBottom: 9 }}>
-            Ready to start with {exercises[0].name}?
+            Review this recommendation before changing your training plan.
           </Text>
-          <PressableScale
-            style={{ minHeight: 46, borderRadius: 14, backgroundColor: COLORS.primaryGreen, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 14 }}
-            onPress={() => onStartWorkout?.(sd)}
-            accessibilityRole="button"
-            accessibilityLabel="Review this coach workout in Train"
-          >
-            <Ionicons name="barbell-outline" size={16} color={COLORS.background} />
-            <Text style={{ color: COLORS.background, fontFamily: FONTS.bold, fontSize: 12 }}>Review session in Train</Text>
-            <Ionicons name="arrow-forward" size={15} color={COLORS.background} />
-          </PressableScale>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <PressableScale
+              style={{ minHeight: 44, flex: 1, borderRadius: 13, backgroundColor: COLORS.primaryGreen, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 10 }}
+              onPress={() => onSaveDraft?.(sd)}
+              accessibilityRole="button"
+              accessibilityLabel="Save workout recommendation as an unapproved draft"
+            >
+              <Ionicons name="bookmark-outline" size={15} color={COLORS.background} />
+              <Text style={{ color: COLORS.background, fontFamily: FONTS.bold, fontSize: 11 }}>Save draft</Text>
+            </PressableScale>
+            <PressableScale
+              style={{ minHeight: 44, flex: 1, borderRadius: 13, borderWidth: 1, borderColor: COLORS.borderStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 10 }}
+              onPress={() => onStartWorkout?.(sd)}
+              accessibilityRole="button"
+              accessibilityLabel="Review this coach workout in Train"
+            >
+              <Ionicons name="barbell-outline" size={15} color={COLORS.primaryGreen} />
+              <Text style={{ color: COLORS.text, fontFamily: FONTS.bold, fontSize: 11 }}>Review in Train</Text>
+              <Ionicons name="arrow-forward" size={13} color={COLORS.primaryGreen} />
+            </PressableScale>
+          </View>
+          <Text style={{ color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 10, marginTop: 8 }}>
+            Saving creates a draft only. It will not replace your active plan until you approve it.
+          </Text>
         </View>
       )}
     </CardShell>
