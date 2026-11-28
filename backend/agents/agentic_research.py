@@ -32,7 +32,7 @@ def route_after_agent(state: AgenticResearchState) -> str:
     calls = getattr(last, "tool_calls", None) or []
     if not calls:
         return END
-    if int(state.get("tool_rounds") or 0) >= MAX_TOOL_ROUNDS:
+    if int(state.get("tool_rounds") or 0) > MAX_TOOL_ROUNDS:
         return "limit"
     return "tools"
 
