@@ -302,6 +302,17 @@ export default function DashboardScreen() {
                 ? 'Suggested from your profile preference · not a booked appointment'
                 : 'Set your preferred training time in Profile'}
             </Text>
+            {!summary?.training_time?.display_label ? (
+              <PressableScale
+                style={styles.heroSetTime}
+                onPress={() => router.push('/(tabs)/profile')}
+                accessibilityRole="button"
+                accessibilityLabel="Set preferred training time in Profile"
+              >
+                <Text style={styles.heroSetTimeText}>Set training window</Text>
+                <Ionicons name="arrow-forward" size={13} color={COLORS.primaryGreen} />
+              </PressableScale>
+            ) : null}
 
             <PressableScale
               style={styles.heroButton}
@@ -493,6 +504,8 @@ const styles = StyleSheet.create({
   heroMetaValue: { color: '#FFFFFF', fontFamily: FONTS.numericSemibold, fontSize: 12 },
   heroMetaDivider: { width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.24)' },
   heroFootnote: { color: 'rgba(255,255,255,0.62)', fontFamily: FONTS.regular, fontSize: 9, lineHeight: 13, marginTop: 8 },
+  heroSetTime: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', paddingTop: 6 },
+  heroSetTimeText: { color: COLORS.primaryGreen, fontFamily: FONTS.semibold, fontSize: 10 },
   heroButton: { minHeight: 50, marginTop: 15, borderRadius: 16, paddingHorizontal: 16, backgroundColor: COLORS.primaryGreen, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   heroButtonText: { color: COLORS.background, fontFamily: FONTS.bold, fontSize: 12, letterSpacing: 0.1 },
   snapshotCaption: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 3 },
