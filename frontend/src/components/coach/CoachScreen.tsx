@@ -9,7 +9,7 @@
 //   chat          → ChatBubble   (plain text + optional tips)
 // The LLM returns structured JSON; the frontend picks the card.
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { Suspense, useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, TextInput, Linking,
   StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
@@ -34,6 +34,7 @@ import ProfileAvatar from '../shared/ProfileAvatar';
 import AmbientGlow from '../shared/AmbientGlow';
 
 import CoachMemoryModal from './CoachMemoryModal';
+const CoachOrbScene = React.lazy(() => import('./CoachOrbScene'));
 import PressableScale from '../ui/PressableScale';
 import Reveal from '../shared/Reveal';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
@@ -1142,7 +1143,7 @@ export default function CoachScreen() {
             <View style={S.headerTitleRow}>
               <Text style={S.headerTitle}>Coach</Text>
               <View style={S.proBadge}>
-                <Text style={S.proBadgeText}>PERSONAL COACH</Text>
+                <Text style={S.proBadgeText}>VYRN INTELLIGENCE</Text>
               </View>
             </View>
             <Text style={S.headerSub}>Your training, in context</Text>
@@ -1170,6 +1171,13 @@ export default function CoachScreen() {
           </View>
         )}
         <View style={S.dailyBriefCard}>
+          <LinearGradient
+            pointerEvents="none"
+            colors={[alpha(COLORS.coachPurple, 0.30), alpha(COLORS.coachCyan, 0.11), alpha(COLORS.coachDeep, 0.02)]}
+            start={{ x: 0.0, y: 0.0 }}
+            end={{ x: 1.0, y: 1.0 }}
+            style={StyleSheet.absoluteFillObject}
+          />
           <View style={S.dailyBriefTop}>
             <View style={S.dailyBriefEyebrowRow}>
               <View style={S.dailyBriefLiveDot} />
@@ -1183,17 +1191,28 @@ export default function CoachScreen() {
                   : trainingWindowStatus((missionSummary as any)?.training_time)}
             </Text>
           </View>
-          <Text style={S.dailyBriefTitle}>
-            {(missionSummary as any)?.mission
-              || (missionSummary as any)?.workout_today?.type?.replace(/_/g, ' ')?.replace(/\b\w/g, (m: string) => m.toUpperCase())
-              || 'Your training direction'}
-          </Text>
-          <Text style={S.dailyBriefMessage}>
-            {(missionSummary as any)?.proactive_brief?.coach_message
-              || (missionSummary as any)?.proactive_brief?.todays_focus
-              || (missionSummary as any)?.workout_today?.message
-              || 'Your coach will update this briefing when your training and recovery data is available.'}
-          </Text>
+          <View style={S.dailyBriefHeroRow}>
+            <View style={S.dailyBriefHeroCopy}>
+              <Text style={S.dailyBriefTitle}>
+                {(missionSummary as any)?.mission
+                  || (missionSummary as any)?.workout_today?.type?.replace(/_/g, ' ')?.replace(/\b\w/g, (m: string) => m.toUpperCase())
+                  || 'Your training direction'}
+              </Text>
+              <Text style={S.dailyBriefMessage} numberOfLines={3}>
+                {(missionSummary as any)?.proactive_brief?.coach_message
+                  || (missionSummary as any)?.proactive_brief?.todays_focus
+                  || (missionSummary as any)?.workout_today?.message
+                  || 'Your coach will update this briefing when your training and recovery data is available.'}
+              </Text>
+            </View>
+            {chatHistory.length === 0 ? (
+              <View style={S.dailyBriefOrbWrap}>
+                <Suspense fallback={<View style={S.dailyBriefOrbFallback}><ActivityIndicator color={COLORS.coachLavender} /></View>}>
+                  <CoachOrbScene size={118} />
+                </Suspense>
+              </View>
+            ) : null}
+          </View>
           {(missionSummary as any)?.workout_today?.rescheduled ? (
             <View style={S.dailyBriefScheduleNotice}>
               <Ionicons name="calendar-outline" size={14} color={COLORS.recoveryMed} />
@@ -1321,39 +1340,37 @@ export default function CoachScreen() {
       {/* Empty state */}
       {chatHistory.length === 0 ? (
         <ScrollView style={S.emptyScroll} contentContainerStyle={S.emptyContent} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}>
-          <View style={S.emptyHero}>
-            <View style={S.coachOrb}>
-              <View style={S.coachOrbInner}>
-                <ProfileAvatar size={58} />
-              </View>
-              <View style={S.coachOrbStatus} />
-            </View>
-            <Text style={S.emptyEyebrow}>COACHING, CONTINUED</Text>
-            <Text style={S.emptyTitle}>Your day is already in view.</Text>
+          <Reveal distance={12} duration={520} style={S.emptyHero}>
+            <Text style={S.emptyEyebrow}>VYRN · LIVE INTELLIGENCE</Text>
+            <Text style={S.emptyTitle}>A smarter training day starts here.</Text>
             <Text style={S.emptySubtitle}>
-              Your daily recommendation and preferred training window are above. Use chat for adjustments, questions and set-by-set guidance.
+              Your training context is ready. Ask for a plan, understand a signal or work through your next set with your coach.
             </Text>
-          </View>
+          </Reveal>
           <View style={S.suggestionsHeading}>
-            <Text style={S.suggestionsHeadingLabel}>ASK FOR A DEEPER LOOK</Text>
+            <View>
+              <Text style={S.suggestionsHeadingLabel}>YOUR COACHING STUDIO</Text>
+              <Text style={S.suggestionsSubheading}>Choose where to go deeper</Text>
+            </View>
+            <View style={S.suggestionsCount}><Text style={S.suggestionsCountText}>11 TOPICS</Text></View>
           </View>
           <View style={S.suggestions}>
             {SUGGESTIONS.map((s, i) => (
-              <Reveal key={'suggestion-' + i} delay={i * 34}>
+              <Reveal key={'suggestion-' + i} delay={i * 28} distance={9} style={S.suggestionReveal}>
                 <PressableScale
-                  style={S.suggestion}
+                  style={[S.suggestion, { borderColor: alpha(s.color, 0.30) }]}
                   onPress={() => sendMessage(s.prompt)}
                   accessibilityRole="button"
                   accessibilityLabel={`Ask Coach: ${s.title}`}
                 >
-                  <View style={[S.suggestionIcon, { backgroundColor: `${s.color}18` }]}>
-                    <Ionicons name={s.icon as any} size={18} color={s.color} />
+                  <View style={[S.suggestionIcon, { backgroundColor: alpha(s.color, 0.14), borderColor: alpha(s.color, 0.24) }]}>
+                    <Ionicons name={s.icon as any} size={19} color={s.color} />
                   </View>
-                  <View style={S.suggestionCopy}>
-                    <Text style={S.suggestionTitle}>{s.title}</Text>
-                    <Text style={S.suggestionText}>{s.description}</Text>
+                  <Text style={S.suggestionTitle} numberOfLines={2}>{s.title}</Text>
+                  <Text style={S.suggestionText} numberOfLines={2}>{s.description}</Text>
+                  <View style={S.suggestionArrow}>
+                    <Ionicons name="arrow-up-right" size={13} color={s.color} />
                   </View>
-                  <Ionicons name="arrow-forward" size={16} color={COLORS.textMuted} />
                 </PressableScale>
               </Reveal>
             ))}
