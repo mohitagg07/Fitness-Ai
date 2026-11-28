@@ -16,7 +16,7 @@ import json
 import math
 from datetime import date, timedelta
 from pydantic import BaseModel, Field
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from schemas.models import NutritionCreate, Goal
 from core.security import get_current_user
 from db.supabase_client import get_supabase, get_full_user_context, upsert_agent_state
@@ -245,13 +245,13 @@ async def get_today_nutrition(
 @router.get("/meal-plan")
 async def get_meal_plan(
     is_training_day: bool | None = None,
+    local_hour: int = Query(default=10, ge=0, le=23),
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Item #10 — a ready-to-eat combination sized to today's actual
-    remaining macros (reuses the same targets/consumed math as GET
-    /today), not a single-item suggestion. Returns items: [] once
-    remaining need is trivial.
+    Build the remaining meals for today from the athlete's live macro gap,
+    diet preference and saved food exclusions. Returned portions are estimates;
+    meal logging still uses the nutrition search or user-confirmed estimate flow.
     """
     from agents.nutrition_agent import generate_meal_plan
 
@@ -272,23 +272,46 @@ async def get_meal_plan(
     )
     res = (
         sb.table("nutrition_logs")
-        .select("protein_g, carbs_g, fat_g")
+        .select("calories, protein_g, carbs_g, fat_g, water_ml")
         .eq("user_id", user_id)
         .eq("log_date", today_str)
         .execute()
     )
     logs = res.data or []
-    consumed_protein = sum(l.get("protein_g") or 0 for l in logs)
-    consumed_carbs = sum(l.get("carbs_g") or 0 for l in logs)
-    consumed_fat = sum(l.get("fat_g") or 0 for l in logs)
+    consumed = {
+        "calories": sum(l.get("calories") or 0 for l in logs),
+        "protein_g": round(sum(l.get("protein_g") or 0 for l in logs), 1),
+        "carbs_g": round(sum(l.get("carbs_g") or 0 for l in logs), 1),
+        "fat_g": round(sum(l.get("fat_g") or 0 for l in logs), 1),
+        "water_ml": sum(l.get("water_ml") or 0 for l in logs),
+    }
+    remaining = {
+        "calories": max(0, targets["calories"] - consumed["calories"]),
+        "protein_g": round(max(0.0, targets["protein_g"] - consumed["protein_g"]), 1),
+        "carbs_g": round(max(0.0, targets["carbs_g"] - consumed["carbs_g"]), 1),
+        "fat_g": round(max(0.0, targets["fat_g"] - consumed["fat_g"]), 1),
+        "water_ml": max(0, targets["water_ml"] - consumed["water_ml"]),
+    }
 
     plans = generate_meal_plan(
-        protein_remaining_g=max(0.0, targets["protein_g"] - consumed_protein),
-        carbs_remaining_g=max(0.0, targets["carbs_g"] - consumed_carbs),
-        fat_remaining_g=max(0.0, targets["fat_g"] - consumed_fat),
+        protein_remaining_g=remaining["protein_g"],
+        carbs_remaining_g=remaining["carbs_g"],
+        fat_remaining_g=remaining["fat_g"],
         food_preference=profile.get("food_preference"),
+        allergies=profile.get("allergies") or [],
+        food_restrictions=profile.get("food_restrictions") or [],
+        local_hour=local_hour,
     )
-    return {"plans": plans}
+    return {
+        "date": today_str,
+        "goal": goal.value,
+        "is_training_day": training_day,
+        "targets": targets,
+        "consumed": consumed,
+        "remaining": remaining,
+        "plans": plans,
+        "portion_note": "Portions and macro amounts are estimates. Confirm each food and serving in Nutrition before logging it.",
+    }
 
 
 @router.get("/grocery-list")
