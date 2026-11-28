@@ -135,14 +135,23 @@ def generate_meal_plan(
 
     def is_allowed(food_name: str) -> bool:
         food = food_name.lower()
+        dairy_terms = ("paneer", "yogurt", "milk", "curd", "whey", "cheese")
+        nut_terms = ("almond", "peanut", "cashew", "walnut", "pistachio", "hazelnut")
+        egg_terms = ("egg",)
+        gluten_terms = ("roti", "chapati", "wheat", "bread")
+        soy_terms = ("tofu", "tempeh", "soy", "soya")
         for term in excluded:
             if term in food:
                 return False
-            if term in {"dairy", "lactose"} and any(word in food for word in ("paneer", "yogurt", "milk", "curd")):
+            if term in {"dairy", "milk", "lactose"} and any(word in food for word in dairy_terms):
                 return False
-            if term in {"nuts", "tree nuts"} and any(word in food for word in ("almond", "peanut", "cashew", "walnut")):
+            if term in {"nuts", "tree nuts", "peanuts"} and any(word in food for word in nut_terms):
                 return False
-            if term in {"egg", "eggs"} and "egg" in food:
+            if term in {"egg", "eggs"} and any(word in food for word in egg_terms):
+                return False
+            if term in {"gluten", "wheat"} and any(word in food for word in gluten_terms):
+                return False
+            if term in {"soy", "soya"} and any(word in food for word in soy_terms):
                 return False
         return True
 
