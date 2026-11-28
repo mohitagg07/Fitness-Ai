@@ -1031,6 +1031,20 @@ export default function CoachScreen() {
               || (missionSummary as any)?.workout_today?.message
               || 'Your coach will update this briefing when your training and recovery data is available.'}
           </Text>
+          {(missionSummary as any)?.workout_today?.rescheduled ? (
+            <View style={S.dailyBriefScheduleNotice}>
+              <Ionicons name="calendar-outline" size={14} color={COLORS.recoveryMed} />
+              <Text style={S.dailyBriefScheduleNoticeText}>
+                This recommendation accounts for a missed session. Your approved weekly schedule has not been changed; any adjustment still needs your approval.
+              </Text>
+            </View>
+          ) : null}
+          {(missionSummary as any)?.proactive_brief?.why_summary ? (
+            <View style={S.dailyBriefWhy}>
+              <Text style={S.dailyBriefWhyLabel}>WHY THIS RECOMMENDATION</Text>
+              <Text style={S.dailyBriefWhyText}>{(missionSummary as any).proactive_brief.why_summary}</Text>
+            </View>
+          ) : null}
 
           <View style={S.dailyBriefSchedule}>
             <View style={S.dailyBriefScheduleIcon}>
@@ -1384,6 +1398,11 @@ const S = StyleSheet.create({
   dailyBriefStatus: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 0.65 },
   dailyBriefTitle: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 23, lineHeight: 28, letterSpacing: -0.45 },
   dailyBriefMessage: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 12, lineHeight: 19 },
+  dailyBriefScheduleNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, borderRadius: 12, backgroundColor: alpha(COLORS.recoveryMed, 0.08), borderWidth: 1, borderColor: alpha(COLORS.recoveryMed, 0.2) },
+  dailyBriefScheduleNoticeText: { flex: 1, color: COLORS.recoveryMed, fontFamily: FONTS.regular, fontSize: 10, lineHeight: 15 },
+  dailyBriefWhy: { gap: 4, paddingTop: 2 },
+  dailyBriefWhyLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 0.9 },
+  dailyBriefWhyText: { color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 10, lineHeight: 15 },
   dailyBriefSchedule: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: COLORS.backgroundTop, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, padding: 11, marginTop: 1 },
   dailyBriefScheduleIcon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(COLORS.primaryGreen, 0.12) },
   dailyBriefScheduleLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 0.9 },
