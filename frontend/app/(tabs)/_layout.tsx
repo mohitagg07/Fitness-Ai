@@ -23,9 +23,10 @@ type TabDef = {
 
 const TABS: TabDef[] = [
   { name: 'index', title: 'Home', icon: 'home-outline', activeIcon: 'home' },
-  { name: 'coach', title: 'Coach', icon: 'flash-outline', activeIcon: 'flash' },
+  { name: 'coach', title: 'Coach', icon: 'chatbubble-ellipses-outline', activeIcon: 'chatbubble-ellipses' },
   { name: 'workout', title: 'Train', icon: 'barbell-outline', activeIcon: 'barbell' },
   { name: 'progress', title: 'Progress', icon: 'stats-chart-outline', activeIcon: 'stats-chart' },
+  { name: 'nutrition', title: 'Nutrition', icon: 'nutrition-outline', activeIcon: 'nutrition' },
   { name: 'profile', title: 'Profile', icon: 'person-outline', activeIcon: 'person' },
 ];
 
@@ -265,11 +266,11 @@ export default function TabsLayout() {
         tabBarShowLabel: true,
         tabBarLabelStyle: {
           fontFamily: FONTS.semibold,
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: '600',
-          letterSpacing: 0.15,
-          marginTop: 1,
-          lineHeight: 14,
+          letterSpacing: 0.1,
+          marginTop: 0,
+          lineHeight: 12,
         },
         tabBarHideOnKeyboard: true,
       }}
@@ -280,7 +281,9 @@ export default function TabsLayout() {
           name={tab.name}
           options={{
             title: tab.title,
-            tabBarLabel: tab.title,
+            // Inactive items remain icon-only; the active destination is
+            // named directly under its icon.
+            tabBarLabel: ({ focused }) => focused ? tab.title : '',
             tabBarAccessibilityLabel: tab.title,
             tabBarIcon: ({ color, focused }) => (
               <TabBarIcon tab={tab} color={color} focused={focused} />

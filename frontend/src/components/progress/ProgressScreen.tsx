@@ -138,6 +138,36 @@ function TodayMacros({ todayData }: { todayData: any }) {
         <Text style={styles.remainingLabel}>Remaining:</Text>
         <Text style={styles.remainingVal}>{Math.round(remaining.calories || 0)} kcal · {Math.round(remaining.protein_g || 0)}g protein</Text>
       </View>
+      <View style={styles.waterHeader}>
+        <Text style={styles.remainingLabel}>WATER</Text>
+        <Text style={styles.remainingVal}>{Math.round(consumed.water_ml || 0)} / {Math.round(targets.water_ml || 0)} ml</Text>
+      </View>
+      <View style={styles.waterTrack}>
+        <View style={[styles.waterFill, { width: (Math.min(100, percent(consumed.water_ml || 0, targets.water_ml || 0)) + '%') as any }]} />
+      </View>
+    </View>
+  );
+}
+
+function TodayMeals({ meals }: { meals: any[] }) {
+  const entries = Array.isArray(meals) ? meals : [];
+  return (
+    <View style={styles.mealListCard}>
+      <View style={styles.mealListHeader}>
+        <Text style={styles.sectionLabel}>TODAY'S MEALS</Text>
+        <Text style={styles.mealCount}>{entries.length} logged</Text>
+      </View>
+      {entries.length === 0 ? (
+        <Text style={styles.emptyNote}>Your logged meals will appear here.</Text>
+      ) : entries.slice(0, 8).map((meal, index) => (
+        <View key={meal.id || index} style={styles.mealRow}>
+          <View style={styles.mealCopy}>
+            <Text style={styles.mealName} numberOfLines={1}>{meal.meal_name || 'Meal'}</Text>
+            <Text style={styles.mealMeta}>{Math.round(meal.protein_g || 0)}g protein · {Math.round(meal.carbs_g || 0)}g carbs · {Math.round(meal.fat_g || 0)}g fat</Text>
+          </View>
+          <Text style={styles.mealCalories}>{Math.round(meal.calories || 0)} kcal</Text>
+        </View>
+      ))}
     </View>
   );
 }
@@ -238,12 +268,14 @@ function StreaksRow({ metrics, nutrition }: { metrics: any[]; nutrition: any[] }
   );
 }
 
-export default function ProgressScreen() {
+export default function ProgressScreen({ initialTab = 'body' }: { initialTab?: Tab } = {}) {
+  const isStandaloneNutrition = initialTab === 'nutrition';
   const responsive = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotion();
   const routeParams = useLocalSearchParams<{ tab?: string }>();
   const queryClient = useQueryClient();
+  const isNutritionRoute = routeParams.tab === 'nutrition';
   const [metrics, setMetrics] = useState<any[]>([]);
   const [nutrition, setNutrition] = useState<any[]>([]);
   const [todayData, setTodayData] = useState<any>(null);
@@ -253,7 +285,7 @@ export default function ProgressScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [weightInput, setWeightInput] = useState('');
   const [recoveryInput, setRecoveryInput] = useState('');
-  const [activeTab, setActiveTab] = useState<Tab>(routeParams.tab === 'nutrition' ? 'nutrition' : 'body');
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab === 'nutrition' || isNutritionRoute ? 'nutrition' : 'body');
   const [activeAnalyticsChart, setActiveAnalyticsChart] = useState<AnalyticsChartTab>('heatmap');
   const [analyticsHeatmapRange, setAnalyticsHeatmapRange] = useState<AnalyticsRangeOption>(8);
   const [analyticsBalanceRange, setAnalyticsBalanceRange] = useState<AnalyticsRangeOption>(4);
@@ -375,7 +407,7 @@ export default function ProgressScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={[styles.header, { paddingTop: insets.top + 12 }]}><ProfileAvatar size={38} onPress={() => router.push("/(tabs)/profile")} /><Text style={styles.headerSub}>Progress</Text></View>
+        <View style={[styles.header, { paddingTop: insets.top + 12 }]}><ProfileAvatar size={38} onPress={() => router.push("/(tabs)/profile")} /><Text style={styles.headerSub}>{isStandaloneNutrition ? 'Nutrition' : 'Progress'}</Text></View>
         <ScrollView contentContainerStyle={{ padding: 16 }}>
           <SkeletonCard height={110} /><SkeletonCard height={80} /><SkeletonCard height={160} />
         </ScrollView>
@@ -390,38 +422,40 @@ export default function ProgressScreen() {
       <View style={[styles.header, { paddingTop: insets.top + 15 }]}>
         <View style={styles.headerTopRow}>
           <ProfileAvatar size={38} onPress={() => router.push("/(tabs)/profile")} />
-          <Text style={styles.headerEyebrow}>YOUR PERFORMANCE</Text>
+          <Text style={styles.headerEyebrow}>{isStandaloneNutrition ? 'DAILY INTAKE' : 'YOUR PERFORMANCE'}</Text>
         </View>
-        <Text style={styles.headerSub}>Progress.</Text>
-        <Text style={styles.headerDescription}>Training, nutrition and recovery — tracked over time.</Text>
+        <Text style={styles.headerSub}>{isStandaloneNutrition ? 'Nutrition.' : 'Progress.'}</Text>
+        <Text style={styles.headerDescription}>{isStandaloneNutrition ? 'Log meals and keep daily calories, protein, macros and hydration on target.' : 'Training, nutrition and recovery — tracked over time.'}</Text>
       </View>
 
-      <ScrollView
-        ref={tabBarRef}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={[styles.tabBarScroll, { width: '100%', maxWidth: responsive.pageMaxWidth, alignSelf: 'center' }]}
-        contentContainerStyle={[styles.tabBar, responsive.isTablet && styles.tabBarWide]}
-        keyboardShouldPersistTaps="handled"
-        accessibilityRole="tablist"
-      >
-        {tabs.map((tab) => {
-          const selected = activeTab === tab.key;
-          return (
-            <PressableScale
-              key={tab.key}
-              style={[styles.tab, responsive.isTablet && styles.tabWide, selected && styles.tabActive]}
-              onPress={() => selectTab(tab.key)}
-              accessibilityRole="tab"
-              accessibilityLabel={tab.label + ' progress category'}
-              accessibilityState={{ selected }}
-            >
-              <Ionicons name={tab.icon} size={14} color={selected ? COLORS.primaryGreen : COLORS.textMuted} />
-              <Text style={[styles.tabText, selected && styles.tabTextActive]}>{tab.label}</Text>
-            </PressableScale>
-          );
-        })}
-      </ScrollView>
+      {!isStandaloneNutrition && (
+        <ScrollView
+          ref={tabBarRef}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={[styles.tabBarScroll, { width: '100%', maxWidth: responsive.pageMaxWidth, alignSelf: 'center' }]}
+          contentContainerStyle={[styles.tabBar, responsive.isTablet && styles.tabBarWide]}
+          keyboardShouldPersistTaps="handled"
+          accessibilityRole="tablist"
+        >
+          {tabs.map((tab) => {
+            const selected = activeTab === tab.key;
+            return (
+              <PressableScale
+                key={tab.key}
+                style={[styles.tab, responsive.isTablet && styles.tabWide, selected && styles.tabActive]}
+                onPress={() => selectTab(tab.key)}
+                accessibilityRole="tab"
+                accessibilityLabel={tab.label + ' progress category'}
+                accessibilityState={{ selected }}
+              >
+                <Ionicons name={tab.icon} size={14} color={selected ? COLORS.primaryGreen : COLORS.textMuted} />
+                <Text style={[styles.tabText, selected && styles.tabTextActive]}>{tab.label}</Text>
+              </PressableScale>
+            );
+          })}
+        </ScrollView>
+      )}
 
       {!!errorMsg && (
         <View style={styles.errorBanner}>
@@ -433,13 +467,15 @@ export default function ProgressScreen() {
         </View>
       )}
 
-      <View style={styles.sectionIntro}>
-        <View style={styles.sectionIntroMark} />
-        <View style={styles.sectionIntroCopy}>
-          <Text style={styles.sectionIntroTitle}>{sectionContext[activeTab].title}</Text>
-          <Text style={styles.sectionIntroText}>{sectionContext[activeTab].description}</Text>
+      {!isStandaloneNutrition && (
+        <View style={styles.sectionIntro}>
+          <View style={styles.sectionIntroMark} />
+          <View style={styles.sectionIntroCopy}>
+            <Text style={styles.sectionIntroTitle}>{sectionContext[activeTab].title}</Text>
+            <Text style={styles.sectionIntroText}>{sectionContext[activeTab].description}</Text>
+          </View>
         </View>
-      </View>
+      )}
 
       {activeTab === 'review' ? (
         <Reveal key={activeTab} distance={7}><WeeklyReviewScreen /></Reveal>
@@ -499,6 +535,7 @@ export default function ProgressScreen() {
                 <Text style={styles.logFoodBtnText}>ADD FOOD</Text>
               </PressableScale>
               <TodayMacros todayData={todayData} />
+              <TodayMeals meals={todayData?.meals_today || []} />
               <CaloriesChart history={nutrition} targetCal={targetCal} />
               <ProteinAdherenceBar history={nutrition} />
               {nutrition.length === 0 && (
@@ -583,6 +620,17 @@ const styles = StyleSheet.create({
   remainingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 10 },
   remainingLabel: { fontFamily: FONTS.semibold,  color: COLORS.textMuted, fontSize: 11, fontWeight: '600' },
   remainingVal: { fontFamily: FONTS.regular,  color: COLORS.textSecondary, fontSize: 11 },
+  waterHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, marginBottom: 7 },
+  waterTrack: { height: 7, backgroundColor: COLORS.border, borderRadius: 8, overflow: 'hidden' },
+  waterFill: { height: '100%', backgroundColor: COLORS.strain, borderRadius: 8 },
+  mealListCard: { backgroundColor: COLORS.card, borderRadius: 20, padding: 17, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
+  mealListHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
+  mealCount: { color: COLORS.textMuted, fontFamily: FONTS.semibold, fontSize: 11 },
+  mealRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 11, borderTopWidth: 1, borderTopColor: COLORS.border },
+  mealCopy: { flex: 1, minWidth: 0, gap: 3 },
+  mealName: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 13 },
+  mealMeta: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 10 },
+  mealCalories: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 12 },
   statsGrid: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   statCard: { flex: 1, backgroundColor: COLORS.card, borderRadius: 21, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
   statVal: { fontFamily: FONTS.numericSemibold,  color: COLORS.primaryGreen, fontSize: 18, fontWeight: '800' },
