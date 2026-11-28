@@ -9,6 +9,7 @@ let _state = {
   injuries: [] as any[],
   prs: {} as Record<string, number>,
   activeSession: null as any,
+  pendingCoachWorkout: null as any,
   cnsFatigue: 0,
   chatHistory: [] as Array<{
     role: 'user' | 'assistant';
@@ -58,6 +59,7 @@ export const actions = {
       prs: {},
       chatHistory: [],
       activeSession: null,
+      pendingCoachWorkout: null,
       cnsFatigue: 0,
     });
   },
@@ -76,6 +78,7 @@ export const actions = {
     setState({ profile: { ..._state.profile, ...partial } });
   },
   setActiveSession(session: any) { setState({ activeSession: session }); },
+  setPendingCoachWorkout(plan: any | null) { setState({ pendingCoachWorkout: plan }); },
   addLogToSession(log: any) {
     if (!_state.activeSession) return;
     setState({
