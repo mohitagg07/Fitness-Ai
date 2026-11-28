@@ -17,6 +17,9 @@ import PressableScale from '../ui/PressableScale';
 
 export interface WorkoutExerciseDraft {
   name: string;
+  exercise_id?: string | null;
+  equipment_required?: string[];
+  muscle_groups?: string[];
   sets: number;
   reps: string;
   load: string;
@@ -132,8 +135,31 @@ function WorkoutPlanPreview({
                   <View style={styles.orderBadge}>
                     <Text style={styles.orderText}>{String(index + 1).padStart(2, '0')}</Text>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.exerciseName}>{exercise.name}</Text>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <TextInput
+                      value={exercise.name}
+                      onChangeText={(value) => patchExercise(index, {
+                        name: value,
+                        exercise_id: null,
+                        equipment_required: [],
+                        muscle_groups: [],
+                      })}
+                      style={styles.exerciseNameInput}
+                      placeholder="Exercise name"
+                      placeholderTextColor={COLORS.textDim}
+                      maxLength={120}
+                      accessibilityLabel={`Exercise ${index + 1} name`}
+                    />
+                    {!!exercise.muscle_groups?.length && (
+                      <Text style={styles.exerciseMeta}>
+                        {exercise.muscle_groups.join(' · ')}
+                      </Text>
+                    )}
+                    {!!exercise.equipment_required?.length && (
+                      <Text style={styles.exerciseMeta}>
+                        Equipment · {exercise.equipment_required.join(', ')}
+                      </Text>
+                    )}
                     {!!exercise.cue && <Text style={styles.cue}>{exercise.cue}</Text>}
                   </View>
                   <View style={styles.orderActions}>
@@ -384,6 +410,8 @@ const styles = StyleSheet.create({
   orderBadge: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.cardElevated },
   orderText: { color: COLORS.primaryGreen, fontFamily: FONTS.numericBold, fontSize: 10 },
   exerciseName: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 13 },
+  exerciseNameInput: { color: COLORS.text, fontFamily: FONTS.semibold, fontSize: 13, paddingVertical: 3, paddingHorizontal: 0, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  exerciseMeta: { ...BODY, color: COLORS.textDim, fontSize: 9, lineHeight: 13, marginTop: 3, textTransform: 'capitalize' },
   cue: { ...BODY, color: COLORS.textMuted, fontSize: 10, lineHeight: 15, marginTop: 3 },
   orderActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   iconButton: { minWidth: 27, minHeight: 27, alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: COLORS.cardElevated },
