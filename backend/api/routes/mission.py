@@ -378,7 +378,6 @@ async def get_today_mission(
         # field names that dashboard/summary returns, or recovery rings / macros
         # show 0 / undefined silently.
         "mission_text":        next_action,
-        "training_time":       training_time,
         "next_task":           next_action,
         "calories_remaining":  calories_remaining,
         "protein_remaining_g": round(protein_remaining, 1),
