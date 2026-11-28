@@ -11,7 +11,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  ActivityIndicator, Switch, Alert,
+  ActivityIndicator, Switch, Alert, TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -43,6 +43,8 @@ export default function CoachMemoryModal({ visible, onClose }: { visible: boolea
   const [memoryFacts, setMemoryFacts] = useState<Array<{ id: string; fact: string; category: string }>>([]);
   const [autoMemoryEnabled, setAutoMemoryEnabled] = useState(false);
   const [savingPreference, setSavingPreference] = useState(false);
+  const [memoryDraft, setMemoryDraft] = useState('');
+  const [savingMemory, setSavingMemory] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -80,6 +82,24 @@ export default function CoachMemoryModal({ visible, onClose }: { visible: boolea
       Alert.alert('Could not update memory preference', describeApiError(err).message);
     } finally {
       setSavingPreference(false);
+    }
+  };
+
+  const saveManualMemory = async () => {
+    const fact = memoryDraft.trim();
+    if (fact.length < 3 || savingMemory) return;
+    setSavingMemory(true);
+    try {
+      const result = await memoryApi.add(fact);
+      setMemoryFacts((current) => [
+        ...current,
+        { id: result.data.id, fact: result.data.fact, category: result.data.category || 'general' },
+      ]);
+      setMemoryDraft('');
+    } catch (err: any) {
+      Alert.alert('Could not save memory', describeApiError(err).message);
+    } finally {
+      setSavingMemory(false);
     }
   };
 
@@ -182,6 +202,29 @@ export default function CoachMemoryModal({ visible, onClose }: { visible: boolea
                 <Text style={styles.emptyHint}>No injuries on file — the coach will train you at full intensity.</Text>
               </View>
             )}
+
+            <SectionLabel text="ADD A MEMORY" />
+            <View style={styles.card}>
+              <TextInput
+                value={memoryDraft}
+                onChangeText={setMemoryDraft}
+                placeholder="Example: I prefer training in the evening."
+                placeholderTextColor={COLORS.textMuted}
+                maxLength={500}
+                multiline
+                textAlignVertical="top"
+                style={styles.memoryInput}
+                accessibilityLabel="Write a fact for your coach to remember"
+              />
+              <TouchableOpacity
+                onPress={saveManualMemory}
+                disabled={savingMemory || memoryDraft.trim().length < 3}
+                style={[styles.saveMemoryButton, (savingMemory || memoryDraft.trim().length < 3) && { opacity: 0.45 }]}
+                accessibilityRole="button"
+              >
+                <Text style={styles.saveMemoryText}>{savingMemory ? 'Saving…' : 'Save memory'}</Text>
+              </TouchableOpacity>
+            </View>
 
             <SectionLabel text={`STORED MEMORIES (${memoryCount})`} />
             {memoryCount > 0 ? (
@@ -294,5 +337,8 @@ const styles = StyleSheet.create({
   },
   freeformText: { flex: 1, color: COLORS.textSecondary, fontSize: 12.5, lineHeight: 18 },
   memoryCategory: { color: COLORS.textMuted, fontSize: 10, marginTop: 4 },
+  memoryInput: { minHeight: 76, color: COLORS.text, fontSize: 13, lineHeight: 19, paddingHorizontal: 10, paddingVertical: 9 },
+  saveMemoryButton: { alignSelf: 'flex-end', backgroundColor: COLORS.primaryGreen, borderRadius: 9, paddingHorizontal: 14, paddingVertical: 9, marginHorizontal: 8, marginBottom: 8 },
+  saveMemoryText: { color: COLORS.background, fontSize: 12, fontWeight: '700' },
   forgetButton: { padding: 6, marginLeft: 4 },
 });
