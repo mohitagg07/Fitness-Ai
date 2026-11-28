@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 MEMORY_COLLECTION_NAME = "vyrn_user_memory"
+MEMORY_SETTINGS_COLLECTION_NAME = "vyrn_user_memory_settings"
 
 
 def _is_stale_collection_error(e: Exception) -> bool:
@@ -136,6 +137,36 @@ def get_memory_collection():
             logger.warning(f"Memory collection probe warning: {e}")
 
     return collection
+
+
+@lru_cache()
+def get_memory_settings_collection():
+    """Separate per-user settings store; settings never enter semantic memory recall."""
+    return get_memory_chroma_client().get_or_create_collection(
+        name=MEMORY_SETTINGS_COLLECTION_NAME,
+        embedding_function=LocalHashEmbeddingFunction(),
+        metadata={"hnsw:space": "cosine"},
+    )
+
+
+def get_auto_memory_enabled(user_id: str) -> bool:
+    """Automatic fact extraction is opt-in and defaults off for new users."""
+    try:
+        result = get_memory_settings_collection().get(ids=[user_id], include=["metadatas"])
+        metadata = (result.get("metadatas") or [None])[0] or {}
+        return bool(metadata.get("auto_memory_enabled", False))
+    except Exception as exc:
+        logger.warning("Could not read memory preference for user %s (%s)", user_id, type(exc).__name__)
+        return False
+
+
+def set_auto_memory_enabled(user_id: str, enabled: bool) -> None:
+    """Persist a user's explicit choice without requiring a Supabase migration."""
+    get_memory_settings_collection().upsert(
+        ids=[user_id],
+        documents=[f"Automatic coach memory extraction: {'enabled' if enabled else 'disabled'}"],
+        metadatas=[{"user_id": user_id, "auto_memory_enabled": bool(enabled)}],
+    )
 
 
 def remember(user_id: str, fact: str, category: str = "general") -> str | None:
