@@ -182,3 +182,106 @@ def test_langgraph_executes_a_requested_tool_and_returns_its_result(monkeypatch)
     assert result["tool_rounds"] == 1
     assert "sessions" in result["findings"][0]["result"]
     assert "two sessions" in result["research_note"]
+
+def test_recent_workout_tool_excludes_drafts_and_future_sessions(monkeypatch):
+    class Query:
+        def __init__(self, table_name):
+            self.table_name = table_name
+            self.filters = []
+        def select(self, *_args, **_kwargs):
+            return self
+        def eq(self, key, value):
+            self.filters.append(("eq", key, value))
+            return self
+        def gte(self, key, value):
+            self.filters.append(("gte", key, value))
+            return self
+        def lte(self, key, value):
+            self.filters.append(("lte", key, value))
+            return self
+        def in_(self, key, values):
+            self.filters.append(("in", key, values))
+            return self
+        def order(self, *_args, **_kwargs):
+            return self
+        def limit(self, *_args, **_kwargs):
+            return self
+        def execute(self):
+            if self.table_name == "workout_sessions":
+                return SimpleNamespace(data=[{
+                    "id": "session-1",
+                    "session_date": "2026-11-20",
+                    "status": "completed",
+                    "completed": True,
+                }])
+            return SimpleNamespace(data=[{
+                "session_id": "session-1",
+                "exercise_name": "Squat",
+                "weight_kg": 60,
+                "reps": 8,
+                "rpe": 8,
+                "is_warmup": False,
+            }])
+
+    class Supabase:
+        def __init__(self):
+            self.queries = {}
+        def table(self, name):
+            query = Query(name)
+            self.queries[name] = query
+            return query
+
+    client = Supabase()
+    monkeypatch.setattr("agents.coach_tools.get_supabase", lambda: client)
+    tool = next(t for t in build_coach_tools("athlete-123") if t.name == "get_recent_workouts")
+    result = json.loads(tool.invoke({"days": 7, "limit": 8}))
+
+    session_filters = client.queries["workout_sessions"].filters
+    assert ("eq", "user_id", "athlete-123") in session_filters
+    assert any(item[0:2] == ("in", "status") and "draft" not in item[2] for item in session_filters)
+    assert any(item[0:2] == ("lte", "session_date") for item in session_filters)
+    assert result["count"] == 1
+    assert result["exercise_logs"][0]["exercise_name"] == "Squat"
+
+
+def test_recovery_tool_uses_local_date_window_and_user_scope(monkeypatch):
+    class Query:
+        def __init__(self):
+            self.filters = []
+        def select(self, *_args, **_kwargs):
+            return self
+        def eq(self, key, value):
+            self.filters.append(("eq", key, value))
+            return self
+        def gte(self, key, value):
+            self.filters.append(("gte", key, value))
+            return self
+        def lte(self, key, value):
+            self.filters.append(("lte", key, value))
+            return self
+        def order(self, *_args, **_kwargs):
+            return self
+        def limit(self, *_args, **_kwargs):
+            return self
+        def execute(self):
+            return SimpleNamespace(data=[])
+
+    class Supabase:
+        def __init__(self):
+            self.query = Query()
+        def table(self, name):
+            assert name == "recovery_checkins"
+            return self.query
+
+    client = Supabase()
+    monkeypatch.setattr("agents.coach_tools.get_supabase", lambda: client)
+    tool = next(t for t in build_coach_tools(
+        "athlete-123",
+        profile={"timezone": "Asia/Kolkata"},
+    ) if t.name == "get_recovery_checkins")
+    result = json.loads(tool.invoke({"days": 7}))
+
+    assert ("eq", "user_id", "athlete-123") in client.query.filters
+    assert any(item[0:2] == ("gte", "local_date") for item in client.query.filters)
+    assert any(item[0:2] == ("lte", "local_date") for item in client.query.filters)
+    assert result["source_type"] == "athlete_reported"
