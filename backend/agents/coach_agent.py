@@ -820,14 +820,9 @@ Hard limits:
         "tool_rounds": min(3, max(0, int(activity.get("tool_rounds") or 0))),
     }
 
-    # FIX: workout_blocks was unconditionally set to None here, which meant
-    # coach.py's _persist_coach_plan() — gated on `if blocks:` — never ran.
-    # Every workout the coach generated in chat lived only in this turn's
-    # reply; workout_plans (which the dashboard's "Today's Workout" card and
-    # workout_agent.py both read) was never updated, so the dashboard stayed
-    # on "NO PLAN YET" forever even right after the coach built a plan.
-    # Now: whenever the coach actually produced a workout_plan with real
-    # exercises, we pass that along so it gets written to workout_plans.
+    # Keep the structured proposal in this turn's response for the UI.
+    # The chat endpoint does not activate it: the athlete must explicitly
+    # save a validated draft and approve its version through the plan API.
     if decision.get("response_type") == "workout_plan" and decision.get("exercises"):
         state["workout_blocks"] = {
             "type": decision.get("workout_type"),
