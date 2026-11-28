@@ -114,6 +114,7 @@ def test_recent_sharp_pain_overrides_a_favourable_readiness_score(monkeypatch):
     )
     monkeypatch.setattr(recovery_agent, "_last_explicit_cns_fatigue", lambda _user_id: 1)
     monkeypatch.setattr(recovery_agent, "_latest_post_session_feedback", lambda *_args: None)
+    monkeypatch.setattr(recovery_agent, "_sessions_last_7_days", lambda *_args: 3)
     monkeypatch.setattr(
         recovery_agent,
         "_latest_reported_session_pain",
@@ -199,6 +200,7 @@ def test_recent_post_workout_energy_and_effort_feed_next_recovery_estimate(monke
     monkeypatch.setattr(recovery_agent, "_recent_rpe_stats", lambda *_args: (6.0, 0))
     monkeypatch.setattr(recovery_agent, "_last_explicit_cns_fatigue", lambda _user_id: 7)
     monkeypatch.setattr(recovery_agent, "_latest_reported_session_pain", lambda *_args: None)
+    monkeypatch.setattr(recovery_agent, "_sessions_last_7_days", lambda *_args: 3)
 
     result = recovery_agent.run_recovery_agent(
         "u1",
