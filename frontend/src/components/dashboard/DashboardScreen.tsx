@@ -44,6 +44,28 @@ interface DashboardSummary {
     rescheduled?: boolean;
     message?: string;
   };
+  last_completed_session?: {
+    id?: string;
+    session_date?: string | null;
+    workout_type?: string | null;
+    day_label?: string | null;
+    total_volume_kg?: number | null;
+    duration_minutes?: number | null;
+    session_effort?: number | null;
+    energy_level?: number | null;
+    pain_status?: 'none' | 'mild' | 'sharp' | 'worsening' | null;
+    planned_vs_actual?: {
+      completed_working_sets?: number;
+      planned_working_sets?: number;
+      skipped_exercises?: number;
+      replaced_exercises?: number;
+    } | null;
+    previous_comparable_session?: {
+      volume_delta_kg?: number | null;
+      volume_delta_pct?: number | null;
+    } | null;
+    coach_message?: string | null;
+  } | null;
   recovery?: {
     score?: number | null;
     score_pct?: number | null;
@@ -67,6 +89,19 @@ interface DashboardSummary {
     suggested_top_set?: string | null;
   };
 
+}
+
+function describeSessionVolumeChange(comparison: DashboardSummary['last_completed_session'] extends infer T ? any : never): string | null {
+  const delta = comparison?.volume_delta_kg;
+  if (typeof delta !== 'number' || !Number.isFinite(delta)) return null;
+  if (delta === 0) return 'Working-set volume matched your previous comparable session.';
+  const magnitude = Math.abs(delta).toLocaleString('en-IN');
+  const percent = typeof comparison.volume_delta_pct === 'number'
+    ? ` (${Math.abs(comparison.volume_delta_pct)}%)`
+    : '';
+  return delta > 0
+    ? `Working-set volume was up ${magnitude}kg${percent} vs your previous comparable session.`
+    : `Working-set volume was down ${magnitude}kg${percent} vs your previous comparable session.`;
 }
 
 function QuickAction({
@@ -409,6 +444,84 @@ export default function DashboardScreen() {
           </View>
         </View>
 
+        {summary?.last_completed_session ? (
+          <View style={styles.lastSessionCard}>
+            <View style={styles.lastSessionTop}>
+              <View style={styles.lastSessionIcon}>
+                <Ionicons name="barbell-outline" size={17} color={COLORS.primaryGreen} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.lastSessionEyebrow}>LAST COMPLETED SESSION</Text>
+                <Text style={styles.lastSessionTitle}>
+                  {(summary.last_completed_session.day_label
+                    || summary.last_completed_session.workout_type
+                    || 'Training session').replace(/_/g, ' ')}
+                </Text>
+                <Text style={styles.lastSessionDate}>
+                  {summary.last_completed_session.session_date || 'Date unavailable'}
+                </Text>
+              </View>
+              <PressableScale
+                onPress={() => router.push('/(tabs)/workout')}
+                style={styles.lastSessionOpen}
+                accessibilityRole="button"
+                accessibilityLabel="Open Train"
+              >
+                <Ionicons name="arrow-up-right-box" size={16} color={COLORS.textSecondary} />
+              </PressableScale>
+            </View>
+            <View style={styles.lastSessionStats}>
+              <View style={styles.lastSessionStat}>
+                <Text style={styles.lastSessionValue}>
+                  {summary.last_completed_session.total_volume_kg == null
+                    ? '—'
+                    : `${Math.round(summary.last_completed_session.total_volume_kg).toLocaleString('en-IN')} kg`}
+                </Text>
+                <Text style={styles.lastSessionLabel}>WORKING VOLUME</Text>
+              </View>
+              <View style={styles.lastSessionStatDivider} />
+              <View style={styles.lastSessionStat}>
+                <Text style={styles.lastSessionValue}>
+                  {summary.last_completed_session.duration_minutes == null
+                    ? '—'
+                    : `${summary.last_completed_session.duration_minutes} min`}
+                </Text>
+                <Text style={styles.lastSessionLabel}>DURATION</Text>
+              </View>
+              {summary.last_completed_session.planned_vs_actual ? (
+                <>
+                  <View style={styles.lastSessionStatDivider} />
+                  <View style={styles.lastSessionStat}>
+                    <Text style={styles.lastSessionValue}>
+                      {summary.last_completed_session.planned_vs_actual.completed_working_sets ?? '—'}
+                      /
+                      {summary.last_completed_session.planned_vs_actual.planned_working_sets ?? '—'}
+                    </Text>
+                    <Text style={styles.lastSessionLabel}>SETS DONE</Text>
+                  </View>
+                </>
+              ) : null}
+            </View>
+            {describeSessionVolumeChange(summary.last_completed_session.previous_comparable_session) ? (
+              <View style={styles.lastSessionComparison}>
+                <Ionicons name="git-compare-outline" size={13} color={COLORS.strain} />
+                <Text style={styles.lastSessionComparisonText}>
+                  {describeSessionVolumeChange(summary.last_completed_session.previous_comparable_session)}
+                </Text>
+              </View>
+            ) : null}
+            {summary.last_completed_session.pain_status === 'sharp'
+              || summary.last_completed_session.pain_status === 'worsening' ? (
+              <View style={styles.lastSessionPain}>
+                <Ionicons name="alert-circle-outline" size={14} color={COLORS.recoveryLow} />
+                <Text style={styles.lastSessionPainText}>
+                  Your last check-in reported {summary.last_completed_session.pain_status} pain. Coach has carried this into today's guidance.
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
         <View style={styles.sectionHeading}>
           <View>
             <Text style={styles.sectionEyebrow}>QUICK ACTIONS</Text>
@@ -543,6 +656,22 @@ const styles = StyleSheet.create({
   snapshotLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 0.75 },
   snapshotDivider: { width: 1, height: 48, backgroundColor: COLORS.border },
   coachReason: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 10, lineHeight: 15, marginTop: 9 },
+  lastSessionCard: { marginBottom: 23, padding: 15, borderRadius: 22, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.borderLight, gap: 12 },
+  lastSessionTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  lastSessionIcon: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(COLORS.primaryGreen, 0.12), borderWidth: 1, borderColor: alpha(COLORS.primaryGreen, 0.2) },
+  lastSessionEyebrow: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1 },
+  lastSessionTitle: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 15, marginTop: 2, textTransform: 'capitalize' },
+  lastSessionDate: { color: COLORS.textMuted, fontFamily: FONTS.regular, fontSize: 9, marginTop: 2 },
+  lastSessionOpen: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: alpha(COLORS.text, 0.05) },
+  lastSessionStats: { flexDirection: 'row', alignItems: 'center', paddingVertical: 3 },
+  lastSessionStat: { flex: 1, gap: 4 },
+  lastSessionValue: { color: COLORS.text, fontFamily: FONTS.numericSemibold, fontSize: 15 },
+  lastSessionLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 0.7 },
+  lastSessionStatDivider: { width: 1, height: 29, backgroundColor: COLORS.border, marginHorizontal: 10 },
+  lastSessionComparison: { flexDirection: 'row', alignItems: 'flex-start', gap: 7, borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 10 },
+  lastSessionComparisonText: { flex: 1, color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 10, lineHeight: 15 },
+  lastSessionPain: { flexDirection: 'row', alignItems: 'flex-start', gap: 7, padding: 9, backgroundColor: alpha(COLORS.recoveryLow, 0.08), borderRadius: 11 },
+  lastSessionPainText: { flex: 1, color: COLORS.recoveryLow, fontFamily: FONTS.medium, fontSize: 10, lineHeight: 15 },
   readinessPanel: {
     borderRadius: 28,
     backgroundColor: COLORS.card,
