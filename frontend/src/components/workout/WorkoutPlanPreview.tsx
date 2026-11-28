@@ -43,6 +43,10 @@ interface Props {
   saving: boolean;
   reason?: string;
   muscleGroups?: string[];
+  warmupNotes?: string;
+  cooldownNotes?: string;
+  onWarmupNotesChange?: (value: string) => void;
+  onCooldownNotesChange?: (value: string) => void;
 }
 
 function WorkoutPlanPreview({
@@ -57,6 +61,10 @@ function WorkoutPlanPreview({
   saving,
   reason,
   muscleGroups,
+  warmupNotes,
+  cooldownNotes,
+  onWarmupNotesChange,
+  onCooldownNotesChange,
 }: Props) {
   const [newExerciseName, setNewExerciseName] = useState('');
 
@@ -129,6 +137,31 @@ function WorkoutPlanPreview({
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
+            <View style={styles.sessionNotesCard}>
+              <Text style={styles.sessionNotesTitle}>SESSION PREPARATION</Text>
+              <Text style={styles.sessionNotesLabel}>WARM-UP</Text>
+              <TextInput
+                value={warmupNotes || ''}
+                onChangeText={onWarmupNotesChange}
+                style={styles.sessionNotesInput}
+                placeholder="Mobility, ramp-up sets or preparation notes"
+                placeholderTextColor={COLORS.textDim}
+                multiline
+                maxLength={1000}
+                accessibilityLabel="Warm-up instructions"
+              />
+              <Text style={styles.sessionNotesLabel}>COOL-DOWN</Text>
+              <TextInput
+                value={cooldownNotes || ''}
+                onChangeText={onCooldownNotesChange}
+                style={styles.sessionNotesInput}
+                placeholder="Cool-down or recovery notes"
+                placeholderTextColor={COLORS.textDim}
+                multiline
+                maxLength={1000}
+                accessibilityLabel="Cool-down instructions"
+              />
+            </View>
             {exercises.map((exercise, index) => (
               <View key={index} style={styles.exerciseCard}>
                 <View style={styles.exerciseTop}>
@@ -402,6 +435,10 @@ const styles = StyleSheet.create({
   planMeta: { ...EYEBROW, color: COLORS.textMuted, fontSize: 10, letterSpacing: 0.7 },
   scroll: { flexGrow: 0, flexShrink: 1 },
   list: { paddingBottom: SPACING.md, gap: SPACING.md },
+  sessionNotesCard: { padding: SPACING.md, borderRadius: RADIUS.card, backgroundColor: COLORS.cardElevated, borderWidth: 1, borderColor: COLORS.border, gap: 7 },
+  sessionNotesTitle: { ...EYEBROW, color: COLORS.primaryGreen, fontSize: 9, letterSpacing: 1.1 },
+  sessionNotesLabel: { ...EYEBROW, color: COLORS.textMuted, fontSize: 8, letterSpacing: 0.8, marginTop: 3 },
+  sessionNotesInput: { minHeight: 42, color: COLORS.text, fontFamily: FONTS.regular, fontSize: 11, lineHeight: 16, textAlignVertical: 'top', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.background },
   exerciseCard: {
     padding: SPACING.md, borderRadius: RADIUS.card, backgroundColor: COLORS.card,
     borderWidth: 1, borderColor: COLORS.border,
