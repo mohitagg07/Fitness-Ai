@@ -324,6 +324,20 @@ export default function DashboardScreen() {
                   || summary?.workout_today?.message
                   || 'Your coach is reviewing your training history and readiness.'}
               </Text>
+              {summary?.workout_today?.rescheduled ? (
+                <View style={styles.heroScheduleNotice}>
+                  <Ionicons name="calendar-outline" size={13} color="#FFFFFF" />
+                  <Text style={styles.heroScheduleNoticeText}>
+                    Missed-session adjustment suggested. Your approved weekly schedule remains unchanged until you approve a change.
+                  </Text>
+                </View>
+              ) : null}
+              {summary?.proactive_brief?.why_summary ? (
+                <View style={styles.heroWhy}>
+                  <Text style={styles.heroWhyLabel}>WHY THIS RECOMMENDATION</Text>
+                  <Text style={styles.heroWhyText}>{summary.proactive_brief.why_summary}</Text>
+                </View>
+              ) : null}
             </View>
 
             <View style={styles.heroMetaRow}>
@@ -660,6 +674,11 @@ const styles = StyleSheet.create({
   heroKicker: { fontFamily: FONTS.bold, color: COLORS.primaryGreen, fontSize: 10, letterSpacing: 1.7, marginBottom: 8 },
   heroTitle: { fontFamily: FONTS.numericBold, color: '#FFFFFF', fontSize: 35, lineHeight: 39, letterSpacing: -1.1, marginBottom: 9 },
   heroDescription: { fontFamily: FONTS.medium, color: 'rgba(255,255,255,0.86)', fontSize: 12, lineHeight: 19, maxWidth: 320 },
+  heroScheduleNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 7, padding: 9, marginTop: 11, borderRadius: 11, backgroundColor: 'rgba(5,9,13,0.66)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)' },
+  heroScheduleNoticeText: { flex: 1, color: 'rgba(255,255,255,0.88)', fontFamily: FONTS.regular, fontSize: 9, lineHeight: 14 },
+  heroWhy: { marginTop: 11, gap: 3 },
+  heroWhyLabel: { color: COLORS.primaryGreen, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1 },
+  heroWhyText: { color: 'rgba(255,255,255,0.8)', fontFamily: FONTS.regular, fontSize: 10, lineHeight: 15 },
   heroMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingTop: 17 },
   heroMeta: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 },
   heroMetaCopy: { flex: 1, minWidth: 0 },
