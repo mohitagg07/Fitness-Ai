@@ -47,6 +47,7 @@ from agents.motivation_agent import get_daily_motivation
 from agents.pattern_engine import run_pattern_engine
 from agents.coach_brain import generate_proactive_brief
 from agents.consistency_agent import run_consistency_agent
+from services.calendar_intelligence import get_typical_schedule
 import logging
 
 logger = logging.getLogger(__name__)
@@ -73,13 +74,42 @@ _TRAINING_WINDOWS = {
 }
 
 
-def _build_training_window(profile: dict) -> dict:
-    """Translate a broad profile preference into a suggested local window.
+def _build_training_window(
+    profile: dict,
+    typical_schedule: dict | None = None,
+    local_datetime: datetime | None = None,
+) -> dict:
+    """Prefer a time learned from completed sessions; otherwise use profile preference.
 
-    This is deliberately not represented as an exact appointment. Exact
-    session times require an explicit time selection or reliable local-time
-    training history, neither of which is stored in the current profile.
+    Historical timestamps are stored in UTC. Convert the learned UTC hour with
+    the caller's local UTC offset, then label it as a usual start time rather
+    than an appointment. A profile preference is only a broad window.
     """
+    current_local = local_datetime or datetime.now().astimezone()
+    today_name = current_local.strftime("%A")
+    schedule = (typical_schedule or {}).get("days") or {}
+    learned = schedule.get(today_name)
+
+    if learned and isinstance(learned.get("typical_hour"), int):
+        offset = current_local.utcoffset()
+        offset_minutes = int(offset.total_seconds() // 60) if offset else 0
+        local_minutes = (int(learned["typical_hour"]) * 60 + offset_minutes) % (24 * 60)
+        local_hour, local_minute = divmod(local_minutes, 60)
+        clock = f"{(local_hour % 12) or 12}:{local_minute:02d} {'AM' if local_hour < 12 else 'PM'}"
+        period = "morning" if local_hour < 12 else "afternoon" if local_hour < 17 else "evening"
+        return {
+            "period": period,
+            "label": "Usual start time",
+            "display_label": clock,
+            "source": "training_history",
+            "is_exact": False,
+            "typical_sessions": int(learned.get("sessions") or 0),
+            "note": (
+                f"Estimated from {int(learned.get('sessions') or 0)} completed sessions "
+                f"on {today_name}; actual start time can vary."
+            ),
+        }
+
     preference = str(profile.get("workout_time_preference") or "").strip().lower()
     window = _TRAINING_WINDOWS.get(preference)
     if not window:
@@ -234,7 +264,8 @@ async def get_today_mission(
     }
     food_pref = profile.get("food_preference") or "non-veg"
     coach_style = profile.get("coach_style") or "friendly"
-    training_time = _build_training_window(profile)
+    typical_schedule = await asyncio.to_thread(get_typical_schedule, user_id)
+    training_time = _build_training_window(profile, typical_schedule, local_datetime)
 
     training_day = is_training_day_for_user(user_id, target_date=target_day)
 
