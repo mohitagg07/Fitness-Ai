@@ -302,7 +302,7 @@ function ProgressHubCard({
   );
 }
 
-export default function ProgressScreen({ initialTab = 'overview' }: { initialTab?: Tab } = {}) {
+export default function ProgressScreen({ initialTab = 'overview', initialOpenFood = false }: { initialTab?: Tab; initialOpenFood?: boolean } = {}) {
   const isStandaloneNutrition = initialTab === 'nutrition';
   const responsive = useResponsiveLayout();
   const insets = useSafeAreaInsets();
@@ -323,7 +323,7 @@ export default function ProgressScreen({ initialTab = 'overview' }: { initialTab
   const [activeAnalyticsChart, setActiveAnalyticsChart] = useState<AnalyticsChartTab>('heatmap');
   const [analyticsHeatmapRange, setAnalyticsHeatmapRange] = useState<AnalyticsRangeOption>(8);
   const [analyticsBalanceRange, setAnalyticsBalanceRange] = useState<AnalyticsRangeOption>(4);
-  const [logFoodVisible, setLogFoodVisible] = useState(false);
+  const [logFoodVisible, setLogFoodVisible] = useState(initialOpenFood);
   const tabBarRef = useRef<ScrollView | null>(null);
 
   useEffect(() => {
