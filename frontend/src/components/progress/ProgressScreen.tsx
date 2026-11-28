@@ -238,7 +238,7 @@ function StreaksRow({ metrics, nutrition }: { metrics: any[]; nutrition: any[] }
   );
 }
 
-export default function ProgressScreen() {
+export default function ProgressScreen({ initialTab = 'body' }: { initialTab?: Tab } = {}) {
   const responsive = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotion();
@@ -254,7 +254,7 @@ export default function ProgressScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [weightInput, setWeightInput] = useState('');
   const [recoveryInput, setRecoveryInput] = useState('');
-  const [activeTab, setActiveTab] = useState<Tab>(isNutritionRoute ? 'nutrition' : 'body');
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab === 'nutrition' || isNutritionRoute ? 'nutrition' : 'body');
   const [activeAnalyticsChart, setActiveAnalyticsChart] = useState<AnalyticsChartTab>('heatmap');
   const [analyticsHeatmapRange, setAnalyticsHeatmapRange] = useState<AnalyticsRangeOption>(8);
   const [analyticsBalanceRange, setAnalyticsBalanceRange] = useState<AnalyticsRangeOption>(4);
