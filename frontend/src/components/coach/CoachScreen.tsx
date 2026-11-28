@@ -11,7 +11,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  View, Text, TextInput,
+  View, Text, TextInput, Linking,
   StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
   Alert, ScrollView, Animated, Easing,
 } from 'react-native';
@@ -43,11 +43,17 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 // 🟣 coach/health) instead of every icon defaulting to green — green
 // should mean "recovery is good," not "this is a button."
 const SUGGESTIONS = [
-  { icon: 'barbell-outline', title: "Build today's workout", description: 'Get a session matched to your goal and training history.', prompt: "What's my workout today?", color: COLORS.gold },
-  { icon: 'time-outline', title: 'Fit training into my day', description: 'Adjust the session to the time and equipment I have.', prompt: 'I only have 30 minutes today. Build a focused workout for me.', color: COLORS.strain },
-  { icon: 'pulse-outline', title: 'Understand my recovery', description: 'See how hard I should train today and what to prioritise.', prompt: "How is my recovery looking, and how should I train today?", color: COLORS.recoveryHigh },
-  { icon: 'fitness-outline', title: 'Improve my next set', description: 'Get practical feedback on load, reps and effort.', prompt: 'Help me assess my last working set and choose a sensible next set.', color: COLORS.coachPurple },
-  { icon: 'nutrition-outline', title: 'Plan my nutrition', description: 'Make calories and protein easier to hit today.', prompt: 'Help me plan today’s food to meet my calorie and protein targets.', color: COLORS.protein },
+  { icon: 'barbell-outline', title: "Build today's workout", description: 'Use my goal, schedule, equipment and training history.', prompt: "What's my workout today?", color: COLORS.gold },
+  { icon: 'time-outline', title: 'Fit training into my day', description: 'Adjust a session to my available time and equipment.', prompt: 'I only have 30 minutes today. Build a focused workout for me.', color: COLORS.strain },
+  { icon: 'body-outline', title: 'Muscle gain & strength', description: 'Understand weekly training volume and progression.', prompt: 'Help me build muscle and improve strength. What should I focus on?', color: COLORS.recoveryHigh },
+  { icon: 'walk-outline', title: 'Fat loss & activity', description: 'Plan sustainable training and activity habits.', prompt: 'Help me improve body composition using my actual progress data.', color: COLORS.coachPurple },
+  { icon: 'fitness-outline', title: 'Exercise technique', description: 'Get cues for a specific movement or sticking point.', prompt: 'Help me understand the technique for my next exercise.', color: COLORS.strainGlow },
+  { icon: 'nutrition-outline', title: 'Nutrition & protein', description: 'Use my logged meals and dietary preferences.', prompt: 'Review my protein and nutrition progress today.', color: COLORS.protein },
+  { icon: 'water-outline', title: 'Hydration habits', description: 'Review water logging and build practical check-ins.', prompt: 'Help me build a hydration routine that fits my day.', color: COLORS.water },
+  { icon: 'moon-outline', title: 'Sleep & recovery', description: 'Review sleep, fatigue and recovery signals.', prompt: 'How can I improve my sleep and recovery routine?', color: COLORS.recoveryMed },
+  { icon: 'shield-checkmark-outline', title: 'Pain & safe training', description: 'Understand what to pause and when to seek assessment.', prompt: 'I have discomfort during training. Help me understand what information matters and what I should stop doing.', color: COLORS.recoveryLow },
+  { icon: 'trending-up-outline', title: 'Progress & plateaus', description: 'Compare real logged sessions and spot trends.', prompt: 'Review my recent progress and help me understand whether I am plateauing.', color: COLORS.gold },
+  { icon: 'calendar-outline', title: 'Consistency & habits', description: 'Use my schedule and patterns to make a realistic plan.', prompt: 'Help me build a realistic weekly fitness routine around my schedule.', color: COLORS.primaryGreen },
 ];
 
 // ─── Exercise thumbnail visual ─────────────────────────────────────────────
@@ -649,6 +655,26 @@ const CoachMessage = React.memo(function CoachMessage({
     <>
       {coachText ? <Text style={S.messageText}>{coachText}</Text> : null}
       {renderCard()}
+      {Array.isArray(sd?.knowledge_sources) && sd.knowledge_sources.length > 0 && (
+        <View style={S.sourcesBlock}>
+          <Text style={S.sourcesLabel}>EVIDENCE USED</Text>
+          {sd.knowledge_sources.slice(0, 4).map((source: any, index: number) => (
+            <PressableScale
+              key={String(source.url || index)}
+              accessibilityRole="link"
+              onPress={() => {
+                if (typeof source.url === 'string' && source.url.startsWith('https://')) {
+                  void Linking.openURL(source.url).catch(() => undefined);
+                }
+              }}
+              style={S.sourceLink}
+            >
+              <Ionicons name="open-outline" size={12} color={COLORS.primaryGreen} />
+              <Text style={S.sourceText}>{source.title || 'Read source'}</Text>
+            </PressableScale>
+          ))}
+        </View>
+      )}
       {showQuestion && sd?.follow_up_question && (
         <View style={S.questionCard}>
           <Text style={S.questionPrompt}>{sd.follow_up_question}</Text>
@@ -1474,6 +1500,10 @@ const S = StyleSheet.create({
   questionOptions: { gap: 7 },
   questionOption: { minHeight: 43, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 11, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   questionOptionText: { color: COLORS.text, fontFamily: FONTS.medium, fontSize: 12, flex: 1, lineHeight: 17 },
+  sourcesBlock: { marginTop: 10, paddingTop: 9, borderTopWidth: 1, borderTopColor: COLORS.border, gap: 6 },
+  sourcesLabel: { color: COLORS.textMuted, fontFamily: FONTS.bold, fontSize: 8, letterSpacing: 1.1 },
+  sourceLink: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 3 },
+  sourceText: { color: COLORS.primaryGreen, fontFamily: FONTS.medium, fontSize: 10, flex: 1, lineHeight: 15 },
 
   thinkingRow:    { flexDirection: 'row', alignItems: 'center', gap: 10,
                     paddingHorizontal: 20, paddingVertical: 10 },
