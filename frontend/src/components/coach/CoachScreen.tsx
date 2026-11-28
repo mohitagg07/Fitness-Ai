@@ -465,7 +465,9 @@ function NutritionCard({ sd, onOpenNutrition }: { sd: any; onOpenNutrition?: () 
           <Text style={{ color: COLORS.textSecondary, fontFamily: FONTS.regular, fontSize: 11, lineHeight: 17 }}>
             {sd.nutrition_data_unavailable
               ? 'Today’s intake could not be loaded. Open Nutrition to refresh your targets and food log.'
-              : 'Your remaining macro gap does not require another meal suggestion right now.'}
+              : sd.meal_plan_unavailable
+                ? 'Your intake is available, but meal suggestions could not be prepared. Open Nutrition to review your remaining targets.'
+                : 'Your remaining macro gap does not require another meal suggestion right now.'}
           </Text>
         </View>
       )}
