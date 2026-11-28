@@ -1205,13 +1205,11 @@ export default function CoachScreen() {
                   || 'Your coach will update this briefing when your training and recovery data is available.'}
               </Text>
             </View>
-            {chatHistory.length === 0 ? (
-              <View style={S.dailyBriefOrbWrap}>
-                <Suspense fallback={<View style={S.dailyBriefOrbFallback}><ActivityIndicator color={COLORS.coachLavender} /></View>}>
-                  <CoachOrbScene size={118} />
-                </Suspense>
-              </View>
-            ) : null}
+            <View style={S.dailyBriefOrbWrap}>
+              <Suspense fallback={<View style={S.dailyBriefOrbFallback}><ActivityIndicator color={COLORS.coachLavender} /></View>}>
+                <CoachOrbScene size={chatHistory.length === 0 ? 118 : 88} />
+              </Suspense>
+            </View>
           </View>
           {(missionSummary as any)?.workout_today?.rescheduled ? (
             <View style={S.dailyBriefScheduleNotice}>
