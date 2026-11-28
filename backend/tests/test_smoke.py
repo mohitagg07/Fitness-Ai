@@ -40,6 +40,24 @@ def test_missing_training_preference_does_not_invent_a_gym_time():
     assert window["is_exact"] is False
 
 
+def test_learned_gym_time_takes_priority_and_converts_to_local_time():
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    local_now = datetime(2026, 11, 28, 12, 0, tzinfo=ZoneInfo("Asia/Kolkata"))
+    window = _build_training_window(
+        {"workout_time_preference": "morning"},
+        {"days": {"Saturday": {"typical_hour": 13, "sessions": 4}}},
+        local_now,
+    )
+
+    assert window["display_label"] == "6:30 PM"
+    assert window["source"] == "training_history"
+    assert window["typical_sessions"] == 4
+    assert "4 completed sessions" in window["note"]
+    assert window["is_exact"] is False
+
+
 def _registered_routes() -> set[tuple[str, str]]:
     return {
         (method, route.path)
