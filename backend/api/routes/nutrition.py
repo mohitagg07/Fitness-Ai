@@ -28,6 +28,20 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Nutrition"])
 
 
+def _nutrition_measurement_confidence(profile: dict) -> dict:
+    required = ("weight_kg", "height_cm", "age", "gender")
+    missing = [name for name in required if profile.get(name) is None]
+    return {
+        "nutrition_target_source": "profile" if not missing else "estimated_defaults",
+        "nutrition_target_confidence": "personalized" if not missing else "estimated",
+        "missing_measurements": missing,
+        "measurement_sources": {
+            name: "profile" if profile.get(name) is not None else "estimated_default"
+            for name in required
+        },
+    }
+
+
 # ─── Targets ─────────────────────────────────────────────────────────────────
 
 class FoodEstimateRequest(BaseModel):
@@ -154,6 +168,7 @@ async def get_nutrition_targets(
     user_id = current_user["user_id"]
     training_day = is_training_day if is_training_day is not None else is_training_day_for_user(user_id)
     profile, _ = get_full_user_context(user_id)
+    measurement_confidence = _nutrition_measurement_confidence(profile)
     goal_str = profile.get("goal") or "maintain"
     goal = Goal(goal_str) if goal_str in Goal._value2member_map_ else Goal.maintain
     return calculate_macros(
@@ -184,6 +199,7 @@ async def get_today_nutrition(
     training_day = is_training_day if is_training_day is not None else is_training_day_for_user(user_id)
 
     profile, agent_state = get_full_user_context(user_id)
+    measurement_confidence = _nutrition_measurement_confidence(profile)
     goal_str = profile.get("goal") or "maintain"
     goal = Goal(goal_str) if goal_str in Goal._value2member_map_ else Goal.maintain
     targets = calculate_macros(
@@ -225,6 +241,7 @@ async def get_today_nutrition(
 
     return {
         "date": today,
+        **measurement_confidence,
         "targets": targets,
         "consumed": consumed,
         "remaining": remaining,
@@ -304,6 +321,7 @@ async def get_meal_plan(
     )
     return {
         "date": today_str,
+        **measurement_confidence,
         "goal": goal.value,
         "is_training_day": training_day,
         "targets": targets,
