@@ -38,6 +38,7 @@ import {
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import PressableScale from '../ui/PressableScale';
 import Reveal from '../shared/Reveal';
+import CoachRemindersCard from './CoachRemindersCard';
 
 const APP_VERSION = '1.0.0';
 
@@ -415,6 +416,8 @@ export default function ProfileScreen() {
             {!!profile.food_restrictions?.length && <DetailRow label="Restrictions" value={profile.food_restrictions.join(', ')} last />}
           </View>
         )}
+
+        <CoachRemindersCard />
 
         {/* Settings */}
         <View style={styles.card}>
